@@ -1,3 +1,7 @@
+# Testing commands
+
+    curl -i -X POST localhost:4000/api/users -d '{"email": "test@example.com"}' -H "Content-Type: application/json" 
+
 # Create database
 
     CREATE Role idm WITH PASSWORD 'pwd';
