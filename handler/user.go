@@ -51,5 +51,5 @@ func (h *Handler) handleFindUsers(w http.ResponseWriter, r *http.Request) {
 		render.PlainText(w, r, http.StatusText(http.StatusInternalServerError))
 	}
 	slog.Debug("users:", "users", users)
-	render.PlainText(w, r, http.StatusText(http.StatusOK))
+	render.JSON(w, r, users)
 }
