@@ -20,4 +20,9 @@ func Routes(r *chi.Mux) {
 		render.PlainText(w, r, http.StatusText(http.StatusOK))
 	})
 
+	r.Post("/api/users", handleCreateUser)
+}
+
+func handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	render.PlainText(w, r, http.StatusText(http.StatusOK))
 }
