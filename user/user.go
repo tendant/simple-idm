@@ -17,6 +17,6 @@ type UserParams struct {
 
 func (s UserService) Create(ctx context.Context, params UserParams) (db.User, error) {
 	slog.Debug("Creating user use params:", "params", params)
-	user, err := queries.CreateUser(ctx, params.Email)
+	user, err := s.queries.CreateUser(ctx, params.Email)
 	return user, err
 }
