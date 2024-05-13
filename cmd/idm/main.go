@@ -6,8 +6,11 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/chi-demo/app"
+	"github.com/tendant/simple-user/handler"
+	"github.com/tendant/simple-user/user"
 	"github.com/tendant/simple-user/user/db"
 	"golang.org/x/exp/slog"
 )
@@ -54,18 +57,19 @@ func (d IdmDbConfig) toDbConfig() DbConfig {
 
 func main() {
 	myApp := app.Default()
-	Routes(myApp.R)
 
-	pool, err := pgxpool.New(context.Background(), cfg.DemoDb.toDbConfig().toDatabaseUrl())
+	dbConfig := IdmDbConfig{}
+	cleanenv.ReadEnv(&dbConfig)
+
+	slog.Debug("db pool url **********:", "url", dbConfig.toDbConfig().toDatabaseUrl())
+	pool, err := pgxpool.New(context.Background(), dbConfig.toDbConfig().toDatabaseUrl())
 	if err != nil {
-		slog.Error("Failed creating dbpool", "db", cfg.DemoDb.Database, "url", cfg.DemoDb.toDbConfig().toDatabaseUrl())
+		slog.Error("Failed creating dbpool", "db", dbConfig.Database, "url", dbConfig.toDbConfig().toDatabaseUrl())
 		os.Exit(-1)
 	} else {
 		queries := db.New(pool)
-		userService := UserService{
-			queries: queries,
-		}
-		handler := Handler{
+		userService := user.New(queries)
+		handler := handler.Handler{
 			UserService: userService,
 		}
 		handler.Routes(myApp.R)
