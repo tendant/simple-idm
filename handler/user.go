@@ -40,8 +40,12 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	userParams := user.UserParams{}
 	copier.Copy(&userParams, params)
 	// svc := user.UserService{}
-	h.UserService.Create(r.Context(), userParams)
-	render.PlainText(w, r, http.StatusText(http.StatusOK))
+	user, err := h.UserService.Create(r.Context(), userParams)
+	if err != nil {
+		slog.Error("Falied creating users", "err", err)
+		render.PlainText(w, r, http.StatusText(http.StatusInternalServerError))
+	}
+	render.JSON(w, r, user)
 }
 
 func (h *Handler) handleFindUsers(w http.ResponseWriter, r *http.Request) {
