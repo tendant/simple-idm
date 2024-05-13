@@ -1,6 +1,8 @@
 # Testing commands
 
     curl -i -X POST localhost:4000/api/users -d '{"email": "test@example.com"}' -H "Content-Type: application/json" 
+    
+    curl -i localhost:4000/api/users
 
 # Create database
 

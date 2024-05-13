@@ -28,3 +28,36 @@ func (q *Queries) CreateUser(ctx context.Context, email string) (User, error) {
 	)
 	return i, err
 }
+
+const findUsers = `-- name: FindUsers :many
+SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email
+FROM users
+limit 20
+`
+
+func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.Query(ctx, findUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.Uuid,
+			&i.CreatedAt,
+			&i.LastModifiedAt,
+			&i.DeletedAt,
+			&i.CreatedBy,
+			&i.Email,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

@@ -21,6 +21,7 @@ func (h *Handler) Routes(r *chi.Mux) {
 	})
 
 	r.With(httpin.NewInput(UserInput{})).Post("/api/users", h.handleCreateUser)
+	r.Get("/api/users", h.handleFindUsers)
 }
 
 type UserParams struct {
@@ -40,5 +41,15 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	copier.Copy(&userParams, params)
 	// svc := user.UserService{}
 	h.UserService.Create(r.Context(), userParams)
+	render.PlainText(w, r, http.StatusText(http.StatusOK))
+}
+
+func (h *Handler) handleFindUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.UserService.FindUsers(r.Context())
+	if err != nil {
+		slog.Error("Failed finding users:", "err", err)
+		render.PlainText(w, r, http.StatusText(http.StatusInternalServerError))
+	}
+	slog.Debug("users:", "users", users)
 	render.PlainText(w, r, http.StatusText(http.StatusOK))
 }

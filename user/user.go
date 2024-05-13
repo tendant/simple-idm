@@ -30,3 +30,8 @@ func (s UserService) Create(ctx context.Context, params UserParams) (db.User, er
 	}
 	return user, err
 }
+
+func (s UserService) FindUsers(ctx context.Context) ([]db.User, error) {
+	users, err := s.queries.FindUsers(ctx)
+	return users, err
+}
