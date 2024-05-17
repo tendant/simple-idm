@@ -33,10 +33,6 @@ func (c DbConfig) toDatabaseUrl() string {
 	return u.String()
 }
 
-type DbConf interface {
-	toDbConfig() DbConfig
-}
-
 type IdmDbConfig struct {
 	Host     string `env:"IDM_PG_HOST" env-default:"localhost"`
 	Port     uint16 `env:"IDM_PG_PORT" env-default:"5432"`
