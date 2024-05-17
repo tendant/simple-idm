@@ -2,36 +2,16 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"net/url"
 	"os"
 
 	"github.com/ilyakaznacheev/cleanenv"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/chi-demo/app"
+	utils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-user/handler"
 	"github.com/tendant/simple-user/user"
 	"github.com/tendant/simple-user/user/db"
 	"golang.org/x/exp/slog"
 )
-
-type DbConfig struct {
-	Host     string
-	Port     uint16
-	Database string
-	User     string
-	Password string
-}
-
-func (c DbConfig) toDatabaseUrl() string {
-	u := url.URL{
-		Scheme: "postgres",
-		User:   url.UserPassword(c.User, c.Password),
-		Host:   fmt.Sprintf("%s:%d", c.Host, c.Port),
-		Path:   c.Database,
-	}
-	return u.String()
-}
 
 type IdmDbConfig struct {
 	Host     string `env:"IDM_PG_HOST" env-default:"localhost"`
@@ -41,8 +21,8 @@ type IdmDbConfig struct {
 	Password string `env:"IDM_PG_PASSWORD" env-default:"pwd"`
 }
 
-func (d IdmDbConfig) toDbConfig() DbConfig {
-	return DbConfig{
+func (d IdmDbConfig) toDbConfig() utils.DbConfig {
+	return utils.DbConfig{
 		Host:     d.Host,
 		Port:     d.Port,
 		Database: d.Database,
@@ -54,13 +34,14 @@ func (d IdmDbConfig) toDbConfig() DbConfig {
 func main() {
 	myApp := app.Default()
 
-	dbConfig := IdmDbConfig{}
-	cleanenv.ReadEnv(&dbConfig)
+	idmDbConfig := IdmDbConfig{}
+	cleanenv.ReadEnv(&idmDbConfig)
+	dbConfig := idmDbConfig.toDbConfig()
 
-	slog.Debug("db pool url **********:", "url", dbConfig.toDbConfig().toDatabaseUrl())
-	pool, err := pgxpool.New(context.Background(), dbConfig.toDbConfig().toDatabaseUrl())
+	slog.Debug("db pool url **********:", "url", dbConfig)
+	pool, err := utils.NewDbPool(context.Background(), dbConfig)
 	if err != nil {
-		slog.Error("Failed creating dbpool", "db", dbConfig.Database, "url", dbConfig.toDbConfig().toDatabaseUrl())
+		slog.Error("Failed creating dbpool", "db", dbConfig.Database, "host", dbConfig.Host, "port", dbConfig.Port, "user", dbConfig.User)
 		os.Exit(-1)
 	} else {
 		queries := db.New(pool)

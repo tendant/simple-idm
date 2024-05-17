@@ -7,9 +7,11 @@ require (
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/go-chi/render v1.0.2
 	github.com/google/uuid v1.3.0
+	github.com/ilyakaznacheev/cleanenv v1.4.0
 	github.com/jackc/pgx/v5 v5.5.5
 	github.com/jinzhu/copier v0.4.0
 	github.com/tendant/chi-demo v1.1.0
+	github.com/tendant/db-utils v0.0.1
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
 )
 
@@ -21,7 +23,6 @@ require (
 	github.com/go-chi/cors v1.2.1 // indirect
 	github.com/go-chi/httplog v0.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/ilyakaznacheev/cleanenv v1.4.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
