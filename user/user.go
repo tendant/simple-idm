@@ -3,6 +3,8 @@ package user
 import (
 	"context"
 
+	"github.com/google/uuid"
+	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-user/user/db"
 	"golang.org/x/exp/slog"
 )
@@ -34,4 +36,16 @@ func (s UserService) Create(ctx context.Context, params UserParams) (db.User, er
 func (s UserService) FindUsers(ctx context.Context) ([]db.User, error) {
 	users, err := s.queries.FindUsers(ctx)
 	return users, err
+}
+
+type UpdateUserParams struct {
+	Uuid  uuid.UUID
+	Email string
+}
+
+func (s UserService) UpdateUsers(ctx context.Context, userParams UpdateUserParams) (db.User, error) {
+	updateUserParams := db.UpdateUserParams{}
+	copier.Copy(updateUserParams, userParams)
+	user, err := s.queries.UpdateUser(ctx, updateUserParams)
+	return user, err
 }

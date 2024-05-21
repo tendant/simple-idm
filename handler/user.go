@@ -21,10 +21,12 @@ func (h *Handler) Routes(r *chi.Mux) {
 	})
 
 	r.With(httpin.NewInput(UserInput{})).Post("/api/users", h.handleCreateUser)
+	r.With(httpin.NewInput(UserInput{})).Put("/api/users", h.handleUpdateUser)
 	r.Get("/api/users", h.handleFindUsers)
 }
 
 type UserParams struct {
+	Uuid  string `json:"uuid"`
 	Email string `json:"email"`
 }
 
