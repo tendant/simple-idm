@@ -45,7 +45,8 @@ type UpdateUserParams struct {
 
 func (s UserService) UpdateUsers(ctx context.Context, userParams UpdateUserParams) (db.User, error) {
 	updateUserParams := db.UpdateUserParams{}
-	copier.Copy(updateUserParams, userParams)
+	slog.Debug("userParams service", "userParams", userParams)
+	copier.Copy(&updateUserParams, userParams)
 	user, err := s.queries.UpdateUser(ctx, updateUserParams)
 	return user, err
 }

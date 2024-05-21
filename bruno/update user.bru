@@ -1,17 +1,18 @@
 meta {
   name: update user
   type: http
-  seq: 4
+  seq: 3
 }
 
 put {
-  url: {{BASE_URL}}/api/users/:id
+  url: {{BASE_URL}}/api/users
   body: json
   auth: none
 }
 
 body:json {
   {
-    "email": "test-update@example.com"
+    "email": "Updated-{{Email}}",
+    "uuid": "{{Uuid}}"
   }
 }

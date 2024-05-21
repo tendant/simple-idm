@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slog"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -75,6 +76,7 @@ type UpdateUserParams struct {
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+	slog.Debug("arg", "arg", arg)
 	row := q.db.QueryRow(ctx, updateUser, arg.Uuid, arg.Email)
 	var i User
 	err := row.Scan(

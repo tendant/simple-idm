@@ -1,7 +1,7 @@
 meta {
   name: create user
   type: http
-  seq: 3
+  seq: 2
 }
 
 post {
@@ -22,4 +22,8 @@ script:pre-request {
   const email = faker.internet.email();
   
   bru.setVar("Email", email)
+}
+
+script:post-response {
+  bru.setVar("Uuid", res.body.uuid)
 }

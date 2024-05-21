@@ -67,6 +67,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	params := input.Payload
 	userParams := user.UpdateUserParams{}
 	copier.Copy(&userParams, params)
+	slog.Debug("update user:", "userParams", userParams)
 	user, err := h.UserService.UpdateUsers(r.Context(), userParams)
 	if err != nil {
 		slog.Error("Failed updating user", "err", err)
