@@ -43,7 +43,8 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	user, err := h.UserService.Create(r.Context(), userParams)
 	if err != nil {
 		slog.Error("Falied creating users", "err", err)
-		render.PlainText(w, r, http.StatusText(http.StatusInternalServerError))
+		http.Error(w, "Failed creating users", http.StatusInternalServerError)
+		return
 	}
 	render.JSON(w, r, user)
 }
@@ -52,8 +53,23 @@ func (h *Handler) handleFindUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.UserService.FindUsers(r.Context())
 	if err != nil {
 		slog.Error("Failed finding users:", "err", err)
-		render.PlainText(w, r, http.StatusText(http.StatusInternalServerError))
+		http.Error(w, "Failed finding users", http.StatusInternalServerError)
+		return
 	}
 	slog.Debug("users:", "users", users)
 	render.JSON(w, r, users)
+}
+
+func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	input := r.Context().Value(httpin.Input).(*UserInput)
+	params := input.Payload
+	userParams := user.UpdateUserParams{}
+	copier.Copy(&userParams, params)
+	user, err := h.UserService.UpdateUsers(r.Context(), userParams)
+	if err != nil {
+		slog.Error("Failed updating user", "err", err)
+		http.Error(w, "Failed updating user", http.StatusInternalServerError)
+		return
+	}
+	render.JSON(w, r, user)
 }
