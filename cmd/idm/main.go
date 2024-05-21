@@ -38,7 +38,6 @@ func main() {
 	cleanenv.ReadEnv(&idmDbConfig)
 	dbConfig := idmDbConfig.toDbConfig()
 
-	slog.Debug("db pool url **********:", "url", dbConfig)
 	pool, err := utils.NewDbPool(context.Background(), dbConfig)
 	if err != nil {
 		slog.Error("Failed creating dbpool", "db", dbConfig.Database, "host", dbConfig.Host, "port", dbConfig.Port, "user", dbConfig.User)
