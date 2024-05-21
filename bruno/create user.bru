@@ -1,0 +1,25 @@
+meta {
+  name: create user
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BASE_URL}}/api/users
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{Email}}"
+  }
+}
+
+script:pre-request {
+  const {faker} = require("@faker-js/faker")
+  
+  const email = faker.internet.email();
+  
+  bru.setVar("Email", email)
+}

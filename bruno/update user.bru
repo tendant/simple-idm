@@ -1,0 +1,17 @@
+meta {
+  name: update user
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BASE_URL}}/api/users/:id
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "test-update@example.com"
+  }
+}
