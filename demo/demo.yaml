@@ -1,0 +1,11 @@
+openapi: 3.0.0
+info:
+  contact:
+    name: Torpago Team
+    url: https://www.torpago.com
+  description: Simple Idm module
+  title: Simle Idm module
+  version: 1.0.0
+paths:
+components:
+  schemas:
