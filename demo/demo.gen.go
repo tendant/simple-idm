@@ -7,24 +7,123 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
+	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
 
+	"github.com/discord-gophers/goapi-gen/runtime"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 )
+
+// Greeting defines model for Greeting.
+type Greeting struct {
+	ID   *int    `json:"id,omitempty"`
+	Name *string `json:"name,omitempty"`
+}
+
+// GetHelloParams defines parameters for GetHello.
+type GetHelloParams struct {
+	// The name to include in the greeting.
+	Name *string `json:"name,omitempty"`
+}
+
+// Response is a common response struct for all the API calls.
+// A Response object may be instantiated via functions for specific operation responses.
+// It may also be instantiated directly, for the purpose of responding with a single status code.
+type Response struct {
+	body        interface{}
+	Code        int
+	contentType string
+}
+
+// Render implements the render.Renderer interface. It sets the Content-Type header
+// and status code based on the response definition.
+func (resp *Response) Render(w http.ResponseWriter, r *http.Request) error {
+	w.Header().Set("Content-Type", resp.contentType)
+	render.Status(r, resp.Code)
+	return nil
+}
+
+// Status is a builder method to override the default status code for a response.
+func (resp *Response) Status(code int) *Response {
+	resp.Code = code
+	return resp
+}
+
+// ContentType is a builder method to override the default content type for a response.
+func (resp *Response) ContentType(contentType string) *Response {
+	resp.contentType = contentType
+	return resp
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// This is used to only marshal the body of the response.
+func (resp *Response) MarshalJSON() ([]byte, error) {
+	return json.Marshal(resp.body)
+}
+
+// MarshalXML implements the xml.Marshaler interface.
+// This is used to only marshal the body of the response.
+func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	return e.Encode(resp.body)
+}
+
+// GetHelloJSON200Response is a constructor method for a GetHello response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetHelloJSON200Response(body Greeting) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Get a greeting
+	// (GET /hello)
+	GetHello(w http.ResponseWriter, r *http.Request, params GetHelloParams) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler          ServerInterface
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// GetHello operation middleware
+func (siw *ServerInterfaceWrapper) GetHello(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetHelloParams
+
+	// ------------- Optional query parameter "name" -------------
+
+	if err := runtime.BindQueryParameter("form", true, false, "name", r.URL.Query(), &params.Name); err != nil {
+		err = fmt.Errorf("invalid format for parameter name: %w", err)
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "name"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetHello(w, r, params)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
 }
 
 type UnescapedCookieParamError struct {
@@ -136,8 +235,13 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r := options.BaseRouter
+	wrapper := ServerInterfaceWrapper{
+		Handler:          si,
+		ErrorHandlerFunc: options.ErrorHandlerFunc,
+	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
+		r.Get("/hello", wrapper.GetHello)
 	})
 	return r
 }
@@ -163,9 +267,13 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/1yMMW6FMBBEr4KmtvyJ0u0NUocLWGYTLNm7K3sJBeLuEaFLN3pvZk5kbabC4gN0XgFF",
-	"vhR0c/GU/Y6SGoOwaLf0rdPCqSFg7xWEzd0GvV7HcUR/CjFrwxWw8si9mBcVED5Ls8rTx9qmputeGQFe",
-	"vPLj/qsf7uMZvsU5zvefGkuyAsL7Hwqw5NsAyV7r9RsAAP//w/adU8oAAAA=",
+	"H4sIAAAAAAAC/1yST5PTMAzFv4pHcMwkWbj5xmlZjmxvDAfjvCbeif9gK5ROJ9+dkdMNbS+JRpZ/ftLT",
+	"hWz0KQYELqQvVOwEb2r4nAF2YZQ45ZiQ2aGeuEG++Gt8mkH6qSE+J5AmFxgjMq0NBeNxV0Xf4hRoLy2c",
+	"hb2ueyb+eoNlWiXlwjHKbRsDG8sSbkA6xJzMGNUBxlNDS55J08Sciu660+nU8lbQ2uhFx4Bis0vsYiBN",
+	"r07EqJfBKx+HZYYIclz1vTr/ePQHuWwXn9q+7YUXE4JJjjR9rqmGkuGpjqWbMM9V9ogq+f7t7+Alh6KM",
+	"Gq+TVR6lmBEtVW42UvkykKZn8NcKE3w2HoxcSP94ZB4mKBmM4qhcsPMyQLmgeML+iMCd1P5ekM/07sz2",
+	"a66Gi9pHY342lFFSDGVz/VPfv1uCUPszKc3OVtXdWxFBlxvex4wjafrQ/d+w7rpe3b5b1e37nr6o2RVW",
+	"8bi3UNq6J2Xx3uTzNp6bMQpk/RcAAP//H6nJRMkCAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
