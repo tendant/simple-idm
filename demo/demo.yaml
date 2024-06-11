@@ -7,5 +7,32 @@ info:
   title: Simle Idm module
   version: 1.0.0
 paths:
+  /hello:
+    get:
+      summary: Get a greeting
+      description: Returns a greeting message.
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+          required: false
+          description: The name to include in the greeting.
+      responses:
+        '200':
+          description: A list of greetings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Greeting'
 components:
   schemas:
+    Greeting:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "John"
