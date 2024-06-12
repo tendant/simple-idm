@@ -99,10 +99,46 @@ func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuidStr stri
 	}
 }
 
-// FIXME: Update user details by UUID
+// Update user details by UUID
 // (PUT /user/{uuid})
-func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
-	return nil
+func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	uuidParam, err := uuid.Parse(uuidStr)
+
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid uuid",
+		}
+	}
+
+	nameParam := ""
+	err = render.DecodeJSON(r.Body, &nameParam)
+
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	updateUserParam := UpdateUserParams{
+		Uuid: uuidParam,
+		Name: nameParam,
+	}
+
+	dbUser, err := h.userService.UpdateUsers(r.Context(), updateUserParam)
+	if err != nil {
+		slog.Error("Failed to update user details", updateUserParam, "err", err)
+		return &Response{
+			body: "Failed to update user details",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: dbUser,
+	}
 }
 
 func Routes(r *chi.Mux, handle Handle) {

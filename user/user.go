@@ -42,8 +42,8 @@ func (s UserService) FindUsers(ctx context.Context) ([]db.User, error) {
 }
 
 type UpdateUserParams struct {
-	Uuid  uuid.UUID
-	Email string
+	Uuid uuid.UUID
+	Name string
 }
 
 func (s UserService) UpdateUsers(ctx context.Context, userParams UpdateUserParams) (db.User, error) {
