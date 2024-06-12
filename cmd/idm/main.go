@@ -31,13 +31,19 @@ func (d IdmDbConfig) toDbConfig() utils.DbConfig {
 	}
 }
 
+type Config struct {
+	IdmDbConfig IdmDbConfig
+	AppConfig   app.AppConfig
+}
+
 func main() {
+
+	config := Config{}
+	cleanenv.ReadEnv(&config)
+
 	myApp := app.Default()
 
-	idmDbConfig := IdmDbConfig{}
-	cleanenv.ReadEnv(&idmDbConfig)
-	dbConfig := idmDbConfig.toDbConfig()
-
+	dbConfig := config.IdmDbConfig.toDbConfig()
 	pool, err := utils.NewDbPool(context.Background(), dbConfig)
 	if err != nil {
 		slog.Error("Failed creating dbpool", "db", dbConfig.Database, "host", dbConfig.Host, "port", dbConfig.Port, "user", dbConfig.User)
