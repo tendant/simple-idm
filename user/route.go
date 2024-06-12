@@ -19,10 +19,21 @@ func NewHandle(userService *UserService) Handle {
 	}
 }
 
-// FIXME: Get a list of users
+// Get a list of users
 // (GET /user)
 func (h Handle) GetUser(w http.ResponseWriter, r *http.Request) *Response {
-	return nil
+	dbUsers, err := h.userService.FindUsers(r.Context())
+	if err != nil {
+		slog.Error("Failed getting users err", err)
+		return &Response{
+			body: "Failed getting users",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	return &Response{
+		Code: http.StatusOK,
+		body: dbUsers,
+	}
 }
 
 // Create a new user
