@@ -21,6 +21,7 @@ func New(queries *db.Queries) *UserService {
 
 type UserParams struct {
 	Email string
+	Name  string
 }
 
 func (s UserService) Create(ctx context.Context, params UserParams) (db.User, error) {

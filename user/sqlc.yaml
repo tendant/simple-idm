@@ -21,3 +21,18 @@ overrides:
   - db_type: "uuid"
     go_type: "github.com/google/uuid.NullUUID"
     nullable: true
+  - db_type: "pg_catalog.timestamp"
+    go_type: "time.Time"
+  - db_type: "pg_catalog.timestamp"
+    go_type: "database/sql.NullTime"
+    nullable: true
+  - go_type: "database/sql.NullInt64"
+    db_type: "pg_catalog.int8"
+    nullable: true
+  - go_type: "int64"
+    db_type: "pg_catalog.int8"
+  - go_type: "string"
+    db_type: "pg_catalog.varchar"
+  - go_type: "database/sql.NullString"
+    db_type: "pg_catalog.varchar"
+    nullable: true

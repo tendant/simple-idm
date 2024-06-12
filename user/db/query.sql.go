@@ -7,9 +7,9 @@ package db
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -19,8 +19,8 @@ RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, nam
 `
 
 type CreateUserParams struct {
-	Email string      `json:"email"`
-	Name  pgtype.Text `json:"name"`
+	Email string         `json:"email"`
+	Name  sql.NullString `json:"name"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -78,8 +78,8 @@ RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, nam
 `
 
 type UpdateUserParams struct {
-	Uuid uuid.UUID   `json:"uuid"`
-	Name pgtype.Text `json:"name"`
+	Uuid uuid.UUID      `json:"uuid"`
+	Name sql.NullString `json:"name"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {

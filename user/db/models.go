@@ -5,8 +5,10 @@
 package db
 
 import (
+	"database/sql"
+	"time"
+
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type SchemaMigration struct {
@@ -15,11 +17,11 @@ type SchemaMigration struct {
 }
 
 type User struct {
-	Uuid           uuid.UUID        `json:"uuid"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	LastModifiedAt pgtype.Timestamp `json:"last_modified_at"`
-	DeletedAt      pgtype.Timestamp `json:"deleted_at"`
-	CreatedBy      pgtype.Text      `json:"created_by"`
-	Email          string           `json:"email"`
-	Name           pgtype.Text      `json:"name"`
+	Uuid           uuid.UUID      `json:"uuid"`
+	CreatedAt      time.Time      `json:"created_at"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	DeletedAt      sql.NullTime   `json:"deleted_at"`
+	CreatedBy      sql.NullString `json:"created_by"`
+	Email          string         `json:"email"`
+	Name           sql.NullString `json:"name"`
 }
