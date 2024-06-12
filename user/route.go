@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"golang.org/x/exp/slog"
 )
@@ -58,13 +59,33 @@ func (h Handle) PostUser(w http.ResponseWriter, r *http.Request) *Response {
 // FIXME: Delete user by UUID
 // (DELETE /user/{uuid})
 func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
+
 	return nil
 }
 
 // FIXME: Get user details by UUID
 // (GET /user/{uuid})
-func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
-	return nil
+func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	uuid, err := uuid.Parse(uuidStr)
+	if err != nil {
+		slog.Error("Invalid UUID format", "err", err)
+		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
+		return nil
+	}
+	params := GetUserUUIDParams{
+		Uuid: uuid,
+	}
+	user, err := h.userService.GetUserUUID(r.Context(), params)
+	if err != nil {
+		slog.Error("Failed getting user", "err", err)
+		http.Error(w, "Failed getting user", http.StatusInternalServerError)
+		return nil
+	}
+	return &Response{
+		body:        user,
+		Code:        200,
+		contentType: "application/json",
+	}
 }
 
 // FIXME: Update user details by UUID
