@@ -38,6 +38,9 @@ migrate-up-idm:
 migrate-down-idm:
 	migrate -source file://migrations/idm -database postgres://idm:pwd@localhost:5432/idm_db?sslmode=disable down 1
 
+dump-idm:
+	pg_dump --schema-only -h localhost -p 5432 -U idm -d idm_db -n public > idm_db.sql
+
 run:
 	arelo -t . -p '**/*.go' -i '**/.*' -i '**/*_test.go' -- go run .
 
