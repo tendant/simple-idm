@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+	"golang.org/x/exp/slog"
 )
 
 type Handle struct {
@@ -25,7 +27,32 @@ func (h Handle) GetUser(w http.ResponseWriter, r *http.Request) *Response {
 // Create a new user
 // (POST /user)
 func (h Handle) PostUser(w http.ResponseWriter, r *http.Request) *Response {
-	return nil
+	data := PostUserJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	slog.Debug("request params:", "data", data)
+
+	params := UserParams{
+		Email: *data.Email,
+	}
+	dbUser, err := h.userService.Create(r.Context(), params)
+	if err != nil {
+		slog.Error("Failed creating user", params, "err", err)
+		return &Response{
+			body: "Failed creating user",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	return &Response{
+		Code: http.StatusCreated,
+		body: dbUser,
+	}
 }
 
 // Delete user by UUID
