@@ -28,6 +28,16 @@ clean:
 
 .PHONY: clean
 
+migration-create-idm:
+# Usaged: make migration-create-idm name="demo"
+	migrate create -dir "migrations/idm" -format "20060102150405" -ext sql $(name)
+
+migrate-up-idm:
+	migrate -source file://migrations/idm -database postgres://idm_db:pwd@localhost:5432/idm_db?sslmode=disable up
+
+migrate-down-idm:
+	migrate -source file://migrations/idm -database postgres://idm_db:pwd@localhost:5432/idm_db?sslmode=disable down
+
 run:
 	arelo -t . -p '**/*.go' -i '**/.*' -i '**/*_test.go' -- go run .
 
