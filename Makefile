@@ -36,7 +36,7 @@ migrate-up-idm:
 	migrate -source file://migrations/idm -database postgres://idm:pwd@localhost:5432/idm_db?sslmode=disable up
 
 migrate-down-idm:
-	migrate -source file://migrations/idm -database postgres://idm:pwd@localhost:5432/idm_db?sslmode=disable down
+	migrate -source file://migrations/idm -database postgres://idm:pwd@localhost:5432/idm_db?sslmode=disable down 1
 
 run:
 	arelo -t . -p '**/*.go' -i '**/.*' -i '**/*_test.go' -- go run .
