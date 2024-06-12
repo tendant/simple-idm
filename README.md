@@ -18,3 +18,11 @@
 
     ALTER TABLE users OWNER TO idm;
    
+   
+   
+# API Test Commands
+
+## Create User
+
+    curl -i -X POST localhost:4000/api/v4/user  --data '{"name":"xyz", "email": "abc"}'  --header "Content-Type: application/json"
+    
