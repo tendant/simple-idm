@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/jinzhu/copier"
 	"golang.org/x/exp/slog"
 )
 
@@ -38,12 +39,11 @@ func (h Handle) PostUser(w http.ResponseWriter, r *http.Request) *Response {
 
 	slog.Debug("request params:", "data", data)
 
-	params := UserParams{
-		Email: *data.Email,
-	}
-	dbUser, err := h.userService.Create(r.Context(), params)
+	userParams := UserParams{}
+	copier.Copy(&userParams, data)
+	dbUser, err := h.userService.Create(r.Context(), userParams)
 	if err != nil {
-		slog.Error("Failed creating user", params, "err", err)
+		slog.Error("Failed creating user", userParams, "err", err)
 		return &Response{
 			body: "Failed creating user",
 			Code: http.StatusInternalServerError,

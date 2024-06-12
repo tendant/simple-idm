@@ -26,7 +26,9 @@ type UserParams struct {
 
 func (s UserService) Create(ctx context.Context, params UserParams) (db.User, error) {
 	slog.Debug("Creating user use params:", "params", params)
-	user, err := s.queries.CreateUser(ctx, params.Email)
+	createUserParams := db.CreateUserParams{}
+	copier.Copy(&createUserParams, params)
+	user, err := s.queries.CreateUser(ctx, createUserParams)
 	if err != nil {
 		slog.Error("Failed creating user", "params", params, "err", err)
 		return db.User{}, err
