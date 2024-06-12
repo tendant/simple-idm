@@ -9,6 +9,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type SchemaMigration struct {
+	Version int64 `json:"version"`
+	Dirty   bool  `json:"dirty"`
+}
+
 type User struct {
 	Uuid           uuid.UUID        `json:"uuid"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
@@ -16,4 +21,5 @@ type User struct {
 	DeletedAt      pgtype.Timestamp `json:"deleted_at"`
 	CreatedBy      pgtype.Text      `json:"created_by"`
 	Email          string           `json:"email"`
+	Name           pgtype.Text      `json:"name"`
 }

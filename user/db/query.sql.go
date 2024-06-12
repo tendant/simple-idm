@@ -9,13 +9,13 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"golang.org/x/exp/slog"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email)
 VALUES ($1)
-RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email
+RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 `
 
 func (q *Queries) CreateUser(ctx context.Context, email string) (User, error) {
@@ -28,6 +28,7 @@ func (q *Queries) CreateUser(ctx context.Context, email string) (User, error) {
 		&i.DeletedAt,
 		&i.CreatedBy,
 		&i.Email,
+		&i.Name,
 	)
 	return i, err
 }
@@ -38,15 +39,24 @@ FROM users
 limit 20
 `
 
-func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
+type FindUsersRow struct {
+	Uuid           uuid.UUID        `json:"uuid"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	LastModifiedAt pgtype.Timestamp `json:"last_modified_at"`
+	DeletedAt      pgtype.Timestamp `json:"deleted_at"`
+	CreatedBy      pgtype.Text      `json:"created_by"`
+	Email          string           `json:"email"`
+}
+
+func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 	rows, err := q.db.Query(ctx, findUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []FindUsersRow
 	for rows.Next() {
-		var i User
+		var i FindUsersRow
 		if err := rows.Scan(
 			&i.Uuid,
 			&i.CreatedAt,
@@ -67,7 +77,7 @@ func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
 
 const updateUser = `-- name: UpdateUser :one
 UPDATE users SET email = $2 WHERE uuid = $1
-RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email
+RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 `
 
 type UpdateUserParams struct {
@@ -76,7 +86,6 @@ type UpdateUserParams struct {
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	slog.Debug("arg", "arg", arg)
 	row := q.db.QueryRow(ctx, updateUser, arg.Uuid, arg.Email)
 	var i User
 	err := row.Scan(
@@ -86,6 +95,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.DeletedAt,
 		&i.CreatedBy,
 		&i.Email,
+		&i.Name,
 	)
 	return i, err
 }
