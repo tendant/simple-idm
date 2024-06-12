@@ -19,7 +19,7 @@ func NewHandle(userService *UserService) Handle {
 	}
 }
 
-// Get a list of users
+// FIXME: Get a list of users
 // (GET /user)
 func (h Handle) GetUser(w http.ResponseWriter, r *http.Request) *Response {
 	return nil
@@ -55,19 +55,19 @@ func (h Handle) PostUser(w http.ResponseWriter, r *http.Request) *Response {
 	}
 }
 
-// Delete user by UUID
+// FIXME: Delete user by UUID
 // (DELETE /user/{uuid})
 func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
 	return nil
 }
 
-// Get user details by UUID
+// FIXME: Get user details by UUID
 // (GET /user/{uuid})
 func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
 	return nil
 }
 
-// Update user details by UUID
+// FIXME: Update user details by UUID
 // (PUT /user/{uuid})
 func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
 	return nil
