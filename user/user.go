@@ -53,3 +53,15 @@ func (s UserService) UpdateUsers(ctx context.Context, userParams UpdateUserParam
 	user, err := s.queries.UpdateUser(ctx, updateUserParams)
 	return user, err
 }
+
+type GetUserUUIDParams struct {
+	Uuid uuid.UUID
+}
+
+func (s UserService) GetUserUUID(ctx context.Context, userParams GetUserUUIDParams) (db.User, error) {
+	getUserUUIDParams := GetUserUUIDParams{}
+	slog.Debug("userParams service", "userParams", userParams)
+	copier.Copy(&getUserUUIDParams, userParams)
+	user, err := s.queries.GetUserUUID(ctx, getUserUUIDParams.Uuid)
+	return user, err
+}
