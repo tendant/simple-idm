@@ -48,16 +48,16 @@ func main() {
 	if err != nil {
 		slog.Error("Failed creating dbpool", "db", dbConfig.Database, "host", dbConfig.Host, "port", dbConfig.Port, "user", dbConfig.User)
 		os.Exit(-1)
-	} else {
-		queries := db.New(pool)
-		userService := user.New(queries)
-		handler := handler.Handler{
-			UserService: userService,
-		}
-		handler.Routes(myApp.R)
 	}
 
-	var userHandle user.Handle
+	queries := db.New(pool)
+	userService := user.New(queries)
+	handler := handler.Handler{
+		UserService: userService,
+	}
+	handler.Routes(myApp.R)
+
+	userHandle := user.NewHandle(userService)
 
 	user.Routes(myApp.R, userHandle)
 

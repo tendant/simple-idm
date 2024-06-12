@@ -7,6 +7,13 @@ import (
 )
 
 type Handle struct {
+	userService *UserService
+}
+
+func NewHandle(userService *UserService) Handle {
+	return Handle{
+		userService: userService,
+	}
 }
 
 // Get a list of users
