@@ -57,6 +57,10 @@ func main() {
 		handler.Routes(myApp.R)
 	}
 
+	var userHandle user.Handle
+
+	user.Routes(myApp.R, userHandle)
+
 	myApp.Run()
 
 }
