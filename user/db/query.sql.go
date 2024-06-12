@@ -13,13 +13,18 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email)
-VALUES ($1)
+INSERT INTO users (email, name)
+VALUES ($1, $2)
 RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 `
 
-func (q *Queries) CreateUser(ctx context.Context, email string) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, email)
+type CreateUserParams struct {
+	Email string      `json:"email"`
+	Name  pgtype.Text `json:"name"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.Name)
 	var i User
 	err := row.Scan(
 		&i.Uuid,
@@ -34,29 +39,20 @@ func (q *Queries) CreateUser(ctx context.Context, email string) (User, error) {
 }
 
 const findUsers = `-- name: FindUsers :many
-SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email
+SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users
 limit 20
 `
 
-type FindUsersRow struct {
-	Uuid           uuid.UUID        `json:"uuid"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	LastModifiedAt pgtype.Timestamp `json:"last_modified_at"`
-	DeletedAt      pgtype.Timestamp `json:"deleted_at"`
-	CreatedBy      pgtype.Text      `json:"created_by"`
-	Email          string           `json:"email"`
-}
-
-func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
+func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
 	rows, err := q.db.Query(ctx, findUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []FindUsersRow
+	var items []User
 	for rows.Next() {
-		var i FindUsersRow
+		var i User
 		if err := rows.Scan(
 			&i.Uuid,
 			&i.CreatedAt,
@@ -64,6 +60,7 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 			&i.DeletedAt,
 			&i.CreatedBy,
 			&i.Email,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -76,17 +73,17 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 }
 
 const updateUser = `-- name: UpdateUser :one
-UPDATE users SET email = $2 WHERE uuid = $1
+UPDATE users SET name = $2 WHERE uuid = $1
 RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 `
 
 type UpdateUserParams struct {
-	Uuid  uuid.UUID `json:"uuid"`
-	Email string    `json:"email"`
+	Uuid uuid.UUID   `json:"uuid"`
+	Name pgtype.Text `json:"name"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUser, arg.Uuid, arg.Email)
+	row := q.db.QueryRow(ctx, updateUser, arg.Uuid, arg.Name)
 	var i User
 	err := row.Scan(
 		&i.Uuid,
