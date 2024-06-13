@@ -15,6 +15,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/discord-gophers/goapi-gen/runtime"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -51,6 +52,11 @@ type PostPasswordResetJSONBody PasswordReset
 // PostPasswordResetInitJSONBody defines parameters for PostPasswordResetInit.
 type PostPasswordResetInitJSONBody struct {
 	Email *string `json:"email,omitempty"`
+}
+
+// GetTokenRefreshParams defines parameters for GetTokenRefresh.
+type GetTokenRefreshParams struct {
+	RefreshToken string `json:"refreshToken"`
 }
 
 // PostLoginJSONRequestBody defines body for PostLogin for application/json ContentType.
@@ -152,6 +158,19 @@ func PostPasswordResetInitJSON200Response(body struct {
 	}
 }
 
+// GetTokenRefreshJSON200Response is a constructor method for a GetTokenRefresh response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetTokenRefreshJSON200Response(body struct {
+	AccessToken  *string `json:"accessToken,omitempty"`
+	RefreshToken *string `json:"refreshToken,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Create a new user
@@ -163,6 +182,9 @@ type ServerInterface interface {
 	// Initiate password reset
 	// (POST /password/reset:init)
 	PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response
+	// Refresh JWT tokens
+	// (GET /token/refresh)
+	GetTokenRefresh(w http.ResponseWriter, r *http.Request, params GetTokenRefreshParams) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -213,6 +235,35 @@ func (siw *ServerInterfaceWrapper) PostPasswordResetInit(w http.ResponseWriter, 
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostPasswordResetInit(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetTokenRefresh operation middleware
+func (siw *ServerInterfaceWrapper) GetTokenRefresh(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTokenRefreshParams
+
+	// ------------- Required query parameter "refreshToken" -------------
+
+	if err := runtime.BindQueryParameter("form", true, true, "refreshToken", r.URL.Query(), &params.RefreshToken); err != nil {
+		err = fmt.Errorf("invalid format for parameter refreshToken: %w", err)
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{err, "refreshToken"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetTokenRefresh(w, r, params)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -343,6 +394,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/login", wrapper.PostLogin)
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset:init", wrapper.PostPasswordResetInit)
+		r.Get("/token/refresh", wrapper.GetTokenRefresh)
 	})
 	return r
 }
@@ -368,14 +420,16 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/7xUTY/TMBD9K9HAsdoUuOUGnCqBVCE4IQ7GmbZe4g88Y5Zq1f+OPEnTDXELXWn3Fnm+",
-	"3nvzJvegvQ3eoWOC5h5I79Aq+fzgt8bljxB9wMgG5VlpjUSf/Q+UIO8DQgPE0bgtHBZgkUhtsRiLuIlI",
-	"u/PFxIqTjMHfyoZOokkmwmKengjjHCFaZbpie6dsGVhKpi0EDuNM//0WNctLxJ/JRGyh+XrEe2L9F8fF",
-	"RK4B8LdZ1wWsFdGdj+0nJOQ5Je3bMvAw1JXBP4QqLR4UzFHkCuM2XnoZFvG/EMbqo3JqixYdV2/XK1jA",
-	"L4xkvIMGXt0sb5YZiA/oVDDQwBt5ypN4J+DrbnSSJyGXqSk23q1aaGDtiXuz9YiR+J1v9z1vx+ikRoXQ",
-	"GS1V9S15d3LrNQ64rFdBkJOEHBPKAwXvqB/0erm8CubLiBto4EV9urp6OLm6l0CGtkg6msC9xrIDHVEx",
-	"ttVwDZvUdXvBTMlaFffQwHtJqVTl8K4Sp+V4faRcx9FbZ9cwteHj13GJ53TGE4g89cL5/1F54VPtj2Ar",
-	"Ee+S+kKnGv1VkL4xzlyj/yqnP/VJPIfr/+tf9ohtZD3Nv65iNSSNq+mLc/vDnwAAAP//vsh/u/4GAAA=",
+	"H4sIAAAAAAAC/7xVT2/bPgz9KgZ/v6NRZ9vNt22HIcMGFEWHHYqi0GwmUWZLqkgvC4J890G0EsexkzbF",
+	"upsg8c/jexS5gcLWzho0TJBvgIoF1kqOX+xcm3Bw3jr0rFGuVVEg0a39ifLIa4eQA7HXZg7bFGokUnMc",
+	"ffM480iL087EihtJg79V7Sp5bSQjpEPzhtAPEWKtdDUa3qh6HFjT6HLkYbvPaX8ssWC58fjYaI8l5Hc7",
+	"vF3VRzWmPboi4PtB1BSuFdHK+vIGCXlYUmHLceAu+o2DP4QqIQ4chiiChzYzK7E0C/nfCH3yVRk1xxoN",
+	"J++vp5DCL/SkrYEc3lxNriYBiHVolNOQwzu5Cpl4IeCzat9JlqS4UJpibc20hByuLXHbbC1iJP5gy3Vb",
+	"t2E04qOcq3QhXtmSrOm69ZIOOM/XCCEdhewblAty1lCb6O1kchHM/z3OIIf/su7XZfHLZS0FkrREKrx2",
+	"3HIsGhQeFWOZxN8wa6pqLZipqWvl15DDRzFJVGJwlUinhfdsV3Lm9711UoZ+G75cjnN19nO8Asn9Xjg9",
+	"j8YF73O/A5sIeefYl3KSfX+NUJ9roy/hfxrMX/tL/Iuuf9Yse4EagU/91K+YRqO9NK1zKxCHuZzFkR1A",
+	"zXFEmU/IMsBvol0YI17VyOgJ8rsNhOkGjw36NeyWzPEe6DOaHrDTbbrlih+i2wNHv2OW7v+qFkfLvINi",
+	"cPUQ4LQGp9AMN/owwlMFPUN2iU5JjHRe7qhR8vn7bSIpKUTc/gkAAP//xeiIfugIAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
