@@ -5,7 +5,7 @@ info:
 paths:
   /login:
     post:
-      summary: Create a new user
+      summary: Login a user
       requestBody:
         required: true
         content:
@@ -19,7 +19,7 @@ paths:
                   type: string
       responses:
         '200':
-          description: User created successfully
+          description: User login successfully
           content:
             application/json:
               schema:
