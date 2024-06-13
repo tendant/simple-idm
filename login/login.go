@@ -18,12 +18,8 @@ func New(queries *db.Queries) *LoginService {
 	}
 }
 
-type ResetPasswordParams struct {
-	Code string
-	Password string
-}
 
-func (s LoginService) ResetPasswordUsers(ctx context.Context, params ResetPasswordParams) (error) {
+func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) (error) {
 	resetPasswordParams := db.ResetPasswordParams{}
 	slog.Debug("resetPasswordParams", "params", params)
 	copier.Copy(&resetPasswordParams, params)
