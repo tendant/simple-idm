@@ -10,6 +10,12 @@ type Handle struct {
 	loginService *LoginService
 }
 
+func NewHandle(loginService *LoginService) Handle {
+	return Handle{
+		loginService: loginService,
+	}
+}
+
 func Routes(r *chi.Mux, handle Handle) {
 
 	r.Group(func(r chi.Router) {
