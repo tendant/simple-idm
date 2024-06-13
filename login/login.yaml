@@ -46,6 +46,25 @@ paths:
                 properties:
                   code:
                     type: string
+  /password/reset:
+    post:
+      summary: Reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
 components:
   schemas:
     Login:
@@ -75,3 +94,13 @@ components:
         - refreshToken
         - accessToken
         - user
+    PasswordReset:
+      type: object
+      properties:
+        code:
+          type: string
+        password:
+          type: string
+      required:
+        - code
+        - password
