@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 )
 
 type Handle struct {
@@ -39,6 +40,27 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 
 	// FIXME: email code to user
 	slog.Info("generated code", "code", code)
+
+	return &Response{
+		Code: http.StatusOK,
+	}
+}
+
+func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Response {
+
+	data := PostPasswordResetJSONBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// FIXME: validate data.code
+	slog.Info("password reset", "data", data)
+
+	// FIXME: hash/encode data.password, then write to database
 
 	return &Response{
 		Code: http.StatusOK,
