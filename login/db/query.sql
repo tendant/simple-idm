@@ -7,3 +7,9 @@ limit 20;
 SELECT uuid
 FROM users
 WHERE email = $1;
+
+-- name: ResetPassword :exec
+UPDATE users
+SET password = $1, 
+    last_modified_at = NOW()
+WHERE email = $2;  
