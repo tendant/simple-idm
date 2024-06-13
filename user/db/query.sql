@@ -16,4 +16,6 @@ RETURNING *;
 
 
 -- name: DeleteUser :exec
-DELETE FROM users WHERE uuid = $1;
+UPDATE users
+SET deleted_at = CURRENT_TIMESTAMP
+WHERE uuid = $1;

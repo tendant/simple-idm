@@ -39,7 +39,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM users WHERE uuid = $1
+UPDATE users
+SET deleted_at = CURRENT_TIMESTAMP
+WHERE uuid = $1
 `
 
 func (q *Queries) DeleteUser(ctx context.Context, argUuid uuid.UUID) error {
