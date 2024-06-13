@@ -7,9 +7,36 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const findUser = `-- name: FindUser :one
+SELECT uuid, name, email, password
+FROM users
+WHERE email = $1
+`
+
+type FindUserRow struct {
+	Uuid     uuid.UUID      `json:"uuid"`
+	Name     sql.NullString `json:"name"`
+	Email    string         `json:"email"`
+	Password []byte         `json:"password"`
+}
+
+func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, error) {
+	row := q.db.QueryRow(ctx, findUser, email)
+	var i FindUserRow
+	err := row.Scan(
+		&i.Uuid,
+		&i.Name,
+		&i.Email,
+		&i.Password,
+	)
+	return i, err
+}
 
 const findUsers = `-- name: FindUsers :many
 SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
@@ -17,15 +44,25 @@ FROM users
 limit 20
 `
 
-func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
+type FindUsersRow struct {
+	Uuid           uuid.UUID      `json:"uuid"`
+	CreatedAt      time.Time      `json:"created_at"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	DeletedAt      sql.NullTime   `json:"deleted_at"`
+	CreatedBy      sql.NullString `json:"created_by"`
+	Email          string         `json:"email"`
+	Name           sql.NullString `json:"name"`
+}
+
+func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 	rows, err := q.db.Query(ctx, findUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []FindUsersRow
 	for rows.Next() {
-		var i User
+		var i FindUsersRow
 		if err := rows.Scan(
 			&i.Uuid,
 			&i.CreatedAt,
