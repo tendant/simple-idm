@@ -24,4 +24,6 @@ type User struct {
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
 	Name           sql.NullString `json:"name"`
+	Password       []byte         `json:"password"`
+	VerifiedAt     sql.NullTime   `json:"verified_at"`
 }

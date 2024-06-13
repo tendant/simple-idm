@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -17,15 +19,25 @@ FROM users
 limit 20
 `
 
-func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
+type FindUsersRow struct {
+	Uuid           uuid.UUID      `json:"uuid"`
+	CreatedAt      time.Time      `json:"created_at"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	DeletedAt      sql.NullTime   `json:"deleted_at"`
+	CreatedBy      sql.NullString `json:"created_by"`
+	Email          string         `json:"email"`
+	Name           sql.NullString `json:"name"`
+}
+
+func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 	rows, err := q.db.Query(ctx, findUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []FindUsersRow
 	for rows.Next() {
-		var i User
+		var i FindUsersRow
 		if err := rows.Scan(
 			&i.Uuid,
 			&i.CreatedAt,
@@ -56,4 +68,20 @@ func (q *Queries) InitPassword(ctx context.Context, email string) (uuid.UUID, er
 	var uuid uuid.UUID
 	err := row.Scan(&uuid)
 	return uuid, err
+
+const resetPassword = `-- name: ResetPassword :exec
+UPDATE users
+SET password = $1, 
+    last_modified_at = NOW()
+WHERE email = $2
+`
+
+type ResetPasswordParams struct {
+	Password []byte `json:"password"`
+	Email    string `json:"email"`
+}
+
+func (q *Queries) ResetPassword(ctx context.Context, arg ResetPasswordParams) error {
+	_, err := q.db.Exec(ctx, resetPassword, arg.Password, arg.Email)
+	return err
 }
