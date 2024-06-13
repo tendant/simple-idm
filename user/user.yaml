@@ -18,7 +18,7 @@ paths:
                 email:
                   type: string
       responses:
-        '200':
+        "200":
           description: User created successfully
           content:
             application/json:
@@ -34,7 +34,7 @@ paths:
     get:
       summary: Get a list of users
       responses:
-        '200':
+        "200":
           description: List of users
           content:
             application/json:
@@ -59,7 +59,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: User details retrieved successfully
           content:
             application/json:
@@ -90,7 +90,7 @@ paths:
                 name:
                   type: string
       responses:
-        '200':
+        "200":
           description: User details updated successfully
           content:
             application/json:
@@ -112,5 +112,5 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: User deleted successfully

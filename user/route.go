@@ -20,10 +20,21 @@ func NewHandle(userService *UserService) Handle {
 	}
 }
 
-// FIXME: Get a list of users
+// Get a list of users
 // (GET /user)
 func (h Handle) GetUser(w http.ResponseWriter, r *http.Request) *Response {
-	return nil
+	dbUsers, err := h.userService.FindUsers(r.Context())
+	if err != nil {
+		slog.Error("Failed getting users err", err)
+		return &Response{
+			body: "Failed getting users",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	return &Response{
+		Code: http.StatusOK,
+		body: dbUsers,
+	}
 }
 
 // Create a new user
@@ -58,9 +69,26 @@ func (h Handle) PostUser(w http.ResponseWriter, r *http.Request) *Response {
 
 // FIXME: Delete user by UUID
 // (DELETE /user/{uuid})
-func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
-
-	return nil
+func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	id, err := uuid.Parse(uuidStr)
+	if err != nil {
+		slog.Error("Error when parsing string to uuid", "uuid", uuidStr, "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Error when parsing string to uuid",
+		}
+	}
+	err = h.userService.DeleteUser(r.Context(), id)
+	if err != nil {
+		slog.Error("Failed to delete user", "uuid", uuidStr, "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to delete user",
+		}
+	}
+	return &Response{
+		Code: http.StatusOK,
+	}
 }
 
 // FIXME: Get user details by UUID
@@ -88,10 +116,46 @@ func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuidStr stri
 	}
 }
 
-// FIXME: Update user details by UUID
+// Update user details by UUID
 // (PUT /user/{uuid})
-func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
-	return nil
+func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	uuidParam, err := uuid.Parse(uuidStr)
+
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid uuid",
+		}
+	}
+
+	nameParam := ""
+	err = render.DecodeJSON(r.Body, &nameParam)
+
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	updateUserParam := UpdateUserParams{
+		Uuid: uuidParam,
+		Name: nameParam,
+	}
+
+	dbUser, err := h.userService.UpdateUsers(r.Context(), updateUserParam)
+	if err != nil {
+		slog.Error("Failed to update user details", updateUserParam, "err", err)
+		return &Response{
+			body: "Failed to update user details",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: dbUser,
+	}
 }
 
 func Routes(r *chi.Mux, handle Handle) {

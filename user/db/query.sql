@@ -14,6 +14,11 @@ limit 20;
 UPDATE users SET name = $2 WHERE uuid = $1
 RETURNING *;
 
+-- name: DeleteUser :exec
+UPDATE users
+SET deleted_at = CURRENT_TIMESTAMP
+WHERE uuid = $1;
+
 -- name: GetUserUUID :one
 SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users

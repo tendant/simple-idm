@@ -1,3 +1,7 @@
+# sqlc installation
+
+    go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
 # Testing commands
 
     curl -i -X POST localhost:4000/api/users -d '{"email": "test@example.com"}' -H "Content-Type: application/json" 

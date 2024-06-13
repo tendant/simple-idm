@@ -42,8 +42,8 @@ func (s UserService) FindUsers(ctx context.Context) ([]db.User, error) {
 }
 
 type UpdateUserParams struct {
-	Uuid  uuid.UUID
-	Email string
+	Uuid uuid.UUID
+	Name string
 }
 
 func (s UserService) UpdateUsers(ctx context.Context, userParams UpdateUserParams) (db.User, error) {
@@ -52,6 +52,15 @@ func (s UserService) UpdateUsers(ctx context.Context, userParams UpdateUserParam
 	copier.Copy(&updateUserParams, userParams)
 	user, err := s.queries.UpdateUser(ctx, updateUserParams)
 	return user, err
+}
+
+func (s UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	slog.Debug("Deleting user with UUID:", "UUID", id)
+	err := s.queries.DeleteUser(ctx, id)
+	if err != nil {
+		slog.Error("Failed deleting user", "UUID", id, "err", err)
+	}
+	return err
 }
 
 type GetUserUUIDParams struct {
