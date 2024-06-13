@@ -33,11 +33,20 @@ type Login struct {
 	} `json:"user"`
 }
 
+// PasswordReset defines model for PasswordReset.
+type PasswordReset struct {
+	Code     string `json:"code"`
+	Password string `json:"password"`
+}
+
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
 	Email    *string `json:"email,omitempty"`
 	Password *string `json:"password,omitempty"`
 }
+
+// PostPasswordResetJSONBody defines parameters for PostPasswordReset.
+type PostPasswordResetJSONBody PasswordReset
 
 // PostPasswordResetInitJSONBody defines parameters for PostPasswordResetInit.
 type PostPasswordResetInitJSONBody struct {
@@ -49,6 +58,14 @@ type PostLoginJSONRequestBody PostLoginJSONBody
 
 // Bind implements render.Binder.
 func (PostLoginJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostPasswordResetJSONRequestBody defines body for PostPasswordReset for application/json ContentType.
+type PostPasswordResetJSONRequestBody PostPasswordResetJSONBody
+
+// Bind implements render.Binder.
+func (PostPasswordResetJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -111,6 +128,18 @@ func PostLoginJSON200Response(body Login) *Response {
 	}
 }
 
+// PostPasswordResetJSON200Response is a constructor method for a PostPasswordReset response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostPasswordResetJSON200Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // PostPasswordResetInitJSON200Response is a constructor method for a PostPasswordResetInit response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostPasswordResetInitJSON200Response(body struct {
@@ -128,6 +157,9 @@ type ServerInterface interface {
 	// Create a new user
 	// (POST /login)
 	PostLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Reset password
+	// (POST /password/reset)
+	PostPasswordReset(w http.ResponseWriter, r *http.Request) *Response
 	// Initiate password reset
 	// (POST /password/reset:init)
 	PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response
@@ -145,6 +177,24 @@ func (siw *ServerInterfaceWrapper) PostLogin(w http.ResponseWriter, r *http.Requ
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PostPasswordReset operation middleware
+func (siw *ServerInterfaceWrapper) PostPasswordReset(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostPasswordReset(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -291,6 +341,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Post("/login", wrapper.PostLogin)
+		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset:init", wrapper.PostPasswordResetInit)
 	})
 	return r
@@ -317,14 +368,14 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/7yST48TPQzGv0rk9z2OdgrccgNOlUCqEJwQh5Bx2yyTOMQOS7Xqd0fxTLcaWmD3AKcZ",
-	"+U/8+Pf4HjzFTAmTMNh7YL/H6PT3De1Caj+5UMYiATXsvEfm9/QFNSmHjGCBpYS0g2MHEZndDq/mCm4L",
-	"8v7XzSxOqo7B7y7mUbNVJ0J3WV4Zy6VCjC6MV59PLl4XVmsYriSODzPp8y160UjBrzUUHMB+POk9b/3T",
-	"jt0C1yz40+Wrxw5C2pJKCKJrf2As5q1LbocRk5iXmzV08A0LB0pg4dnN6mbVtFPG5HIACy801EF2slcS",
-	"/fjgIbG0b+PkJFBaD2BhQyyTzdNayPKKhkMr9JQEk/a4nMfgtau/ZUrnO3kK++yY76g8EvOCs5SKGuBM",
-	"iadBz1erJ8n8v+AWLPzXn++9n4+9nxDo0AHZl5BlYqwe+IJOcDDzHW7rOB5UM9cYXTmAhddaYpxJeGfU",
-	"45bvTyv3BRnFhhTk915s5oZ3rX7dyv+2L/8C/VKJpwEfLWRpxwmPUZ6m8Qx/smY9F5m8aG7PH38EAAD/",
-	"/0IWO6n9BAAA",
+	"H4sIAAAAAAAC/7xUTY/TMBD9K9HAsdoUuOUGnCqBVCE4IQ7GmbZe4g88Y5Zq1f+OPEnTDXELXWn3Fnm+",
+	"3nvzJvegvQ3eoWOC5h5I79Aq+fzgt8bljxB9wMgG5VlpjUSf/Q+UIO8DQgPE0bgtHBZgkUhtsRiLuIlI",
+	"u/PFxIqTjMHfyoZOokkmwmKengjjHCFaZbpie6dsGVhKpi0EDuNM//0WNctLxJ/JRGyh+XrEe2L9F8fF",
+	"RK4B8LdZ1wWsFdGdj+0nJOQ5Je3bMvAw1JXBP4QqLR4UzFHkCuM2XnoZFvG/EMbqo3JqixYdV2/XK1jA",
+	"L4xkvIMGXt0sb5YZiA/oVDDQwBt5ypN4J+DrbnSSJyGXqSk23q1aaGDtiXuz9YiR+J1v9z1vx+ikRoXQ",
+	"GS1V9S15d3LrNQ64rFdBkJOEHBPKAwXvqB/0erm8CubLiBto4EV9urp6OLm6l0CGtkg6msC9xrIDHVEx",
+	"ttVwDZvUdXvBTMlaFffQwHtJqVTl8K4Sp+V4faRcx9FbZ9cwteHj13GJ53TGE4g89cL5/1F54VPtj2Ar",
+	"Ee+S+kKnGv1VkL4xzlyj/yqnP/VJPIfr/+tf9ohtZD3Nv65iNSSNq+mLc/vDnwAAAP//vsh/u/4GAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
