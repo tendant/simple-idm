@@ -7,3 +7,8 @@ limit 20;
 SELECT uuid
 FROM users
 WHERE email = $1;
+
+-- name: FindUser :one
+SELECT uuid, name, email, password
+FROM users
+WHERE email = $1;
