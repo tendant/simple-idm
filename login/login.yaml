@@ -81,14 +81,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  refreshToken:
-                    type: string
-                    example: "new_jwt_refresh_token"
-                  accessToken:
-                    type: string
-                    example: "new_jwt_access_token"
+                $ref: '#/components/schemas/Tokens'
 components:
   schemas:
     Login:
@@ -128,3 +121,10 @@ components:
       required:
         - code
         - password
+    Tokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
