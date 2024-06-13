@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/tendant/simple-user/auth"
 )
 
 type Handle struct {
@@ -68,7 +69,34 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 }
 
 func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params GetTokenRefreshParams) *Response {
+
+	// FIXME: validate refreshToken
+	jwt := auth.Jwt{}
+	accessToken, err := jwt.CreateAccessToken("")
+	if err != nil {
+		slog.Error("Failed to create access token", params.RefreshToken, "err", err)
+		return &Response{
+			body: "Failed to create access token",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	refreshToken, err := jwt.CreateAccessToken("")
+	if err != nil {
+		slog.Error("Failed to create refresh token", params.RefreshToken, "err", err)
+		return &Response{
+			body: "Failed to create refresh token",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	result := Tokens{
+		AccessToken: &accessToken,
+		RefreshToken: &refreshToken,
+	}
+
 	return &Response{
-		Code: http.StatusNotImplemented,
+		Code: http.StatusOK,
+		body: result,
 	}
 }
