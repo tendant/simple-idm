@@ -15,6 +15,7 @@ import (
 	"path"
 	"strings"
 
+	openapi_types "github.com/discord-gophers/goapi-gen/types"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -50,7 +51,7 @@ type PostPasswordResetJSONBody PasswordReset
 
 // PostPasswordResetInitJSONBody defines parameters for PostPasswordResetInit.
 type PostPasswordResetInitJSONBody struct {
-	Email *string `json:"email,omitempty"`
+	Email *openapi_types.Email `json:"email,omitempty"`
 }
 
 // PostLoginJSONRequestBody defines body for PostLogin for application/json ContentType.
@@ -143,7 +144,7 @@ func PostPasswordResetJSON200Response(body struct {
 // PostPasswordResetInitJSON200Response is a constructor method for a PostPasswordResetInit response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostPasswordResetInitJSON200Response(body struct {
-	Code *string `json:"code,omitempty"`
+	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
@@ -368,14 +369,15 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/7xUTY/TMBD9K9HAsdoUuOUGnCqBVCE4IQ7GmbZe4g88Y5Zq1f+OPEnTDXELXWn3Fnm+",
-	"3nvzJvegvQ3eoWOC5h5I79Aq+fzgt8bljxB9wMgG5VlpjUSf/Q+UIO8DQgPE0bgtHBZgkUhtsRiLuIlI",
-	"u/PFxIqTjMHfyoZOokkmwmKengjjHCFaZbpie6dsGVhKpi0EDuNM//0WNctLxJ/JRGyh+XrEe2L9F8fF",
-	"RK4B8LdZ1wWsFdGdj+0nJOQ5Je3bMvAw1JXBP4QqLR4UzFHkCuM2XnoZFvG/EMbqo3JqixYdV2/XK1jA",
-	"L4xkvIMGXt0sb5YZiA/oVDDQwBt5ypN4J+DrbnSSJyGXqSk23q1aaGDtiXuz9YiR+J1v9z1vx+ikRoXQ",
-	"GS1V9S15d3LrNQ64rFdBkJOEHBPKAwXvqB/0erm8CubLiBto4EV9urp6OLm6l0CGtkg6msC9xrIDHVEx",
-	"ttVwDZvUdXvBTMlaFffQwHtJqVTl8K4Sp+V4faRcx9FbZ9cwteHj13GJ53TGE4g89cL5/1F54VPtj2Ar",
-	"Ee+S+kKnGv1VkL4xzlyj/yqnP/VJPIfr/+tf9ohtZD3Nv65iNSSNq+mLc/vDnwAAAP//vsh/u/4GAAA=",
+	"H4sIAAAAAAAC/8RUT4/TTgz9KpF/v2O0KXCbG3CqBFKF4IQ4DInTzpL5g+2wVKt+dzRO2m5IWqmIFbfI",
+	"HtvvPT/nEeroUwwYhME8Atc79FY/38WtC/kjUUxI4lDDtq6R+WP8hpqUfUIwwEIubOFQgkdmu8XFHGFL",
+	"yLvLxSxWeh2DP61PnWZ7nQjl/HnPSHOE6K3rFtsH65eB9b1rFhKH08z49R5r0Qjh994RNmA+H/GeWf/G",
+	"sZzINQL+MutawsYyP0RqPiCjzCnVsVkGnsa6ZfBPoWqLJwVzFLnChTZqLycq/idGKt7bYLfoMUjxerOG",
+	"En4gsYsBDLy4W92tMpCYMNjkwMArDeVJslPwVXdyUmQll6lZcTGsGzCwiSyD2QbEyPImNvuBdxAMWmNT",
+	"6lytVdU9x3B26y0OuK7XgiBnCYV61ACnGHgY9HK1ugnm/4QtGPivOl9dNZ5cNUigQxvkmlySQWPdQU1o",
+	"BZtivIa277q9Yubee0t7MPBWnxS2CPhQqNNyvjpSrujkrYtrmNrwz9dxjed0xjOIPPXC5f/R8sKn2h/B",
+	"FireNfWVTnHy14L0xgV3i/7r/Pyvn0QbyVsBM0bKf3EGz7ghZVVwhjHdT1bT5ftIk4Lc8vArAAD//xaW",
+	"gY4GBwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
