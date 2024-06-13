@@ -24,6 +24,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Login'
+  /password/reset:init:
+    post:
+      summary: Initiate password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Password reset initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
 components:
   schemas:
     Login:

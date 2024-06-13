@@ -24,3 +24,9 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 }
+
+func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response {
+	return &Response{
+		Code: http.StatusNotImplemented,
+	}
+}
