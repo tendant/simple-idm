@@ -38,6 +38,17 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteUser = `-- name: DeleteUser :exec
+UPDATE users
+SET deleted_at = CURRENT_TIMESTAMP
+WHERE uuid = $1
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, argUuid uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUser, argUuid)
+	return err
+}
+
 const findUsers = `-- name: FindUsers :many
 SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users
