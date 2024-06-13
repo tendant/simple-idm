@@ -1,6 +1,8 @@
 package login
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -34,16 +36,39 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 }
 
 func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response {
+	var body PostPasswordResetInitJSONBody
 
-	// FIXME: create random code
-	code := "random code"
-
-	// FIXME: email code to user
-	slog.Info("generated code", "code", code)
-
-	return &Response{
-		Code: http.StatusOK,
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		slog.Error("Failed extracting this email", "err", err)
+		http.Error(w, "Failed extracting this email", http.StatusBadRequest)
+		return nil
 	}
+	if body.Email != nil {
+		email := string(*body.Email)
+		uuid, err := h.loginService.queries.InitPassword(r.Context(), email)
+		if err != nil {
+			slog.Error("Failed finding user of this email", "err", err)
+			http.Error(w, "Failed finding user of this email", http.StatusBadRequest)
+			return nil
+		}
+
+		hash := sha256.New()
+		hash.Write([]byte(uuid.String()))
+		code := hash.Sum(nil)
+		slog.Info("generated code", "code", code)
+		return &Response{
+			body:        code,
+			Code:        200,
+			contentType: "application/json",
+		}
+
+	} else {
+		slog.Error("Email is missing in the request body", "err", err)
+		http.Error(w, "Failed finding user of this email", http.StatusBadRequest)
+		return nil
+	}
+
 }
 
 func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Response {
