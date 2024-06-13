@@ -65,6 +65,30 @@ paths:
                 properties:
                   message:
                     type: string
+  /token/refresh:
+    get:
+      summary: Refresh JWT tokens
+      parameters:
+        - name: refreshToken
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "jwt_refresh_token"
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  refreshToken:
+                    type: string
+                    example: "new_jwt_refresh_token"
+                  accessToken:
+                    type: string
+                    example: "new_jwt_access_token"
 components:
   schemas:
     Login:
