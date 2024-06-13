@@ -178,7 +178,7 @@ func GetTokenRefreshJSON200Response(body Tokens) *Response {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Create a new user
+	// Login a user
 	// (POST /login)
 	PostLogin(w http.ResponseWriter, r *http.Request) *Response
 	// Reset password
