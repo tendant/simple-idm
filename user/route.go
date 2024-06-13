@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"golang.org/x/exp/slog"
 )
@@ -57,8 +58,27 @@ func (h Handle) PostUser(w http.ResponseWriter, r *http.Request) *Response {
 
 // FIXME: Delete user by UUID
 // (DELETE /user/{uuid})
-func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
-	return nil
+func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	id, err := uuid.Parse(uuidStr)
+	if err != nil {
+		slog.Error("Error when parsing string to uuid", "uuid", uuidStr, "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Error when parsing string to uuid",
+		}
+	}
+	err = h.userService.DeleteUser(r.Context(), id)
+	if err != nil {
+		slog.Error("Failed to delete user", "uuid", uuidStr, "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to delete user",
+		}
+	}
+	return &Response{
+		Code: http.StatusNoContent,
+		
+	}
 }
 
 // FIXME: Get user details by UUID

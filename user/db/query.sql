@@ -13,3 +13,7 @@ limit 20;
 -- name: UpdateUser :one
 UPDATE users SET name = $2 WHERE uuid = $1
 RETURNING *;
+
+
+-- name: DeleteUser :exec
+DELETE FROM users WHERE uuid = $1;

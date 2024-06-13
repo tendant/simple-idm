@@ -53,3 +53,12 @@ func (s UserService) UpdateUsers(ctx context.Context, userParams UpdateUserParam
 	user, err := s.queries.UpdateUser(ctx, updateUserParams)
 	return user, err
 }
+
+func (s UserService) DeleteUser(ctx context.Context, id uuid.UUID) (error) {
+	slog.Debug("Deleting user with UUID:", "UUID", id)
+    err := s.queries.DeleteUser(ctx, id)
+    if err != nil {
+        slog.Error("Failed deleting user", "UUID", id, "err", err)
+    }
+    return err
+}
