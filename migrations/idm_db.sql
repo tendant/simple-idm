@@ -59,7 +59,9 @@ CREATE TABLE public.users (
     deleted_at timestamp without time zone,
     created_by character varying(255),
     email character varying(255) NOT NULL,
-    name character varying(255)
+    name character varying(255),
+    password bytea,
+    verified_at timestamp without time zone
 );
 
 
