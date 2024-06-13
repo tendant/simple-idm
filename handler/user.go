@@ -34,6 +34,11 @@ type UserInput struct {
 	Payload *UserParams `in:"body=json"`
 }
 
+type UpdateUserParams struct {
+	Uuid string `json:"uuid"`
+	Name string `json:"name"`
+}
+
 func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("debug ***")
 	input := r.Context().Value(httpin.Input).(*UserInput)

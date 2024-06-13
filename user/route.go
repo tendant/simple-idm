@@ -20,10 +20,21 @@ func NewHandle(userService *UserService) Handle {
 	}
 }
 
-// FIXME: Get a list of users
+// Get a list of users
 // (GET /user)
 func (h Handle) GetUser(w http.ResponseWriter, r *http.Request) *Response {
-	return nil
+	dbUsers, err := h.userService.FindUsers(r.Context())
+	if err != nil {
+		slog.Error("Failed getting users err", err)
+		return &Response{
+			body: "Failed getting users",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	return &Response{
+		Code: http.StatusOK,
+		body: dbUsers,
+	}
 }
 
 // Create a new user
@@ -83,14 +94,69 @@ func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuidStr s
 
 // FIXME: Get user details by UUID
 // (GET /user/{uuid})
-func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
-	return nil
+func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	uuid, err := uuid.Parse(uuidStr)
+	if err != nil {
+		slog.Error("Invalid UUID format", "err", err)
+		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
+		return nil
+	}
+	params := GetUserUUIDParams{
+		Uuid: uuid,
+	}
+	user, err := h.userService.GetUserUUID(r.Context(), params)
+	if err != nil {
+		slog.Error("Failed getting user", "err", err)
+		http.Error(w, "Failed getting user", http.StatusInternalServerError)
+		return nil
+	}
+	return &Response{
+		body:        user,
+		Code:        200,
+		contentType: "application/json",
+	}
 }
 
-// FIXME: Update user details by UUID
+// Update user details by UUID
 // (PUT /user/{uuid})
-func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
-	return nil
+func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	uuidParam, err := uuid.Parse(uuidStr)
+
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid uuid",
+		}
+	}
+
+	nameParam := ""
+	err = render.DecodeJSON(r.Body, &nameParam)
+
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	updateUserParam := UpdateUserParams{
+		Uuid: uuidParam,
+		Name: nameParam,
+	}
+
+	dbUser, err := h.userService.UpdateUsers(r.Context(), updateUserParam)
+	if err != nil {
+		slog.Error("Failed to update user details", updateUserParam, "err", err)
+		return &Response{
+			body: "Failed to update user details",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: dbUser,
+	}
 }
 
 func Routes(r *chi.Mux, handle Handle) {

@@ -83,6 +83,27 @@ func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const getUserUUID = `-- name: GetUserUUID :one
+SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
+FROM users
+WHERE uuid = $1
+`
+
+func (q *Queries) GetUserUUID(ctx context.Context, argUuid uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserUUID, argUuid)
+	var i User
+	err := row.Scan(
+		&i.Uuid,
+		&i.CreatedAt,
+		&i.LastModifiedAt,
+		&i.DeletedAt,
+		&i.CreatedBy,
+		&i.Email,
+		&i.Name,
+	)
+	return i, err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users SET name = $2 WHERE uuid = $1
 RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name

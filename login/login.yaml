@@ -1,0 +1,106 @@
+openapi: 3.0.0
+info:
+  title: User Management API
+  version: 1.0.0
+paths:
+  /login:
+    post:
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Login'
+  /password/reset:init:
+    post:
+      summary: Initiate password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Password reset initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+  /password/reset:
+    post:
+      summary: Reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+components:
+  schemas:
+    Login:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        refreshToken:
+          type: string
+        accessToken:
+          type: string
+        user:
+          type: object
+          properties:
+            uuid:
+              type: string
+            name:
+              type: string
+            email:
+              type: string
+      required:
+        - status
+        - message
+        - refreshToken
+        - accessToken
+        - user
+    PasswordReset:
+      type: object
+      properties:
+        code:
+          type: string
+        password:
+          type: string
+      required:
+        - code
+        - password

@@ -1,0 +1,38 @@
+version: 1
+packages:
+  - path: "db"
+    name: "db"
+    engine: "postgresql"
+    sql_package: "pgx/v5"
+    schema: "../migrations/idm_db.sql"
+    queries: "db/query.sql"
+    emit_json_tags: true
+overrides:
+  - go_type: "github.com/shopspring/decimal.Decimal"
+    db_type: "pg_catalog.numeric"
+  - go_type: "github.com/shopspring/decimal.NullDecimal"
+    db_type: "pg_catalog.numeric"
+    nullable: true
+  - go_type: "database/sql.NullString"
+    db_type: "pg_catalog.interval"
+    nullable: true
+  - db_type: "uuid"
+    go_type: "github.com/google/uuid.UUID"
+  - db_type: "uuid"
+    go_type: "github.com/google/uuid.NullUUID"
+    nullable: true
+  - db_type: "pg_catalog.timestamp"
+    go_type: "time.Time"
+  - db_type: "pg_catalog.timestamp"
+    go_type: "database/sql.NullTime"
+    nullable: true
+  - go_type: "database/sql.NullInt64"
+    db_type: "pg_catalog.int8"
+    nullable: true
+  - go_type: "int64"
+    db_type: "pg_catalog.int8"
+  - go_type: "string"
+    db_type: "pg_catalog.varchar"
+  - go_type: "database/sql.NullString"
+    db_type: "pg_catalog.varchar"
+    nullable: true
