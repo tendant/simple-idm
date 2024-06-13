@@ -29,6 +29,8 @@ func Routes(r *chi.Mux, handle Handle) {
 	})
 }
 
+// Login a user
+// (POST /login)
 func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	return &Response{
 		Code: http.StatusNotImplemented,
