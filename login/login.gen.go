@@ -29,11 +29,7 @@ type Login struct {
 	Message      string `json:"message"`
 	RefreshToken string `json:"refreshToken"`
 	Status       string `json:"status"`
-	User         struct {
-		Email *string `json:"email,omitempty"`
-		Name  *string `json:"name,omitempty"`
-		UUID  *string `json:"uuid,omitempty"`
-	} `json:"user"`
+	User         User   `json:"user"`
 }
 
 // PasswordReset defines model for PasswordReset.
@@ -46,6 +42,13 @@ type PasswordReset struct {
 type Tokens struct {
 	AccessToken  *string `json:"accessToken,omitempty"`
 	RefreshToken *string `json:"refreshToken,omitempty"`
+}
+
+// User defines model for User.
+type User struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+	UUID  string `json:"uuid"`
 }
 
 // PostLoginJSONBody defines parameters for PostLogin.
