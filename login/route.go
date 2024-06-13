@@ -66,3 +66,9 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 		Code: http.StatusOK,
 	}
 }
+
+func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params GetTokenRefreshParams) *Response {
+	return &Response{
+		Code: http.StatusNotImplemented,
+	}
+}
