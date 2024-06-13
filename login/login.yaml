@@ -65,6 +65,29 @@ paths:
                 properties:
                   message:
                     type: string
+  /password/reset:init:
+    post:
+      summary: Initiate password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
 components:
   schemas:
     Login:
@@ -104,3 +127,10 @@ components:
       required:
         - code
         - password
+    PasswordResetInit:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+        - email
