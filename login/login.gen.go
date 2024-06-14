@@ -39,6 +39,13 @@ type PasswordReset struct {
 	Password string `json:"password"`
 }
 
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	Password string `json:"password"`
+}
+
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
 	Email    *string `json:"email,omitempty"`
@@ -52,6 +59,9 @@ type PostPasswordResetJSONBody PasswordReset
 type PostPasswordResetInitJSONBody struct {
 	Email *string `json:"email,omitempty"`
 }
+
+// PostRegisterJSONBody defines parameters for PostRegister.
+type PostRegisterJSONBody RegisterRequest
 
 // PostLoginJSONRequestBody defines body for PostLogin for application/json ContentType.
 type PostLoginJSONRequestBody PostLoginJSONBody
@@ -74,6 +84,14 @@ type PostPasswordResetInitJSONRequestBody PostPasswordResetInitJSONBody
 
 // Bind implements render.Binder.
 func (PostPasswordResetInitJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostRegisterJSONRequestBody defines body for PostRegister for application/json ContentType.
+type PostRegisterJSONRequestBody PostRegisterJSONBody
+
+// Bind implements render.Binder.
+func (PostRegisterJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -152,6 +170,18 @@ func PostPasswordResetInitJSON200Response(body struct {
 	}
 }
 
+// PostRegisterJSON201Response is a constructor method for a PostRegister response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostRegisterJSON201Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        201,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Create a new user
@@ -163,6 +193,9 @@ type ServerInterface interface {
 	// Initiate password reset
 	// (POST /password/reset:init)
 	PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response
+	// Register a new user
+	// (POST /register)
+	PostRegister(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -213,6 +246,24 @@ func (siw *ServerInterfaceWrapper) PostPasswordResetInit(w http.ResponseWriter, 
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostPasswordResetInit(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PostRegister operation middleware
+func (siw *ServerInterfaceWrapper) PostRegister(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostRegister(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -343,6 +394,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/login", wrapper.PostLogin)
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset:init", wrapper.PostPasswordResetInit)
+		r.Post("/register", wrapper.PostRegister)
 	})
 	return r
 }
@@ -368,14 +420,16 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/7xUTY/TMBD9K9HAsdoUuOUGnCqBVCE4IQ7GmbZe4g88Y5Zq1f+OPEnTDXELXWn3Fnm+",
-	"3nvzJvegvQ3eoWOC5h5I79Aq+fzgt8bljxB9wMgG5VlpjUSf/Q+UIO8DQgPE0bgtHBZgkUhtsRiLuIlI",
-	"u/PFxIqTjMHfyoZOokkmwmKengjjHCFaZbpie6dsGVhKpi0EDuNM//0WNctLxJ/JRGyh+XrEe2L9F8fF",
-	"RK4B8LdZ1wWsFdGdj+0nJOQ5Je3bMvAw1JXBP4QqLR4UzFHkCuM2XnoZFvG/EMbqo3JqixYdV2/XK1jA",
-	"L4xkvIMGXt0sb5YZiA/oVDDQwBt5ypN4J+DrbnSSJyGXqSk23q1aaGDtiXuz9YiR+J1v9z1vx+ikRoXQ",
-	"GS1V9S15d3LrNQ64rFdBkJOEHBPKAwXvqB/0erm8CubLiBto4EV9urp6OLm6l0CGtkg6msC9xrIDHVEx",
-	"ttVwDZvUdXvBTMlaFffQwHtJqVTl8K4Sp+V4faRcx9FbZ9cwteHj13GJ53TGE4g89cL5/1F54VPtj2Ar",
-	"Ee+S+kKnGv1VkL4xzlyj/yqnP/VJPIfr/+tf9ohtZD3Nv65iNSSNq+mLc/vDnwAAAP//vsh/u/4GAAA=",
+	"H4sIAAAAAAAC/7xVTY/TMBD9K9HAMWq6cMuJr0sRSKsKToiDSaatS+LxehyWatX/jjL52rRuaCvKLbLn",
+	"4817fpMnyKi0ZNB4hvQJONtgqeTzE621qT+sI4vOa5RjlWXI/IV+olz6nUVIgb3TZg37GEpkVmsM3jlc",
+	"OeTN6WT2ylfSBn+r0hZyW0lHiI/DK0Z3jBBLpYtgeaPKMLCq0nngYt/3pB9bzLycOHyotMMc0m8d3mHq",
+	"gxnjEV0t4O9HVWO4V8yP5PIlMvrjkTLKw8BtmxcG/xyqlHiWEEKxxLVmj26JDxWyn6B2kGdLGzPLCd+0",
+	"R7OMypBWHfdD5kfamOgDYSj6/Lmkbtwim5yvztRmRVJTe8HwldFFn5VRayzR+Ojt/QJi+IWONRlI4W42",
+	"n81rQGTRKKshhddyVHfyGyElKXqnUENaTZnymswihxTuiX1jpgY5sn9H+a7R1Xg0kqOsLXQmWcmWyQxu",
+	"vOSFT/MWIGSg0rsK5YAtGW4avZrPL4L50uEKUniRDFslaVdK0lAgTXPkzGnrG45Fg8yh8phHrdtXVVHs",
+	"BDNXZancDlJ4LyGRigw+RuKk+j7pRk5c752TMoxtdr0cU3OOe9yA5PFbOL1vw4KPue/ARkLeFPsyTtS/",
+	"rwD1qTb6Ev4XdfitLfE/Xv1Zu/oKNWo+9d9csWiDemma5EYg1y70aVW6tX8jQxz+Vc5S4O7fWGL428iW",
+	"6fg4pDS+Rq1z91Y3/3hz7fd/AgAA//9677JYfAkAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
