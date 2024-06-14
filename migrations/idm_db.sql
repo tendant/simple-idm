@@ -2,8 +2,8 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 16.3
--- Dumped by pg_dump version 16.3 (Homebrew)
+-- Dumped from database version 16.2
+-- Dumped by pg_dump version 16.2 (Homebrew)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -59,7 +59,9 @@ CREATE TABLE public.users (
     deleted_at timestamp without time zone,
     created_by character varying(255),
     email character varying(255) NOT NULL,
-    name character varying(255)
+    name character varying(255),
+    password bytea,
+    verified_at timestamp without time zone
 );
 
 

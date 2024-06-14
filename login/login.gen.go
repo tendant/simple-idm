@@ -16,6 +16,8 @@ import (
 	"strings"
 
 	openapi_types "github.com/discord-gophers/goapi-gen/types"
+	"github.com/discord-gophers/goapi-gen/runtime"
+
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -40,6 +42,12 @@ type PasswordReset struct {
 	Password string `json:"password"`
 }
 
+// Tokens defines model for Tokens.
+type Tokens struct {
+	AccessToken  *string `json:"accessToken,omitempty"`
+	RefreshToken *string `json:"refreshToken,omitempty"`
+}
+
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
 	Email    *string `json:"email,omitempty"`
@@ -52,6 +60,11 @@ type PostPasswordResetJSONBody PasswordReset
 // PostPasswordResetInitJSONBody defines parameters for PostPasswordResetInit.
 type PostPasswordResetInitJSONBody struct {
 	Email *openapi_types.Email `json:"email,omitempty"`
+}
+
+// GetTokenRefreshParams defines parameters for GetTokenRefresh.
+type GetTokenRefreshParams struct {
+	RefreshToken string `json:"refreshToken"`
 }
 
 // PostLoginJSONRequestBody defines body for PostLogin for application/json ContentType.
@@ -153,6 +166,16 @@ func PostPasswordResetInitJSON200Response(body struct {
 	}
 }
 
+// GetTokenRefreshJSON200Response is a constructor method for a GetTokenRefresh response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetTokenRefreshJSON200Response(body Tokens) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Create a new user
@@ -164,6 +187,9 @@ type ServerInterface interface {
 	// Initiate password reset
 	// (POST /password/reset:init)
 	PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response
+	// Refresh JWT tokens
+	// (GET /token/refresh)
+	GetTokenRefresh(w http.ResponseWriter, r *http.Request, params GetTokenRefreshParams) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -214,6 +240,35 @@ func (siw *ServerInterfaceWrapper) PostPasswordResetInit(w http.ResponseWriter, 
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostPasswordResetInit(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetTokenRefresh operation middleware
+func (siw *ServerInterfaceWrapper) GetTokenRefresh(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTokenRefreshParams
+
+	// ------------- Required query parameter "refreshToken" -------------
+
+	if err := runtime.BindQueryParameter("form", true, true, "refreshToken", r.URL.Query(), &params.RefreshToken); err != nil {
+		err = fmt.Errorf("invalid format for parameter refreshToken: %w", err)
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{err, "refreshToken"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetTokenRefresh(w, r, params)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -344,6 +399,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/login", wrapper.PostLogin)
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset:init", wrapper.PostPasswordResetInit)
+		r.Get("/token/refresh", wrapper.GetTokenRefresh)
 	})
 	return r
 }
@@ -369,15 +425,18 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8RUT4/TTgz9KpF/v2O0KXCbG3CqBFKF4IQ4DInTzpL5g+2wVKt+dzRO2m5IWqmIFbfI",
-	"HtvvPT/nEeroUwwYhME8Atc79FY/38WtC/kjUUxI4lDDtq6R+WP8hpqUfUIwwEIubOFQgkdmu8XFHGFL",
-	"yLvLxSxWeh2DP61PnWZ7nQjl/HnPSHOE6K3rFtsH65eB9b1rFhKH08z49R5r0Qjh994RNmA+H/GeWf/G",
-	"sZzINQL+MutawsYyP0RqPiCjzCnVsVkGnsa6ZfBPoWqLJwVzFLnChTZqLycq/idGKt7bYLfoMUjxerOG",
-	"En4gsYsBDLy4W92tMpCYMNjkwMArDeVJslPwVXdyUmQll6lZcTGsGzCwiSyD2QbEyPImNvuBdxAMWmNT",
-	"6lytVdU9x3B26y0OuK7XgiBnCYV61ACnGHgY9HK1ugnm/4QtGPivOl9dNZ5cNUigQxvkmlySQWPdQU1o",
-	"BZtivIa277q9Yubee0t7MPBWnxS2CPhQqNNyvjpSrujkrYtrmNrwz9dxjed0xjOIPPXC5f/R8sKn2h/B",
-	"FireNfWVTnHy14L0xgV3i/7r/Pyvn0QbyVsBM0bKf3EGz7ghZVVwhjHdT1bT5ftIk4Lc8vArAAD//xaW",
-	"gY4GBwAA",
+
+	"H4sIAAAAAAAC/7xVwW7bMAz9FYPb0aiz7ebbtsOQYQOCosMORVFoNpMosyVVpJcFQf59MK04caKkS4H0",
+	"Joik+PgeSa2hsLWzBg0T5GugYo61kuM3O9OmPThvHXrWKNeqKJDozv5GMfLKIeRA7LWZwSaFGonUDKM2",
+	"j1OPND8dTKy4kTT4V9WuEmsjGSE9dm8I/TFCrJWuos8bVceBNY0uI4ZNn9P+WmDBcuPxqdEeS8jvt3h3",
+	"VR/UmA7oCoAfjl5NYaKIltaXt0jIxyUVtowDdyEuDn4fqjyxFxBDITDpcs2f0TVC4yYFbaZWnDWLzj8I",
+	"ffJdGTXDGg0nHydjSOEPetLWQA7vbkY3ozabdWiU05DDB7lqi+K5AM2qvmktCY9tGYq1NeMScphY4q6v",
+	"O3KQ+JMtVx3FhtFIjHKu0oVEZQuyZjcYlzTbeWkihOzUYt+gXJCzhrpE70eji2C+9TiFHN5kuwHPwnRn",
+	"HQWStEQqvHbccSwaFB4VY5mEwZs2VbUSzNTUtfIryOGzuCQqMbhMpKlbe7YtOfN9G5+UYdjxL5fjXJ3D",
+	"HFcgedgLp1dfXPAh91uwiZB3jn0pJ+n7K0J9ro2+hP9x637tkXiNrv+vtfkCNVo+9XNTMQ5OvTRdcCcQ",
+	"t8sxC5uyBTXDiDJfkGWL3ga/do14VSOjJ8jv19BuN3hq0K9g+58dfjlDRtM9dnaf6mLJjyHskUPcIUsP",
+	"V9xA4aeJEN9ZkgDuPOGBpeTrz7uE+xc3/wIAAP//LXEzINUIAAA=",
+
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -65,6 +65,7 @@ paths:
                 properties:
                   message:
                     type: string
+
   /password/reset:init:
     post:
       summary: Initiate password reset
@@ -88,6 +89,25 @@ paths:
                 properties:
                   message:
                     type: string
+
+  /token/refresh:
+    get:
+      summary: Refresh JWT tokens
+      parameters:
+        - name: refreshToken
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "jwt_refresh_token"
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+
 components:
   schemas:
     Login:
@@ -134,3 +154,10 @@ components:
           type: string
       required:
         - email
+    Tokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
