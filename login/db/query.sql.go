@@ -7,6 +7,10 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 const findUsers = `-- name: FindUsers :many
@@ -15,15 +19,25 @@ FROM users
 limit 20
 `
 
-func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
+type FindUsersRow struct {
+	Uuid           uuid.UUID      `json:"uuid"`
+	CreatedAt      time.Time      `json:"created_at"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	DeletedAt      sql.NullTime   `json:"deleted_at"`
+	CreatedBy      sql.NullString `json:"created_by"`
+	Email          string         `json:"email"`
+	Name           sql.NullString `json:"name"`
+}
+
+func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 	rows, err := q.db.Query(ctx, findUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []FindUsersRow
 	for rows.Next() {
-		var i User
+		var i FindUsersRow
 		if err := rows.Scan(
 			&i.Uuid,
 			&i.CreatedAt,
@@ -41,4 +55,33 @@ func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const registerUser = `-- name: RegisterUser :one
+INSERT INTO users (email, name, password, created_at)
+VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at
+`
+
+type RegisterUserParams struct {
+	Email    string         `json:"email"`
+	Name     sql.NullString `json:"name"`
+	Password []byte         `json:"password"`
+}
+
+func (q *Queries) RegisterUser(ctx context.Context, arg RegisterUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, registerUser, arg.Email, arg.Name, arg.Password)
+	var i User
+	err := row.Scan(
+		&i.Uuid,
+		&i.CreatedAt,
+		&i.LastModifiedAt,
+		&i.DeletedAt,
+		&i.CreatedBy,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.VerifiedAt,
+	)
+	return i, err
 }
