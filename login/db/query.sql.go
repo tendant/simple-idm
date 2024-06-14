@@ -13,6 +13,29 @@ import (
 	"github.com/google/uuid"
 )
 
+const findUser = `-- name: FindUser :one
+SELECT uuid, name, email, password
+FROM users
+WHERE email = $1
+`
+
+type FindUserRow struct {
+	Uuid     uuid.UUID      `json:"uuid"`
+	Name     sql.NullString `json:"name"`
+	Email    string         `json:"email"`
+	Password []byte         `json:"password"`
+}
+
+func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, error) {
+	row := q.db.QueryRow(ctx, findUser, email)
+	var i FindUserRow
+	err := row.Scan(
+		&i.Uuid,
+		&i.Name,
+		&i.Email,
+		&i.Password,
+	)
+	return i, err
 const emailVerify = `-- name: EmailVerify :exec
 UPDATE users
 SET verified_at = NOW()

@@ -5,7 +5,7 @@ info:
 paths:
   /login:
     post:
-      summary: Create a new user
+      summary: Login a user
       requestBody:
         required: true
         content:
@@ -17,13 +17,16 @@ paths:
                   type: string
                 password:
                   type: string
+              required:
+                - email
+                - password
       responses:
-        '200':
-          description: User created successfully
+        "200":
+          description: User login successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Login'
+                $ref: "#/components/schemas/Login"
   /password/reset:init:
     post:
       summary: Initiate password reset
@@ -37,7 +40,7 @@ paths:
                 email:
                   type: string
       responses:
-        '200':
+        "200":
           description: Password reset initiated successfully
           content:
             application/json:
@@ -54,9 +57,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PasswordReset'
+              $ref: "#/components/schemas/PasswordReset"
       responses:
-        '200':
+        "200":
           description: Password reset successfully
           content:
             application/json:
@@ -150,20 +153,26 @@ components:
         accessToken:
           type: string
         user:
-          type: object
-          properties:
-            uuid:
-              type: string
-            name:
-              type: string
-            email:
-              type: string
+          $ref: "#/components/schemas/User"
       required:
         - status
         - message
         - refreshToken
         - accessToken
         - user
+    User:
+      type: object
+      properties:
+        uuid:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+      required:
+        - uuid
+        - name
+        - email
     PasswordReset:
       type: object
       properties:

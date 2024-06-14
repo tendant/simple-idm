@@ -18,6 +18,10 @@ SELECT uuid
 FROM users
 WHERE email = $1;
 
+-- name: FindUser :one
+SELECT uuid, name, email, password
+FROM users
+WHERE email = $1;
 -- name: ResetPassword :exec
 UPDATE users
 SET password = $1, 

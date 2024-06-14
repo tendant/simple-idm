@@ -15,9 +15,8 @@ import (
 	"path"
 	"strings"
 
-	openapi_types "github.com/discord-gophers/goapi-gen/types"
 	"github.com/discord-gophers/goapi-gen/runtime"
-
+	openapi_types "github.com/discord-gophers/goapi-gen/types"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -34,11 +33,7 @@ type Login struct {
 	Message      string `json:"message"`
 	RefreshToken string `json:"refreshToken"`
 	Status       string `json:"status"`
-	User         struct {
-		Email *string `json:"email,omitempty"`
-		Name  *string `json:"name,omitempty"`
-		UUID  *string `json:"uuid,omitempty"`
-	} `json:"user"`
+	User         User   `json:"user"`
 }
 
 // PasswordReset defines model for PasswordReset.
@@ -65,11 +60,17 @@ type Tokens struct {
 	RefreshToken *string `json:"refreshToken,omitempty"`
 }
 
+// User defines model for User.
+type User struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+	UUID  string `json:"uuid"`
+}
 
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
-	Email    *string `json:"email,omitempty"`
-	Password *string `json:"password,omitempty"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 // PostPasswordResetJSONBody defines parameters for PostPasswordReset.
@@ -235,6 +236,7 @@ func GetTokenRefreshJSON200Response(body Tokens) *Response {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Login a user
 	// Verify email address
 	// (POST /email/verify)
 	PostEmailVerify(w http.ResponseWriter, r *http.Request) *Response
@@ -514,17 +516,17 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8yVz27bMAzGX0XgdjTidLv5tL+HDBtQFNsuww6azSTqbEkV5XZB4XcfRNtxnSquWzTD",
-	"boZMSuTvEz/dQm4qazRqT5DdAuVbrCR/fqykKr+jU+vdBV7VSD6sWmcsOq+QYzDEhA+/swgZkHdKb6Bp",
-	"EnB4VSuHBWQ/urCfSR9mfl1i7qFJ4LPZKH1/X5nnSPTV/EYd2T2BConkBqP/HK4d0vZ4Mnnp67b8P7Ky",
-	"Jf+t+URI7ofXhG5+5wloWcULq2tVxFkdYDmg19U7dH3QYzLC1RUcg30uiW6MKy6QMCJmbop44bbLe1ho",
-	"3uJOQqyKC9wo8ugevlSDPJdmqxeFwTfd0iI3VUyrnv2Q+clstfhgMBY9vy/eN+kqm+wvZCq9Nryn8lzD",
-	"N0InvkgtN1ih9uLt+QoSuEZHymjI4GyxXCxDQcaillZBBq95KZzktwwl5bPTa55HZmZadoGc9MroVQEZ",
-	"nBvydwYX2jaQ/DtT7FqRtUfNmdLaUuWcm16S0cP8h6+XDteQwYt0MIi0c4c0Yg3NGJl3NfICWaOp1fXV",
-	"cvmoCsa34vjIN1ERCqTcKetbxFyxYHoKC9GN+7ouyx1vQHVVSbeDDNq2BOMWsihcsIUQkpZ7rzqKvrWz",
-	"p0Of6zHTNzdC43mVmbobLYKIBDwFuUPppwV4zyFCCo03gr2M6fctp27vXkdlGBvdaWZgfMZ/fv37YgXD",
-	"m6LP7Yj9/Yqgz5RWj+G/CuGnHol/cetnvZZPUCPwVA9NxaoL2kvTJrcCue5JnValf3hPNBCH7/osBc6e",
-	"ZySG955dpudxiDR5ilpzfavvf+xcTfM3AAD//+0iYkVjCwAA",
+	"H4sIAAAAAAAC/9RVz27bPAx/FYPfdzTqbLvptl2GDhsQFC12KIpCs5lEmS2pIr0uCPLug2jFqRMnS4b1",
+	"sJthkeLvD0mtoXSNdxYtE6g1ULnARsvnZzc3Nn744DwGNii/dVki0a37jnLIK4+ggDgYO4dNDg0S6TmO",
+	"ngWcBaTF8WRiza2UwZ+68bWctlIR8sPwljDE4P8DzkDBf8WOTJGYFHcxZiPFn1oTsAJ1v62zQ7uHLR/Q",
+	"TIUeegTu2xJLjgimmujZheoGCflQrNJV40r4lDdyuAdVrniRMIZCYNLlXv3Gj81Iqbsk+bAQNtrUoyWs",
+	"bsYVaFtzBnuJSrfkqcyhAjHL2JmT+wxL20Sg2Rdt9RwbtJy9n15DDj8wkHEWFLy5mlxNIhDn0WpvQME7",
+	"+RW15oXQKup+BhyJvZG0ZuPsdQUKpo64G5MONRJ/cNWqc94yWsnR3temlKxiSc7u5uwSIc/vmO6Oky0z",
+	"TOHQovwg7yx1QN5OJhfRODWCnURStEIqg/HceSAeicZZmvJZW9crYURt0+iwAtUtokxn7XaSiy2zIvRj",
+	"d9Sf4YT+uU+nCA5rvIK6wyY5vmI3o04PRd+CzUS8U8ILnaxvoxHplbHmEv2vY/hfn5WZC41mUH3nn6XK",
+	"P+OQsMoowhj6E9U0mrG3qEvojOK41Iu04SOQOY449BFZtv9NiotbI+gGGQOBul9DXH/w1GJYbdew2n8q",
+	"h0LmL0TZPeLLZ35MaY+c8vaVeXjFFZReyBGxu5MsgcPq9EBIUPbp623G/Y2bXwEAAP//w5FuYkUJAAA=",
+
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

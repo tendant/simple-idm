@@ -19,6 +19,14 @@ func New(queries *db.Queries) *LoginService {
 	}
 }
 
+type LoginParams struct {
+	Email string
+}
+
+func (s LoginService) Login(ctx context.Context, params LoginParams) (db.FindUserRow, error) {
+	user, err := s.queries.FindUser(ctx, params.Email)
+	return user, err
+}
 type RegisterParam struct {
 	Email    string
 	Name     string
