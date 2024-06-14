@@ -23,6 +23,11 @@ import (
 	"github.com/go-chi/render"
 )
 
+// EmailVerifyRequest defines model for EmailVerifyRequest.
+type EmailVerifyRequest struct {
+	Email string `json:"email"`
+}
+
 // Login defines model for Login.
 type Login struct {
 	AccessToken  string `json:"accessToken"`
@@ -42,11 +47,24 @@ type PasswordReset struct {
 	Password string `json:"password"`
 }
 
+
+// RegisterRequest defines model for RegisterRequest.
+type RegisterRequest struct {
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	Password string `json:"password"`
+}
+
+// PostEmailVerifyJSONBody defines parameters for PostEmailVerify.
+type PostEmailVerifyJSONBody EmailVerifyRequest
+
+
 // Tokens defines model for Tokens.
 type Tokens struct {
 	AccessToken  *string `json:"accessToken,omitempty"`
 	RefreshToken *string `json:"refreshToken,omitempty"`
 }
+
 
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
@@ -65,6 +83,17 @@ type PostPasswordResetInitJSONBody struct {
 // GetTokenRefreshParams defines parameters for GetTokenRefresh.
 type GetTokenRefreshParams struct {
 	RefreshToken string `json:"refreshToken"`
+}
+
+// PostRegisterJSONBody defines parameters for PostRegister.
+type PostRegisterJSONBody RegisterRequest
+
+// PostEmailVerifyJSONRequestBody defines body for PostEmailVerify for application/json ContentType.
+type PostEmailVerifyJSONRequestBody PostEmailVerifyJSONBody
+
+// Bind implements render.Binder.
+func (PostEmailVerifyJSONRequestBody) Bind(*http.Request) error {
+	return nil
 }
 
 // PostLoginJSONRequestBody defines body for PostLogin for application/json ContentType.
@@ -88,6 +117,14 @@ type PostPasswordResetInitJSONRequestBody PostPasswordResetInitJSONBody
 
 // Bind implements render.Binder.
 func (PostPasswordResetInitJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostRegisterJSONRequestBody defines body for PostRegister for application/json ContentType.
+type PostRegisterJSONRequestBody PostRegisterJSONBody
+
+// Bind implements render.Binder.
+func (PostRegisterJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -132,6 +169,18 @@ func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Encode(resp.body)
 }
 
+// PostEmailVerifyJSON200Response is a constructor method for a PostEmailVerify response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostEmailVerifyJSON200Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // PostLoginJSON200Response is a constructor method for a PostLogin response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostLoginJSON200Response(body Login) *Response {
@@ -166,6 +215,14 @@ func PostPasswordResetInitJSON200Response(body struct {
 	}
 }
 
+// PostRegisterJSON201Response is a constructor method for a PostRegister response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostRegisterJSON201Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        201,
 // GetTokenRefreshJSON200Response is a constructor method for a GetTokenRefresh response.
 // A *Response is returned with the configured status code and content type from the spec.
 func GetTokenRefreshJSON200Response(body Tokens) *Response {
@@ -178,6 +235,9 @@ func GetTokenRefreshJSON200Response(body Tokens) *Response {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Verify email address
+	// (POST /email/verify)
+	PostEmailVerify(w http.ResponseWriter, r *http.Request) *Response
 	// Create a new user
 	// (POST /login)
 	PostLogin(w http.ResponseWriter, r *http.Request) *Response
@@ -187,6 +247,9 @@ type ServerInterface interface {
 	// Initiate password reset
 	// (POST /password/reset:init)
 	PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response
+	// Register a new user
+	// (POST /register)
+	PostRegister(w http.ResponseWriter, r *http.Request) *Response
 	// Refresh JWT tokens
 	// (GET /token/refresh)
 	GetTokenRefresh(w http.ResponseWriter, r *http.Request, params GetTokenRefreshParams) *Response
@@ -196,6 +259,24 @@ type ServerInterface interface {
 type ServerInterfaceWrapper struct {
 	Handler          ServerInterface
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// PostEmailVerify operation middleware
+func (siw *ServerInterfaceWrapper) PostEmailVerify(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostEmailVerify(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
 }
 
 // PostLogin operation middleware
@@ -252,6 +333,12 @@ func (siw *ServerInterfaceWrapper) PostPasswordResetInit(w http.ResponseWriter, 
 	handler(w, r.WithContext(ctx))
 }
 
+// PostRegister operation middleware
+func (siw *ServerInterfaceWrapper) PostRegister(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostRegister(w, r)
 // GetTokenRefresh operation middleware
 func (siw *ServerInterfaceWrapper) GetTokenRefresh(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -396,9 +483,11 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
+		r.Post("/email/verify", wrapper.PostEmailVerify)
 		r.Post("/login", wrapper.PostLogin)
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset:init", wrapper.PostPasswordResetInit)
+		r.Post("/register", wrapper.PostRegister)
 		r.Get("/token/refresh", wrapper.GetTokenRefresh)
 	})
 	return r
@@ -425,18 +514,17 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-
-	"H4sIAAAAAAAC/7xVwW7bMAz9FYPb0aiz7ebbtsOQYQOCosMORVFoNpMosyVVpJcFQf59MK04caKkS4H0",
-	"Joik+PgeSa2hsLWzBg0T5GugYo61kuM3O9OmPThvHXrWKNeqKJDozv5GMfLKIeRA7LWZwSaFGonUDKM2",
-	"j1OPND8dTKy4kTT4V9WuEmsjGSE9dm8I/TFCrJWuos8bVceBNY0uI4ZNn9P+WmDBcuPxqdEeS8jvt3h3",
-	"VR/UmA7oCoAfjl5NYaKIltaXt0jIxyUVtowDdyEuDn4fqjyxFxBDITDpcs2f0TVC4yYFbaZWnDWLzj8I",
-	"ffJdGTXDGg0nHydjSOEPetLWQA7vbkY3ozabdWiU05DDB7lqi+K5AM2qvmktCY9tGYq1NeMScphY4q6v",
-	"O3KQ+JMtVx3FhtFIjHKu0oVEZQuyZjcYlzTbeWkihOzUYt+gXJCzhrpE70eji2C+9TiFHN5kuwHPwnRn",
-	"HQWStEQqvHbccSwaFB4VY5mEwZs2VbUSzNTUtfIryOGzuCQqMbhMpKlbe7YtOfN9G5+UYdjxL5fjXJ3D",
-	"HFcgedgLp1dfXPAh91uwiZB3jn0pJ+n7K0J9ro2+hP9x637tkXiNrv+vtfkCNVo+9XNTMQ5OvTRdcCcQ",
-	"t8sxC5uyBTXDiDJfkGWL3ga/do14VSOjJ8jv19BuN3hq0K9g+58dfjlDRtM9dnaf6mLJjyHskUPcIUsP",
-	"V9xA4aeJEN9ZkgDuPOGBpeTrz7uE+xc3/wIAAP//LXEzINUIAAA=",
-
+	"H4sIAAAAAAAC/8yVz27bMAzGX0XgdjTidLv5tL+HDBtQFNsuww6azSTqbEkV5XZB4XcfRNtxnSquWzTD",
+	"boZMSuTvEz/dQm4qazRqT5DdAuVbrCR/fqykKr+jU+vdBV7VSD6sWmcsOq+QYzDEhA+/swgZkHdKb6Bp",
+	"EnB4VSuHBWQ/urCfSR9mfl1i7qFJ4LPZKH1/X5nnSPTV/EYd2T2BConkBqP/HK4d0vZ4Mnnp67b8P7Ky",
+	"Jf+t+URI7ofXhG5+5wloWcULq2tVxFkdYDmg19U7dH3QYzLC1RUcg30uiW6MKy6QMCJmbop44bbLe1ho",
+	"3uJOQqyKC9wo8ugevlSDPJdmqxeFwTfd0iI3VUyrnv2Q+clstfhgMBY9vy/eN+kqm+wvZCq9Nryn8lzD",
+	"N0InvkgtN1ih9uLt+QoSuEZHymjI4GyxXCxDQcaillZBBq95KZzktwwl5bPTa55HZmZadoGc9MroVQEZ",
+	"nBvydwYX2jaQ/DtT7FqRtUfNmdLaUuWcm16S0cP8h6+XDteQwYt0MIi0c4c0Yg3NGJl3NfICWaOp1fXV",
+	"cvmoCsa34vjIN1ERCqTcKetbxFyxYHoKC9GN+7ouyx1vQHVVSbeDDNq2BOMWsihcsIUQkpZ7rzqKvrWz",
+	"p0Of6zHTNzdC43mVmbobLYKIBDwFuUPppwV4zyFCCo03gr2M6fctp27vXkdlGBvdaWZgfMZ/fv37YgXD",
+	"m6LP7Yj9/Yqgz5RWj+G/CuGnHol/cetnvZZPUCPwVA9NxaoL2kvTJrcCue5JnValf3hPNBCH7/osBc6e",
+	"ZySG955dpudxiDR5ilpzfavvf+xcTfM3AAD//+0iYkVjCwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

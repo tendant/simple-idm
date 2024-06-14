@@ -6,6 +6,7 @@ import (
 
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-user/login/db"
+	"golang.org/x/exp/slog"
 )
 
 type LoginService struct {
@@ -18,6 +19,33 @@ func New(queries *db.Queries) *LoginService {
 	}
 }
 
+type RegisterParam struct {
+	Email    string
+	Name     string
+	Password string
+}
+
+func (s LoginService) Create(ctx context.Context, params RegisterParam) (db.User, error) {
+	slog.Debug("Registering user use params:", "params", params)
+	registerRequest := db.RegisterUserParams{}
+	copier.Copy(&registerRequest, params)
+	user, err := s.queries.RegisterUser(ctx, registerRequest)
+	if err != nil {
+		slog.Error("Failed to register user", "params", params, "err", err)
+		return db.User{}, err
+	}
+	return user, err
+}
+
+func (s LoginService) EmailVerify(ctx context.Context, param string) error {
+	slog.Debug("Verifying user use params:", "params", param)
+	err := s.queries.EmailVerify(ctx, param)
+	if err != nil {
+		slog.Error("Failed to verify user", "params", param, "err", err)
+		return err
+	}
+	return nil
+}
 
 func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) (error) {
 	resetPasswordParams := db.ResetPasswordParams{}
