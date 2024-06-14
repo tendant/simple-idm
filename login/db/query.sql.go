@@ -36,6 +36,15 @@ func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, erro
 		&i.Password,
 	)
 	return i, err
+const emailVerify = `-- name: EmailVerify :exec
+UPDATE users
+SET verified_at = NOW()
+WHERE email = $1
+`
+
+func (q *Queries) EmailVerify(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, emailVerify, email)
+	return err
 }
 
 const findUsers = `-- name: FindUsers :many
@@ -82,6 +91,34 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 	return items, nil
 }
 
+const registerUser = `-- name: RegisterUser :one
+INSERT INTO users (email, name, password, created_at)
+VALUES ($1, $2, $3, NOW())
+RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at
+`
+
+type RegisterUserParams struct {
+	Email    string         `json:"email"`
+	Name     sql.NullString `json:"name"`
+	Password []byte         `json:"password"`
+}
+
+func (q *Queries) RegisterUser(ctx context.Context, arg RegisterUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, registerUser, arg.Email, arg.Name, arg.Password)
+	var i User
+	err := row.Scan(
+		&i.Uuid,
+		&i.CreatedAt,
+		&i.LastModifiedAt,
+		&i.DeletedAt,
+		&i.CreatedBy,
+		&i.Email,
+		&i.Name,
+		&i.Password,
+		&i.VerifiedAt,
+	)
+	return i, err
+  
 const initPassword = `-- name: InitPassword :one
 SELECT uuid
 FROM users
@@ -93,4 +130,20 @@ func (q *Queries) InitPassword(ctx context.Context, email string) (uuid.UUID, er
 	var uuid uuid.UUID
 	err := row.Scan(&uuid)
 	return uuid, err
+
+const resetPassword = `-- name: ResetPassword :exec
+UPDATE users
+SET password = $1, 
+    last_modified_at = NOW()
+WHERE email = $2
+`
+
+type ResetPasswordParams struct {
+	Password []byte `json:"password"`
+	Email    string `json:"email"`
+}
+
+func (q *Queries) ResetPassword(ctx context.Context, arg ResetPasswordParams) error {
+	_, err := q.db.Exec(ctx, resetPassword, arg.Password, arg.Email)
+	return err
 }

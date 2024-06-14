@@ -125,7 +125,25 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 	// FIXME: validate data.code
 	slog.Info("password reset", "data", data)
 
+	if(data.Code == "" || data.Password == "") {
+		slog.Error("Invalid Request." )
+		return &Response{
+			body: "Invalid Request.",
+			Code: http.StatusBadRequest,
+		}
+	}
+
 	// FIXME: hash/encode data.password, then write to database
+	resetPasswordParams := PasswordReset{}
+	copier.Copy(&resetPasswordParams, data)
+	err = h.loginService.ResetPasswordUsers(r.Context(), resetPasswordParams)
+	if err != nil {
+		slog.Error("Failed updating password", data.Password, "err", err)
+		return &Response{
+			body: "Failed updating password",
+			Code: http.StatusInternalServerError,
+		}
+	}
 
 	return &Response{
 		Code: http.StatusOK,
@@ -162,5 +180,63 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params G
 	return &Response{
 		Code: http.StatusOK,
 		body: result,
+	}
+}
+
+// Register a new user
+// (POST /register)
+func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
+	data := PostRegisterJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// FIXME:hash/encode data.password, then write to database
+	registerParam := RegisterParam{}
+	copier.Copy(&registerParam, data)
+
+	_, err = h.loginService.Create(r.Context(), registerParam)
+	if err != nil {
+		slog.Error("Failed to register user", registerParam.Email, "err", err)
+		return &Response{
+			body: "Failed to register user",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	return &Response{
+		Code: http.StatusCreated,
+		body: "User registered successfully",
+	}
+}
+
+// Verify email address
+// (POST /email/verify)
+func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Response {
+	data := PostEmailVerifyJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	email := data.Email
+	err = h.loginService.EmailVerify(r.Context(), email)
+	if err != nil {
+		slog.Error("Failed to verify user", email, "err", err)
+		return &Response{
+			body: "Failed to verify user",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: "User verified successfully",
 	}
 }
