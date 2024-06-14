@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/discord-gophers/goapi-gen/runtime"
-	openapi_types "github.com/discord-gophers/goapi-gen/types"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -42,17 +41,12 @@ type PasswordReset struct {
 	Password string `json:"password"`
 }
 
-
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	Email    string `json:"email"`
 	Name     string `json:"name"`
 	Password string `json:"password"`
 }
-
-// PostEmailVerifyJSONBody defines parameters for PostEmailVerify.
-type PostEmailVerifyJSONBody EmailVerifyRequest
-
 
 // Tokens defines model for Tokens.
 type Tokens struct {
@@ -67,6 +61,9 @@ type User struct {
 	UUID  string `json:"uuid"`
 }
 
+// PostEmailVerifyJSONBody defines parameters for PostEmailVerify.
+type PostEmailVerifyJSONBody EmailVerifyRequest
+
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
 	Email    string `json:"email"`
@@ -77,17 +74,12 @@ type PostLoginJSONBody struct {
 type PostPasswordResetJSONBody PasswordReset
 
 // PostPasswordResetInitJSONBody defines parameters for PostPasswordResetInit.
-type PostPasswordResetInitJSONBody struct {
-	Email *openapi_types.Email `json:"email,omitempty"`
-}
+type PostPasswordResetInitJSONBody RegisterRequest
 
 // GetTokenRefreshParams defines parameters for GetTokenRefresh.
 type GetTokenRefreshParams struct {
 	RefreshToken string `json:"refreshToken"`
 }
-
-// PostRegisterJSONBody defines parameters for PostRegister.
-type PostRegisterJSONBody RegisterRequest
 
 // PostEmailVerifyJSONRequestBody defines body for PostEmailVerify for application/json ContentType.
 type PostEmailVerifyJSONRequestBody PostEmailVerifyJSONBody
@@ -118,14 +110,6 @@ type PostPasswordResetInitJSONRequestBody PostPasswordResetInitJSONBody
 
 // Bind implements render.Binder.
 func (PostPasswordResetInitJSONRequestBody) Bind(*http.Request) error {
-	return nil
-}
-
-// PostRegisterJSONRequestBody defines body for PostRegister for application/json ContentType.
-type PostRegisterJSONRequestBody PostRegisterJSONBody
-
-// Bind implements render.Binder.
-func (PostRegisterJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -216,14 +200,6 @@ func PostPasswordResetInitJSON200Response(body struct {
 	}
 }
 
-// PostRegisterJSON201Response is a constructor method for a PostRegister response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PostRegisterJSON201Response(body struct {
-	Message *string `json:"message,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        201,
 // GetTokenRefreshJSON200Response is a constructor method for a GetTokenRefresh response.
 // A *Response is returned with the configured status code and content type from the spec.
 func GetTokenRefreshJSON200Response(body Tokens) *Response {
@@ -236,11 +212,10 @@ func GetTokenRefreshJSON200Response(body Tokens) *Response {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Login a user
 	// Verify email address
 	// (POST /email/verify)
 	PostEmailVerify(w http.ResponseWriter, r *http.Request) *Response
-	// Create a new user
+	// Login a user
 	// (POST /login)
 	PostLogin(w http.ResponseWriter, r *http.Request) *Response
 	// Reset password
@@ -341,6 +316,18 @@ func (siw *ServerInterfaceWrapper) PostRegister(w http.ResponseWriter, r *http.R
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostRegister(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
 // GetTokenRefresh operation middleware
 func (siw *ServerInterfaceWrapper) GetTokenRefresh(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -516,17 +503,19 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9RVz27bPAx/FYPfdzTqbLvptl2GDhsQFC12KIpCs5lEmS2pIr0uCPLug2jFqRMnS4b1",
-	"sJthkeLvD0mtoXSNdxYtE6g1ULnARsvnZzc3Nn744DwGNii/dVki0a37jnLIK4+ggDgYO4dNDg0S6TmO",
-	"ngWcBaTF8WRiza2UwZ+68bWctlIR8sPwljDE4P8DzkDBf8WOTJGYFHcxZiPFn1oTsAJ1v62zQ7uHLR/Q",
-	"TIUeegTu2xJLjgimmujZheoGCflQrNJV40r4lDdyuAdVrniRMIZCYNLlXv3Gj81Iqbsk+bAQNtrUoyWs",
-	"bsYVaFtzBnuJSrfkqcyhAjHL2JmT+wxL20Sg2Rdt9RwbtJy9n15DDj8wkHEWFLy5mlxNIhDn0WpvQME7",
-	"+RW15oXQKup+BhyJvZG0ZuPsdQUKpo64G5MONRJ/cNWqc94yWsnR3temlKxiSc7u5uwSIc/vmO6Oky0z",
-	"TOHQovwg7yx1QN5OJhfRODWCnURStEIqg/HceSAeicZZmvJZW9crYURt0+iwAtUtokxn7XaSiy2zIvRj",
-	"d9Sf4YT+uU+nCA5rvIK6wyY5vmI3o04PRd+CzUS8U8ILnaxvoxHplbHmEv2vY/hfn5WZC41mUH3nn6XK",
-	"P+OQsMoowhj6E9U0mrG3qEvojOK41Iu04SOQOY449BFZtv9NiotbI+gGGQOBul9DXH/w1GJYbdew2n8q",
-	"h0LmL0TZPeLLZ35MaY+c8vaVeXjFFZReyBGxu5MsgcPq9EBIUPbp623G/Y2bXwEAAP//w5FuYkUJAAA=",
-
+	"H4sIAAAAAAAC/8xWTW/bOBD9K8TsHgXLu73p1BYtigQtEBhJewiCgJXGNlOJVDhUUiPwfy84pGzLpj9S",
+	"JEVvgjSf78280ROUpmmNRu0Iiiegco6N5MePjVT1V7RqupjgfYfk/NvWmhatU8g26G38g1u0CAWQs0rP",
+	"YLnMwOJ9pyxWUFxHs5usNzPf77B0sMzgs5kpvRtXliUSXZofqBPRM2iQSM4w+c3i1CLN9zuTk64L5f+U",
+	"TVvz144zQrZr3hFab/yvxSkU8E++RiyPcOVX3ma765hnXe1WbdmgzZgoBdKFJHo0tpogYYKE0lRpJNro",
+	"d5wgDrHhkKpigjNFDu3xYVjDemfmelQZfBtfjUrTpDDWssGh57mZa/HBYMr69L44bhYrO9If00DPn8Uj",
+	"87ZMpLqKI3XaMq3h2Z3NTp2AAltlQzB2EfBeSk8Nx1OOWfCFii9Syxk2qJ14d3EGGTygJWU0FPDfaDwa",
+	"+0JMi1q2Cgp4w6881m7ObeWcMH9gJeGuTZge37t0yuizCgq4MOQ2JAdCC0juvakWYcy1Q82esm1rVbJv",
+	"fkdGr5Xr2KImRG05hMvZDvkFtUZTYOb/8fhZFQx53S9WyyQJFVJpVesCxFyxYPQUViIK1bSr6wUHoK5p",
+	"pF1AAaEtwXALWVXWC5o3yeuVyu6FPgjx74N+6iifvrsnLO3LM3dodgJECYp4SxjjQ/Swu5Ci629F3neW",
+	"25Ww7+VneANeZzmGOf7yveiLFQzeIeC5HbEaowT0hdLqOfifefPX4WD7yv5JFtbXlyfaxlK2VSd7AbqC",
+	"SJGvd0iWh1ZJhyu+gkNgra/oMFU9hDDASXd1PZyKYCWk0Pi4sZXOH/I8XnWfYYaJRJ/Q8cWfRDuvU1Y2",
+	"6NASFNdP4AUX7ju0i/70Ftu/f0Nasw2KNv6gHt1tdLt10W8b/ptXFL34V5RgNHwRsbjDpymiJM6/XQq3",
+	"irj8FQAA//9vBJX0fgwAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
