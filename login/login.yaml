@@ -85,6 +85,25 @@ paths:
                   message:
                     type: string
                     example: User registered successfully
+  /email/verify:
+    post:
+      summary: Verify email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerifyRequest'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
 components:
   schemas:
     Login:
@@ -139,3 +158,10 @@ components:
         - name
         - email
         - password
+    EmailVerifyRequest:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+        - email
