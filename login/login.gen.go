@@ -15,7 +15,9 @@ import (
 	"path"
 	"strings"
 
+	openapi_types "github.com/discord-gophers/goapi-gen/types"
 	"github.com/discord-gophers/goapi-gen/runtime"
+
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -57,7 +59,7 @@ type PostPasswordResetJSONBody PasswordReset
 
 // PostPasswordResetInitJSONBody defines parameters for PostPasswordResetInit.
 type PostPasswordResetInitJSONBody struct {
-	Email *string `json:"email,omitempty"`
+	Email *openapi_types.Email `json:"email,omitempty"`
 }
 
 // GetTokenRefreshParams defines parameters for GetTokenRefresh.
@@ -155,7 +157,7 @@ func PostPasswordResetJSON200Response(body struct {
 // PostPasswordResetInitJSON200Response is a constructor method for a PostPasswordResetInit response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostPasswordResetInitJSON200Response(body struct {
-	Code *string `json:"code,omitempty"`
+	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
@@ -423,6 +425,7 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
+
 	"H4sIAAAAAAAC/7xVwW7bMAz9FYPb0aiz7ebbtsOQYQOCosMORVFoNpMosyVVpJcFQf59MK04caKkS4H0",
 	"Joik+PgeSa2hsLWzBg0T5GugYo61kuM3O9OmPThvHXrWKNeqKJDozv5GMfLKIeRA7LWZwSaFGonUDKM2",
 	"j1OPND8dTKy4kTT4V9WuEmsjGSE9dm8I/TFCrJWuos8bVceBNY0uI4ZNn9P+WmDBcuPxqdEeS8jvt3h3",
@@ -433,6 +436,7 @@ var swaggerSpec = []string{
 	"HFcgedgLp1dfXPAh91uwiZB3jn0pJ+n7K0J9ro2+hP9x637tkXiNrv+vtfkCNVo+9XNTMQ5OvTRdcCcQ",
 	"t8sxC5uyBTXDiDJfkGWL3ga/do14VSOjJ8jv19BuN3hq0K9g+58dfjlDRtM9dnaf6mLJjyHskUPcIUsP",
 	"V9xA4aeJEN9ZkgDuPOGBpeTrz7uE+xc3/wIAAP//LXEzINUIAAA=",
+
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const findUsers = `-- name: FindUsers :many
@@ -41,4 +43,17 @@ func (q *Queries) FindUsers(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const initPassword = `-- name: InitPassword :one
+SELECT uuid
+FROM users
+WHERE email = $1
+`
+
+func (q *Queries) InitPassword(ctx context.Context, email string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, initPassword, email)
+	var uuid uuid.UUID
+	err := row.Scan(&uuid)
+	return uuid, err
 }
