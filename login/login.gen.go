@@ -20,6 +20,11 @@ import (
 	"github.com/go-chi/render"
 )
 
+// EmailVerifyRequest defines model for EmailVerifyRequest.
+type EmailVerifyRequest struct {
+	Email string `json:"email"`
+}
+
 // Login defines model for Login.
 type Login struct {
 	AccessToken  string `json:"accessToken"`
@@ -46,6 +51,9 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
+// PostEmailVerifyJSONBody defines parameters for PostEmailVerify.
+type PostEmailVerifyJSONBody EmailVerifyRequest
+
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
 	Email    *string `json:"email,omitempty"`
@@ -62,6 +70,14 @@ type PostPasswordResetInitJSONBody struct {
 
 // PostRegisterJSONBody defines parameters for PostRegister.
 type PostRegisterJSONBody RegisterRequest
+
+// PostEmailVerifyJSONRequestBody defines body for PostEmailVerify for application/json ContentType.
+type PostEmailVerifyJSONRequestBody PostEmailVerifyJSONBody
+
+// Bind implements render.Binder.
+func (PostEmailVerifyJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
 
 // PostLoginJSONRequestBody defines body for PostLogin for application/json ContentType.
 type PostLoginJSONRequestBody PostLoginJSONBody
@@ -136,6 +152,18 @@ func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Encode(resp.body)
 }
 
+// PostEmailVerifyJSON200Response is a constructor method for a PostEmailVerify response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostEmailVerifyJSON200Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // PostLoginJSON200Response is a constructor method for a PostLogin response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostLoginJSON200Response(body Login) *Response {
@@ -184,6 +212,9 @@ func PostRegisterJSON201Response(body struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Verify email address
+	// (POST /email/verify)
+	PostEmailVerify(w http.ResponseWriter, r *http.Request) *Response
 	// Create a new user
 	// (POST /login)
 	PostLogin(w http.ResponseWriter, r *http.Request) *Response
@@ -202,6 +233,24 @@ type ServerInterface interface {
 type ServerInterfaceWrapper struct {
 	Handler          ServerInterface
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// PostEmailVerify operation middleware
+func (siw *ServerInterfaceWrapper) PostEmailVerify(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostEmailVerify(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
 }
 
 // PostLogin operation middleware
@@ -391,6 +440,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
+		r.Post("/email/verify", wrapper.PostEmailVerify)
 		r.Post("/login", wrapper.PostLogin)
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset:init", wrapper.PostPasswordResetInit)
@@ -420,16 +470,17 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/7xVTY/TMBD9K9HAMWq6cMuJr0sRSKsKToiDSaatS+LxehyWatX/jjL52rRuaCvKLbLn",
-	"4817fpMnyKi0ZNB4hvQJONtgqeTzE621qT+sI4vOa5RjlWXI/IV+olz6nUVIgb3TZg37GEpkVmsM3jlc",
-	"OeTN6WT2ylfSBn+r0hZyW0lHiI/DK0Z3jBBLpYtgeaPKMLCq0nngYt/3pB9bzLycOHyotMMc0m8d3mHq",
-	"gxnjEV0t4O9HVWO4V8yP5PIlMvrjkTLKw8BtmxcG/xyqlHiWEEKxxLVmj26JDxWyn6B2kGdLGzPLCd+0",
-	"R7OMypBWHfdD5kfamOgDYSj6/Lmkbtwim5yvztRmRVJTe8HwldFFn5VRayzR+Ojt/QJi+IWONRlI4W42",
-	"n81rQGTRKKshhddyVHfyGyElKXqnUENaTZnymswihxTuiX1jpgY5sn9H+a7R1Xg0kqOsLXQmWcmWyQxu",
-	"vOSFT/MWIGSg0rsK5YAtGW4avZrPL4L50uEKUniRDFslaVdK0lAgTXPkzGnrG45Fg8yh8phHrdtXVVHs",
-	"BDNXZancDlJ4LyGRigw+RuKk+j7pRk5c752TMoxtdr0cU3OOe9yA5PFbOL1vw4KPue/ARkLeFPsyTtS/",
-	"rwD1qTb6Ev4XdfitLfE/Xv1Zu/oKNWo+9d9csWiDemma5EYg1y70aVW6tX8jQxz+Vc5S4O7fWGL428iW",
-	"6fg4pDS+Rq1z91Y3/3hz7fd/AgAA//9677JYfAkAAA==",
+	"H4sIAAAAAAAC/8yVz27bMAzGX0XgdjTidLv5tL+HDBtQFNsuww6azSTqbEkV5XZB4XcfRNtxnSquWzTD",
+	"boZMSuTvEz/dQm4qazRqT5DdAuVbrCR/fqykKr+jU+vdBV7VSD6sWmcsOq+QYzDEhA+/swgZkHdKb6Bp",
+	"EnB4VSuHBWQ/urCfSR9mfl1i7qFJ4LPZKH1/X5nnSPTV/EYd2T2BConkBqP/HK4d0vZ4Mnnp67b8P7Ky",
+	"Jf+t+URI7ofXhG5+5wloWcULq2tVxFkdYDmg19U7dH3QYzLC1RUcg30uiW6MKy6QMCJmbop44bbLe1ho",
+	"3uJOQqyKC9wo8ugevlSDPJdmqxeFwTfd0iI3VUyrnv2Q+clstfhgMBY9vy/eN+kqm+wvZCq9Nryn8lzD",
+	"N0InvkgtN1ih9uLt+QoSuEZHymjI4GyxXCxDQcaillZBBq95KZzktwwl5bPTa55HZmZadoGc9MroVQEZ",
+	"nBvydwYX2jaQ/DtT7FqRtUfNmdLaUuWcm16S0cP8h6+XDteQwYt0MIi0c4c0Yg3NGJl3NfICWaOp1fXV",
+	"cvmoCsa34vjIN1ERCqTcKetbxFyxYHoKC9GN+7ouyx1vQHVVSbeDDNq2BOMWsihcsIUQkpZ7rzqKvrWz",
+	"p0Of6zHTNzdC43mVmbobLYKIBDwFuUPppwV4zyFCCo03gr2M6fctp27vXkdlGBvdaWZgfMZ/fv37YgXD",
+	"m6LP7Yj9/Yqgz5RWj+G/CuGnHol/cetnvZZPUCPwVA9NxaoL2kvTJrcCue5JnValf3hPNBCH7/osBc6e",
+	"ZySG955dpudxiDR5ilpzfavvf+xcTfM3AAD//+0iYkVjCwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
