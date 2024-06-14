@@ -88,7 +88,6 @@ func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuidStr s
 	}
 	return &Response{
 		Code: http.StatusOK,
-		
 	}
 }
 

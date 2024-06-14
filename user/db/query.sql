@@ -23,3 +23,4 @@ WHERE uuid = $1;
 SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users
 WHERE uuid = $1;
+

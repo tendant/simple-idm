@@ -15,6 +15,9 @@ import (
 	"path"
 	"strings"
 
+	openapi_types "github.com/discord-gophers/goapi-gen/types"
+	"github.com/discord-gophers/goapi-gen/runtime"
+
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -44,6 +47,7 @@ type PasswordReset struct {
 	Password string `json:"password"`
 }
 
+
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	Email    string `json:"email"`
@@ -53,6 +57,14 @@ type RegisterRequest struct {
 
 // PostEmailVerifyJSONBody defines parameters for PostEmailVerify.
 type PostEmailVerifyJSONBody EmailVerifyRequest
+
+
+// Tokens defines model for Tokens.
+type Tokens struct {
+	AccessToken  *string `json:"accessToken,omitempty"`
+	RefreshToken *string `json:"refreshToken,omitempty"`
+}
+
 
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
@@ -65,7 +77,12 @@ type PostPasswordResetJSONBody PasswordReset
 
 // PostPasswordResetInitJSONBody defines parameters for PostPasswordResetInit.
 type PostPasswordResetInitJSONBody struct {
-	Email *string `json:"email,omitempty"`
+	Email *openapi_types.Email `json:"email,omitempty"`
+}
+
+// GetTokenRefreshParams defines parameters for GetTokenRefresh.
+type GetTokenRefreshParams struct {
+	RefreshToken string `json:"refreshToken"`
 }
 
 // PostRegisterJSONBody defines parameters for PostRegister.
@@ -189,7 +206,7 @@ func PostPasswordResetJSON200Response(body struct {
 // PostPasswordResetInitJSON200Response is a constructor method for a PostPasswordResetInit response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostPasswordResetInitJSON200Response(body struct {
-	Code *string `json:"code,omitempty"`
+	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
@@ -206,6 +223,12 @@ func PostRegisterJSON201Response(body struct {
 	return &Response{
 		body:        body,
 		Code:        201,
+// GetTokenRefreshJSON200Response is a constructor method for a GetTokenRefresh response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetTokenRefreshJSON200Response(body Tokens) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
 		contentType: "application/json",
 	}
 }
@@ -227,6 +250,9 @@ type ServerInterface interface {
 	// Register a new user
 	// (POST /register)
 	PostRegister(w http.ResponseWriter, r *http.Request) *Response
+	// Refresh JWT tokens
+	// (GET /token/refresh)
+	GetTokenRefresh(w http.ResponseWriter, r *http.Request, params GetTokenRefreshParams) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -313,6 +339,23 @@ func (siw *ServerInterfaceWrapper) PostRegister(w http.ResponseWriter, r *http.R
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostRegister(w, r)
+// GetTokenRefresh operation middleware
+func (siw *ServerInterfaceWrapper) GetTokenRefresh(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTokenRefreshParams
+
+	// ------------- Required query parameter "refreshToken" -------------
+
+	if err := runtime.BindQueryParameter("form", true, true, "refreshToken", r.URL.Query(), &params.RefreshToken); err != nil {
+		err = fmt.Errorf("invalid format for parameter refreshToken: %w", err)
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{err, "refreshToken"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetTokenRefresh(w, r, params)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -445,6 +488,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset:init", wrapper.PostPasswordResetInit)
 		r.Post("/register", wrapper.PostRegister)
+		r.Get("/token/refresh", wrapper.GetTokenRefresh)
 	})
 	return r
 }

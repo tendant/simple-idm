@@ -95,4 +95,32 @@ func (q *Queries) RegisterUser(ctx context.Context, arg RegisterUserParams) (Use
 		&i.VerifiedAt,
 	)
 	return i, err
+  
+const initPassword = `-- name: InitPassword :one
+SELECT uuid
+FROM users
+WHERE email = $1
+`
+
+func (q *Queries) InitPassword(ctx context.Context, email string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, initPassword, email)
+	var uuid uuid.UUID
+	err := row.Scan(&uuid)
+	return uuid, err
+
+const resetPassword = `-- name: ResetPassword :exec
+UPDATE users
+SET password = $1, 
+    last_modified_at = NOW()
+WHERE email = $2
+`
+
+type ResetPasswordParams struct {
+	Password []byte `json:"password"`
+	Email    string `json:"email"`
+}
+
+func (q *Queries) ResetPassword(ctx context.Context, arg ResetPasswordParams) error {
+	_, err := q.db.Exec(ctx, resetPassword, arg.Password, arg.Email)
+	return err
 }
