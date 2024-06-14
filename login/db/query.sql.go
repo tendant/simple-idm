@@ -13,6 +13,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const emailVerify = `-- name: EmailVerify :exec
+UPDATE users
+SET verified_at = NOW()
+WHERE email = $1
+`
+
+func (q *Queries) EmailVerify(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, emailVerify, email)
+	return err
+}
+
 const findUsers = `-- name: FindUsers :many
 SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users
@@ -59,7 +70,7 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 
 const registerUser = `-- name: RegisterUser :one
 INSERT INTO users (email, name, password, created_at)
-VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+VALUES ($1, $2, $3, NOW())
 RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at
 `
 
