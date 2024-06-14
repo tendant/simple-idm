@@ -86,11 +86,11 @@ paths:
           content:
             application/json:
               schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
       responses:
         '200':
           description: Password reset email sent
