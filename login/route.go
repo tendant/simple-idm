@@ -68,7 +68,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		Message:      "Login successful",
 		RefreshToken: "jwt_refresh_token",
 		AccessToken:  "jwt_access_token",
-		User: User{},
+		User:         User{},
 	}
 	copier.Copy(&response.User, dbUser)
 
