@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/tendant/simple-user/auth"
+	"github.com/jinzhu/copier"
 )
 
 type Handle struct {
@@ -32,10 +33,46 @@ func Routes(r *chi.Mux, handle Handle) {
 // Login a user
 // (POST /login)
 func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
-	return &Response{
-		Code: http.StatusNotImplemented,
+	data := PostLoginJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
 	}
 
+	loginParams := LoginParams{}
+	copier.Copy(&loginParams, data)
+	dbUser, err := h.loginService.Login(r.Context(), loginParams)
+	if err != nil {
+		slog.Error("User does not exist", "params", data, "err", err)
+		return &Response{
+			body: "Email/Password is wrong",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// FIXME: implement hashed password check
+	if string(dbUser.Password) != *data.Password {
+		slog.Error("Passwords does not match", "params", data, "err", err)
+		return &Response{
+			body: "Email/Password is wrong",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// FIXME: generate jwt refetch and access tokens
+	response := Login{
+		Status:       "success",
+		Message:      "Login successful",
+		RefreshToken: "jwt_refresh_token",
+		AccessToken:  "jwt_access_token",
+		User: User{},
+	}
+	copier.Copy(&response.User, dbUser)
+
+	return PostLoginJSON200Response(response)
 }
 
 func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response {
