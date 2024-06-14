@@ -35,3 +35,13 @@ func (s LoginService) Create(ctx context.Context, params RegisterParam) (db.User
 	}
 	return user, err
 }
+
+func (s LoginService) EmailVerify(ctx context.Context, param string) error {
+	slog.Debug("Verifying user use params:", "params", param)
+	err := s.queries.EmailVerify(ctx, param)
+	if err != nil {
+		slog.Error("Failed to verify user", "params", param, "err", err)
+		return err
+	}
+	return nil
+}

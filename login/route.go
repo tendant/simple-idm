@@ -80,6 +80,7 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// FIXME:hash/encode data.password, then write to database
 	registerParam := RegisterParam{}
 	copier.Copy(&registerParam, data)
 
@@ -94,5 +95,33 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 	return &Response{
 		Code: http.StatusCreated,
 		body: "User registered successfully",
+	}
+}
+
+// Verify email address
+// (POST /email/verify)
+func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Response {
+	data := PostEmailVerifyJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	email := data.Email
+	err = h.loginService.EmailVerify(r.Context(), email)
+	if err != nil {
+		slog.Error("Failed to verify user", email, "err", err)
+		return &Response{
+			body: "Failed to verify user",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: "User verified successfully",
 	}
 }
