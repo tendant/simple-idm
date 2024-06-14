@@ -54,8 +54,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// FIXME: implement hashed password check
-	if string(dbUser.Password) != *data.Password {
-		slog.Error("Passwords does not match", "params", data, "err", err)
+	if string(dbUser.Password) != data.Password {
+		slog.Error("Passwords does not match", "params", data)
 		return &Response{
 			body: "Email/Password is wrong",
 			Code: http.StatusUnauthorized,
