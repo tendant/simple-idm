@@ -5,5 +5,10 @@ limit 20;
 
 -- name: RegisterUser :one
 INSERT INTO users (email, name, password, created_at)
-VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+VALUES ($1, $2, $3, NOW())
 RETURNING *;
+
+-- name: EmailVerify :exec
+UPDATE users
+SET verified_at = NOW()
+WHERE email = $1;
