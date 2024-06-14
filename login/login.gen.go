@@ -15,9 +15,8 @@ import (
 	"path"
 	"strings"
 
-	openapi_types "github.com/discord-gophers/goapi-gen/types"
 	"github.com/discord-gophers/goapi-gen/runtime"
-
+	openapi_types "github.com/discord-gophers/goapi-gen/types"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -428,18 +427,16 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-
-	"H4sIAAAAAAAC/7xVwW7bMAz9FYPb0aiz7ebbtsOQYQOCosMORVFoNpMosyVVpJcFQf59MK04caKkS4H0",
-	"Joik+PgeSa2hsLWzBg0T5GugYo61kuM3O9OmPThvHXrWKNeqKJDozv5GMfLKIeRA7LWZwSaFGonUDKM2",
-	"j1OPND8dTKy4kTT4V9WuEmsjGSE9dm8I/TFCrJWuos8bVceBNY0uI4ZNn9P+WmDBcuPxqdEeS8jvt3h3",
-	"VR/UmA7oCoAfjl5NYaKIltaXt0jIxyUVtowDdyEuDn4fqjyxFxBDITDpcs2f0TVC4yYFbaZWnDWLzj8I",
-	"ffJdGTXDGg0nHydjSOEPetLWQA7vbkY3ozabdWiU05DDB7lqi+K5AM2qvmktCY9tGYq1NeMScphY4q6v",
-	"O3KQ+JMtVx3FhtFIjHKu0oVEZQuyZjcYlzTbeWkihOzUYt+gXJCzhrpE70eji2C+9TiFHN5kuwHPwnRn",
-	"HQWStEQqvHbccSwaFB4VY5mEwZs2VbUSzNTUtfIryOGzuCQqMbhMpKlbe7YtOfN9G5+UYdjxL5fjXJ3D",
-	"HFcgedgLp1dfXPAh91uwiZB3jn0pJ+n7K0J9ro2+hP9x637tkXiNrv+vtfkCNVo+9XNTMQ5OvTRdcCcQ",
-	"t8sxC5uyBTXDiDJfkGWL3ga/do14VSOjJ8jv19BuN3hq0K9g+58dfjlDRtM9dnaf6mLJjyHskUPcIUsP",
-	"V9xA4aeJEN9ZkgDuPOGBpeTrz7uE+xc3/wIAAP//LXEzINUIAAA=",
-
+	"H4sIAAAAAAAC/9RVz27bPAx/FYPfdzTqbLvptl2GDhsQFC12KIpCs5lEmS2pIr0uCPLug2jFqRMnS4b1",
+	"sJthkeLvD0mtoXSNdxYtE6g1ULnARsvnZzc3Nn744DwGNii/dVki0a37jnLIK4+ggDgYO4dNDg0S6TmO",
+	"ngWcBaTF8WRiza2UwZ+68bWctlIR8sPwljDE4P8DzkDBf8WOTJGYFHcxZiPFn1oTsAJ1v62zQ7uHLR/Q",
+	"TIUeegTu2xJLjgimmujZheoGCflQrNJV40r4lDdyuAdVrniRMIZCYNLlXv3Gj81Iqbsk+bAQNtrUoyWs",
+	"bsYVaFtzBnuJSrfkqcyhAjHL2JmT+wxL20Sg2Rdt9RwbtJy9n15DDj8wkHEWFLy5mlxNIhDn0WpvQME7",
+	"+RW15oXQKup+BhyJvZG0ZuPsdQUKpo64G5MONRJ/cNWqc94yWsnR3temlKxiSc7u5uwSIc/vmO6Oky0z",
+	"TOHQovwg7yx1QN5OJhfRODWCnURStEIqg/HceSAeicZZmvJZW9crYURt0+iwAtUtokxn7XaSiy2zIvRj",
+	"d9Sf4YT+uU+nCA5rvIK6wyY5vmI3o04PRd+CzUS8U8ILnaxvoxHplbHmEv2vY/hfn5WZC41mUH3nn6XK",
+	"P+OQsMoowhj6E9U0mrG3qEvojOK41Iu04SOQOY449BFZtv9NiotbI+gGGQOBul9DXH/w1GJYbdew2n8q",
+	"h0LmL0TZPeLLZ35MaY+c8vaVeXjFFZReyBGxu5MsgcPq9EBIUPbp623G/Y2bXwEAAP//w5FuYkUJAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
