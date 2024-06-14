@@ -71,7 +71,6 @@ paths:
   /register:
     post:
       summary: Register a new user
-
   /password/reset:init:
     post:
       summary: Initiate password reset
@@ -122,7 +121,6 @@ paths:
                 properties:
                   message:
                     type: string
-
   /token/refresh:
     get:
       summary: Refresh JWT tokens
@@ -140,7 +138,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Tokens'
-
 components:
   schemas:
     Login:
