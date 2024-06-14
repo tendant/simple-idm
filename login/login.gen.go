@@ -53,8 +53,8 @@ type User struct {
 
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
-	Email    *string `json:"email,omitempty"`
-	Password *string `json:"password,omitempty"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 // PostPasswordResetJSONBody defines parameters for PostPasswordReset.
