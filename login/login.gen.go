@@ -42,6 +42,10 @@ type PasswordReset struct {
 	Password string `json:"password"`
 }
 
+// PasswordResetInit defines model for PasswordResetInit.
+type PasswordResetInit struct {
+	Email string `json:"email"`
+}
 
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
@@ -49,10 +53,6 @@ type RegisterRequest struct {
 	Name     string `json:"name"`
 	Password string `json:"password"`
 }
-
-// PostEmailVerifyJSONBody defines parameters for PostEmailVerify.
-type PostEmailVerifyJSONBody EmailVerifyRequest
-
 
 // Tokens defines model for Tokens.
 type Tokens struct {
@@ -67,6 +67,9 @@ type User struct {
 	UUID  string `json:"uuid"`
 }
 
+// PostEmailVerifyJSONBody defines parameters for PostEmailVerify.
+type PostEmailVerifyJSONBody EmailVerifyRequest
+
 // PostLoginJSONBody defines parameters for PostLogin.
 type PostLoginJSONBody struct {
 	Email    string `json:"email"`
@@ -77,17 +80,15 @@ type PostLoginJSONBody struct {
 type PostPasswordResetJSONBody PasswordReset
 
 // PostPasswordResetInitJSONBody defines parameters for PostPasswordResetInit.
-type PostPasswordResetInitJSONBody struct {
-	Email *openapi_types.Email `json:"email,omitempty"`
-}
+type PostPasswordResetInitJSONBody PasswordResetInit
+
+// PostRegisterJSONBody defines parameters for PostRegister.
+type PostRegisterJSONBody RegisterRequest
 
 // GetTokenRefreshParams defines parameters for GetTokenRefresh.
 type GetTokenRefreshParams struct {
 	RefreshToken string `json:"refreshToken"`
 }
-
-// PostRegisterJSONBody defines parameters for PostRegister.
-type PostRegisterJSONBody RegisterRequest
 
 // PostEmailVerifyJSONRequestBody defines body for PostEmailVerify for application/json ContentType.
 type PostEmailVerifyJSONRequestBody PostEmailVerifyJSONBody
@@ -219,11 +220,15 @@ func PostPasswordResetInitJSON200Response(body struct {
 // PostRegisterJSON201Response is a constructor method for a PostRegister response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostRegisterJSON201Response(body struct {
-	Message *string `json:"message,omitempty"`
+	Email *openapi_types.Email `json:"email,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
 		Code:        201,
+		contentType: "application/json",
+	}
+}
+
 // GetTokenRefreshJSON200Response is a constructor method for a GetTokenRefresh response.
 // A *Response is returned with the configured status code and content type from the spec.
 func GetTokenRefreshJSON200Response(body Tokens) *Response {
@@ -236,11 +241,10 @@ func GetTokenRefreshJSON200Response(body Tokens) *Response {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Login a user
 	// Verify email address
 	// (POST /email/verify)
 	PostEmailVerify(w http.ResponseWriter, r *http.Request) *Response
-	// Create a new user
+	// Login a user
 	// (POST /login)
 	PostLogin(w http.ResponseWriter, r *http.Request) *Response
 	// Reset password
@@ -341,6 +345,18 @@ func (siw *ServerInterfaceWrapper) PostRegister(w http.ResponseWriter, r *http.R
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostRegister(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
 // GetTokenRefresh operation middleware
 func (siw *ServerInterfaceWrapper) GetTokenRefresh(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -516,17 +532,19 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9RVz27bPAx/FYPfdzTqbLvptl2GDhsQFC12KIpCs5lEmS2pIr0uCPLug2jFqRMnS4b1",
-	"sJthkeLvD0mtoXSNdxYtE6g1ULnARsvnZzc3Nn744DwGNii/dVki0a37jnLIK4+ggDgYO4dNDg0S6TmO",
-	"ngWcBaTF8WRiza2UwZ+68bWctlIR8sPwljDE4P8DzkDBf8WOTJGYFHcxZiPFn1oTsAJ1v62zQ7uHLR/Q",
-	"TIUeegTu2xJLjgimmujZheoGCflQrNJV40r4lDdyuAdVrniRMIZCYNLlXv3Gj81Iqbsk+bAQNtrUoyWs",
-	"bsYVaFtzBnuJSrfkqcyhAjHL2JmT+wxL20Sg2Rdt9RwbtJy9n15DDj8wkHEWFLy5mlxNIhDn0WpvQME7",
-	"+RW15oXQKup+BhyJvZG0ZuPsdQUKpo64G5MONRJ/cNWqc94yWsnR3temlKxiSc7u5uwSIc/vmO6Oky0z",
-	"TOHQovwg7yx1QN5OJhfRODWCnURStEIqg/HceSAeicZZmvJZW9crYURt0+iwAtUtokxn7XaSiy2zIvRj",
-	"d9Sf4YT+uU+nCA5rvIK6wyY5vmI3o04PRd+CzUS8U8ILnaxvoxHplbHmEv2vY/hfn5WZC41mUH3nn6XK",
-	"P+OQsMoowhj6E9U0mrG3qEvojOK41Iu04SOQOY449BFZtv9NiotbI+gGGQOBul9DXH/w1GJYbdew2n8q",
-	"h0LmL0TZPeLLZ35MaY+c8vaVeXjFFZReyBGxu5MsgcPq9EBIUPbp623G/Y2bXwEAAP//w5FuYkUJAAA=",
-
+	"H4sIAAAAAAAC/8xWUW/bOAz+KwLvHo04vXvz092wYWixAUXQbg9FUWg2k6iLJVei2wVF/vsgWk7iRInd",
+	"oin2ZsikSH4f9ZHPkJuyMho1OcieweVzLCV/fiqlWnxDq6bLCT7U6MifVtZUaEkh26C38R+0rBAycGSV",
+	"nsFqlYDFh1pZLCC7CWa3SWtmftxjTrBK4IuZKb1/r8xzdO7K/EQduT2BEp2TM4z+szi16OaHnR1Jqpv0",
+	"f8myWvDfmiNCsm9eO7Te+G+LU8jgr3SDWBrgSq+9zW7VIc4m253ckk6ZIVAMpEvp3JOxxQQdRkjITRFH",
+	"ogp+/QTxFVsOvVmca3WKdpjgTDlC299wG+ruzVyPCoP/haNRbsoYj1qW2PW8MHMtPhqMWQ/Hju9NQmY9",
+	"GDLV7uX93tPTq0io69C2wxjawLPf/7UagAJbJV0w9hHwXkpPDd+niFnwiYqvUssZlqhJ/H95Dgk8onXK",
+	"aMjgbDQejX0ipkItKwUZ/MtHHmuac1kpB0wfWa24atN0j69dkjL6vIAMLo2jLVmDpgR09MEUy+YpaULN",
+	"nrKqFipn3/TeGb1Rxz4xiAjnqgsX2Rr5wFVGu4aZf8bjF2XQ5fWwIK6iJBTocqsqaiDmjAWjp7AQQQyn",
+	"9WKx5AtcXZbSLiGDpizBcAtZFNaLpjdJF2slPwh9I/avB31oKw9/uwMe7dszd6x3GogiFPErYYyP0cPu",
+	"Qoq6nUdpW1lq18PjID/dOXOax9GN8Ye/izZZweAdA57LEes2ikCfqXZkDsOfJ+w7cMBx3pOHzfzlnrZh",
+	"5O/qTvIGhDUy5Xy+Xbp80UoSrhlrHBre2oyOk9WuKifiaHcTGsTQ2VvI6dTYUhJka3F8BQ/MbG5R0vFx",
+	"0lYppND4tCVb5DedNKw9PqsZRnj4jMQr0STYeSG3skRC6yC7eQY/keChRrtsd5NsdwfvYpps4bO1Yj7R",
+	"XXC7o+C3i8rtCadCWBsjQDd/REiuD2w2EhffrwStb1z9DgAA///y8aygAw4AAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

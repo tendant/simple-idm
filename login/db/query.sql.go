@@ -13,6 +13,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const emailVerify = `-- name: EmailVerify :exec
+UPDATE users
+SET verified_at = NOW()
+WHERE email = $1
+`
+
+func (q *Queries) EmailVerify(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, emailVerify, email)
+	return err
+}
+
 const findUser = `-- name: FindUser :one
 SELECT uuid, name, email, password
 FROM users
@@ -36,15 +47,6 @@ func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, erro
 		&i.Password,
 	)
 	return i, err
-const emailVerify = `-- name: EmailVerify :exec
-UPDATE users
-SET verified_at = NOW()
-WHERE email = $1
-`
-
-func (q *Queries) EmailVerify(ctx context.Context, email string) error {
-	_, err := q.db.Exec(ctx, emailVerify, email)
-	return err
 }
 
 const findUsers = `-- name: FindUsers :many
@@ -91,6 +93,19 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 	return items, nil
 }
 
+const initPassword = `-- name: InitPassword :one
+SELECT uuid
+FROM users
+WHERE email = $1
+`
+
+func (q *Queries) InitPassword(ctx context.Context, email string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, initPassword, email)
+	var uuid uuid.UUID
+	err := row.Scan(&uuid)
+	return uuid, err
+}
+
 const registerUser = `-- name: RegisterUser :one
 INSERT INTO users (email, name, password, created_at)
 VALUES ($1, $2, $3, NOW())
@@ -118,18 +133,7 @@ func (q *Queries) RegisterUser(ctx context.Context, arg RegisterUserParams) (Use
 		&i.VerifiedAt,
 	)
 	return i, err
-  
-const initPassword = `-- name: InitPassword :one
-SELECT uuid
-FROM users
-WHERE email = $1
-`
-
-func (q *Queries) InitPassword(ctx context.Context, email string) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, initPassword, email)
-	var uuid uuid.UUID
-	err := row.Scan(&uuid)
-	return uuid, err
+}
 
 const resetPassword = `-- name: ResetPassword :exec
 UPDATE users

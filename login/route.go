@@ -84,8 +84,8 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 		http.Error(w, "Failed extracting this email", http.StatusBadRequest)
 		return nil
 	}
-	if body.Email != nil {
-		email := string(*body.Email)
+	if body.Email != "" {
+		email := body.Email
 		uuid, err := h.loginService.queries.InitPassword(r.Context(), email)
 		if err != nil {
 			slog.Error("Failed finding user of this email", "err", err)

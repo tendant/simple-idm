@@ -2,7 +2,6 @@ package login
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-user/login/db"
