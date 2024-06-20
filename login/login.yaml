@@ -71,9 +71,6 @@ paths:
   /register:
     post:
       summary: Register a new user
-  /password/reset:init:
-    post:
-      summary: Initiate password reset
       requestBody:
         required: true
         content:
@@ -91,6 +88,15 @@ paths:
                   email:
                     type: string
                     format: email
+  /password/reset:init:
+    post:
+      summary: Initiate password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetInit'
       responses:
         '200':
           description: Password reset email sent
