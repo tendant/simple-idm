@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const emailVerify = `-- name: EmailVerify :exec
@@ -51,10 +50,8 @@ func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, erro
 }
 
 const findUserByUsername = `-- name: FindUserByUsername :many
-SELECT users.uuid, name, username, email, password, role_name
+SELECT users.uuid, name, username, email, password
 FROM users
-LEFT JOIN user_roles ur ON users.uuid = ur.user_uuid
-LEFT JOIN roles ON roles.uuid = ur.role_uuid
 WHERE username = $1
 `
 
@@ -64,7 +61,6 @@ type FindUserByUsernameRow struct {
 	Username sql.NullString `json:"username"`
 	Email    string         `json:"email"`
 	Password []byte         `json:"password"`
-	RoleName sql.NullString `json:"role_name"`
 }
 
 func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullString) ([]FindUserByUsernameRow, error) {
@@ -82,7 +78,6 @@ func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullStrin
 			&i.Username,
 			&i.Email,
 			&i.Password,
-			&i.RoleName,
 		); err != nil {
 			return nil, err
 		}
@@ -95,31 +90,25 @@ func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullStrin
 }
 
 const findUserRolesByUserUuid = `-- name: FindUserRolesByUserUuid :many
-SELECT uuid, role_name, description
+SELECT role_name
 FROM user_roles ur
 LEFT JOIN roles ON ur.role_uuid = roles.uuid
 WHERE ur.user_uuid = $1
 `
 
-type FindUserRolesByUserUuidRow struct {
-	Uuid        uuid.NullUUID  `json:"uuid"`
-	RoleName    sql.NullString `json:"role_name"`
-	Description pgtype.Text    `json:"description"`
-}
-
-func (q *Queries) FindUserRolesByUserUuid(ctx context.Context, userUuid uuid.UUID) ([]FindUserRolesByUserUuidRow, error) {
+func (q *Queries) FindUserRolesByUserUuid(ctx context.Context, userUuid uuid.UUID) ([]sql.NullString, error) {
 	rows, err := q.db.Query(ctx, findUserRolesByUserUuid, userUuid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []FindUserRolesByUserUuidRow
+	var items []sql.NullString
 	for rows.Next() {
-		var i FindUserRolesByUserUuidRow
-		if err := rows.Scan(&i.Uuid, &i.RoleName, &i.Description); err != nil {
+		var role_name sql.NullString
+		if err := rows.Scan(&role_name); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, role_name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
