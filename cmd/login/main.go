@@ -46,7 +46,10 @@ func main() {
 	config := Config{}
 	cleanenv.ReadEnv(&config)
 
-	myApp := app.Default()
+	myApp := app.DefaultApp()
+
+	app.RoutesHealthz(myApp.R)
+	app.RoutesHealthzReady(myApp.R)
 
 	dbConfig := config.IdmDbConfig.toDbConfig()
 	pool, err := utils.NewDbPool(context.Background(), dbConfig)
