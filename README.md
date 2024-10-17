@@ -30,3 +30,15 @@
 
     curl -i -X POST localhost:4000/api/v4/user  --data '{"name":"xyz", "email": "abc"}'  --header "Content-Type: application/json"
     
+# Insert users record
+
+    INSERT INTO users (username, name, password, email, created_by)
+    VALUES ('testusername', 'testname', convert_to('testpassword', 'UTF8'), 'test@gmail.com', 'system');
+
+# Insert roles record
+    INSERT INTO roles (role_name, description)
+    VALUES ('Admin', 'Administrator with full access');
+     
+# Insert user_roles record
+    INSERT INTO user_roles (user_uuid, role_uuid)
+    VALUES ('user-uuid-example-1234', 'role-uuid-example-5678');
