@@ -145,7 +145,7 @@ func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuidStr stri
 
 	dbUser, err := h.userService.UpdateUsers(r.Context(), updateUserParam)
 	if err != nil {
-		slog.Error("Failed to update user details", updateUserParam, "err", err)
+		slog.Error("Failed to update user details", "param", updateUserParam, "err", err)
 		return &Response{
 			body: "Failed to update user details",
 			Code: http.StatusInternalServerError,

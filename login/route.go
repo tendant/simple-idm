@@ -202,7 +202,7 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 	copier.Copy(&resetPasswordParams, data)
 	err = h.loginService.ResetPasswordUsers(r.Context(), resetPasswordParams)
 	if err != nil {
-		slog.Error("Failed updating password", data.Password, "err", err)
+		slog.Error("Failed updating password", "err", err)
 		return &Response{
 			body: "Failed updating password",
 			Code: http.StatusInternalServerError,
@@ -220,7 +220,7 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params G
 	jwt := auth.Jwt{}
 	accessToken, err := jwt.CreateAccessToken("")
 	if err != nil {
-		slog.Error("Failed to create access token", params.RefreshToken, "err", err)
+		slog.Error("Failed to create access token", "refresh token", params.RefreshToken, "err", err)
 		return &Response{
 			body: "Failed to create access token",
 			Code: http.StatusInternalServerError,
@@ -229,7 +229,7 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params G
 
 	refreshToken, err := jwt.CreateAccessToken("")
 	if err != nil {
-		slog.Error("Failed to create refresh token", params.RefreshToken, "err", err)
+		slog.Error("Failed to create refresh token", "refresh token", params.RefreshToken, "err", err)
 		return &Response{
 			body: "Failed to create refresh token",
 			Code: http.StatusInternalServerError,
@@ -265,7 +265,7 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 
 	_, err = h.loginService.Create(r.Context(), registerParam)
 	if err != nil {
-		slog.Error("Failed to register user", registerParam.Email, "err", err)
+		slog.Error("Failed to register user", "email", registerParam.Email, "err", err)
 		return &Response{
 			body: "Failed to register user",
 			Code: http.StatusInternalServerError,
@@ -292,7 +292,7 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 	email := data.Email
 	err = h.loginService.EmailVerify(r.Context(), email)
 	if err != nil {
-		slog.Error("Failed to verify user", email, "err", err)
+		slog.Error("Failed to verify user", "email", email, "err", err)
 		return &Response{
 			body: "Failed to verify user",
 			Code: http.StatusInternalServerError,
