@@ -29,9 +29,11 @@ SET password = $1,
     last_modified_at = NOW()
 WHERE email = $2; 
 
--- name: FindUserByUsername :one
-SELECT uuid, name, username, email, password
+-- name: FindUserByUsername :many
+SELECT users.uuid, name, username, email, password, role_name
 FROM users
+LEFT JOIN user_roles ur ON users.uuid = ur.user_uuid
+LEFT JOIN roles ON roles.uuid = ur.role_uuid
 WHERE username = $1;
 
 -- name: FindUserRolesByUserUuid :many
