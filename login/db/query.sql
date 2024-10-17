@@ -30,14 +30,12 @@ SET password = $1,
 WHERE email = $2; 
 
 -- name: FindUserByUsername :many
-SELECT users.uuid, name, username, email, password, role_name
+SELECT users.uuid, name, username, email, password
 FROM users
-LEFT JOIN user_roles ur ON users.uuid = ur.user_uuid
-LEFT JOIN roles ON roles.uuid = ur.role_uuid
 WHERE username = $1;
 
 -- name: FindUserRolesByUserUuid :many
-SELECT uuid, role_name, description
+SELECT role_name
 FROM user_roles ur
 LEFT JOIN roles ON ur.role_uuid = roles.uuid
 WHERE ur.user_uuid = $1;
