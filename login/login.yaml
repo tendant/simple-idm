@@ -156,17 +156,11 @@ components:
           example: success
         message:
           type: string
-        refreshToken:
-          type: string
-        accessToken:
-          type: string
         user:
           $ref: "#/components/schemas/User"
       required:
         - status
         - message
-        - refreshToken
-        - accessToken
         - user
     User:
       type: object
