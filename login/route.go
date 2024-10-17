@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-user/auth"
+	"github.com/tendant/simple-user/utils"
 )
 
 const (
@@ -75,11 +76,16 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// FIXME: select the first matched user, could be multiple records due to many to many in user_role
-	dbUser := dbUsers[0]
+	if len(dbUsers) > 1 {
+		slog.Error("Multiple user records with same username", "username", loginParams.Username)
+		return &Response{
+			body: "Username/Password is wrong",
+			Code: http.StatusUnauthorized,
+		}
+	}
 
 	// FIXME: implement hashed password check
-	if string(dbUser.Password) != data.Password {
+	if string(dbUsers[0].Password) != data.Password {
 		slog.Error("Passwords does not match", "params", data)
 		return &Response{
 			body: "Username/Password is wrong",
@@ -87,9 +93,19 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// Find users related role
+	roles, err := h.loginService.FindUserRoles(r.Context(), dbUsers[0].Uuid)
+	if err != nil {
+		slog.Error("failed to find user roles", "user_uuid", dbUsers[0].Uuid, "err", err)
+		return &Response{
+			body: "Internal error",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
 	tokenUser := IdmUser{
-		UserUuid: dbUser.Uuid.String(),
-		Role:     dbUser.RoleName.String,
+		UserUuid: dbUsers[0].Uuid.String(),
+		Role:     utils.GetValidStrings(roles),
 	}
 
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
@@ -118,7 +134,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		Message: "Login successful",
 		User:    User{},
 	}
-	copier.Copy(&response.User, dbUser)
+	copier.Copy(&response.User, dbUsers[0])
 
 	return PostLoginJSON200Response(response)
 }
