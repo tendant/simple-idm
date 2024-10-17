@@ -22,6 +22,7 @@ WHERE email = $1;
 SELECT uuid, name, email, password
 FROM users
 WHERE email = $1;
+
 -- name: ResetPassword :exec
 UPDATE users
 SET password = $1, 

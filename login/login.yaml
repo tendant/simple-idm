@@ -71,10 +71,6 @@ paths:
   /register:
     post:
       summary: Register a new user
-
-  /password/reset:init:
-    post:
-      summary: Initiate password reset
       requestBody:
         required: true
         content:
@@ -84,11 +80,23 @@ paths:
       responses:
         '201':
           description: User created successfully
-              type: object
-              properties:
-                email:
-                  type: string
-                  format: email
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
+  /password/reset:init:
+    post:
+      summary: Initiate password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetInit'
       responses:
         '200':
           description: Password reset email sent
@@ -119,7 +127,6 @@ paths:
                 properties:
                   message:
                     type: string
-
   /token/refresh:
     get:
       summary: Refresh JWT tokens
@@ -137,7 +144,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Tokens'
-
 components:
   schemas:
     Login:
