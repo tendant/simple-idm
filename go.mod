@@ -3,6 +3,7 @@ module github.com/tendant/simple-user
 go 1.22.3
 
 require (
+	github.com/SuNNjek/identity v0.0.0-20230227123848-d8047f0bc084
 	github.com/discord-gophers/goapi-gen v0.2.2
 	github.com/getkin/kin-openapi v0.116.0
 	github.com/ggicci/httpin v0.10.1
