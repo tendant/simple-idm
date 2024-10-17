@@ -89,8 +89,8 @@ func (j Jwt) CreateToken(user string) (Token, error) {
 		return Token{}, err
 	}
 	return Token{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		AccessToken:  accessToken.Token,
+		RefreshToken: refreshToken.Token,
 	}, nil
 }
 
@@ -121,7 +121,12 @@ func LoadFromMap[T any](c *T, m map[string]interface{}) error {
 	return err
 }
 
-func (j Jwt) CreateAccessToken(claimData interface{}) (string, error) {
+type IdmToken struct {
+	Token  string
+	Expiry time.Time
+}
+
+func (j Jwt) CreateAccessToken(claimData interface{}) (IdmToken, error) {
 	claims := Claims{
 		claimData,
 		jwt.RegisteredClaims{
@@ -136,10 +141,10 @@ func (j Jwt) CreateAccessToken(claimData interface{}) (string, error) {
 		},
 	}
 	accessToken, err := j.CreateTokenStr(claims)
-	return accessToken, err
+	return IdmToken{Token: accessToken, Expiry: claims.ExpiresAt.Time}, err
 }
 
-func (j Jwt) CreateRefreshToken(claimData interface{}) (string, error) {
+func (j Jwt) CreateRefreshToken(claimData interface{}) (IdmToken, error) {
 	claims := Claims{
 		claimData,
 		jwt.RegisteredClaims{
@@ -154,7 +159,7 @@ func (j Jwt) CreateRefreshToken(claimData interface{}) (string, error) {
 		},
 	}
 	refreshToken, err := j.CreateTokenStr(claims)
-	return refreshToken, err
+	return IdmToken{Token: refreshToken, Expiry: claims.ExpiresAt.Time}, err
 }
 
 func (j Jwt) CreatePasswordResetToken(claimData interface{}) (string, error) {
