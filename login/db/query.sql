@@ -28,3 +28,14 @@ UPDATE users
 SET password = $1, 
     last_modified_at = NOW()
 WHERE email = $2; 
+
+-- name: FindUserByUsername :one
+SELECT uuid, name, username, email, password
+FROM users
+WHERE username = $1;
+
+-- name: FindUserRolesByUserUuid :many
+SELECT uuid, role_name, description
+FROM user_roles ur
+LEFT JOIN roles ON ur.role_uuid = roles.uuid
+WHERE ur.user_uuid = $1;
