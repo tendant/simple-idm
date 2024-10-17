@@ -68,7 +68,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
 	dbUsers, err := h.loginService.Login(r.Context(), loginParams)
-	if err != nil {
+	if err != nil || len(dbUsers) == 0 {
 		slog.Error("User does not exist", "params", data, "err", err)
 		return &Response{
 			body: "Username/Password is wrong",
