@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const emailVerify = `-- name: EmailVerify :exec
@@ -47,6 +48,66 @@ func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, erro
 		&i.Password,
 	)
 	return i, err
+}
+
+const findUserByUsername = `-- name: FindUserByUsername :one
+SELECT uuid, name, username, email, password
+FROM users
+WHERE username = $1
+`
+
+type FindUserByUsernameRow struct {
+	Uuid     uuid.UUID      `json:"uuid"`
+	Name     sql.NullString `json:"name"`
+	Username sql.NullString `json:"username"`
+	Email    string         `json:"email"`
+	Password []byte         `json:"password"`
+}
+
+func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullString) (FindUserByUsernameRow, error) {
+	row := q.db.QueryRow(ctx, findUserByUsername, username)
+	var i FindUserByUsernameRow
+	err := row.Scan(
+		&i.Uuid,
+		&i.Name,
+		&i.Username,
+		&i.Email,
+		&i.Password,
+	)
+	return i, err
+}
+
+const findUserRolesByUserUuid = `-- name: FindUserRolesByUserUuid :many
+SELECT uuid, role_name, description
+FROM user_roles ur
+LEFT JOIN roles ON ur.role_uuid = roles.uuid
+WHERE ur.user_uuid = $1
+`
+
+type FindUserRolesByUserUuidRow struct {
+	Uuid        uuid.NullUUID  `json:"uuid"`
+	RoleName    sql.NullString `json:"role_name"`
+	Description pgtype.Text    `json:"description"`
+}
+
+func (q *Queries) FindUserRolesByUserUuid(ctx context.Context, userUuid uuid.UUID) ([]FindUserRolesByUserUuidRow, error) {
+	rows, err := q.db.Query(ctx, findUserRolesByUserUuid, userUuid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindUserRolesByUserUuidRow
+	for rows.Next() {
+		var i FindUserRolesByUserUuidRow
+		if err := rows.Scan(&i.Uuid, &i.RoleName, &i.Description); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const findUsers = `-- name: FindUsers :many
@@ -109,7 +170,7 @@ func (q *Queries) InitPassword(ctx context.Context, email string) (uuid.UUID, er
 const registerUser = `-- name: RegisterUser :one
 INSERT INTO users (email, name, password, created_at)
 VALUES ($1, $2, $3, NOW())
-RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at
+RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username
 `
 
 type RegisterUserParams struct {
@@ -131,6 +192,7 @@ func (q *Queries) RegisterUser(ctx context.Context, arg RegisterUserParams) (Use
 		&i.Name,
 		&i.Password,
 		&i.VerifiedAt,
+		&i.Username,
 	)
 	return i, err
 }
