@@ -2,7 +2,9 @@ package login
 
 import (
 	"context"
+	"database/sql"
 
+	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-user/login/db"
 	"github.com/tendant/simple-user/utils"
@@ -25,8 +27,8 @@ type LoginParams struct {
 }
 
 type IdmUser struct {
-	UserUuid string `json:"user_uuid,omitempty"`
-	Role     string `json:"role,omitempty"`
+	UserUuid string   `json:"user_uuid,omitempty"`
+	Role     []string `json:"role,omitempty"`
 }
 
 func (s LoginService) Login(ctx context.Context, params LoginParams) ([]db.FindUserByUsernameRow, error) {
@@ -68,4 +70,10 @@ func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordRes
 	copier.Copy(&resetPasswordParams, params)
 	err := s.queries.ResetPassword(ctx, resetPasswordParams)
 	return err
+}
+
+func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.NullString, error) {
+	slog.Debug("FindUserRoles", "params", uuid)
+	roles, err := s.queries.FindUserRolesByUserUuid(ctx, uuid)
+	return roles, err
 }
