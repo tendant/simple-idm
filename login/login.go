@@ -24,7 +24,12 @@ type LoginParams struct {
 	Username string
 }
 
-func (s LoginService) Login(ctx context.Context, params LoginParams) (db.FindUserByUsernameRow, error) {
+type IdmUser struct {
+	UserUuid string `json:"user_uuid,omitempty"`
+	Role     string `json:"role,omitempty"`
+}
+
+func (s LoginService) Login(ctx context.Context, params LoginParams) ([]db.FindUserByUsernameRow, error) {
 	user, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(params.Username))
 	return user, err
 }

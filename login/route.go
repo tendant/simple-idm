@@ -14,11 +14,13 @@ import (
 
 type Handle struct {
 	loginService *LoginService
+	jwtService   auth.Jwt
 }
 
-func NewHandle(loginService *LoginService) Handle {
+func NewHandle(loginService *LoginService, jwtService auth.Jwt) Handle {
 	return Handle{
 		loginService: loginService,
+		jwtService:   jwtService,
 	}
 }
 
@@ -44,7 +46,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	dbUser, err := h.loginService.Login(r.Context(), loginParams)
+	dbUsers, err := h.loginService.Login(r.Context(), loginParams)
 	if err != nil {
 		slog.Error("User does not exist", "params", data, "err", err)
 		return &Response{
@@ -52,6 +54,9 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			Code: http.StatusUnauthorized,
 		}
 	}
+
+	// FIXME: select the first matched user, could be multiple records due to many to many in user_role
+	dbUser := dbUsers[0]
 
 	// FIXME: implement hashed password check
 	if string(dbUser.Password) != data.Password {
@@ -62,12 +67,34 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// FIXME: generate jwt refetch and access tokens
+	tokenUser := IdmUser{
+		UserUuid: dbUser.Uuid.String(),
+		Role:     dbUser.RoleName.String,
+	}
+
+	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
+	if err != nil {
+		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
+		return &Response{
+			body: "Failed to create access token",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	refreshToken, err := h.jwtService.CreateRefreshToken(tokenUser)
+	if err != nil {
+		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
+		return &Response{
+			body: "Failed to create refresh token",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
 	response := Login{
 		Status:       "success",
 		Message:      "Login successful",
-		RefreshToken: "jwt_refresh_token",
-		AccessToken:  "jwt_access_token",
+		RefreshToken: refreshToken,
+		AccessToken:  accessToken,
 		User:         User{},
 	}
 	copier.Copy(&response.User, dbUser)
