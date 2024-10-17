@@ -5,11 +5,17 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-user/auth"
+)
+
+const (
+	ACCESS_TOKEN_NAME  = "accessToken"
+	REFRESH_TOKEN_NAME = "refreshToken"
 )
 
 type Handle struct {
@@ -30,6 +36,20 @@ func Routes(r *chi.Mux, handle Handle) {
 		// add auth middleware
 		r.Mount("/api/v4", Handler(&handle))
 	})
+}
+
+func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue string, expire time.Time) {
+	tokenCookie := &http.Cookie{
+		Name:     tokenName,
+		Path:     "/",
+		Value:    tokenValue,
+		Expires:  expire,
+		HttpOnly: true,                 // Make the cookie HttpOnly
+		Secure:   true,                 // Ensure it’s sent over HTTPS
+		SameSite: http.SameSiteLaxMode, // Prevent CSRF
+	}
+
+	http.SetCookie(w, tokenCookie)
 }
 
 // Login a user
@@ -90,12 +110,13 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
+	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
+
 	response := Login{
-		Status:       "success",
-		Message:      "Login successful",
-		RefreshToken: refreshToken,
-		AccessToken:  accessToken,
-		User:         User{},
+		Status:  "success",
+		Message: "Login successful",
+		User:    User{},
 	}
 	copier.Copy(&response.User, dbUser)
 
@@ -200,8 +221,8 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params G
 	}
 
 	result := Tokens{
-		AccessToken:  &accessToken,
-		RefreshToken: &refreshToken,
+		AccessToken:  &accessToken.Token,
+		RefreshToken: &refreshToken.Token,
 	}
 
 	return &Response{
