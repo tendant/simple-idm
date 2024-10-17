@@ -5,6 +5,7 @@ import (
 
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-user/login/db"
+	"github.com/tendant/simple-user/utils"
 	"golang.org/x/exp/slog"
 )
 
@@ -19,13 +20,15 @@ func New(queries *db.Queries) *LoginService {
 }
 
 type LoginParams struct {
-	Email string
+	Email    string
+	Username string
 }
 
-func (s LoginService) Login(ctx context.Context, params LoginParams) (db.FindUserRow, error) {
-	user, err := s.queries.FindUser(ctx, params.Email)
+func (s LoginService) Login(ctx context.Context, params LoginParams) (db.FindUserByUsernameRow, error) {
+	user, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(params.Username))
 	return user, err
 }
+
 type RegisterParam struct {
 	Email    string
 	Name     string
@@ -54,7 +57,7 @@ func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 	return nil
 }
 
-func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) (error) {
+func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) error {
 	resetPasswordParams := db.ResetPasswordParams{}
 	slog.Debug("resetPasswordParams", "params", params)
 	copier.Copy(&resetPasswordParams, params)
