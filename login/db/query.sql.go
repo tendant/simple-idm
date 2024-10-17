@@ -50,9 +50,11 @@ func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, erro
 	return i, err
 }
 
-const findUserByUsername = `-- name: FindUserByUsername :one
-SELECT uuid, name, username, email, password
+const findUserByUsername = `-- name: FindUserByUsername :many
+SELECT users.uuid, name, username, email, password, role_name
 FROM users
+LEFT JOIN user_roles ur ON users.uuid = ur.user_uuid
+LEFT JOIN roles ON roles.uuid = ur.role_uuid
 WHERE username = $1
 `
 
@@ -62,19 +64,34 @@ type FindUserByUsernameRow struct {
 	Username sql.NullString `json:"username"`
 	Email    string         `json:"email"`
 	Password []byte         `json:"password"`
+	RoleName sql.NullString `json:"role_name"`
 }
 
-func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullString) (FindUserByUsernameRow, error) {
-	row := q.db.QueryRow(ctx, findUserByUsername, username)
-	var i FindUserByUsernameRow
-	err := row.Scan(
-		&i.Uuid,
-		&i.Name,
-		&i.Username,
-		&i.Email,
-		&i.Password,
-	)
-	return i, err
+func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullString) ([]FindUserByUsernameRow, error) {
+	rows, err := q.db.Query(ctx, findUserByUsername, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindUserByUsernameRow
+	for rows.Next() {
+		var i FindUserByUsernameRow
+		if err := rows.Scan(
+			&i.Uuid,
+			&i.Name,
+			&i.Username,
+			&i.Email,
+			&i.Password,
+			&i.RoleName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const findUserRolesByUserUuid = `-- name: FindUserRolesByUserUuid :many
