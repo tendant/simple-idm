@@ -7,6 +7,7 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
+	"github.com/tendant/simple-user/auth"
 	"github.com/tendant/simple-user/login"
 	"github.com/tendant/simple-user/login/db"
 	"golang.org/x/exp/slog"
@@ -18,6 +19,10 @@ type IdmDbConfig struct {
 	Database string `env:"IDM_PG_DATABASE" env-default:"idm_db"`
 	User     string `env:"IDM_PG_USER" env-default:"idm"`
 	Password string `env:"IDM_PG_PASSWORD" env-default:"pwd"`
+}
+
+type JwtConfig struct {
+	JwtSecret string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
 }
 
 func (d IdmDbConfig) toDbConfig() utils.DbConfig {
@@ -33,6 +38,7 @@ func (d IdmDbConfig) toDbConfig() utils.DbConfig {
 type Config struct {
 	IdmDbConfig IdmDbConfig
 	AppConfig   app.AppConfig
+	JwtConfig   JwtConfig
 }
 
 func main() {
@@ -52,7 +58,10 @@ func main() {
 	queries := db.New(pool)
 	loginService := login.New(queries)
 
-	loginHandle := login.NewHandle(loginService)
+	// jwt service
+	jwtService := auth.Jwt{Secret: config.JwtConfig.JwtSecret}
+
+	loginHandle := login.NewHandle(loginService, jwtService)
 
 	login.Routes(myApp.R, loginHandle)
 
