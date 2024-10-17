@@ -300,8 +300,10 @@ github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
-github.com/tendant/chi-demo v1.3.0 h1:RIdaD5Ez/qMdsn+ciyRsc7a/F30welA88064sLTHydc=
-github.com/tendant/chi-demo v1.3.0/go.mod h1:jcVLIsJQuMZBOIm2GJwomMPdu0ajnWThEVAftqWhhpM=
+github.com/tendant/chi-demo v1.1.0 h1:puBpWK8HfWjRrBJ8eomZ6CSTJhDRPLvNAOwKR0L2ifM=
+github.com/tendant/chi-demo v1.1.0/go.mod h1:jcVLIsJQuMZBOIm2GJwomMPdu0ajnWThEVAftqWhhpM=
+github.com/tendant/chi-demo v1.5.2 h1:nwW9D3bXGkp3CxBL2ivLgXLUf+IlngONCt3jBupBuT4=
+github.com/tendant/chi-demo v1.5.2/go.mod h1:Gbr2nLNuRuMEllKYVkbSCYfLp4eqttZd4ctfH3BW+Ck=
 github.com/tendant/db-utils v0.0.1 h1:I6Cn2vEViX1gHzb0Do/BxEozUea9VuZi06YVYu5dyLk=
 github.com/tendant/db-utils v0.0.1/go.mod h1:N07A2Ea6FT3KML0FrU1iYHTfMV9dDN0Rq4OHyKRxhTc=
 github.com/ugorji/go v1.2.7 h1:qYhyWUUd6WbiM+C6JZAUkIJt/1WrjzNHY9+KCIjVqTo=
