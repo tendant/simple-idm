@@ -14,3 +14,15 @@ func ToNullString(str string) sql.NullString {
 		Valid:  true,
 	}
 }
+
+func GetValidStrings(nullStrings []sql.NullString) []string {
+	var validStrings []string
+
+	for _, ns := range nullStrings {
+		if ns.Valid {
+			validStrings = append(validStrings, ns.String)
+		}
+	}
+
+	return validStrings
+}
