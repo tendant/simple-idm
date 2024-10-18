@@ -40,7 +40,8 @@ func signedString(key interface{}, t *jwt.Token) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.Join([]string{sstr, string(sig)}, "."), nil
+	encodedSig := base64.StdEncoding.EncodeToString(sig)
+	return strings.Join([]string{sstr, encodedSig}, "."), nil
 }
 
 // SigningString generates the signing string.  This is the
