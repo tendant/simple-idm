@@ -295,3 +295,9 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 		body: "User verified successfully",
 	}
 }
+
+// Get me
+// (GET /me)
+func (h Handle) GetMe(w http.ResponseWriter, r *http.Request) *Response {
+	data := Getme
+}
