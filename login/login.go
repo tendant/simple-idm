@@ -3,12 +3,12 @@ package login
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/login/db"
 	"github.com/tendant/simple-idm/utils"
-	"golang.org/x/exp/slog"
 )
 
 type LoginService struct {
