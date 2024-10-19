@@ -89,6 +89,47 @@ func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullStrin
 	return items, nil
 }
 
+const findUserInfoWithRoles = `-- name: FindUserInfoWithRoles :many
+SELECT u.email, u.username, u.name, COALESCE(array_agg(r.role_name), '{}') AS roles
+FROM public.users u
+LEFT JOIN public.user_roles ur ON u.uuid = ur.user_uuid
+LEFT JOIN public.roles r ON ur.role_uuid = r.uuid
+WHERE u.uuid = $1
+GROUP BY u.email, u.username, u.name
+`
+
+type FindUserInfoWithRolesRow struct {
+	Email    string         `json:"email"`
+	Username sql.NullString `json:"username"`
+	Name     sql.NullString `json:"name"`
+	Roles    interface{}    `json:"roles"`
+}
+
+func (q *Queries) FindUserInfoWithRoles(ctx context.Context, argUuid uuid.UUID) ([]FindUserInfoWithRolesRow, error) {
+	rows, err := q.db.Query(ctx, findUserInfoWithRoles, argUuid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindUserInfoWithRolesRow
+	for rows.Next() {
+		var i FindUserInfoWithRolesRow
+		if err := rows.Scan(
+			&i.Email,
+			&i.Username,
+			&i.Name,
+			&i.Roles,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findUserRolesByUserUuid = `-- name: FindUserRolesByUserUuid :many
 SELECT role_name
 FROM user_roles ur
