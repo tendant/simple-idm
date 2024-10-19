@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
@@ -29,14 +28,6 @@ func NewHandle(loginService *LoginService, jwtService auth.Jwt) Handle {
 		loginService: loginService,
 		jwtService:   jwtService,
 	}
-}
-
-func Routes(r *chi.Mux, handle Handle) {
-
-	r.Group(func(r chi.Router) {
-		// add auth middleware
-		r.Mount("/api/v4", Handler(&handle))
-	})
 }
 
 func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue string, expire time.Time) {

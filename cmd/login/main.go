@@ -66,7 +66,7 @@ func main() {
 
 	loginHandle := login.NewHandle(loginService, jwtService)
 
-	login.Routes(myApp.R, loginHandle)
+	myApp.R.Mount("/", login.Handler(loginHandle))
 
 	myApp.Run()
 
