@@ -103,12 +103,12 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	tokenUser := IdmUser{
+	tokenUser := auth.SimpleIdmUser{
 		UserUuid: dbUsers[0].Uuid.String(),
 		Role:     utils.GetValidStrings(roles),
 	}
 
-	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
+	accessToken, err := h.jwtService.CreateSimpleIdmAccessToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
 		return &Response{
@@ -117,7 +117,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	refreshToken, err := h.jwtService.CreateRefreshToken(tokenUser)
+	refreshToken, err := h.jwtService.CreateSimpleIdmRefreshToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
 		return &Response{
