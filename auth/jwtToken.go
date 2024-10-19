@@ -74,7 +74,7 @@ type Token struct {
 	RefreshToken string
 }
 type Claims struct {
-	CustomClaims interface{} `json:",inline"`
+	CustomClaims interface{} `json:"custom_claims,inline"`
 	jwt.RegisteredClaims
 }
 
