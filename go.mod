@@ -1,4 +1,4 @@
-module github.com/tendant/simple-user
+module github.com/tendant/simple-idm
 
 go 1.23
 
