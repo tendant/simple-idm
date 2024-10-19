@@ -15,30 +15,40 @@
     GRANT ALL PRIVILEGES ON DATABASE idm_db TO idm;
     ALTER ROLE idm WITH LOGIN;
     
-    
-     
+# Run Migraion
 
+    make migrate-up-idm
+     
 # Fix Database
 
     ALTER TABLE users OWNER TO idm;
    
    
-   
+# Insert users record
+
+    INSERT INTO users (username, name, password, email, created_by)
+    VALUES ('admin', 'admin', convert_to('pwd', 'UTF8'), 'admin@example.com', 'system');
+
+# Insert roles record
+
+    INSERT INTO roles (role_name, description)
+    VALUES ('Admin', 'Administrator with full access');
+     
+# Insert user_roles record
+
+    INSERT INTO user_roles (user_uuid, role_uuid)
+    VALUES ('user-uuid-example-1234', 'role-uuid-example-5678');
+    
+    
 # API Test Commands
 
 ## Create User
 
     curl -i -X POST localhost:4000/api/v4/user  --data '{"name":"xyz", "email": "abc"}'  --header "Content-Type: application/json"
+
+
+## Login
+
+    curl -i -X POST localhost:4000/login  --data '{"username":"admin", "password": "pwd"}'  --header "Content-Type: application/json"
+
     
-# Insert users record
-
-    INSERT INTO users (username, name, password, email, created_by)
-    VALUES ('testusername', 'testname', convert_to('testpassword', 'UTF8'), 'test@gmail.com', 'system');
-
-# Insert roles record
-    INSERT INTO roles (role_name, description)
-    VALUES ('Admin', 'Administrator with full access');
-     
-# Insert user_roles record
-    INSERT INTO user_roles (user_uuid, role_uuid)
-    VALUES ('user-uuid-example-1234', 'role-uuid-example-5678');
