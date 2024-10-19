@@ -77,6 +77,16 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
+type SimpleIdmUser struct {
+	UserUuid string   `json:"user_uuid,omitempty"`
+	Role     []string `json:"role,omitempty"`
+}
+
+type SimpleIdmClaims struct {
+	CustomClaims SimpleIdmUser `json:",inline"`
+	jwt.RegisteredClaims
+}
+
 func (j Jwt) CreateToken(user string) (Token, error) {
 	accessToken, err := j.CreateAccessToken(user)
 	if err != nil {
@@ -146,6 +156,42 @@ func (j Jwt) CreateAccessToken(claimData interface{}) (IdmToken, error) {
 
 func (j Jwt) CreateRefreshToken(claimData interface{}) (IdmToken, error) {
 	claims := Claims{
+		claimData,
+		jwt.RegisteredClaims{
+			// A usual scenario is to set the expiration time relative to the current time
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			NotBefore: jwt.NewNumericDate(time.Now().UTC().Add(-time.Minute * 5)),
+			Issuer:    "simple-idm",
+			Subject:   "simple-idm",
+			ID:        uuid.New().String(),
+			Audience:  []string{"public"},
+		},
+	}
+	refreshToken, err := j.CreateTokenStr(claims)
+	return IdmToken{Token: refreshToken, Expiry: claims.ExpiresAt.Time}, err
+}
+
+func (j Jwt) CreateSimpleIdmAccessToken(claimData SimpleIdmUser) (IdmToken, error) {
+	claims := SimpleIdmClaims{
+		claimData,
+		jwt.RegisteredClaims{
+			// A usual scenario is to set the expiration time relative to the current time
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(5 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			NotBefore: jwt.NewNumericDate(time.Now().UTC().Add(-time.Minute * 5)),
+			Issuer:    "simple-idm",
+			Subject:   "simple-idm",
+			ID:        uuid.New().String(),
+			Audience:  []string{"public"},
+		},
+	}
+	accessToken, err := j.CreateTokenStr(claims)
+	return IdmToken{Token: accessToken, Expiry: claims.ExpiresAt.Time}, err
+}
+
+func (j Jwt) CreateSimpleIdmRefreshToken(claimData SimpleIdmUser) (IdmToken, error) {
+	claims := SimpleIdmClaims{
 		claimData,
 		jwt.RegisteredClaims{
 			// A usual scenario is to set the expiration time relative to the current time
