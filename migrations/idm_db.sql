@@ -3,7 +3,7 @@
 --
 
 -- Dumped from database version 16.3
--- Dumped by pg_dump version 16.3
+-- Dumped by pg_dump version 16.4 (Homebrew)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -17,17 +17,19 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
+-- Name: public; Type: SCHEMA; Schema: -; Owner: pg_database_owner
 --
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+CREATE SCHEMA public;
 
+
+ALTER SCHEMA public OWNER TO pg_database_owner;
 
 --
--- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: -
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: pg_database_owner
 --
 
-COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+COMMENT ON SCHEMA public IS 'standard public schema';
 
 
 SET default_tablespace = '';
@@ -35,7 +37,7 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: roles; Type: TABLE; Schema: public; Owner: -
+-- Name: roles; Type: TABLE; Schema: public; Owner: idm
 --
 
 CREATE TABLE public.roles (
@@ -45,8 +47,10 @@ CREATE TABLE public.roles (
 );
 
 
+ALTER TABLE public.roles OWNER TO idm;
+
 --
--- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
+-- Name: schema_migrations; Type: TABLE; Schema: public; Owner: idm
 --
 
 CREATE TABLE public.schema_migrations (
@@ -55,8 +59,10 @@ CREATE TABLE public.schema_migrations (
 );
 
 
+ALTER TABLE public.schema_migrations OWNER TO idm;
+
 --
--- Name: user_roles; Type: TABLE; Schema: public; Owner: -
+-- Name: user_roles; Type: TABLE; Schema: public; Owner: idm
 --
 
 CREATE TABLE public.user_roles (
@@ -65,8 +71,10 @@ CREATE TABLE public.user_roles (
 );
 
 
+ALTER TABLE public.user_roles OWNER TO idm;
+
 --
--- Name: users; Type: TABLE; Schema: public; Owner: -
+-- Name: users; Type: TABLE; Schema: public; Owner: idm
 --
 
 CREATE TABLE public.users (
@@ -83,8 +91,10 @@ CREATE TABLE public.users (
 );
 
 
+ALTER TABLE public.users OWNER TO idm;
+
 --
--- Name: roles roles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: roles roles_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
 ALTER TABLE ONLY public.roles
@@ -92,7 +102,7 @@ ALTER TABLE ONLY public.roles
 
 
 --
--- Name: roles roles_role_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: roles roles_role_name_key; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
 ALTER TABLE ONLY public.roles
@@ -100,7 +110,7 @@ ALTER TABLE ONLY public.roles
 
 
 --
--- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
 ALTER TABLE ONLY public.schema_migrations
@@ -108,7 +118,7 @@ ALTER TABLE ONLY public.schema_migrations
 
 
 --
--- Name: user_roles user_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: user_roles user_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
 ALTER TABLE ONLY public.user_roles
@@ -116,7 +126,7 @@ ALTER TABLE ONLY public.user_roles
 
 
 --
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
 ALTER TABLE ONLY public.users
@@ -124,7 +134,7 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: user_roles user_roles_role_uuid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: user_roles user_roles_role_uuid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
 --
 
 ALTER TABLE ONLY public.user_roles
@@ -132,7 +142,7 @@ ALTER TABLE ONLY public.user_roles
 
 
 --
--- Name: user_roles user_roles_user_uuid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: user_roles user_roles_user_uuid_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
 --
 
 ALTER TABLE ONLY public.user_roles

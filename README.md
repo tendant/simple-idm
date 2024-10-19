@@ -36,6 +36,8 @@
      
 # Insert user_roles record
 
+    select * from users;
+    select * from roles;
     INSERT INTO user_roles (user_uuid, role_uuid)
     VALUES ('user-uuid-example-1234', 'role-uuid-example-5678');
     
