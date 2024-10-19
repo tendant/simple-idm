@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"os"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
@@ -46,10 +49,10 @@ func main() {
 	config := Config{}
 	cleanenv.ReadEnv(&config)
 
-	myApp := app.DefaultApp()
+	server := app.DefaultApp()
 
-	app.RoutesHealthz(myApp.R)
-	app.RoutesHealthzReady(myApp.R)
+	app.RoutesHealthz(server.R)
+	app.RoutesHealthzReady(server.R)
 
 	dbConfig := config.IdmDbConfig.toDbConfig()
 	pool, err := utils.NewDbPool(context.Background(), dbConfig)
@@ -66,8 +69,15 @@ func main() {
 
 	loginHandle := login.NewHandle(loginService, jwtService)
 
-	myApp.R.Mount("/", login.Handler(loginHandle))
+	server.R.Mount("/", login.Handler(loginHandle))
 
-	myApp.Run()
+	server.R.Group(func(r chi.Router) {
+		r.Use(login.AuthUserMiddleware)
+		r.Get("/private", func(w http.ResponseWriter, r *http.Request) {
+			render.PlainText(w, r, http.StatusText(http.StatusOK))
+		})
+	})
+
+	server.Run()
 
 }
