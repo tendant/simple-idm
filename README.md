@@ -32,7 +32,7 @@
 # Insert roles record
 
     INSERT INTO roles (role_name, description)
-    VALUES ('Admin', 'Administrator with full access');
+    VALUES ('admin', 'Administrator with full access');
      
 # Insert user_roles record
 
