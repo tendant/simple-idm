@@ -40,7 +40,7 @@ FROM user_roles ur
 LEFT JOIN roles ON ur.role_uuid = roles.uuid
 WHERE ur.user_uuid = $1;
 
--- name: FindUserInfoWithRoles :many
+-- name: FindUserInfoWithRoles :one
 SELECT u.email, u.username, u.name, COALESCE(array_agg(r.role_name), '{}') AS roles
 FROM public.users u
 LEFT JOIN public.user_roles ur ON u.uuid = ur.user_uuid
