@@ -83,7 +83,7 @@ type SimpleIdmUser struct {
 }
 
 type SimpleIdmClaims struct {
-	CustomClaims SimpleIdmUser `json:",inline"`
+	SimpleIdmUser
 	jwt.RegisteredClaims
 }
 
