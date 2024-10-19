@@ -10,8 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/jinzhu/copier"
-	"github.com/tendant/simple-user/auth"
-	"github.com/tendant/simple-user/utils"
+	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/utils"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/jinzhu/copier"
-	"github.com/tendant/simple-user/user"
+	"github.com/tendant/simple-idm/user"
 	"golang.org/x/exp/slog"
 )
 

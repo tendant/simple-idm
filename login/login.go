@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
-	"github.com/tendant/simple-user/login/db"
-	"github.com/tendant/simple-user/utils"
+	"github.com/tendant/simple-idm/login/db"
+	"github.com/tendant/simple-idm/utils"
 	"golang.org/x/exp/slog"
 )
 

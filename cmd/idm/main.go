@@ -7,9 +7,9 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
-	"github.com/tendant/simple-user/handler"
-	"github.com/tendant/simple-user/user"
-	"github.com/tendant/simple-user/user/db"
+	"github.com/tendant/simple-idm/handler"
+	"github.com/tendant/simple-idm/user"
+	"github.com/tendant/simple-idm/user/db"
 	"golang.org/x/exp/slog"
 )
 

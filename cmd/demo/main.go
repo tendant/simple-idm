@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/tendant/chi-demo/app"
-	"github.com/tendant/simple-user/demoService"
+	"github.com/tendant/simple-idm/demoService"
 )
 
 func main() {

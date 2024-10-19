@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
-	"github.com/tendant/simple-user/user/db"
+	"github.com/tendant/simple-idm/user/db"
 	"golang.org/x/exp/slog"
 )
 
