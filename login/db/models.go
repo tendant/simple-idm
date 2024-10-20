@@ -18,17 +18,6 @@ type Role struct {
 	Description pgtype.Text `json:"description"`
 }
 
-type Role struct {
-	Uuid        uuid.UUID   `json:"uuid"`
-	RoleName    string      `json:"role_name"`
-	Description pgtype.Text `json:"description"`
-}
-
-type SchemaMigration struct {
-	Version int64 `json:"version"`
-	Dirty   bool  `json:"dirty"`
-}
-
 type SchemaMigration struct {
 	Version int64 `json:"version"`
 	Dirty   bool  `json:"dirty"`
@@ -45,24 +34,6 @@ type User struct {
 	Password       []byte         `json:"password"`
 	VerifiedAt     sql.NullTime   `json:"verified_at"`
 	Username       sql.NullString `json:"username"`
-}
-
-type User struct {
-	Uuid           uuid.UUID      `json:"uuid"`
-	CreatedAt      time.Time      `json:"created_at"`
-	LastModifiedAt time.Time      `json:"last_modified_at"`
-	DeletedAt      sql.NullTime   `json:"deleted_at"`
-	CreatedBy      sql.NullString `json:"created_by"`
-	Email          string         `json:"email"`
-	Name           sql.NullString `json:"name"`
-	Password       []byte         `json:"password"`
-	VerifiedAt     sql.NullTime   `json:"verified_at"`
-	Username       sql.NullString `json:"username"`
-}
-
-type UserRole struct {
-	UserUuid uuid.UUID `json:"user_uuid"`
-	RoleUuid uuid.UUID `json:"role_uuid"`
 }
 
 type UserRole struct {
