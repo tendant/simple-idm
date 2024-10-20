@@ -12,8 +12,8 @@ import (
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
-	"github.com/tendant/simple-idm/login"
-	"github.com/tendant/simple-idm/login/db"
+	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/login/db"
 	"golang.org/x/exp/slog"
 )
 
