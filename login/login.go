@@ -77,3 +77,13 @@ func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.
 	roles, err := s.queries.FindUserRolesByUserUuid(ctx, uuid)
 	return roles, err
 }
+
+func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (db.FindUserInfoWithRolesRow, error) {
+	slog.Debug("GetMe", "userUuid", userUuid)
+	userInfo, err := s.queries.FindUserInfoWithRoles(ctx, userUuid)
+	if err != nil {
+		slog.Error("Failed getting userinfo with roles", "err", err)
+		return db.FindUserInfoWithRolesRow{}, err
+	}
+	return userInfo, err
+}

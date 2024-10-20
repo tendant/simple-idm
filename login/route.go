@@ -299,5 +299,20 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 // Get me
 // (GET /me)
 func (h Handle) GetMe(w http.ResponseWriter, r *http.Request) *Response {
-	data := Getme
+	authUser, ok := r.Context().Value(AuthUserKey).(*AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+	}
+	userInfo, err := h.loginService.queries.FindUserInfoWithRoles(r.Context(), authUser.UserUUID)
+	if err != nil {
+		slog.Error("Failed finding user info with roles", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: http.StatusText(http.StatusInternalServerError),
+		}
+	}
+	return &Response{
+		Code: http.StatusOK,
+		body: userInfo,
+	}
 }
