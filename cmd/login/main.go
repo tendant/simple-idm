@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/jwtauth"
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/tendant/chi-demo/app"
@@ -71,7 +72,11 @@ func main() {
 
 	server.R.Mount("/", login.Handler(loginHandle))
 
+	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
+
 	server.R.Group(func(r chi.Router) {
+		r.Use(login.Verifier(tokenAuth))
+		r.Use(jwtauth.Authenticator)
 		r.Use(login.AuthUserMiddleware)
 		r.Get("/private", func(w http.ResponseWriter, r *http.Request) {
 			render.PlainText(w, r, http.StatusText(http.StatusOK))

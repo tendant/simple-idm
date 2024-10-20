@@ -12,15 +12,15 @@ import (
 )
 
 type AuthUser struct {
-	UserUuid string `json:"user_uuid,omitempty"`
-	Role     string `json:"role,omitempty"`
+	UserUuid string   `json:"user_uuid,omitempty"`
+	Roles    []string `json:"role,omitempty"`
 	UserUUID uuid.UUID
 }
 
 func (i AuthUser) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.String("user", i.UserUuid),
-		slog.String("role", i.Role),
+		slog.Any("role", i.Roles),
 	)
 }
 
@@ -54,13 +54,32 @@ func LoadFromMap[T any](m map[string]interface{}, c *T) error {
 func AuthUserMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, claims, err := jwtauth.FromContext(r.Context())
+		slog.Info("claims", "claims", claims)
 		if err != nil {
 			em := fmt.Errorf("missing jwt: %w", err)
 			http.Error(w, em.Error(), http.StatusUnauthorized)
 			return
 		}
 		authUser := new(AuthUser)
+
+		customClaims, ok := claims["custom_claims"].(map[string]interface{})
+		slog.Info("customClaims", "custom", customClaims)
+		if !ok {
+			em := fmt.Errorf("missing claims: %w", err)
+			http.Error(w, em.Error(), http.StatusUnauthorized)
+			return
+		}
+		err = LoadFromMap(customClaims, authUser)
+		if err != nil {
+			em := fmt.Errorf("invalid claims: %w", err)
+			http.Error(w, em.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		slog.Info("load claims", "claims", claims)
+
 		err = LoadFromMap(claims, authUser)
+		slog.Info("authUser", "user", authUser)
 		if err != nil {
 			em := fmt.Errorf("invalid claims: %w", err)
 			http.Error(w, em.Error(), http.StatusUnauthorized)
@@ -77,20 +96,7 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		customClaims, ok := claims["CustomClaims"].(map[string]interface{})
-		if !ok {
-			em := fmt.Errorf("missing claims: %w", err)
-			http.Error(w, em.Error(), http.StatusUnauthorized)
-			return
-		}
-		err = LoadFromMap(customClaims, authUser)
-		if err != nil {
-			em := fmt.Errorf("invalid claims: %w", err)
-			http.Error(w, em.Error(), http.StatusUnauthorized)
-			return
-		}
-
-		slog.Info("AdminUserMiddleware", "userUuid", authUser.UserUuid, "role", authUser.Role)
+		slog.Info("AdminUserMiddleware", "userUuid", authUser.UserUuid, "roles", authUser.Roles)
 		// create new context from `r` request context, and assign key `"user"`
 		// to value of `"123"`
 		ctx := context.WithValue(r.Context(), AuthUserKey, authUser)
