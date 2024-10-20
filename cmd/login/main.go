@@ -78,6 +78,23 @@ func main() {
 		r.Use(login.Verifier(tokenAuth))
 		r.Use(jwtauth.Authenticator)
 		r.Use(login.AuthUserMiddleware)
+		r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
+			authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+			if !ok {
+				slog.Error("Failed getting AuthUser", "ok", ok)
+				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				return
+			}
+
+			userInfo, err := loginService.GetMe(r.Context(), authUser.UserUUID)
+			if err != nil {
+				slog.Error("Failed getting me", "err", err)
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+			render.JSON(w, r, userInfo)
+		})
+
 		r.Get("/private", func(w http.ResponseWriter, r *http.Request) {
 			render.PlainText(w, r, http.StatusText(http.StatusOK))
 		})
