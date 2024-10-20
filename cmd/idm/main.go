@@ -8,8 +8,8 @@ import (
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/handler"
-	"github.com/tendant/simple-idm/user"
-	"github.com/tendant/simple-idm/user/db"
+	"github.com/tendant/simple-idm/pkg/user"
+	"github.com/tendant/simple-idm/pkg/user/db"
 	"golang.org/x/exp/slog"
 )
 
