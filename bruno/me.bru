@@ -1,0 +1,15 @@
+meta {
+  name: me
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BASE_URL}}/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b21fY2xhaW1zIjp7InVzZXJfdXVpZCI6IjY4M2E0YmU5LTQ0MmUtNDJlMS1hMmYzLWI2ZTgzNDBmYmQ3YyIsInJvbGUiOlsiYWRtaW4iXX0sImlzcyI6InNpbXBsZS1pZG0iLCJzdWIiOiJzaW1wbGUtaWRtIiwiYXVkIjpbInB1YmxpYyJdLCJleHAiOjE3Mjk0MDMwMzQsIm5iZiI6MTcyOTQwMjQzNCwiaWF0IjoxNzI5NDAyNzM0LCJqdGkiOiI0MDEwYzY0MS05NmRmLTQwZjUtOWQwZi1hMGRhZDFmNWEzMmEifQ.6f2VUxXKthnNd6q8NrIJ85efzIrft8IUNFQpzSVko7o=
+}
