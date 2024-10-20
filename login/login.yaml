@@ -144,17 +144,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Tokens'
-  /me:
-    get:
-      summary: Get current user information
-      description: Returns the current user's username, email, and roles.
-      responses:
-        '200':
-          description: User information retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserInfo'
 components:
   schemas:
     Login:
@@ -230,20 +219,5 @@ components:
           type: string
         refreshToken:
           type: string
-    UserInfo:
-      type: object
-      properties:
-        username:
-          type: string
-          example: johndoe
-        email:
-          type: string
-          format: email
-          example: johndoe@example.com
-        roles:
-          type: array
-          items:
-            type: string
-            example: admin
       required:
         - username
