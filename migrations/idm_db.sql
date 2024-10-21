@@ -37,6 +37,42 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: goose_db_version; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.goose_db_version (
+    id integer NOT NULL,
+    version_id bigint NOT NULL,
+    is_applied boolean NOT NULL,
+    tstamp timestamp without time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.goose_db_version OWNER TO idm;
+
+--
+-- Name: goose_db_version_id_seq; Type: SEQUENCE; Schema: public; Owner: idm
+--
+
+CREATE SEQUENCE public.goose_db_version_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.goose_db_version_id_seq OWNER TO idm;
+
+--
+-- Name: goose_db_version_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: idm
+--
+
+ALTER SEQUENCE public.goose_db_version_id_seq OWNED BY public.goose_db_version.id;
+
+
+--
 -- Name: roles; Type: TABLE; Schema: public; Owner: idm
 --
 
@@ -48,18 +84,6 @@ CREATE TABLE public.roles (
 
 
 ALTER TABLE public.roles OWNER TO idm;
-
---
--- Name: schema_migrations; Type: TABLE; Schema: public; Owner: idm
---
-
-CREATE TABLE public.schema_migrations (
-    version bigint NOT NULL,
-    dirty boolean NOT NULL
-);
-
-
-ALTER TABLE public.schema_migrations OWNER TO idm;
 
 --
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: idm
@@ -85,13 +109,28 @@ CREATE TABLE public.users (
     created_by character varying(255),
     email character varying(255) NOT NULL,
     name character varying(255),
-    password bytea,
+    password character varying(255),
     verified_at timestamp without time zone,
     username character varying(255)
 );
 
 
 ALTER TABLE public.users OWNER TO idm;
+
+--
+-- Name: goose_db_version id; Type: DEFAULT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.goose_db_version ALTER COLUMN id SET DEFAULT nextval('public.goose_db_version_id_seq'::regclass);
+
+
+--
+-- Name: goose_db_version goose_db_version_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.goose_db_version
+    ADD CONSTRAINT goose_db_version_pkey PRIMARY KEY (id);
+
 
 --
 -- Name: roles roles_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
@@ -107,14 +146,6 @@ ALTER TABLE ONLY public.roles
 
 ALTER TABLE ONLY public.roles
     ADD CONSTRAINT roles_role_name_key UNIQUE (role_name);
-
-
---
--- Name: schema_migrations schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
---
-
-ALTER TABLE ONLY public.schema_migrations
-    ADD CONSTRAINT schema_migrations_pkey PRIMARY KEY (version);
 
 
 --
