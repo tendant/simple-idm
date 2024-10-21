@@ -43,12 +43,12 @@ type RegisterParam struct {
 }
 
 func (s LoginService) Create(ctx context.Context, params RegisterParam) (db.User, error) {
-	slog.Debug("Registering user use params:", "params", params)
+	slog.Debug("Registering user use params:", "name", params.Name, "email", params.Email)
 	registerRequest := db.RegisterUserParams{}
 	copier.Copy(&registerRequest, params)
 	user, err := s.queries.RegisterUser(ctx, registerRequest)
 	if err != nil {
-		slog.Error("Failed to register user", "params", params, "err", err)
+		slog.Error("Failed to register user", "name", params.Name, "email", params.Email, "err", err)
 		return db.User{}, err
 	}
 	return user, err
@@ -66,7 +66,6 @@ func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 
 func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) error {
 	resetPasswordParams := db.ResetPasswordParams{}
-	slog.Debug("resetPasswordParams", "params", params)
 	copier.Copy(&resetPasswordParams, params)
 	err := s.queries.ResetPassword(ctx, resetPasswordParams)
 	return err
