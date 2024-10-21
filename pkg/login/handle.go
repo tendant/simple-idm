@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/SuNNjek/identity"
 	"github.com/go-chi/render"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
@@ -75,9 +76,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// FIXME: implement hashed password check
-	if string(dbUsers[0].Password) != data.Password {
-		slog.Error("Passwords does not match", "params", data)
+	if identity.Verify(dbUsers[0].Password, []byte(data.Password)) {
+		slog.Error("Passwords does not match", "params", data.Username)
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusUnauthorized,
