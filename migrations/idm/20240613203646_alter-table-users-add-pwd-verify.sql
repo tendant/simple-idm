@@ -3,4 +3,5 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS password BYTEA, ADD COLUMN IF NOT EXI
 
 
 -- +goose Down
-ALTER TABLE users DROP COLUMN IF EXISTS password, verified_at;
+ALTER TABLE users DROP COLUMN IF EXISTS password;
+ALTER TABLE users DROP COLUMN IF EXISTS verified_at;
