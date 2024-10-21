@@ -302,3 +302,20 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 		body: "User verified successfully",
 	}
 }
+
+func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
+	logoutToken, err := h.jwtService.CreateLogoutToken(auth.Claims{})
+	if err != nil {
+		slog.Error("Failed to create logout token", "err", err)
+		return &Response{
+			body: "Failed to create logout token",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	h.setTokenCookie(w, ACCESS_TOKEN_NAME, logoutToken.Token, logoutToken.Expiry)
+	h.setTokenCookie(w, REFRESH_TOKEN_NAME, logoutToken.Token, logoutToken.Expiry)
+	return &Response{
+		Code: http.StatusOK,
+	}
+}
