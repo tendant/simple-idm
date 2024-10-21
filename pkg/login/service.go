@@ -3,11 +3,13 @@ package login
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/utils"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
 )
 
@@ -40,6 +42,34 @@ type RegisterParam struct {
 	Email    string
 	Name     string
 	Password string
+}
+
+// HashPassword hashes the plain-text password using bcrypt.
+func HashPassword(password string) (string, error) {
+	if password == "" { // Null or empty password check
+		return "", fmt.Errorf("password cannot be empty")
+	}
+
+	// Generate the bcrypt hash
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedPassword), nil
+}
+
+// CheckPasswordHash compares the plain-text password with the stored hashed password.
+func CheckPasswordHash(password, hashedPassword string) (bool, error) {
+	if password == "" || hashedPassword == "" { // Null or empty checks
+		return false, fmt.Errorf("password and hashed password cannot be empty")
+	}
+
+	// Compare the password with the hashed password
+	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s LoginService) Create(ctx context.Context, params RegisterParam) (db.User, error) {
