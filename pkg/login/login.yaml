@@ -68,6 +68,19 @@ paths:
                 properties:
                   message:
                     type: string
+  /logout:
+    post:
+      summary: Logout user
+      responses:
+        "200":
+          description: Logout successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
   /register:
     post:
       summary: Register a new user
