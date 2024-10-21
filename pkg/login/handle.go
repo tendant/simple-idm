@@ -60,7 +60,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	copier.Copy(&loginParams, data)
 	dbUsers, err := h.loginService.Login(r.Context(), loginParams)
 	if err != nil || len(dbUsers) == 0 {
-		slog.Error("User does not exist", "params", data, "err", err)
+		slog.Error("User does not exist", "err", err)
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusUnauthorized,
@@ -85,7 +85,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 	if valid {
-		slog.Error("Passwords does not match", "params", data)
+		slog.Error("Passwords does not match")
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusUnauthorized,
@@ -159,7 +159,7 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 		hash := sha256.New()
 		hash.Write([]byte(uuid.String()))
 		code := hash.Sum(nil)
-		slog.Info("generated code", "code", code)
+		// slog.Info("generated code", "code", code)
 		return &Response{
 			body:        code,
 			Code:        200,
@@ -186,7 +186,7 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 	}
 
 	// FIXME: validate data.code
-	slog.Info("password reset", "data", data)
+	// slog.Info("password reset", "data", data)
 
 	if data.Code == "" || data.Password == "" {
 		slog.Error("Invalid Request.")
@@ -219,7 +219,7 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params G
 	jwt := auth.Jwt{}
 	accessToken, err := jwt.CreateAccessToken("")
 	if err != nil {
-		slog.Error("Failed to create access token", "refresh token", params.RefreshToken, "err", err)
+		slog.Error("Failed to create access token", "err", err)
 		return &Response{
 			body: "Failed to create access token",
 			Code: http.StatusInternalServerError,
@@ -228,7 +228,7 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params G
 
 	refreshToken, err := jwt.CreateAccessToken("")
 	if err != nil {
-		slog.Error("Failed to create refresh token", "refresh token", params.RefreshToken, "err", err)
+		slog.Error("Failed to create refresh token", "err", err)
 		return &Response{
 			body: "Failed to create refresh token",
 			Code: http.StatusInternalServerError,
