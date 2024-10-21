@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE users (
     uuid uuid DEFAULT uuid_generate_v4() NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
@@ -6,3 +7,7 @@ CREATE TABLE users (
     created_by character varying(255),
     email character varying(255) NOT NULL
 );
+
+
+-- +goose Down
+DROP TABLE IF EXISTS users;
