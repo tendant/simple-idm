@@ -12,15 +12,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type GooseDbVersion struct {
+	ID        int32        `json:"id"`
+	VersionID int64        `json:"version_id"`
+	IsApplied bool         `json:"is_applied"`
+	Tstamp    sql.NullTime `json:"tstamp"`
+}
+
 type Role struct {
 	Uuid        uuid.UUID   `json:"uuid"`
 	RoleName    string      `json:"role_name"`
 	Description pgtype.Text `json:"description"`
-}
-
-type SchemaMigration struct {
-	Version int64 `json:"version"`
-	Dirty   bool  `json:"dirty"`
 }
 
 type User struct {
@@ -31,7 +33,7 @@ type User struct {
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
 	Name           sql.NullString `json:"name"`
-	Password       []byte         `json:"password"`
+	Password       sql.NullString `json:"password"`
 	VerifiedAt     sql.NullTime   `json:"verified_at"`
 	Username       sql.NullString `json:"username"`
 }

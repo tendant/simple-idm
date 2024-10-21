@@ -34,7 +34,7 @@ type FindUserRow struct {
 	Uuid     uuid.UUID      `json:"uuid"`
 	Name     sql.NullString `json:"name"`
 	Email    string         `json:"email"`
-	Password []byte         `json:"password"`
+	Password sql.NullString `json:"password"`
 }
 
 func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, error) {
@@ -60,7 +60,7 @@ type FindUserByUsernameRow struct {
 	Name     sql.NullString `json:"name"`
 	Username sql.NullString `json:"username"`
 	Email    string         `json:"email"`
-	Password []byte         `json:"password"`
+	Password sql.NullString `json:"password"`
 }
 
 func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullString) ([]FindUserByUsernameRow, error) {
@@ -210,7 +210,7 @@ RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, nam
 type RegisterUserParams struct {
 	Email    string         `json:"email"`
 	Name     sql.NullString `json:"name"`
-	Password []byte         `json:"password"`
+	Password sql.NullString `json:"password"`
 }
 
 func (q *Queries) RegisterUser(ctx context.Context, arg RegisterUserParams) (User, error) {
@@ -239,8 +239,8 @@ WHERE email = $2
 `
 
 type ResetPasswordParams struct {
-	Password []byte `json:"password"`
-	Email    string `json:"email"`
+	Password sql.NullString `json:"password"`
+	Email    string         `json:"email"`
 }
 
 func (q *Queries) ResetPassword(ctx context.Context, arg ResetPasswordParams) error {
