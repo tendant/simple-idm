@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/SuNNjek/identity"
 	"github.com/go-chi/render"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
@@ -60,7 +61,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	copier.Copy(&loginParams, data)
 	dbUsers, err := h.loginService.Login(r.Context(), loginParams)
 	if err != nil || len(dbUsers) == 0 {
-		slog.Error("User does not exist", "params", data, "err", err)
+		slog.Error("User does not exist", "params", data.Username, "err", err)
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusUnauthorized,
@@ -75,9 +76,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// FIXME: implement hashed password check
-	if string(dbUsers[0].Password) != data.Password {
-		slog.Error("Passwords does not match", "params", data)
+	if identity.Verify(dbUsers[0].Password, []byte(data.Password)) {
+		slog.Error("Passwords does not match", "params", data.Username)
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusUnauthorized,
@@ -176,9 +176,6 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 			body: "unable to parse body",
 		}
 	}
-
-	// FIXME: validate data.code
-	slog.Info("password reset", "data", data)
 
 	if data.Code == "" || data.Password == "" {
 		slog.Error("Invalid Request.")
