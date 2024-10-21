@@ -304,7 +304,7 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 }
 
 func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
-	logoutToken, err := h.jwtService.CreateAccessToken(auth.Claims{})
+	logoutToken, err := h.jwtService.CreateLogoutToken(auth.Claims{})
 	if err != nil {
 		slog.Error("Failed to create logout token", "err", err)
 		return &Response{
