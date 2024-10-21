@@ -180,3 +180,21 @@ func (j Jwt) CreatePasswordResetToken(claimData interface{}) (string, error) {
 	pwdResetToken, err := j.CreateTokenStr(claims)
 	return pwdResetToken, err
 }
+
+func (j Jwt) CreateLogoutToken(claimData interface{}) (IdmToken, error) {
+	claims := Claims{
+		claimData,
+		jwt.RegisteredClaims{
+			// A usual scenario is to set the expiration time relative to the current time
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(-time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			NotBefore: jwt.NewNumericDate(time.Now().UTC().Add(-time.Minute * 5)),
+			Issuer:    "simple-idm",
+			Subject:   "simple-idm",
+			ID:        uuid.New().String(),
+			Audience:  []string{"public"},
+		},
+	}
+	accessToken, err := j.CreateTokenStr(claims)
+	return IdmToken{Token: accessToken, Expiry: claims.ExpiresAt.Time}, err
+}
