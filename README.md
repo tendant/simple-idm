@@ -24,10 +24,12 @@
     ALTER TABLE users OWNER TO idm;
    
    
-# Insert users record
+# Insert users record (hashed password)
+
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
     INSERT INTO users (username, name, password, email, created_by)
-    VALUES ('admin', 'admin', convert_to('pwd', 'UTF8'), 'admin@example.com', 'system');
+    VALUES ('admin', 'admin', convert_to(crypt('pwd', gen_salt('bf')), 'UTF8'), 'admin@example.com', 'system');
 
 # Insert roles record
 
