@@ -28,15 +28,15 @@ clean:
 
 .PHONY: clean
 
-migration-create-idm:
-# Usaged: make migration-create-idm name="demo"
-	migrate create -dir "migrations/idm" -format "20060102150405" -ext sql $(name)
+migration-create:
+# Usage: make migration-create name="migration-name"
+	goose -dir migrations/idm postgres "postgres://idm:pwd@localhost/idm_db?sslmode=disable" create $(name) sql
 
-migrate-up-idm:
-	migrate -source file://migrations/idm -database postgres://idm:pwd@localhost:5432/idm_db?sslmode=disable up
+migration-up:
+	goose -dir migrations/idm postgres "postgres://idm:pwd@localhost/idm_db?sslmode=disable" up
 
-migrate-down-idm:
-	migrate -source file://migrations/idm -database postgres://idm:pwd@localhost:5432/idm_db?sslmode=disable down 1
+migration-down:
+	goose -dir migrations/idm postgres "postgres://idm:pwd@localhost/idm_db?sslmode=disable" down
 
 dump-idm:
 	pg_dump --schema-only -h localhost -p 5432 -U idm -d idm_db -n public > migrations/idm_db.sql
