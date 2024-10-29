@@ -12,6 +12,7 @@ import (
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
+	authpkg "github.com/tendant/simple-idm/pkg/auth"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"golang.org/x/exp/slog"
@@ -76,6 +77,8 @@ func main() {
 
 	loginHandle := login.NewHandle(loginService, *jwtService)
 
+	authHandle := authpkg.NewHandle(jwtService)
+
 	server.R.Mount("/", login.Handler(loginHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
@@ -104,6 +107,8 @@ func main() {
 		r.Get("/private", func(w http.ResponseWriter, r *http.Request) {
 			render.PlainText(w, r, http.StatusText(http.StatusOK))
 		})
+
+		r.Mount("/auth", authpkg.Handler(authHandle))
 	})
 
 	server.Run()
