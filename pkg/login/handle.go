@@ -21,12 +21,14 @@ const (
 type Handle struct {
 	loginService *LoginService
 	jwtService   auth.Jwt
+	IsProdEnv    bool
 }
 
-func NewHandle(loginService *LoginService, jwtService auth.Jwt) Handle {
+func NewHandle(loginService *LoginService, jwtService auth.Jwt, isProdEnv bool) Handle {
 	return Handle{
 		loginService: loginService,
 		jwtService:   jwtService,
+		IsProdEnv:    isProdEnv,
 	}
 }
 
@@ -36,8 +38,8 @@ func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue stri
 		Path:     "/",
 		Value:    tokenValue,
 		Expires:  expire,
-		HttpOnly: true,                 // Make the cookie HttpOnly
-		Secure:   true,                 // Ensure it’s sent over HTTPS
+		HttpOnly: h.IsProdEnv,          // Make the cookie HttpOnly
+		Secure:   h.IsProdEnv,          // Ensure it’s sent over HTTPS
 		SameSite: http.SameSiteLaxMode, // Prevent CSRF
 	}
 
