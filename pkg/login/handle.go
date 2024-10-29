@@ -21,12 +21,14 @@ const (
 type Handle struct {
 	loginService *LoginService
 	jwtService   auth.Jwt
+	IsProdEnv    bool
 }
 
-func NewHandle(loginService *LoginService, jwtService auth.Jwt) Handle {
+func NewHandle(loginService *LoginService, jwtService auth.Jwt, isProdEnv bool) Handle {
 	return Handle{
 		loginService: loginService,
 		jwtService:   jwtService,
+		IsProdEnv:    isProdEnv,
 	}
 }
 
@@ -133,6 +135,11 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		User:    User{},
 	}
 	copier.Copy(&response.User, dbUsers[0])
+
+	if !h.IsProdEnv {
+		response.Tokens.AccessToken = &accessToken.Token
+		response.Tokens.RefreshToken = &refreshToken.Token
+	}
 
 	return PostLoginJSON200Response(response)
 }

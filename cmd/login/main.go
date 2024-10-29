@@ -17,6 +17,12 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+var (
+	QA_ENV    = "qa"
+	PROD_ENV  = "prod"
+	LOCAL_ENV = "local"
+)
+
 type IdmDbConfig struct {
 	Host     string `env:"IDM_PG_HOST" env-default:"localhost"`
 	Port     uint16 `env:"IDM_PG_PORT" env-default:"5432"`
@@ -40,9 +46,10 @@ func (d IdmDbConfig) toDbConfig() utils.DbConfig {
 }
 
 type Config struct {
-	IdmDbConfig IdmDbConfig
-	AppConfig   app.AppConfig
-	JwtConfig   JwtConfig
+	IdmDbConfig   IdmDbConfig
+	AppConfig     app.AppConfig
+	JwtConfig     JwtConfig
+	DeploymentEnv string `env:"DEPLOYMENT_ENV"`
 }
 
 func main() {
@@ -68,7 +75,10 @@ func main() {
 	// jwt service
 	jwtService := auth.Jwt{Secret: config.JwtConfig.JwtSecret}
 
-	loginHandle := login.NewHandle(loginService, jwtService)
+	// check prod env
+	isProdEnv := config.DeploymentEnv == PROD_ENV
+
+	loginHandle := login.NewHandle(loginService, jwtService, isProdEnv)
 
 	server.R.Mount("/", login.Handler(loginHandle))
 
