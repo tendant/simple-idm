@@ -13,7 +13,33 @@ import (
 )
 
 type Jwt struct {
-	Secret string
+	Secret          string
+	CoookieHttpOnly bool
+	CookieSecure    bool
+}
+
+type Option func(*Jwt)
+
+func WithCookieHttpOnly(httpOnly bool) Option {
+	return func(jwt *Jwt) {
+		jwt.CoookieHttpOnly = httpOnly
+	}
+}
+
+func WithCookieSecure(secure bool) Option {
+	return func(jwt *Jwt) {
+		jwt.CookieSecure = secure
+	}
+}
+
+func NewJwtServiceOptions(secret string, opts ...Option) *Jwt {
+	jwtSvc := &Jwt{Secret: secret}
+
+	for _, opt := range opts {
+		opt(jwtSvc)
+	}
+
+	return jwtSvc
 }
 
 func (j Jwt) CreateTokenStr(claims jwt.Claims) (string, error) {
