@@ -26,7 +26,9 @@ type IdmDbConfig struct {
 }
 
 type JwtConfig struct {
-	JwtSecret string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
+	JwtSecret      string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
+	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
+	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"true"`
 }
 
 func (d IdmDbConfig) toDbConfig() utils.DbConfig {
@@ -66,9 +68,13 @@ func main() {
 	loginService := login.New(queries)
 
 	// jwt service
-	jwtService := auth.Jwt{Secret: config.JwtConfig.JwtSecret}
+	jwtService := auth.NewJwtServiceOptions(
+		config.JwtConfig.JwtSecret,
+		auth.WithCookieHttpOnly(config.JwtConfig.CookieHttpOnly),
+		auth.WithCookieSecure(config.JwtConfig.CookieSecure),
+	)
 
-	loginHandle := login.NewHandle(loginService, jwtService)
+	loginHandle := login.NewHandle(loginService, *jwtService)
 
 	server.R.Mount("/", login.Handler(loginHandle))
 
