@@ -36,9 +36,9 @@ func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue stri
 		Path:     "/",
 		Value:    tokenValue,
 		Expires:  expire,
-		HttpOnly: true,                 // Make the cookie HttpOnly
-		Secure:   true,                 // Ensure it’s sent over HTTPS
-		SameSite: http.SameSiteLaxMode, // Prevent CSRF
+		HttpOnly: h.jwtService.CoookieHttpOnly, // Make the cookie HttpOnly
+		Secure:   h.jwtService.CookieSecure,    // Ensure it’s sent over HTTPS
+		SameSite: http.SameSiteLaxMode,         // Prevent CSRF
 	}
 
 	http.SetCookie(w, tokenCookie)
