@@ -13,7 +13,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
-  /password:
+  /login/password:
     put:
       requestBody:
         content:
