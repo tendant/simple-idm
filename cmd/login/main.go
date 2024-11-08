@@ -77,7 +77,7 @@ func main() {
 
 	loginHandle := login.NewHandle(loginService, *jwtService)
 
-	authHandle := authpkg.NewHandle(jwtService)
+	authHandle := authpkg.NewHandle(*jwtService)
 
 	server.R.Mount("/", login.Handler(loginHandle))
 
