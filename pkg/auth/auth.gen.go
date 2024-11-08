@@ -25,6 +25,20 @@ type SuccessResponse struct {
 	Result string `json:"result,omitempty"`
 }
 
+// PutPasswordJSONBody defines parameters for PutPassword.
+type PutPasswordJSONBody struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// PutPasswordJSONRequestBody defines body for PutPassword for application/json ContentType.
+type PutPasswordJSONRequestBody PutPasswordJSONBody
+
+// Bind implements render.Binder.
+func (PutPasswordJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
 // Response is a common response struct for all the API calls.
 // A Response object may be instantiated via functions for specific operation responses.
 // It may also be instantiated directly, for the purpose of responding with a single status code.
@@ -66,6 +80,16 @@ func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Encode(resp.body)
 }
 
+// PutPasswordJSON200Response is a constructor method for a PutPassword response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PutPasswordJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // PostTokenJSON200Response is a constructor method for a PostToken response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostTokenJSON200Response(body SuccessResponse) *Response {
@@ -78,6 +102,9 @@ func PostTokenJSON200Response(body SuccessResponse) *Response {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+
+	// (PUT /password)
+	PutPassword(w http.ResponseWriter, r *http.Request) *Response
 	// Refresh tokens
 	// (POST /token)
 	PostToken(w http.ResponseWriter, r *http.Request) *Response
@@ -87,6 +114,24 @@ type ServerInterface interface {
 type ServerInterfaceWrapper struct {
 	Handler          ServerInterface
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// PutPassword operation middleware
+func (siw *ServerInterfaceWrapper) PutPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PutPassword(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
 }
 
 // PostToken operation middleware
@@ -222,6 +267,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
+		r.Put("/password", wrapper.PutPassword)
 		r.Post("/token", wrapper.PostToken)
 	})
 	return r
@@ -248,11 +294,13 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/2SQwU4rMQxFf2Xk95bTzgC77Fh2gVQV+ICQetqUjB3FTkVVzb+jGFAlWMWy7o2OzxUC",
-	"z5kJSQXcFSQccfY2PtcQUGSHkpkE2yoXzlg0ogUKSk3aJr1kBAeiJdIBlqX/2fDbCYNCDx+rA684a2Ty",
-	"aXX2qSI4LRWXlo40sf0TNbXaq2Dpnjz5A85I2j1uN9DDGYtEJnBwtx7XIyw9cEbyOYKDB1v1kL0ejW5Q",
-	"fkcyahajbOy+EWz24GDLoi8W6dsldqMV78exPYFJkazoc04xWHU4CdNNVJv+F5zAwb/hZnL41jj8dmjX",
-	"7lFCieYCHOxwKijHznClk6/GVFO6mEmp8+zL5U+y/bV8BgAA//82q4NavwEAAA==",
+	"H4sIAAAAAAAC/8SSzW4UMQyAX2VkOGY7C9xyA049IK0KnBBCIePdTZmJg+20rKp5dxRvR8AsQuLUW2R9",
+	"jj//PECkqVDGrAL+ASQecQr2fF9jRJEblEJZsIUKU0HWhAYwSh21vfRUEDyIcsoHmGe3ROjrLUYFBz82",
+	"B9pQ0UQ5jJu7MFYEr1xxbnTKe7J/ko4t7aMgd+9CDgecMGv3encNDu6QJVEGDy+utldbmB1QwRxKAg+v",
+	"LOSgBD2aXV+CyD3xYOLVPJt9aA7XA3jYVd0tjAPG7xVF39BwamikrJgtK5Qypmh5/a00gWVOlzOJlRmz",
+	"fvm9+Go6DjLe/wuYzzKJcQD/6U/aXVb4vJ72PJ+/OO/NtF5ut//V1HPGPXh41v+6jv7xNPr1XVi1ASVy",
+	"sv2Ch7fHkA/YLYqdnFP2dRxPj3q90je0qoXkb8sh0Q+GPG0rN7hnlGNnurLuxIHUaQp8uiCtzZ8BAAD/",
+	"/zfhHJxeAwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
