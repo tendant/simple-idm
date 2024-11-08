@@ -15,9 +15,10 @@ type Handle struct {
 	authLoginService *AuthLoginService
 }
 
-func NewHandle(jwtService auth.Jwt) Handle {
+func NewHandle(jwtService auth.Jwt, service *AuthLoginService) Handle {
 	return Handle{
-		jwtService: jwtService,
+		jwtService:       jwtService,
+		authLoginService: service,
 	}
 }
 
