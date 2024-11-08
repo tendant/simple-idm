@@ -9,10 +9,12 @@ import (
 	"github.com/go-chi/jwtauth"
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/jinzhu/copier"
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
+	authDb "github.com/tendant/simple-idm/pkg/auth/db"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"golang.org/x/exp/slog"
@@ -42,10 +44,19 @@ func (d IdmDbConfig) toDbConfig() utils.DbConfig {
 	}
 }
 
+type PasswordComplexityConfig struct {
+	RequiredDigit           bool `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
+	RequiredLowercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
+	RequiredNonAlphanumeric bool `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
+	RequiredUppercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
+	RequiredLength          int  `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
+}
+
 type Config struct {
-	IdmDbConfig IdmDbConfig
-	AppConfig   app.AppConfig
-	JwtConfig   JwtConfig
+	IdmDbConfig              IdmDbConfig
+	AppConfig                app.AppConfig
+	JwtConfig                JwtConfig
+	PasswordComplexityConfig PasswordComplexityConfig
 }
 
 func main() {
@@ -75,9 +86,20 @@ func main() {
 		auth.WithCookieSecure(config.JwtConfig.CookieSecure),
 	)
 
+	// auth queries
+	authQueries := authDb.New(pool)
+
+	// auth login service
+	var pwdComplex authpkg.PasswordComplexity
+	copier.Copy(&pwdComplex, &config.PasswordComplexityConfig)
+	authLoginService := authpkg.NewAuthLoginService(
+		authQueries,
+		authpkg.WithPwdComplex(pwdComplex),
+	)
+
 	loginHandle := login.NewHandle(loginService, *jwtService)
 
-	authHandle := authpkg.NewHandle(*jwtService)
+	authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
 	server.R.Mount("/", login.Handler(loginHandle))
 
