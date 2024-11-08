@@ -75,11 +75,11 @@ func (h Handle) PostToken(w http.ResponseWriter, r *http.Request) *Response {
 	return PostTokenJSON200Response(response)
 }
 
-func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
+func (h Handle) PutLoginPassword(w http.ResponseWriter, r *http.Request) *Response {
 	var (
 		response SuccessResponse
 	)
-	data := PutPasswordJSONRequestBody{}
+	data := PutLoginPasswordJSONRequestBody{}
 	err := render.DecodeJSON(r.Body, &data)
 	if err != nil {
 		return &Response{
@@ -135,5 +135,5 @@ func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 	response.Result = "success"
-	return PutPasswordJSON200Response(response)
+	return PutLoginPasswordJSON200Response(response)
 }
