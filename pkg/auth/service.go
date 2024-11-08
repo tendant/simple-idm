@@ -48,7 +48,25 @@ type (
 		queries    *db.Queries
 		pwdComplex PasswordComplexity
 	}
+
+	Option func(*AuthLoginService)
 )
+
+func NewAuthLoginService(queries *db.Queries, ops ...Option) *AuthLoginService {
+	autSvc := &AuthLoginService{
+		queries: queries,
+	}
+	for _, opt := range ops {
+		opt(autSvc)
+	}
+	return autSvc
+}
+
+func WithPwdComplex(pwdComplex PasswordComplexity) Option {
+	return func(svc *AuthLoginService) {
+		svc.pwdComplex = pwdComplex
+	}
+}
 
 func (authSvc AuthLoginService) VerifyPasswordComplexity(ctx context.Context, password string) error {
 	requireDigit := authSvc.pwdComplex.RequiredDigit
