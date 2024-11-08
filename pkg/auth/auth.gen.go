@@ -25,17 +25,17 @@ type SuccessResponse struct {
 	Result string `json:"result,omitempty"`
 }
 
-// PutPasswordJSONBody defines parameters for PutPassword.
-type PutPasswordJSONBody struct {
+// PutLoginPasswordJSONBody defines parameters for PutLoginPassword.
+type PutLoginPasswordJSONBody struct {
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
 }
 
-// PutPasswordJSONRequestBody defines body for PutPassword for application/json ContentType.
-type PutPasswordJSONRequestBody PutPasswordJSONBody
+// PutLoginPasswordJSONRequestBody defines body for PutLoginPassword for application/json ContentType.
+type PutLoginPasswordJSONRequestBody PutLoginPasswordJSONBody
 
 // Bind implements render.Binder.
-func (PutPasswordJSONRequestBody) Bind(*http.Request) error {
+func (PutLoginPasswordJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -80,9 +80,9 @@ func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Encode(resp.body)
 }
 
-// PutPasswordJSON200Response is a constructor method for a PutPassword response.
+// PutLoginPasswordJSON200Response is a constructor method for a PutLoginPassword response.
 // A *Response is returned with the configured status code and content type from the spec.
-func PutPasswordJSON200Response(body SuccessResponse) *Response {
+func PutLoginPasswordJSON200Response(body SuccessResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        200,
@@ -103,8 +103,8 @@ func PostTokenJSON200Response(body SuccessResponse) *Response {
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
-	// (PUT /password)
-	PutPassword(w http.ResponseWriter, r *http.Request) *Response
+	// (PUT /login/password)
+	PutLoginPassword(w http.ResponseWriter, r *http.Request) *Response
 	// Refresh tokens
 	// (POST /token)
 	PostToken(w http.ResponseWriter, r *http.Request) *Response
@@ -116,12 +116,12 @@ type ServerInterfaceWrapper struct {
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
 }
 
-// PutPassword operation middleware
-func (siw *ServerInterfaceWrapper) PutPassword(w http.ResponseWriter, r *http.Request) {
+// PutLoginPassword operation middleware
+func (siw *ServerInterfaceWrapper) PutLoginPassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.PutPassword(w, r)
+		resp := siw.Handler.PutLoginPassword(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -267,7 +267,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
-		r.Put("/password", wrapper.PutPassword)
+		r.Put("/login/password", wrapper.PutLoginPassword)
 		r.Post("/token", wrapper.PostToken)
 	})
 	return r
@@ -294,13 +294,13 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8SSzW4UMQyAX2VkOGY7C9xyA049IK0KnBBCIePdTZmJg+20rKp5dxRvR8AsQuLUW2R9",
-	"jj//PECkqVDGrAL+ASQecQr2fF9jRJEblEJZsIUKU0HWhAYwSh21vfRUEDyIcsoHmGe3ROjrLUYFBz82",
-	"B9pQ0UQ5jJu7MFYEr1xxbnTKe7J/ko4t7aMgd+9CDgecMGv3encNDu6QJVEGDy+utldbmB1QwRxKAg+v",
-	"LOSgBD2aXV+CyD3xYOLVPJt9aA7XA3jYVd0tjAPG7xVF39BwamikrJgtK5Qypmh5/a00gWVOlzOJlRmz",
-	"fvm9+Go6DjLe/wuYzzKJcQD/6U/aXVb4vJ72PJ+/OO/NtF5ut//V1HPGPXh41v+6jv7xNPr1XVi1ASVy",
-	"sv2Ch7fHkA/YLYqdnFP2dRxPj3q90je0qoXkb8sh0Q+GPG0rN7hnlGNnurLuxIHUaQp8uiCtzZ8BAAD/",
-	"/zfhHJxeAwAA",
+	"H4sIAAAAAAAC/8SSzY4TMQyAX2VkOKY7BW65AaeVQKoWOCGEQsadZpmJg+3sUq3m3VHcrYApQuLELbI+",
+	"x59/HiDSXChjVgH/ABIPOAd7vqsxosgNSqEs2EKFqSBrQgMYpU7aXnosCB5EOeURlsWdI/TlFqOCg++b",
+	"kTZUNFEO0+YuTBXBK1dcGp3ynuyfpFNL+yDI3duQw4gzZu1e7q7BwR2yJMrg4dnV9moLiwMqmENJ4OGF",
+	"hRyUoAez6ycaU+5LELknHky/mm3rITST6wE87Kq+aeTuDDpg/FZR9BUNx8ZHyorZUkMpU4qW3N9KczmP",
+	"7HI8sTJj1s+/GqwG5SDj/d+A5SSTGAfwH3+n3WWFT+vBL8vpi9MKTev5dvtPTT1l3IOHJ/3PQ+kfr6Rf",
+	"n4hVG1AiJ1s1eHh9CHnE7qzYySllX6fp+KjXK31Fq1pI/rQhEn1vyP9t5Qb3jHLoTFfWnTiQOs+Bjxek",
+	"tfkjAAD//xQPWyNpAwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
