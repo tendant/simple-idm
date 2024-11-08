@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -16,6 +17,7 @@ const findUserByUserUuid = `-- name: FindUserByUserUuid :one
 SELECT users.uuid, name, username, email, password
 FROM users
 WHERE uuid = $1
+AND deleted_at IS NULL
 `
 
 type FindUserByUserUuidRow struct {
@@ -37,4 +39,22 @@ func (q *Queries) FindUserByUserUuid(ctx context.Context, argUuid uuid.UUID) (Fi
 		&i.Password,
 	)
 	return i, err
+}
+
+const updatePassowrd = `-- name: UpdatePassowrd :exec
+UPDATE users
+SET password = $1, last_modified_at = $2
+WHERE uuid = $3
+AND deleted_at IS NULL
+`
+
+type UpdatePassowrdParams struct {
+	Password       sql.NullString `json:"password"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	Uuid           uuid.UUID      `json:"uuid"`
+}
+
+func (q *Queries) UpdatePassowrd(ctx context.Context, arg UpdatePassowrdParams) error {
+	_, err := q.db.Exec(ctx, updatePassowrd, arg.Password, arg.LastModifiedAt, arg.Uuid)
+	return err
 }
