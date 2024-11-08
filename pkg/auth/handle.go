@@ -5,12 +5,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/render"
 	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/login"
 )
 
 type Handle struct {
-	jwtService auth.Jwt
+	jwtService       auth.Jwt
+	authLoginService *AuthLoginService
 }
 
 func NewHandle(jwtService auth.Jwt) Handle {
@@ -70,4 +72,67 @@ func (h Handle) PostToken(w http.ResponseWriter, r *http.Request) *Response {
 
 	response.Result = "success"
 	return PostTokenJSON200Response(response)
+}
+
+func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
+	var (
+		response SuccessResponse
+	)
+	data := PutPasswordJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+	// check password match
+	passMatch, err := h.authLoginService.MatchPasswordByUuids(r.Context(), MatchPassParam{
+		UserUuid: authUser.UserUUID,
+		Password: data.CurrentPassword,
+	})
+	if err != nil {
+		slog.Error("Failed to match password by user uuid", "user uuid", authUser.UserUUID, "err", err)
+		return &Response{
+			body: "Internal system error",
+			Code: http.StatusInternalServerError,
+		}
+	} else if !passMatch {
+		slog.Warn("Password not match", "user uuid", authUser.UserUUID)
+		return &Response{
+			body: "Bad request",
+			Code: http.StatusBadRequest, // prevent info leakage
+		}
+	}
+	// check password complexity
+	err = h.authLoginService.VerifyPasswordComplexity(r.Context(), data.NewPassword)
+	if err != nil {
+		slog.Warn("Password complexity check failed", "err", err)
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+	// update password
+	err = h.authLoginService.UpdatePassword(r.Context(), UpdatePassParam{
+		UserUuid:    authUser.UserUUID,
+		NewPassword: data.NewPassword,
+	})
+	if err != nil {
+		slog.Error("Failed to update user password", "user uuid", authUser.UserUUID, "err", err)
+		return &Response{
+			body: "Internal system error",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	response.Result = "success"
+	return PutPasswordJSON200Response(response)
 }
