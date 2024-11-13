@@ -143,13 +143,6 @@ paths:
   /token/refresh:
     get:
       summary: Refresh JWT tokens
-      parameters:
-        - name: refreshToken
-          in: query
-          required: true
-          schema:
-            type: string
-            example: "jwt_refresh_token"
       responses:
         '200':
           description: Tokens refreshed successfully

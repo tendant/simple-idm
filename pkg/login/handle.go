@@ -212,7 +212,7 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 	}
 }
 
-func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params GetTokenRefreshParams) *Response {
+func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request) *Response {
 
 	// FIXME: validate refreshToken
 	cookie, err := r.Cookie("refreshToken")
