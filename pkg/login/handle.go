@@ -243,7 +243,9 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	userUuid, ok := customClaims["UserUuid"].(string)
+	slog.Info("customClaims", "customClaims", customClaims)
+
+	userUuid, ok := customClaims["user_uuid"].(string)
 	if !ok {
 		slog.Error("missing or invalid UserUuid in claims")
 		return &Response{
@@ -252,19 +254,29 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	role, ok := customClaims["role"].([]string)
+	slog.Info("role", "role", customClaims["role"].([]interface{}))
+	role, ok := customClaims["role"].([]interface{})
 	if !ok {
-		slog.Error("missing or invalid role in claims")
+		slog.Error("missing or invalid role in claims", "ok", ok)
 		return &Response{
 			body: "Unauthorized",
 			Code: http.StatusUnauthorized,
 		}
 	}
 
+	var roles []string
+	for _, role := range role {
+		strRole, ok := role.(string)
+		if !ok {
+			slog.Error("invalid role value: not a string")
+		}
+		roles = append(roles, strRole)
+	}
+
 	// Create the IdmUser object
 	idmUser := IdmUser{
 		UserUuid: userUuid,
-		Role:     role,
+		Role:     roles,
 	}
 
 	accessToken, err := h.jwtService.CreateAccessToken(idmUser)
@@ -285,14 +297,12 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	result := Tokens{
-		AccessToken:  &accessToken.Token,
-		RefreshToken: &refreshToken.Token,
-	}
+	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
+	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
 
 	return &Response{
 		Code: http.StatusOK,
-		body: result,
+		body: "",
 	}
 }
 
