@@ -51,6 +51,20 @@ func TestValidateRefreshToken(t *testing.T) {
 	assert.Equal(t, "user", claims["custom_claims"].(map[string]interface{})["role"], "Role should match")
 }
 
+func TestValidateRefreshToken2(t *testing.T) {
+	jwtSvc := NewJwtServiceOptions("test-secret")
+	claimData := map[string]interface{}{"role": []string{"admin", "support"}}
+
+	// Create a valid refresh token
+	token, err := jwtSvc.CreateRefreshToken(claimData)
+	assert.NoError(t, err, "CreateRefreshToken should not return an error")
+
+	// Validate the token
+	claims, err := jwtSvc.ValidateRefreshToken(token.Token)
+	assert.NoError(t, err, "ValidateRefreshToken should not return an error")
+	assert.Equal(t, []interface{}{"admin", "support"}, claims["custom_claims"].(map[string]interface{})["role"], "Role should match")
+}
+
 func TestValidateExpiredToken(t *testing.T) {
 	jwtSvc := NewJwtServiceOptions("test-secret")
 	claimData := map[string]interface{}{"role": "user"}

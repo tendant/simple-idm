@@ -215,8 +215,59 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params GetTokenRefreshParams) *Response {
 
 	// FIXME: validate refreshToken
-	jwt := auth.Jwt{}
-	accessToken, err := jwt.CreateAccessToken("")
+	cookie, err := r.Cookie("refreshToken")
+	if err != nil {
+		slog.Error("No Refresh Token Cookie", "err", err)
+		return &Response{
+			body: "Unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	claims, err := h.jwtService.ValidateRefreshToken(cookie.Value)
+	if err != nil {
+		slog.Error("Invalid Refresh Token Cookie", "err", err)
+		return &Response{
+			body: "Unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Safely extract custom claims
+	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	if !ok {
+		slog.Error("invalid custom claims format")
+		return &Response{
+			body: "Unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	userUuid, ok := customClaims["UserUuid"].(string)
+	if !ok {
+		slog.Error("missing or invalid UserUuid in claims")
+		return &Response{
+			body: "Unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	role, ok := customClaims["role"].([]string)
+	if !ok {
+		slog.Error("missing or invalid role in claims")
+		return &Response{
+			body: "Unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Create the IdmUser object
+	idmUser := IdmUser{
+		UserUuid: userUuid,
+		Role:     role,
+	}
+
+	accessToken, err := h.jwtService.CreateAccessToken(idmUser)
 	if err != nil {
 		slog.Error("Failed to create access token", "err", err)
 		return &Response{
@@ -225,7 +276,7 @@ func (h Handle) GetTokenRefresh(w http.ResponseWriter, r *http.Request, params G
 		}
 	}
 
-	refreshToken, err := jwt.CreateAccessToken("")
+	refreshToken, err := h.jwtService.CreateRefreshToken(idmUser)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "err", err)
 		return &Response{
