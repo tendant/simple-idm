@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -223,4 +224,29 @@ func (j Jwt) CreateLogoutToken(claimData interface{}) (IdmToken, error) {
 	}
 	accessToken, err := j.CreateTokenStr(claims)
 	return IdmToken{Token: accessToken, Expiry: claims.ExpiresAt.Time}, err
+}
+
+func (j Jwt) ValidateRefreshToken(tokenString string) (jwt.MapClaims, error) {
+	// Parse the token
+	token, err := j.ParseTokenStr(tokenString)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token: %v", err)
+	}
+
+	// Validate the token
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		// Check expiration
+		if exp, ok := claims["exp"].(float64); ok {
+			if time.Now().Unix() > int64(exp) {
+				return nil, fmt.Errorf("token has expired")
+			}
+		} else {
+			return nil, fmt.Errorf("invalid expiration claim")
+		}
+
+		return claims, nil
+	}
+
+	return nil, fmt.Errorf("invalid token")
 }
