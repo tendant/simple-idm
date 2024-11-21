@@ -101,13 +101,13 @@ func (h Handle) PutLoginPassword(w http.ResponseWriter, r *http.Request) *Respon
 		Password: data.CurrentPassword,
 	})
 	if err != nil {
-		slog.Error("Failed to match password by user uuid", "user uuid", authUser.UserUUID, "err", err)
+		slog.Error("Failed checking password hash", "err", err)
 		return &Response{
-			body: "Internal system error",
-			Code: http.StatusInternalServerError,
+			body: "Bad request",
+			Code: http.StatusBadRequest, // prevent info leakage
 		}
 	} else if !passMatch {
-		slog.Warn("Password not match", "user uuid", authUser.UserUUID)
+		slog.Error("Passwords does not match", "user uuid", authUser.UserUUID)
 		return &Response{
 			body: "Bad request",
 			Code: http.StatusBadRequest, // prevent info leakage
