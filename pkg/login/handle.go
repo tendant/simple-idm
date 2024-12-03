@@ -77,7 +77,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	valid, err := CheckPasswordHash(data.Password, dbUsers[0].Password.String)
 	if err != nil {
-		slog.Error("Failed checking password hash", "err", err)
+		slog.Error("Failed checking password hash", "user uuid", dbUsers[0].Uuid, "err", err)
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusUnauthorized,
