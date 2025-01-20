@@ -20,7 +20,7 @@ SET row_security = off;
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
 --
 
-CREATE SCHEMA public IF NOT EXISTS;
+-- CREATE SCHEMA public;
 
 
 --
