@@ -15,7 +15,6 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"path/filepath"
 	"time"
 )
 
@@ -23,14 +22,14 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 	ctx := context.Background()
 
 	// Create PostgreSQL container
-dbName := "users"
+dbName := "testdb"
 dbUser := "user"
 dbPassword := "password"
 
 container, err := postgres.Run(ctx,
     "postgres:16-alpine",
-    postgres.WithInitScripts(filepath.Join("testdata", "init-user-db.sh")),
-    postgres.WithConfigFile(filepath.Join("testdata", "my-postgres.conf")),
+    // postgres.WithInitScripts(filepath.Join("testdata", "init-user-db.sh")),
+    // postgres.WithConfigFile(filepath.Join("testdata", "my-postgres.conf")),
     postgres.WithDatabase(dbName),
     postgres.WithUsername(dbUser),
     postgres.WithPassword(dbPassword),
@@ -47,16 +46,10 @@ container, err := postgres.Run(ctx,
 	
 	// Get connection details
 
-    // Get the mapped host and port
-    host, err := container.Host(ctx)
-	require.NoError(t, err)
-
-    port, err := container.MappedPort(ctx, "5432")
-	require.NoError(t, err)
-
     // Generate the connection string
-    connString := fmt.Sprintf("postgresql://testuser:testpass@%s:%s/testdb?sslmode=disable", host, port.Port())
+    connString, err := container.ConnectionString(ctx)
     fmt.Println("Connection string:", connString)
+	require.NoError(t, err)
 
 	// Create connection pool
 	poolConfig, err := pgxpool.ParseConfig(connString)
