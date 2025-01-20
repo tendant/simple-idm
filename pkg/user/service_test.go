@@ -16,28 +16,29 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"time"
+	"path/filepath"
 )
 
 func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 	ctx := context.Background()
 
 	// Create PostgreSQL container
-dbName := "testdb"
-dbUser := "user"
-dbPassword := "password"
+	dbName := "testdb"
+	dbUser := "user"
+	dbPassword := "password"
 
-container, err := postgres.Run(ctx,
-    "postgres:16-alpine",
-    // postgres.WithInitScripts(filepath.Join("testdata", "init-user-db.sh")),
-    // postgres.WithConfigFile(filepath.Join("testdata", "my-postgres.conf")),
-    postgres.WithDatabase(dbName),
-    postgres.WithUsername(dbUser),
-    postgres.WithPassword(dbPassword),
-    testcontainers.WithWaitStrategy(
-        wait.ForLog("database system is ready to accept connections").
-            WithOccurrence(2).
-            WithStartupTimeout(5*time.Second)),
-)
+	container, err := postgres.Run(ctx,
+		"postgres:16-alpine",
+		postgres.WithInitScripts(filepath.Join("../../migrations", "idm_db.sql")),
+		// postgres.WithConfigFile(filepath.Join("testdata", "my-postgres.conf")),
+		postgres.WithDatabase(dbName),
+		postgres.WithUsername(dbUser),
+		postgres.WithPassword(dbPassword),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(5*time.Second)),
+	)
 
 	require.NoError(t, err)
 	if err != nil {
