@@ -1,11 +1,14 @@
 package user
 
 import (
+	"bufio"
 	"context"
-	"testing"
-
+	"database/sql"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,9 +18,6 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"time"
-	"path/filepath"
-	"bufio"
 )
 
 func containerLog(ctx context.Context, container testcontainers.Container) {
@@ -175,4 +175,220 @@ func TestCreateUser(t *testing.T) {
 			assert.Equal(t, 1, roleCount)
 		})
 	}
+}
+
+func TestFindUsers(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup test database
+	pool, cleanup := setupTestDatabase(t)
+	defer cleanup()
+
+	// Create test dependencies
+	queries := db.New(pool)
+	service := NewUserService(queries)
+
+	// Create test roles
+	role1UUID := uuid.New()
+	role2UUID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO roles (uuid, name, description)
+		VALUES ($1, $2, $3), ($4, $5, $6)
+	`, role1UUID, "TestRole1", "A test role 1",
+		role2UUID, "TestRole2", "A test role 2")
+	require.NoError(t, err)
+
+	// Create test users with roles
+	testUsers := []struct {
+		email     string
+		name      string
+		roleUuids []uuid.UUID
+	}{
+		{
+			email: "user1@example.com",
+			name:  "User 1",
+			roleUuids: []uuid.UUID{
+				role1UUID,
+			},
+		},
+		{
+			email: "user2@example.com",
+			name:  "User 2",
+			roleUuids: []uuid.UUID{
+				role1UUID,
+				role2UUID,
+			},
+		},
+	}
+
+	for _, u := range testUsers {
+		_, err := service.CreateUser(ctx, u.email, u.name, u.roleUuids)
+		require.NoError(t, err)
+	}
+
+	// Test FindUsers
+	users, err := service.FindUsers(ctx)
+	require.NoError(t, err)
+	assert.Len(t, users, 2)
+
+	// Create a map of users by email for easier verification
+	userMap := make(map[string]db.FindUsersWithRolesRow)
+	for _, u := range users {
+		userMap[u.Email] = u
+	}
+
+	// Verify user details
+	user1 := userMap["user1@example.com"]
+	assert.Equal(t, "User 1", user1.Name.String)
+
+	user2 := userMap["user2@example.com"]
+	assert.Equal(t, "User 2", user2.Name.String)
+}
+
+func TestGetUser(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup test database
+	pool, cleanup := setupTestDatabase(t)
+	defer cleanup()
+
+	// Create test dependencies
+	queries := db.New(pool)
+	service := NewUserService(queries)
+
+	// Create a test role
+	roleUUID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO roles (uuid, name, description)
+		VALUES ($1, $2, $3)
+	`, roleUUID, "TestRole", "A test role")
+	require.NoError(t, err)
+
+	// Create a test user
+	user, err := service.CreateUser(ctx, "test@example.com", "Test User", []uuid.UUID{roleUUID})
+	require.NoError(t, err)
+
+	// Test cases
+	t.Run("existing user", func(t *testing.T) {
+		// Get the user
+		fetchedUser, err := service.GetUser(ctx, user.Uuid)
+		require.NoError(t, err)
+		assert.Equal(t, user.Email, fetchedUser.Email)
+		assert.Equal(t, user.Name, fetchedUser.Name)
+	})
+
+	t.Run("non-existent user", func(t *testing.T) {
+		// Try to get a non-existent user
+		_, err := service.GetUser(ctx, uuid.New())
+		assert.Error(t, err)
+	})
+}
+
+func TestUpdateUser(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup test database
+	pool, cleanup := setupTestDatabase(t)
+	defer cleanup()
+
+	// Create test dependencies
+	queries := db.New(pool)
+	service := NewUserService(queries)
+
+	// Create test roles
+	role1UUID := uuid.New()
+	role2UUID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO roles (uuid, name, description)
+		VALUES ($1, $2, $3), ($4, $5, $6)
+	`, role1UUID, "TestRole1", "A test role 1",
+		role2UUID, "TestRole2", "A test role 2")
+	require.NoError(t, err)
+
+	// Create a test user with role1
+	user, err := service.CreateUser(ctx, "test@example.com", "Original Name", []uuid.UUID{role1UUID})
+	require.NoError(t, err)
+
+	// Test cases
+	t.Run("update name and roles", func(t *testing.T) {
+		// Update user's name and roles
+		updatedUser, err := service.UpdateUser(ctx, user.Uuid, "Updated Name", []uuid.UUID{role2UUID})
+		require.NoError(t, err)
+
+		// Verify updated user
+		assert.Equal(t, "Updated Name", updatedUser.Name.String)
+		assert.Equal(t, user.Email, updatedUser.Email)
+
+		// Verify roles were updated
+		var roleCount int
+		err = pool.QueryRow(ctx, `
+			SELECT COUNT(*)
+			FROM user_roles
+			WHERE user_uuid = $1 AND role_uuid = $2
+		`, user.Uuid, role2UUID).Scan(&roleCount)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, roleCount)
+
+		// Verify old role was removed
+		err = pool.QueryRow(ctx, `
+			SELECT COUNT(*)
+			FROM user_roles
+			WHERE user_uuid = $1 AND role_uuid = $2
+		`, user.Uuid, role1UUID).Scan(&roleCount)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, roleCount)
+	})
+
+	t.Run("non-existent user", func(t *testing.T) {
+		// Try to update a non-existent user
+		_, err := service.UpdateUser(ctx, uuid.New(), "New Name", []uuid.UUID{role1UUID})
+		assert.Error(t, err)
+	})
+}
+
+func TestDeleteUser(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup test database
+	pool, cleanup := setupTestDatabase(t)
+	defer cleanup()
+
+	// Create test dependencies
+	queries := db.New(pool)
+	service := NewUserService(queries)
+
+	// Create a test role
+	roleUUID := uuid.New()
+	_, err := pool.Exec(ctx, `
+		INSERT INTO roles (uuid, name, description)
+		VALUES ($1, $2, $3)
+	`, roleUUID, "TestRole", "A test role")
+	require.NoError(t, err)
+
+	// Create a test user
+	user, err := service.CreateUser(ctx, "test@example.com", "Test User", []uuid.UUID{roleUUID})
+	require.NoError(t, err)
+
+	// Test cases
+	t.Run("existing user", func(t *testing.T) {
+		// Delete the user
+		err := service.DeleteUser(ctx, user.Uuid)
+		require.NoError(t, err)
+
+		// Verify user is marked as deleted
+		var deletedAt sql.NullTime
+		err = pool.QueryRow(ctx, `
+			SELECT deleted_at
+			FROM users
+			WHERE uuid = $1
+		`, user.Uuid).Scan(&deletedAt)
+		assert.NoError(t, err)
+		assert.True(t, deletedAt.Valid)
+	})
+
+	t.Run("non-existent user", func(t *testing.T) {
+		// Try to delete a non-existent user
+		err := service.DeleteUser(ctx, uuid.New())
+		assert.Error(t, err)
+	})
 }

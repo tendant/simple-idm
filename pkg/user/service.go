@@ -97,5 +97,11 @@ func (s *UserService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name s
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, userUuid uuid.UUID) error {
+	// Check if user exists
+	_, err := s.queries.GetUserWithRoles(ctx, userUuid)
+	if err != nil {
+		return fmt.Errorf("user not found: %w", err)
+	}
+
 	return s.queries.DeleteUser(ctx, userUuid)
 }
