@@ -7,7 +7,6 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
-	"github.com/tendant/simple-idm/handler"
 	"github.com/tendant/simple-idm/pkg/user"
 	"github.com/tendant/simple-idm/pkg/user/db"
 	"golang.org/x/exp/slog"
@@ -51,15 +50,9 @@ func main() {
 	}
 
 	queries := db.New(pool)
-	userService := user.New(queries)
-	handler := handler.Handler{
-		UserService: userService,
-	}
-	handler.Routes(myApp.R)
-
-	userHandle := user.NewHandle(userService)
-
-	user.Routes(myApp.R, userHandle)
+	userService := user.NewUserService(queries)
+	handler := user.NewHandle(userService)
+	user.Routes(myApp.R, handler)
 
 	myApp.Run()
 

@@ -31,19 +31,15 @@ func (s *UserService) CreateUser(ctx context.Context, email, name string, roleUu
 
 	// If there are roles to assign, create the user-role associations
 	if len(roleUuids) > 0 {
-		// Prepare the role assignments
-		roleAssignments := make([]db.CreateUserRoleBatchParams, len(roleUuids))
-		for i, roleUuid := range roleUuids {
-			roleAssignments[i] = db.CreateUserRoleBatchParams{
+		// Insert role assignments one by one
+		for _, roleUuid := range roleUuids {
+			_, err = s.queries.CreateUserRole(ctx, db.CreateUserRoleParams{
 				UserUuid: user.Uuid,
 				RoleUuid: roleUuid,
+			})
+			if err != nil {
+				return db.GetUserWithRolesRow{}, err
 			}
-		}
-
-		// Batch insert the role assignments
-		_, err = s.queries.CreateUserRoleBatch(ctx, roleAssignments)
-		if err != nil {
-			return db.GetUserWithRolesRow{}, err
 		}
 	}
 
@@ -78,19 +74,15 @@ func (s *UserService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name s
 
 	// If there are new roles to assign, create the user-role associations
 	if len(roleUuids) > 0 {
-		// Prepare the role assignments
-		roleAssignments := make([]db.CreateUserRoleBatchParams, len(roleUuids))
-		for i, roleUuid := range roleUuids {
-			roleAssignments[i] = db.CreateUserRoleBatchParams{
+		// Insert role assignments one by one
+		for _, roleUuid := range roleUuids {
+			_, err = s.queries.CreateUserRole(ctx, db.CreateUserRoleParams{
 				UserUuid: userUuid,
 				RoleUuid: roleUuid,
+			})
+			if err != nil {
+				return db.GetUserWithRolesRow{}, err
 			}
-		}
-
-		// Batch insert the role assignments
-		_, err = s.queries.CreateUserRoleBatch(ctx, roleAssignments)
-		if err != nil {
-			return db.GetUserWithRolesRow{}, err
 		}
 	}
 
