@@ -3,37 +3,60 @@ package user
 import (
 	"context"
 	"testing"
-	"time"
+
+	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tendant/simple-idm/pkg/user/db"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"github.com/tendant/simple-idm/pkg/user/db"
+	"path/filepath"
+	"time"
 )
 
 func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 	ctx := context.Background()
 
 	// Create PostgreSQL container
-	container, err := postgres.RunContainer(ctx,
-		testcontainers.WithImage("postgres:15-alpine"),
-		postgres.WithDatabase("testdb"),
-		postgres.WithUsername("testuser"),
-		postgres.WithPassword("testpass"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(5*time.Second)),
-	)
+dbName := "users"
+dbUser := "user"
+dbPassword := "password"
+
+container, err := postgres.Run(ctx,
+    "postgres:16-alpine",
+    postgres.WithInitScripts(filepath.Join("testdata", "init-user-db.sh")),
+    postgres.WithConfigFile(filepath.Join("testdata", "my-postgres.conf")),
+    postgres.WithDatabase(dbName),
+    postgres.WithUsername(dbUser),
+    postgres.WithPassword(dbPassword),
+    testcontainers.WithWaitStrategy(
+        wait.ForLog("database system is ready to accept connections").
+            WithOccurrence(2).
+            WithStartupTimeout(5*time.Second)),
+)
+
+	require.NoError(t, err)
+	if err != nil {
+		slog.Error("Failed to start container:", "err", err)
+	}
+	
+	// Get connection details
+
+    // Get the mapped host and port
+    host, err := container.Host(ctx)
 	require.NoError(t, err)
 
-	// Get connection details
-	connString, err := container.ConnectionString(ctx)
+    port, err := container.MappedPort(ctx, "5432")
 	require.NoError(t, err)
+
+    // Generate the connection string
+    connString := fmt.Sprintf("postgresql://testuser:testpass@%s:%s/testdb?sslmode=disable", host, port.Port())
+    fmt.Println("Connection string:", connString)
 
 	// Create connection pool
 	poolConfig, err := pgxpool.ParseConfig(connString)
@@ -79,6 +102,7 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 			t.Logf("failed to terminate container: %v", err)
 		}
 	}
+
 
 	return pool, cleanup
 }
