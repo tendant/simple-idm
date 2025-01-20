@@ -15,7 +15,7 @@ interface User {
 
 export const userApi = {
   login: async (credentials: LoginRequest): Promise<User> => {
-    const response = await fetch('/api/login', {
+    const response = await fetch('/idm/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

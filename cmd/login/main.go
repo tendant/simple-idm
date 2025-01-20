@@ -101,7 +101,7 @@ func main() {
 
 	authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
-	server.R.Mount("/", login.Handler(loginHandle))
+	server.R.Mount("/idm", login.Handler(loginHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
