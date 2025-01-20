@@ -1,12 +1,13 @@
 package user
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
-	"github.com/jinzhu/copier"
 	"golang.org/x/exp/slog"
 )
 
@@ -20,146 +21,306 @@ func NewHandle(userService *UserService) Handle {
 	}
 }
 
+type CreateUserRequest struct {
+	Name      *string     `json:"name"`
+	Email     string      `json:"email"`
+	RoleUuids []uuid.UUID `json:"role_uuids"`
+}
+
+type UpdateUserRequest struct {
+	Name      *string     `json:"name"`
+	RoleUuids []uuid.UUID `json:"role_uuids"`
+}
+
 // Get a list of users
 // (GET /user)
 func (h Handle) GetUser(w http.ResponseWriter, r *http.Request) *Response {
-	dbUsers, err := h.userService.FindUsers(r.Context())
+	users, err := h.userService.FindUsers(r.Context())
 	if err != nil {
-		slog.Error("Failed getting users err", err)
+		slog.Error("Failed getting users", "error", err)
 		return &Response{
 			body: "Failed getting users",
 			Code: http.StatusInternalServerError,
 		}
 	}
+
+	var response []struct {
+		Email *string `json:"email,omitempty"`
+		Name  *string `json:"name,omitempty"`
+		Roles []struct {
+			Name *string `json:"name,omitempty"`
+			UUID *string `json:"uuid,omitempty"`
+		} `json:"roles,omitempty"`
+		UUID *string `json:"uuid,omitempty"`
+	}
+	for _, user := range users {
+		uuidStr := user.Uuid.String()
+		var namePtr *string
+		if user.Name.Valid {
+			namePtr = &user.Name.String
+		}
+		responseUser := struct {
+			Email *string `json:"email,omitempty"`
+			Name  *string `json:"name,omitempty"`
+			Roles []struct {
+				Name *string `json:"name,omitempty"`
+				UUID *string `json:"uuid,omitempty"`
+			} `json:"roles,omitempty"`
+			UUID *string `json:"uuid,omitempty"`
+		}{
+			Email: &user.Email,
+			Name:  namePtr,
+			UUID:  &uuidStr,
+		}
+
+		// Unmarshal roles from []byte
+		var roles []struct {
+			Name *string `json:"name,omitempty"`
+			UUID *string `json:"uuid,omitempty"`
+		}
+		if err := json.Unmarshal(user.Roles, &roles); err != nil {
+			return &Response{
+				body: fmt.Sprintf("Failed to unmarshal roles: %v", err),
+				Code: http.StatusInternalServerError,
+			}
+		}
+		responseUser.Roles = roles
+
+		response = append(response, responseUser)
+	}
+
 	return &Response{
+		body: response,
 		Code: http.StatusOK,
-		body: dbUsers,
 	}
 }
 
 // Create a new user
 // (POST /user)
 func (h Handle) PostUser(w http.ResponseWriter, r *http.Request) *Response {
-	data := PostUserJSONRequestBody{}
-	err := render.DecodeJSON(r.Body, &data)
-	if err != nil {
+	var request CreateUserRequest
+	if err := render.DecodeJSON(r.Body, &request); err != nil {
 		return &Response{
+			body: "Invalid request body",
 			Code: http.StatusBadRequest,
-			body: "unable to parse body",
 		}
 	}
 
-	slog.Debug("request params:", "data", data)
+	if request.Email == "" {
+		return &Response{
+			body: "Email is required",
+			Code: http.StatusBadRequest,
+		}
+	}
 
-	userParams := UserParams{}
-	copier.Copy(&userParams, data)
-	dbUser, err := h.userService.Create(r.Context(), userParams)
+	var name string
+	if request.Name != nil {
+		name = *request.Name
+	}
+
+	user, err := h.userService.CreateUser(r.Context(), request.Email, name, request.RoleUuids)
 	if err != nil {
-		slog.Error("Failed creating user", userParams, "err", err)
+		slog.Error("Failed creating user", "error", err)
 		return &Response{
 			body: "Failed creating user",
 			Code: http.StatusInternalServerError,
 		}
 	}
-	return &Response{
-		Code: http.StatusCreated,
-		body: dbUser,
-	}
-}
 
-// FIXME: Delete user by UUID
-// (DELETE /user/{uuid})
-func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
-	id, err := uuid.Parse(uuidStr)
-	if err != nil {
-		slog.Error("Error when parsing string to uuid", "uuid", uuidStr, "err", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Error when parsing string to uuid",
-		}
+	uuidStr := user.Uuid.String()
+	var namePtr *string
+	if user.Name.Valid {
+		namePtr = &user.Name.String
 	}
-	err = h.userService.DeleteUser(r.Context(), id)
-	if err != nil {
-		slog.Error("Failed to delete user", "uuid", uuidStr, "err", err)
+	responseUser := struct {
+		Email *string `json:"email,omitempty"`
+		Name  *string `json:"name,omitempty"`
+		Roles []struct {
+			Name *string `json:"name,omitempty"`
+			UUID *string `json:"uuid,omitempty"`
+		} `json:"roles,omitempty"`
+		UUID *string `json:"uuid,omitempty"`
+	}{
+		Email: &user.Email,
+		Name:  namePtr,
+		UUID:  &uuidStr,
+	}
+
+	// Unmarshal roles from []byte
+	var roles []struct {
+		Name *string `json:"name,omitempty"`
+		UUID *string `json:"uuid,omitempty"`
+	}
+	if err := json.Unmarshal(user.Roles, &roles); err != nil {
 		return &Response{
+			body: fmt.Sprintf("Failed to unmarshal roles: %v", err),
 			Code: http.StatusInternalServerError,
-			body: "Failed to delete user",
 		}
 	}
+	responseUser.Roles = roles
+
 	return &Response{
+		body: responseUser,
 		Code: http.StatusOK,
 	}
 }
 
-// FIXME: Get user details by UUID
+// Get user details by UUID
 // (GET /user/{uuid})
 func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
-	uuid, err := uuid.Parse(uuidStr)
+	userUuid, err := uuid.Parse(uuidStr)
 	if err != nil {
-		slog.Error("Invalid UUID format", "err", err)
-		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
-		return nil
+		return &Response{
+			body: "Invalid UUID format",
+			Code: http.StatusBadRequest,
+		}
 	}
-	params := GetUserUUIDParams{
-		Uuid: uuid,
-	}
-	user, err := h.userService.GetUserUUID(r.Context(), params)
+
+	user, err := h.userService.GetUser(r.Context(), userUuid)
 	if err != nil {
-		slog.Error("Failed getting user", "err", err)
-		http.Error(w, "Failed getting user", http.StatusInternalServerError)
-		return nil
+		slog.Error("Failed getting user", "error", err)
+		return &Response{
+			body: "Failed getting user",
+			Code: http.StatusInternalServerError,
+		}
 	}
+
+	uuidStrPtr := user.Uuid.String()
+	var namePtr *string
+	if user.Name.Valid {
+		namePtr = &user.Name.String
+	}
+	responseUser := struct {
+		Email *string `json:"email,omitempty"`
+		Name  *string `json:"name,omitempty"`
+		Roles []struct {
+			Name *string `json:"name,omitempty"`
+			UUID *string `json:"uuid,omitempty"`
+		} `json:"roles,omitempty"`
+		UUID *string `json:"uuid,omitempty"`
+	}{
+		Email: &user.Email,
+		Name:  namePtr,
+		UUID:  &uuidStrPtr,
+	}
+
+	// Unmarshal roles from []byte
+	var roles []struct {
+		Name *string `json:"name,omitempty"`
+		UUID *string `json:"uuid,omitempty"`
+	}
+	if err := json.Unmarshal(user.Roles, &roles); err != nil {
+		return &Response{
+			body: fmt.Sprintf("Failed to unmarshal roles: %v", err),
+			Code: http.StatusInternalServerError,
+		}
+	}
+	responseUser.Roles = roles
+
 	return &Response{
-		body:        user,
-		Code:        200,
-		contentType: "application/json",
+		body: responseUser,
+		Code: http.StatusOK,
 	}
 }
 
 // Update user details by UUID
 // (PUT /user/{uuid})
 func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
-	uuidParam, err := uuid.Parse(uuidStr)
-
+	userUuid, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
+			body: "Invalid UUID format",
 			Code: http.StatusBadRequest,
-			body: "invalid uuid",
 		}
 	}
 
-	nameParam := ""
-	err = render.DecodeJSON(r.Body, &nameParam)
-
-	if err != nil {
+	var request UpdateUserRequest
+	if err := render.DecodeJSON(r.Body, &request); err != nil {
 		return &Response{
+			body: "Invalid request body",
 			Code: http.StatusBadRequest,
-			body: "unable to parse body",
 		}
 	}
 
-	updateUserParam := UpdateUserParams{
-		Uuid: uuidParam,
-		Name: nameParam,
+	var name string
+	if request.Name != nil {
+		name = *request.Name
 	}
 
-	dbUser, err := h.userService.UpdateUsers(r.Context(), updateUserParam)
+	user, err := h.userService.UpdateUser(r.Context(), userUuid, name, request.RoleUuids)
 	if err != nil {
-		slog.Error("Failed to update user details", "param", updateUserParam, "err", err)
+		slog.Error("Failed updating user", "error", err)
 		return &Response{
-			body: "Failed to update user details",
+			body: "Failed updating user",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	uuidStrPtr := user.Uuid.String()
+	var namePtr *string
+	if user.Name.Valid {
+		namePtr = &user.Name.String
+	}
+	responseUser := struct {
+		Email *string `json:"email,omitempty"`
+		Name  *string `json:"name,omitempty"`
+		Roles []struct {
+			Name *string `json:"name,omitempty"`
+			UUID *string `json:"uuid,omitempty"`
+		} `json:"roles,omitempty"`
+		UUID *string `json:"uuid,omitempty"`
+	}{
+		Email: &user.Email,
+		Name:  namePtr,
+		UUID:  &uuidStrPtr,
+	}
+
+	// Unmarshal roles from []byte
+	var roles []struct {
+		Name *string `json:"name,omitempty"`
+		UUID *string `json:"uuid,omitempty"`
+	}
+	if err := json.Unmarshal(user.Roles, &roles); err != nil {
+		return &Response{
+			body: fmt.Sprintf("Failed to unmarshal roles: %v", err),
+			Code: http.StatusInternalServerError,
+		}
+	}
+	responseUser.Roles = roles
+
+	return &Response{
+		body: responseUser,
+		Code: http.StatusOK,
+	}
+}
+
+// Delete user by UUID
+// (DELETE /user/{uuid})
+func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	userUuid, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return &Response{
+			body: "Invalid UUID format",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	err = h.userService.DeleteUser(r.Context(), userUuid)
+	if err != nil {
+		slog.Error("Failed deleting user", "error", err)
+		return &Response{
+			body: "Failed deleting user",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
 	return &Response{
+		body: "User deleted successfully",
 		Code: http.StatusOK,
-		body: dbUser,
 	}
 }
 
 func Routes(r *chi.Mux, handle Handle) {
-
 	r.Group(func(r chi.Router) {
 		// add auth middleware
 		r.Mount("/api/v4", Handler(&handle))
