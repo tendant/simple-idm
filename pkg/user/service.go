@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/user/db"
@@ -19,6 +20,11 @@ func NewUserService(queries *db.Queries) *UserService {
 }
 
 func (s *UserService) CreateUser(ctx context.Context, email, name string, roleUuids []uuid.UUID) (db.GetUserWithRolesRow, error) {
+	// Validate email
+	if email == "" {
+		return db.GetUserWithRolesRow{}, fmt.Errorf("email is required")
+	}
+
 	// Create the user first
 	nullString := sql.NullString{String: name, Valid: name != ""}
 	user, err := s.queries.CreateUser(ctx, db.CreateUserParams{

@@ -61,7 +61,7 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 
 		CREATE TABLE IF NOT EXISTS roles (
 			uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-			role_name TEXT NOT NULL,
+			name TEXT NOT NULL,
 			description TEXT
 		);
 
@@ -97,7 +97,7 @@ func TestCreateUser(t *testing.T) {
 	// Create a test role first
 	roleUUID := uuid.New()
 	_, err := pool.Exec(ctx, `
-		INSERT INTO roles (uuid, role_name, description)
+		INSERT INTO roles (uuid, name, description)
 		VALUES ($1, $2, $3)
 	`, roleUUID, "TestRole", "A test role")
 	require.NoError(t, err)
