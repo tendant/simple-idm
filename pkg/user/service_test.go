@@ -20,6 +20,26 @@ import (
 	"bufio"
 )
 
+func containerLog(ctx context.Context, container testcontainers.Container) {
+		// Retrieve logs
+	logs, err := container.Logs(ctx)
+	if err != nil {
+		slog.Error("Failed to get container logs:", "err", err)
+	}
+	defer logs.Close()
+
+	// Process and display logs
+	scanner := bufio.NewScanner(logs)
+	for scanner.Scan() {
+		fmt.Println(scanner.Text()) // Print each log line
+	}
+
+	// Check for scanning errors
+	if err := scanner.Err(); err != nil {
+		slog.Error("Error reading logs", "err", err)
+	}
+}
+
 func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 	ctx := context.Background()
 
@@ -41,34 +61,13 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 				WithStartupTimeout(5*time.Second)),
 	)
 	require.NoError(t, err)
-
-	time.Sleep(5*time.Second)
-	// Retrieve logs
-	logs, err := container.Logs(ctx)
-	if err != nil {
-		slog.Error("Failed to get container logs:", "err", err)
-	}
-	defer logs.Close()
-
-	// Process and display logs
-	scanner := bufio.NewScanner(logs)
-	for scanner.Scan() {
-		fmt.Println(scanner.Text()) // Print each log line
-	}
-
-	// Check for scanning errors
-	if err := scanner.Err(); err != nil {
-		slog.Error("Error reading logs", "err", err)
-	}
-	
-
-	time.Sleep(5 * time.Second) // Sleep for 2 seconds
 	if err != nil {
 		slog.Error("Failed to start container:", "err", err)
 	}
-	
-	// Get connection details
 
+	containerLog(ctx, container)
+
+	
     // Generate the connection string
     connString, err := container.ConnectionString(ctx)
     fmt.Println("Connection string:", connString)
@@ -81,42 +80,11 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	require.NoError(t, err)
 
-	// // Run migrations
-	// _, err = pool.Exec(ctx, `
-	// 	CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-	// 	CREATE TABLE IF NOT EXISTS users (
-	// 		uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-	// 		created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	// 		last_modified_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	// 		deleted_at TIMESTAMP WITH TIME ZONE,
-	// 		created_by TEXT,
-	// 		email TEXT NOT NULL,
-	// 		name TEXT,
-	// 		password TEXT,
-	// 		verified_at TIMESTAMP WITH TIME ZONE,
-	// 		username TEXT
-	// 	);
-
-	// 	CREATE TABLE IF NOT EXISTS roles (
-	// 		uuid UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-	// 		name TEXT NOT NULL,
-	// 		description TEXT
-	// 	);
-
-	// 	CREATE TABLE IF NOT EXISTS user_roles (
-	// 		user_uuid UUID REFERENCES users(uuid),
-	// 		role_uuid UUID REFERENCES roles(uuid),
-	// 		PRIMARY KEY (user_uuid, role_uuid)
-	// 	);
-	// `)
-	// require.NoError(t, err)
-
 	cleanup := func() {
 		pool.Close()
-		// if err := container.Terminate(ctx); err != nil {
-		// 	t.Logf("failed to terminate container: %v", err)
-		// }
+		if err := container.Terminate(ctx); err != nil {
+			t.Logf("failed to terminate container: %v", err)
+		}
 	}
 
 
