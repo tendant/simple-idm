@@ -39,7 +39,7 @@ migration-down:
 	goose -dir migrations/idm postgres "postgres://idm:pwd@localhost/idm_db?sslmode=disable" down
 
 dump-idm:
-	pg_dump --no-owner -h localhost -p 5432 -U idm -d idm_db -n public > migrations/idm_db.sql
+	pg_dump --schema-only -h localhost -p 5432 -U idm -d idm_db > migrations/idm_db.sql
 
 run:
 	arelo -t . -p '**/*.go' -i '**/.*' -i '**/*_test.go' -- go run .
