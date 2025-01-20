@@ -65,7 +65,7 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 		slog.Error("Failed to start container:", "err", err)
 	}
 
-	containerLog(ctx, container)
+	// containerLog(ctx, container)
 
 	
     // Generate the connection string
