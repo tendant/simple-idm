@@ -22,6 +22,7 @@ SET row_security = off;
 
 -- CREATE SCHEMA public;
 
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 --
 -- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: -
