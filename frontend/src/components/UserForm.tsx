@@ -20,7 +20,7 @@ const UserForm: Component<Props> = (props) => {
   const [password, setPassword] = createSignal('');
   const [name, setName] = createSignal(props.initialData?.name || '');
   const [selectedRoles, setSelectedRoles] = createSignal<string[]>(
-    props.initialData?.roles?.map(r => r.uuid || '') || []
+    props.initialData?.roles?.map(r => r.uuid || '').filter(uuid => uuid !== '') || []
   );
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
@@ -46,7 +46,7 @@ const UserForm: Component<Props> = (props) => {
         email: email(),
         password: password() || undefined,
         name: name() || undefined,
-        role_uuids: selectedRoles(),
+        role_uuids: selectedRoles().filter(uuid => uuid !== ''),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save user');
@@ -56,6 +56,7 @@ const UserForm: Component<Props> = (props) => {
   };
 
   const toggleRole = (roleUuid: string) => {
+    if (!roleUuid) return; // Skip empty UUIDs
     const current = selectedRoles();
     if (current.includes(roleUuid)) {
       setSelectedRoles(current.filter(id => id !== roleUuid));
