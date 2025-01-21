@@ -25,21 +25,23 @@
    
    
 # Insert users record
-
+    -- bcrypt pwd -> $2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6
+    
     INSERT INTO users (username, name, password, email, created_by)
-    VALUES ('admin', 'admin', convert_to('pwd', 'UTF8'), 'admin@example.com', 'system');
+    VALUES ('admin', 'admin', convert_to('$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6', 'UTF8'), 'admin@example.com', 'system');
 
 # Insert roles record
 
-    INSERT INTO roles (role_name, description)
+    INSERT INTO roles (name, description)
     VALUES ('admin', 'Administrator with full access');
      
 # Insert user_roles record
 
     select * from users;
     select * from roles;
+    
     INSERT INTO user_roles (user_uuid, role_uuid)
-    VALUES ('user-uuid-example-1234', 'role-uuid-example-5678');
+    VALUES ((SELECT uuid FROM users WHERE username = 'admin'), (SELECT uuid FROM roles WHERE name = 'admin'));
     
     
 # API Test Commands

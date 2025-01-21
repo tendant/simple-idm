@@ -48,14 +48,14 @@ const Login: Component = () => {
                 for="email"
                 class="block text-sm font-medium text-gray-11"
               >
-                Email address
+                Username
               </label>
               <div class="mt-1">
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autocomplete="email"
+                  id="username"
+                  name="username"
+                  type="text"
+                  autocomplete="username"
                   required
                   value={email()}
                   onInput={(e) => setEmail(e.currentTarget.value)}
