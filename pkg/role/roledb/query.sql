@@ -28,3 +28,7 @@ FROM users u
 JOIN user_roles ur ON ur.user_uuid = u.uuid
 WHERE ur.role_uuid = $1
 ORDER BY u.email;
+
+-- name: RemoveUserFromRole :exec
+DELETE FROM user_roles 
+WHERE user_uuid = $1 AND role_uuid = $2;

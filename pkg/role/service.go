@@ -116,3 +116,26 @@ func (s *RoleService) GetRoleUsers(ctx context.Context, id uuid.UUID) ([]roledb.
 
 	return users, nil
 }
+
+// RemoveUserFromRole removes a user from a role
+func (s *RoleService) RemoveUserFromRole(ctx context.Context, roleID, userID uuid.UUID) error {
+	// Check if role exists
+	_, err := s.queries.GetRoleUUID(ctx, roleID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrRoleNotFound
+		}
+		return fmt.Errorf("error checking role existence: %w", err)
+	}
+
+	// Remove user from role
+	err = s.queries.RemoveUserFromRole(ctx, roledb.RemoveUserFromRoleParams{
+		UserUuid: userID,
+		RoleUuid: roleID,
+	})
+	if err != nil {
+		return fmt.Errorf("error removing user from role: %w", err)
+	}
+
+	return nil
+}

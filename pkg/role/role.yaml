@@ -144,3 +144,26 @@ paths:
                       type: string
         "404":
           description: Role not found
+  /{uuid}/users/{userUuid}:
+    delete:
+      summary: Remove a user from a role
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Role UUID
+        - name: userUuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User UUID
+      responses:
+        "204":
+          description: User removed from role
+        "404":
+          description: Role or user not found

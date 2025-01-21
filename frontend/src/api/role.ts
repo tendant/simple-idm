@@ -92,4 +92,13 @@ export const roleApi = {
       throw new Error('Failed to delete role');
     }
   },
+
+  removeUserFromRole: async (roleUuid: string, userUuid: string): Promise<void> => {
+    const response = await apiClient(`/idm/roles/${roleUuid}/users/${userUuid}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error('Failed to remove user from role');
+    }
+  },
 };

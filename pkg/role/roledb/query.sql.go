@@ -134,6 +134,21 @@ func (q *Queries) HasUsers(ctx context.Context, roleUuid uuid.UUID) (bool, error
 	return has_users, err
 }
 
+const removeUserFromRole = `-- name: RemoveUserFromRole :exec
+DELETE FROM user_roles 
+WHERE user_uuid = $1 AND role_uuid = $2
+`
+
+type RemoveUserFromRoleParams struct {
+	UserUuid uuid.UUID `json:"user_uuid"`
+	RoleUuid uuid.UUID `json:"role_uuid"`
+}
+
+func (q *Queries) RemoveUserFromRole(ctx context.Context, arg RemoveUserFromRoleParams) error {
+	_, err := q.db.Exec(ctx, removeUserFromRole, arg.UserUuid, arg.RoleUuid)
+	return err
+}
+
 const updateRole = `-- name: UpdateRole :exec
 UPDATE roles SET name = $2 WHERE uuid = $1
 `

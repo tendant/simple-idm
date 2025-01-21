@@ -1,13 +1,12 @@
 import { Component, createSignal, createEffect, onMount } from 'solid-js';
-import type { Role } from '../api/role';
+import type { Role, RoleUser } from '../api/role';
 import { roleApi } from '../api/role';
 
 interface Props {
   initialData?: Role;
-  onSubmit: (data: {
-    name: string;
-  }) => Promise<void>;
-  submitLabel: string;
+  submitLabel?: string;
+  onSubmit?: (data: { name: string }) => Promise<void>;
+  onError?: (error: Error) => void;
 }
 
 const RoleForm: Component<Props> = (props) => {
@@ -18,21 +17,24 @@ const RoleForm: Component<Props> = (props) => {
 
   // Update form when initialData changes
   createEffect(() => {
-    if (props.initialData?.name) {
+    if (props.initialData) {
       setName(props.initialData.name);
     }
   });
 
-  onMount(async () => {
+  const loadUsers = async () => {
     if (props.initialData?.uuid) {
       try {
         const roleUsers = await roleApi.getRoleUsers(props.initialData.uuid);
         setUsers(roleUsers);
       } catch (error) {
         console.error('Failed to fetch role users:', error);
+        props.onError?.(error as Error);
       }
     }
-  });
+  };
+
+  onMount(loadUsers);
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -40,60 +42,52 @@ const RoleForm: Component<Props> = (props) => {
     setLoading(true);
 
     try {
-      await props.onSubmit({
-        name: name(),
-      });
+      await props.onSubmit?.({ name: name() });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save role');
+      setError((err as Error).message);
+      props.onError?.(err as Error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInput = (e: Event) => {
-    const input = e.target as HTMLInputElement;
-    setName(input.value);
+  const handleRemoveUser = async (userUuid: string) => {
+    if (!props.initialData?.uuid) return;
+
+    try {
+      await roleApi.removeUserFromRole(props.initialData.uuid, userUuid);
+      // Refresh the users list
+      await loadUsers();
+    } catch (error) {
+      console.error('Failed to remove user from role:', error);
+      props.onError?.(error as Error);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} class="space-y-6">
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Role Name</label>
+        <input
+          type="text"
+          value={name()}
+          onInput={(e) => setName(e.currentTarget.value)}
+          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          required
+        />
+      </div>
+
       {error() && (
-        <div class="rounded-lg bg-red-50 p-4">
-          <div class="flex">
-            <div class="flex-shrink-0">
-              <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-              </svg>
-            </div>
-            <div class="ml-3">
-              <h3 class="text-sm font-medium text-red-800">{error()}</h3>
-            </div>
-          </div>
+        <div class="rounded-md bg-red-50 p-4">
+          <div class="text-sm text-red-700">{error()}</div>
         </div>
       )}
 
-      <div>
-        <label for="name" class="block text-sm font-medium text-gray-11">
-          Role Name
-        </label>
-        <div class="mt-1">
-          <input
-            type="text"
-            name="name"
-            id="name"
-            required
-            value={name()}
-            oninput={handleInput}
-            class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-      </div>
-
-      <div>
+      <div class="flex justify-end">
         <button
           type="submit"
           disabled={loading()}
-          class="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50"
+          class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
         >
           {loading() ? 'Loading...' : props.submitLabel}
         </button>
@@ -117,6 +111,9 @@ const RoleForm: Component<Props> = (props) => {
                       <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                         Username
                       </th>
+                      <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                        <span class="sr-only">Actions</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-200 bg-white">
@@ -127,6 +124,15 @@ const RoleForm: Component<Props> = (props) => {
                         </td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{user.name}</td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{user.username}</td>
+                        <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                          <button
+                            type="button"
+                            onClick={() => user.uuid && handleRemoveUser(user.uuid)}
+                            class="text-red-600 hover:text-red-900"
+                          >
+                            Remove
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

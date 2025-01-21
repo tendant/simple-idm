@@ -142,6 +142,43 @@ func (h *Handle) GetUUIDUsers(w http.ResponseWriter, r *http.Request, uuidStr st
 	}
 }
 
+// DeleteUUIDUsersUserUUID handles removing a user from a role
+func (h *Handle) DeleteUUIDUsersUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string, userUuidStr string) *Response {
+	roleUUID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: fmt.Sprintf("invalid role UUID format: %v", err),
+		}
+	}
+
+	userUUID, err := uuid.Parse(userUuidStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: fmt.Sprintf("invalid user UUID format: %v", err),
+		}
+	}
+
+	err = h.roleService.RemoveUserFromRole(r.Context(), roleUUID, userUUID)
+	if err != nil {
+		if errors.Is(err, ErrRoleNotFound) {
+			return &Response{
+				Code: http.StatusNotFound,
+				body: fmt.Sprintf("role not found: %v", err),
+			}
+		}
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: fmt.Sprintf("failed to remove user from role: %v", err),
+		}
+	}
+
+	return &Response{
+		Code: http.StatusNoContent,
+	}
+}
+
 // Post handles the creation of a new role
 func (h *Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 	var requestBody PostJSONRequestBody

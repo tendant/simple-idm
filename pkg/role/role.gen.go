@@ -167,6 +167,9 @@ type ServerInterface interface {
 	// Get users assigned to a role
 	// (GET /{uuid}/users)
 	GetUUIDUsers(w http.ResponseWriter, r *http.Request, uuid string) *Response
+	// Remove a user from a role
+	// (DELETE /{uuid}/users/{userUuid})
+	DeleteUUIDUsersUserUUID(w http.ResponseWriter, r *http.Request, uuid string, userUUID string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -315,6 +318,40 @@ func (siw *ServerInterfaceWrapper) GetUUIDUsers(w http.ResponseWriter, r *http.R
 	handler(w, r.WithContext(ctx))
 }
 
+// DeleteUUIDUsersUserUUID operation middleware
+func (siw *ServerInterfaceWrapper) DeleteUUIDUsersUserUUID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "uuid" -------------
+	var uuid string
+
+	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+		return
+	}
+
+	// ------------- Path parameter "userUuid" -------------
+	var userUUID string
+
+	if err := runtime.BindStyledParameter("simple", false, "userUuid", chi.URLParam(r, "userUuid"), &userUUID); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "userUuid"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.DeleteUUIDUsersUserUUID(w, r, uuid, userUUID)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
 type UnescapedCookieParamError struct {
 	err       error
 	paramName string
@@ -436,6 +473,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Get("/{uuid}", wrapper.GetUUID)
 		r.Put("/{uuid}", wrapper.PutUUID)
 		r.Get("/{uuid}/users", wrapper.GetUUIDUsers)
+		r.Delete("/{uuid}/users/{userUuid}", wrapper.DeleteUUIDUsersUserUUID)
 	})
 	return r
 }
@@ -461,16 +499,17 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9RWwW7bMAz9FYFno062nnxbV2AIsAHFgJyGHlibSVTYkibS2QLD/z5QTroljjesxTrk",
-	"EgdPFKX3Hkm7g9I3wTtywlB0fQbWrTwUHYiVmqCAz74m8wkdrqkhJ+bd3QIy2FJk6x0UML+aXc2gz8AH",
-	"chgsFPA2QRkElI1mhVx/1iT68IEiivVuUUEBH0ggg0gcvGNKwW9mM32U3gm5tAVDqG2ZNuWPrKd2wOWG",
-	"GtR/VqhJG0PU3GKHNA4b0mdFXEYbZLhtYpOWMpBdUIIs0bq1MmhbW+mWlY8NChQDMArsnxD/8EilwE8A",
-	"Y8Qd9BpyfO5Hy2L8ykRfE6cU3DYNxt2ggUFTH0dkEDyfEexOUVXsa0ssN77a/ZVYL9RoTF0hvYyNVEEh",
-	"saV+5Od84owyEgpVJ3K8T6hB4+hbUiOt552a0Q+ZahIaS3Ob8OVycZtqL2JDQpGh+NKB1UO1HiHbsz6Y",
-	"e3z57Bet/lQG9yOi1xNEhxtX6ur1ZJDzYla+dad6DLQM7rXIJhvpfzKfvWYVvqBTx525N0jQ1vw8g4b+",
-	"VXfMw84kF7R923Pd2762Sxc0Ji68htpQnZlmy4QadIa+Wxbr1qOZlrecyqD7bWcvU9BFtPfEG5katHX6",
-	"tDi14uDe2COmOL3471/XyRmDzHbtqDLijWzoaRA/b1SMcx5Ge4qluD14e5z4Bpn068vs3W5jDQXkGGy+",
-	"nUN/3/8IAAD//+FQ7eDMCQAA",
+	"H4sIAAAAAAAC/9RWTU/cTAz+KyOfI7K8L6fcSpEqpFZCSHuqOJjEuwzKfHTG2XYV5b9XdhZaNhtKQVBx",
+	"yUQejz+ex/ZMD3VwMXjynKHqhwKsXwWoemDLLUEFl6El8wU9rsmRZ/Ph4hwK2FDKNnio4PhocbSAoYAQ",
+	"yWO0UMH/KiogIt+IVSjlsyaWJURKyDb48wYq+EQMBSTKMfhMqvzfYiFLHTyT1yMYY2trPVTeZvHaQ65v",
+	"yKH8WSanB2MS22xHMx4dydpQrpONPEar2ehWAbyNkmDmZP1aMug628iRVUgOGapRMFEc7iXh+pZqhl8C",
+	"TAm3MIjKQ7+fbWYTViaFlrKayJ1zmLYjBgZN+1CjgBjyAcAuRCqIfeso82lotn8F1gsxmqYuIgnGJmqg",
+	"4tTRMOHzeMZHnQiZmj04PqrUoPH0XdHQ/bIXMobRUktMU2jOVL5cnp9p7SV0xJQyVF97sOJU6hGKXdZ3",
+	"5D4MvvgNqz+VwdUk0ZOZRMeIG2H1ZFbJBzar0Pl9PMa0DO6wKGYb6V9mvnjLKnxBp047c0cQo23z8wga",
+	"+1fYMddboyxI+3aHurd7a5be0Zh45zXUxebANFuq1KA39MNmtn49mWlll7UM+kc7e6lK76K9Z25kcmhb",
+	"fVrsU3HH3pSjTGl+8/Wva2XGYM527akxHAzf0P0gft6omNrEmZIoe1mWT7/3tEbkc3jIHAh0p/gaVVTs",
+	"O5TAHnO4y/X172QNJJELG2rMKgX3BEZDUuJmmb1UcwZHLTV6T6soUtocpuEUM8mj2uzQ6FILFZQYbbk5",
+	"huFq+BkAAP//8FvIYKMLAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
