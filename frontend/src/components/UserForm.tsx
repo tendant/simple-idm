@@ -1,5 +1,6 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, createResource, For } from 'solid-js';
 import type { User } from '../api/user';
+import { roleApi, type Role } from '../api/role';
 
 interface Props {
   initialData?: User;
@@ -8,6 +9,7 @@ interface Props {
     email?: string;
     password?: string;
     name?: string;
+    role_uuids?: string[];
   }) => Promise<void>;
   submitLabel: string;
 }
@@ -17,8 +19,21 @@ const UserForm: Component<Props> = (props) => {
   const [email, setEmail] = createSignal(props.initialData?.email || '');
   const [password, setPassword] = createSignal('');
   const [name, setName] = createSignal(props.initialData?.name || '');
+  const [selectedRoles, setSelectedRoles] = createSignal<string[]>(
+    props.initialData?.roles?.map(r => r.uuid || '') || []
+  );
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
+
+  // Fetch available roles
+  const [roles] = createResource<Role[]>(async () => {
+    try {
+      return await roleApi.listRoles();
+    } catch (err) {
+      console.error('Failed to fetch roles:', err);
+      return [];
+    }
+  });
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -31,11 +46,21 @@ const UserForm: Component<Props> = (props) => {
         email: email(),
         password: password() || undefined,
         name: name() || undefined,
+        role_uuids: selectedRoles(),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save user');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleRole = (roleUuid: string) => {
+    const current = selectedRoles();
+    if (current.includes(roleUuid)) {
+      setSelectedRoles(current.filter(id => id !== roleUuid));
+    } else {
+      setSelectedRoles([...current, roleUuid]);
     }
   };
 
@@ -108,20 +133,49 @@ const UserForm: Component<Props> = (props) => {
         </div>
       </div>
 
+      {!props.initialData && (
+        <div>
+          <label for="password" class="block text-sm font-medium text-gray-11">
+            Password
+          </label>
+          <div class="mt-1">
+            <input
+              type="password"
+              name="password"
+              id="password"
+              required
+              value={password()}
+              onInput={(e) => setPassword(e.currentTarget.value)}
+              class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      )}
+
       <div>
-        <label for="password" class="block text-sm font-medium text-gray-11">
-          {props.initialData ? 'New Password (leave blank to keep current)' : 'Password'}
+        <label class="block text-sm font-medium text-gray-11">
+          Roles
         </label>
-        <div class="mt-1">
-          <input
-            type="password"
-            name="password"
-            id="password"
-            required={!props.initialData}
-            value={password()}
-            onInput={(e) => setPassword(e.currentTarget.value)}
-            class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+        <div class="mt-2 space-y-2">
+          <For each={roles()}>
+            {(role) => (
+              <div class="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`role-${role.uuid}`}
+                  checked={selectedRoles().includes(role.uuid || '')}
+                  onChange={() => role.uuid && toggleRole(role.uuid)}
+                  class="h-4 w-4 rounded border-gray-7 text-blue-600 focus:ring-blue-500"
+                />
+                <label
+                  for={`role-${role.uuid}`}
+                  class="ml-2 text-sm text-gray-11"
+                >
+                  {role.name}
+                </label>
+              </div>
+            )}
+          </For>
         </div>
       </div>
 
@@ -129,9 +183,9 @@ const UserForm: Component<Props> = (props) => {
         <button
           type="submit"
           disabled={loading()}
-          class="w-full rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+          class="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50"
         >
-          {loading() ? 'Saving...' : props.submitLabel}
+          {loading() ? 'Loading...' : props.submitLabel}
         </button>
       </div>
     </form>
