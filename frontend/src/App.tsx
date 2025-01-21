@@ -9,12 +9,18 @@ import CreateRole from './pages/CreateRole';
 import EditRole from './pages/EditRole';
 import Navigation from './components/Navigation';
 
-const Layout: Component = (props) => {
+const ProtectedRoutes: Component = () => {
   return (
     <div class="min-h-screen bg-gray-1">
       <Navigation />
       <main class="py-10 px-4 sm:px-6 lg:px-8">
-        {props.children}
+        <Route path="/" component={Users} />
+        <Route path="/users" component={Users} />
+        <Route path="/users/create" component={CreateUser} />
+        <Route path="/users/:id/edit" component={EditUser} />
+        <Route path="/roles" component={Roles} />
+        <Route path="/roles/create" component={CreateRole} />
+        <Route path="/roles/:uuid/edit" component={EditRole} />
       </main>
     </div>
   );
@@ -24,17 +30,7 @@ const App: Component = () => {
   return (
     <Router>
       <Route path="/login" component={Login} />
-      <Route path="/*" component={() => (
-        <Layout>
-          <Route path="/" component={Users} />
-          <Route path="/users" component={Users} />
-          <Route path="/users/create" component={CreateUser} />
-          <Route path="/users/:id/edit" component={EditUser} />
-          <Route path="/roles" component={Roles} />
-          <Route path="/roles/create" component={CreateRole} />
-          <Route path="/roles/:uuid/edit" component={EditRole} />
-        </Layout>
-      )} />
+      <Route path="/*" component={ProtectedRoutes} />
     </Router>
   );
 };
