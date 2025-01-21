@@ -102,13 +102,22 @@ const Users: Component = () => {
                           {user.name || '-'}
                         </td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          {user.username || '-'}
+                          {user.username}
                         </td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
                           {user.email}
                         </td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          {user.roles?.map(role => role.name).join(', ') || '-'}
+                          <div class="flex flex-wrap gap-1">
+                            {user.roles?.map((role) => (
+                              <span
+                                key={role.uuid}
+                                class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20"
+                              >
+                                {role.name}
+                              </span>
+                            )) || '-'}
+                          </div>
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                           <button
