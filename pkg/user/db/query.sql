@@ -1,6 +1,6 @@
 -- name: CreateUser :one
-INSERT INTO users (email, name)
-VALUES ($1, $2)
+INSERT INTO users (email, username, name)
+VALUES ($1, $2, $3)
 RETURNING *;
 
 -- name: CreateUserRoleBatch :copyfrom

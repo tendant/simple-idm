@@ -24,6 +24,7 @@ func NewHandle(userService *UserService) Handle {
 type CreateUserRequest struct {
 	Name      *string     `json:"name"`
 	Email     string      `json:"email"`
+	Username  string      `json:"username"`
 	RoleUuids []uuid.UUID `json:"role_uuids"`
 }
 
@@ -45,9 +46,10 @@ func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	var response []struct {
-		Email *string `json:"email,omitempty"`
-		Name  *string `json:"name,omitempty"`
-		Roles []struct {
+		Email    *string `json:"email,omitempty"`
+		Username *string `json:"username,omitempty"`
+		Name     *string `json:"name,omitempty"`
+		Roles    []struct {
 			Name *string `json:"name,omitempty"`
 			UUID *string `json:"uuid,omitempty"`
 		} `json:"roles,omitempty"`
@@ -59,18 +61,24 @@ func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
 		if user.Name.Valid {
 			namePtr = &user.Name.String
 		}
+		var usernamePtr *string
+		if user.Username.Valid {
+			usernamePtr = &user.Username.String
+		}
 		responseUser := struct {
-			Email *string `json:"email,omitempty"`
-			Name  *string `json:"name,omitempty"`
-			Roles []struct {
+			Email    *string `json:"email,omitempty"`
+			Username *string `json:"username,omitempty"`
+			Name     *string `json:"name,omitempty"`
+			Roles    []struct {
 				Name *string `json:"name,omitempty"`
 				UUID *string `json:"uuid,omitempty"`
 			} `json:"roles,omitempty"`
 			UUID *string `json:"uuid,omitempty"`
 		}{
-			Email: &user.Email,
-			Name:  namePtr,
-			UUID:  &uuidStr,
+			Email:    &user.Email,
+			Username: usernamePtr,
+			Name:     namePtr,
+			UUID:     &uuidStr,
 		}
 
 		// Unmarshal roles from []byte
@@ -113,12 +121,19 @@ func (h Handle) PostUsers(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	if request.Username == "" {
+		return &Response{
+			body: "Username is required",
+			Code: http.StatusBadRequest,
+		}
+	}
+
 	var name string
 	if request.Name != nil {
 		name = *request.Name
 	}
 
-	user, err := h.userService.CreateUser(r.Context(), request.Email, name, request.RoleUuids)
+	user, err := h.userService.CreateUser(r.Context(), request.Email, request.Username, name, request.RoleUuids)
 	if err != nil {
 		slog.Error("Failed creating user", "error", err)
 		return &Response{
@@ -132,18 +147,24 @@ func (h Handle) PostUsers(w http.ResponseWriter, r *http.Request) *Response {
 	if user.Name.Valid {
 		namePtr = &user.Name.String
 	}
+	var usernamePtr *string
+	if user.Username.Valid {
+		usernamePtr = &user.Username.String
+	}
 	responseUser := struct {
-		Email *string `json:"email,omitempty"`
-		Name  *string `json:"name,omitempty"`
-		Roles []struct {
+		Email    *string `json:"email,omitempty"`
+		Username *string `json:"username,omitempty"`
+		Name     *string `json:"name,omitempty"`
+		Roles    []struct {
 			Name *string `json:"name,omitempty"`
 			UUID *string `json:"uuid,omitempty"`
 		} `json:"roles,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	}{
-		Email: &user.Email,
-		Name:  namePtr,
-		UUID:  &uuidStr,
+		Email:    &user.Email,
+		Username: usernamePtr,
+		Name:     namePtr,
+		UUID:     &uuidStr,
 	}
 
 	// Unmarshal roles from []byte
@@ -190,18 +211,24 @@ func (h Handle) GetUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 	if user.Name.Valid {
 		namePtr = &user.Name.String
 	}
+	var usernamePtr *string
+	if user.Username.Valid {
+		usernamePtr = &user.Username.String
+	}
 	responseUser := struct {
-		Email *string `json:"email,omitempty"`
-		Name  *string `json:"name,omitempty"`
-		Roles []struct {
+		Email    *string `json:"email,omitempty"`
+		Username *string `json:"username,omitempty"`
+		Name     *string `json:"name,omitempty"`
+		Roles    []struct {
 			Name *string `json:"name,omitempty"`
 			UUID *string `json:"uuid,omitempty"`
 		} `json:"roles,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	}{
-		Email: &user.Email,
-		Name:  namePtr,
-		UUID:  &uuidStrPtr,
+		Email:    &user.Email,
+		Username: usernamePtr,
+		Name:     namePtr,
+		UUID:     &uuidStrPtr,
 	}
 
 	// Unmarshal roles from []byte
@@ -261,18 +288,24 @@ func (h Handle) PutUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 	if user.Name.Valid {
 		namePtr = &user.Name.String
 	}
+	var usernamePtr *string
+	if user.Username.Valid {
+		usernamePtr = &user.Username.String
+	}
 	responseUser := struct {
-		Email *string `json:"email,omitempty"`
-		Name  *string `json:"name,omitempty"`
-		Roles []struct {
+		Email    *string `json:"email,omitempty"`
+		Username *string `json:"username,omitempty"`
+		Name     *string `json:"name,omitempty"`
+		Roles    []struct {
 			Name *string `json:"name,omitempty"`
 			UUID *string `json:"uuid,omitempty"`
 		} `json:"roles,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	}{
-		Email: &user.Email,
-		Name:  namePtr,
-		UUID:  &uuidStrPtr,
+		Email:    &user.Email,
+		Username: usernamePtr,
+		Name:     namePtr,
+		UUID:     &uuidStrPtr,
 	}
 
 	// Unmarshal roles from []byte

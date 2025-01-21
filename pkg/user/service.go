@@ -19,17 +19,22 @@ func NewUserService(queries *db.Queries) *UserService {
 	}
 }
 
-func (s *UserService) CreateUser(ctx context.Context, email, name string, roleUuids []uuid.UUID) (db.GetUserWithRolesRow, error) {
+func (s *UserService) CreateUser(ctx context.Context, email, username, name string, roleUuids []uuid.UUID) (db.GetUserWithRolesRow, error) {
 	// Validate email
 	if email == "" {
 		return db.GetUserWithRolesRow{}, fmt.Errorf("email is required")
+	}
+	// Validate username
+	if username == "" {
+		return db.GetUserWithRolesRow{}, fmt.Errorf("username is required")
 	}
 
 	// Create the user first
 	nullString := sql.NullString{String: name, Valid: name != ""}
 	user, err := s.queries.CreateUser(ctx, db.CreateUserParams{
-		Email: email,
-		Name:  nullString,
+		Email:    email,
+		Username: sql.NullString{String: username, Valid: true},
+		Name:     nullString,
 	})
 	if err != nil {
 		return db.GetUserWithRolesRow{}, err
