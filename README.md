@@ -25,10 +25,14 @@
    
    
 # Insert users record
-    -- bcrypt pwd -> $2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6
+    -- crypt pwd -> $2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6
     
     INSERT INTO users (username, name, password, email, created_by)
     VALUES ('admin', 'admin', convert_to('$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6', 'UTF8'), 'admin@example.com', 'system');
+    
+    update users set password = convert_to('$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6', 'UTF8') where username = 'admin';
+    
+    update users set password = '$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6' where username = 'admin';
 
 # Insert roles record
 

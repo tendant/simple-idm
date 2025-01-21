@@ -4,7 +4,7 @@ import { userApi } from '../api/user';
 
 const Login: Component = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = createSignal('');
+  const [username, setUsername] = createSignal('');
   const [password, setPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
@@ -16,7 +16,7 @@ const Login: Component = () => {
 
     try {
       const user = await userApi.login({
-        email: email(),
+        username: username(),
         password: password(),
       });
 
@@ -45,7 +45,7 @@ const Login: Component = () => {
           <form class="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label
-                for="email"
+                for="username"
                 class="block text-sm font-medium text-gray-11"
               >
                 Username
@@ -57,8 +57,8 @@ const Login: Component = () => {
                   type="text"
                   autocomplete="username"
                   required
-                  value={email()}
-                  onInput={(e) => setEmail(e.currentTarget.value)}
+                  value={username()}
+                  onInput={(e) => setUsername(e.currentTarget.value)}
                   class="appearance-none block w-full px-3 py-2 border border-gray-7 rounded-lg shadow-sm placeholder:text-gray-8 focus:outline-none focus:ring-2 focus:ring-primary-7 focus:border-primary-7"
                 />
               </div>

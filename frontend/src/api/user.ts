@@ -1,11 +1,11 @@
 interface LoginRequest {
-  email: string;
+  username: string;
   password: string;
 }
 
 interface User {
   uuid: string;
-  email: string;
+  username: string;
   name?: string;
   roles?: Array<{
     uuid: string;
