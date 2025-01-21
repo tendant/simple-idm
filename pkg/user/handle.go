@@ -55,17 +55,28 @@ func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
 		} `json:"roles,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	}
+
 	for _, user := range users {
 		uuidStr := user.Uuid.String()
 		var namePtr *string
 		if user.Name.Valid {
 			namePtr = &user.Name.String
 		}
-		var usernamePtr *string
-		if user.Username.Valid {
-			usernamePtr = &user.Username.String
+
+		// Handle roles
+		var roles []struct {
+			Name *string `json:"name,omitempty"`
+			UUID *string `json:"uuid,omitempty"`
 		}
-		responseUser := struct {
+		if len(user.Roles) > 0 {
+			err := json.Unmarshal(user.Roles, &roles)
+			if err != nil {
+				slog.Error("Failed to unmarshal roles", "error", err)
+				continue
+			}
+		}
+
+		response = append(response, struct {
 			Email    *string `json:"email,omitempty"`
 			Username *string `json:"username,omitempty"`
 			Name     *string `json:"name,omitempty"`
@@ -76,30 +87,16 @@ func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
 			UUID *string `json:"uuid,omitempty"`
 		}{
 			Email:    &user.Email,
-			Username: usernamePtr,
+			Username: &user.Username.String,
 			Name:     namePtr,
+			Roles:    roles,
 			UUID:     &uuidStr,
-		}
-
-		// Unmarshal roles from []byte
-		var roles []struct {
-			Name *string `json:"name,omitempty"`
-			UUID *string `json:"uuid,omitempty"`
-		}
-		if err := json.Unmarshal(user.Roles, &roles); err != nil {
-			return &Response{
-				body: fmt.Sprintf("Failed to unmarshal roles: %v", err),
-				Code: http.StatusInternalServerError,
-			}
-		}
-		responseUser.Roles = roles
-
-		response = append(response, responseUser)
+		})
 	}
 
 	return &Response{
-		body: response,
 		Code: http.StatusOK,
+		body: response,
 	}
 }
 
