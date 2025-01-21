@@ -233,9 +233,9 @@ func PostRegisterJSON201Response(body struct {
 	}
 }
 
-// GetTokenRefreshJSON200Response is a constructor method for a GetTokenRefresh response.
+// PostTokenRefreshJSON200Response is a constructor method for a PostTokenRefresh response.
 // A *Response is returned with the configured status code and content type from the spec.
-func GetTokenRefreshJSON200Response(body Tokens) *Response {
+func PostTokenRefreshJSON200Response(body Tokens) *Response {
 	return &Response{
 		body:        body,
 		Code:        200,
@@ -264,8 +264,8 @@ type ServerInterface interface {
 	// (POST /register)
 	PostRegister(w http.ResponseWriter, r *http.Request) *Response
 	// Refresh JWT tokens
-	// (GET /token/refresh)
-	GetTokenRefresh(w http.ResponseWriter, r *http.Request) *Response
+	// (POST /token/refresh)
+	PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -382,12 +382,12 @@ func (siw *ServerInterfaceWrapper) PostRegister(w http.ResponseWriter, r *http.R
 	handler(w, r.WithContext(ctx))
 }
 
-// GetTokenRefresh operation middleware
-func (siw *ServerInterfaceWrapper) GetTokenRefresh(w http.ResponseWriter, r *http.Request) {
+// PostTokenRefresh operation middleware
+func (siw *ServerInterfaceWrapper) PostTokenRefresh(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.GetTokenRefresh(w, r)
+		resp := siw.Handler.PostTokenRefresh(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -521,7 +521,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset:init", wrapper.PostPasswordResetInit)
 		r.Post("/register", wrapper.PostRegister)
-		r.Get("/token/refresh", wrapper.GetTokenRefresh)
+		r.Post("/token/refresh", wrapper.PostTokenRefresh)
 	})
 	return r
 }
@@ -547,19 +547,19 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8xWX2/TMBD/KtbBY9R08JYnQCC0CaSp2uAB8WCSa+vR2JntbFRTvzvy2UmW1kvCWKe9",
-	"Rc7Z/v25O98d5KqslERpDWR3YPI1lpw+P5VcbL6hFsvtAq9rNNatVlpVqK1AikEX4z7stkLIwFgt5Ap2",
-	"uwQ0XtdCYwHZjxD2M2nC1K8rzC3sEviiVkIenluiMXyFkZMTMJbb2t/+h5fVhv7WeY7GQHIYXhvULvi1",
-	"xiVk8CrtCKeBbXrpYvZBh3uSFkw4K0bjnBtzq3SxQIMRmXJVxLlUYd+4hHTEvQ2jKE6lOIZhC1wJY1GP",
-	"p0TnzpVay1mh8F1YmuWqjFkleYn9nWdqLdlHhbHo6drRuUlANqLhhfqN0hzS4pRg9DfqpMalRrN+KGAP",
-	"kUskQhWDcBkydppznWyHqV+LCepQVNIX6RCW2yXkUtF5wpI7Dij7yiVfYYnSsvfnp5DADWojlIQMTmbz",
-	"2dwBURVKXgnI4C0tOQ/smmildGF6Q32GWCufVY47t0LJ0wIyOFfG3mtI4CmgsR9UsfUlJi1K2smraiNy",
-	"2pteGSW7vjbWByItb9eXy+oaacFUShrvzJv5/J8QTG11u6gJBZpci8p6iQkxI/UEFiz0wWW92WzpAFOX",
-	"JddbyMDTYiQ340WhXb90Iemm7cEPSu/b9ONF71MeqNykK43pRTRY0k/v31AGeaEiRlGtkNJDJtF2xlnd",
-	"PEjOHFXbUXdczAtKS49ohKmL6Ig2Fqa6fUMfJNx/bo/TC/p3vPA20IBlJN6Q7kSHtfUSkT4TzeQwTX8a",
-	"NJ7BA7rnOX3oxhAqXh0mn/02mzyBYb4rG4e3b5cjLbjF1jG/wfvWIBo2q5nYjuTR/kA4yaGT/3CoHYSW",
-	"SpfcQtYOdo/wgZzNNXI7/Ho2LBlnEm/vtS3rBr40TH8O1QojPnxGS5PhIsQd8QUKA2yEq//DAtYxvhTE",
-	"zr5fMNueuPsbAAD//2HP94AvDgAA",
+	"H4sIAAAAAAAC/8xWz27bPAx/FYHfdzTidLv5tA3bocUGFEG7HYYdNJtJ1MWSK8ntgiLvPoiS7TpRbK9r",
+	"it4MmZJ+f0iKD5CrslISpTWQPYDJ11hy+vxUcrH5ilostwu8rdFYt1ppVaG2AikGXYz7sNsKIQNjtZAr",
+	"2O0S0HhbC40FZN9D2I+kCVM/bzC3sEvgs1oJeXhuicbwFUZOTsBYbmt/+29eVhv6W+c5GgPJYXhtULvg",
+	"/zUuIYP/0o5wGtim1y5mH3S4J2nBhLNiNC65MfdKFws0GJEpV0WcSxX2jUtIRzzaMIriXIpTGLbAlTAW",
+	"9XhKdO7cqLWcFQrfhaVZrsqYVZKX2N95odaSfVQYi56uHZ2bBGQjGl6pXyjNIS1OCUZ/o05qXGo062MB",
+	"e4hcIhGqGITrkLHTnOtkO0z9WkxQh6KSvkiHsNwuIZeKzhOW3HFA2Rcu+QpLlJa9vzyHBO5QG6EkZHA2",
+	"m8/mDoiqUPJKQAZvacl5YNdEK6UL0zvqM8Ra+axy3LkVSp4XkMGlMvZRQwJPAY39oIqtLzFpUdJOXlUb",
+	"kdPe9MYo2fW1sT4QaXm7vlxW10gLplLSeGfezOd/hWBqq9tFTSjQ5FpU1ktMiBmpJ7BgoQ8u681mSweY",
+	"uiy53kIGnhYjuRkvCu36pQtJN20PPiq9b9NPF71PeaByk640phfRYEk/v39DGeSFihhFtUJKD5lE2xln",
+	"dfMgOXNUbUfdcTGvKC09ohGmLqIj2liY6vYNPUq4/9yephf073jlbaABy0i8Id2JDmvrJSJ9JprJYZr+",
+	"NGi8gAd0z0v60I0hVLw6TD77bTZ5BsN8VzYOb98uR1pwi61jfoP3rUE0bFYzsZ3Io/2BcJJDZ//gUDsI",
+	"LZUuuYWsHeye4AM5m2vkdvj1bFgyziTeP2pb1g18aZj+ho2g2XARIk/4BoURNsLW/2EB7RhjCmIX366Y",
+	"bU/c/QkAAP//jkWaPzEOAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

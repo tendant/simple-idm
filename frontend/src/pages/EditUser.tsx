@@ -13,12 +13,13 @@ const EditUser: Component = () => {
 
   onMount(async () => {
     try {
-      const response = await fetch(`/idm/users/${params.id}`);
-      if (!response.ok) throw new Error('Failed to fetch user');
-      const data = await response.json();
+      const data = await userApi.getUser(params.id);
       setUser(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch user');
+      if (err instanceof Error && err.message === 'Authentication expired. Please log in again.') {
+        navigate('/login');
+      }
     } finally {
       setLoading(false);
     }

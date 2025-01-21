@@ -1,3 +1,5 @@
+import { apiClient } from './client';
+
 interface LoginRequest {
   username: string;
   password: string;
@@ -34,12 +36,13 @@ interface User {
 
 export const userApi = {
   login: async (credentials: LoginRequest): Promise<User> => {
-    const response = await fetch('/auth/login', {
+    const response = await apiClient('/auth/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(credentials),
+      skipAuth: true,
     });
 
     if (!response.ok) {
@@ -50,15 +53,27 @@ export const userApi = {
   },
 
   listUsers: async (): Promise<User[]> => {
-    const response = await fetch('/idm/users');
+    const response = await apiClient('/idm/users');
+
     if (!response.ok) {
       throw new Error('Failed to fetch users');
     }
+
+    return response.json();
+  },
+
+  getUser: async (uuid: string): Promise<User> => {
+    const response = await apiClient(`/idm/users/${uuid}`);
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user');
+    }
+
     return response.json();
   },
 
   createUser: async (user: CreateUserRequest): Promise<User> => {
-    const response = await fetch('/idm/users', {
+    const response = await apiClient('/idm/users', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -80,7 +95,7 @@ export const userApi = {
   },
 
   updateUser: async (uuid: string, user: UpdateUserRequest): Promise<User> => {
-    const response = await fetch(`/idm/users/${uuid}`, {
+    const response = await apiClient(`/idm/users/${uuid}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -96,7 +111,7 @@ export const userApi = {
   },
 
   deleteUser: async (uuid: string): Promise<void> => {
-    const response = await fetch(`/idm/users/${uuid}`, {
+    const response = await apiClient(`/idm/users/${uuid}`, {
       method: 'DELETE',
     });
 

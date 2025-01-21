@@ -141,7 +141,7 @@ paths:
                   message:
                     type: string
   /token/refresh:
-    get:
+    post:
       summary: Refresh JWT tokens
       responses:
         '200':
