@@ -74,8 +74,18 @@ func (h *Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	w.Header().Set("Location", roleUUID.String())
+	
+	// Return the created role information
+	uuidStr := roleUUID.String()
 	return &Response{
 		Code: http.StatusCreated,
+		body: struct {
+			UUID *string `json:"uuid,omitempty"`
+			Name *string `json:"name,omitempty"`
+		}{
+			UUID: &uuidStr,
+			Name: requestBody.Name,
+		},
 	}
 }
 
