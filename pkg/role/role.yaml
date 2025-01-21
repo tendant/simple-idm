@@ -40,24 +40,6 @@ paths:
       responses:
         "201":
           description: Role created
-    put:
-      summary: Update an existing role
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                uuid:
-                  type: string
-                  format: uuid
-                name:
-                  type: string
-                  description: Role name
-      responses:
-        "200":
-          description: Role updated
   /{uuid}:
     get:
       summary: Get a role by UUID
@@ -84,3 +66,36 @@ paths:
                     description: Role name
         "404":
           description: Role not found
+    put:
+      summary: Update an existing role
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Role name
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uuid:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                    description: Role name

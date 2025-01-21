@@ -27,11 +27,10 @@ type PostJSONBody struct {
 	Name *string `json:"name,omitempty"`
 }
 
-// PutJSONBody defines parameters for Put.
-type PutJSONBody struct {
+// PutUUIDJSONBody defines parameters for PutUUID.
+type PutUUIDJSONBody struct {
 	// Role name
 	Name *string `json:"name,omitempty"`
-	UUID *string `json:"uuid,omitempty"`
 }
 
 // PostJSONRequestBody defines body for Post for application/json ContentType.
@@ -42,11 +41,11 @@ func (PostJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
-// PutJSONRequestBody defines body for Put for application/json ContentType.
-type PutJSONRequestBody PutJSONBody
+// PutUUIDJSONRequestBody defines body for PutUUID for application/json ContentType.
+type PutUUIDJSONRequestBody PutUUIDJSONBody
 
 // Bind implements render.Binder.
-func (PutJSONRequestBody) Bind(*http.Request) error {
+func (PutUUIDJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -119,6 +118,20 @@ func GetUUIDJSON200Response(body struct {
 	}
 }
 
+// PutUUIDJSON200Response is a constructor method for a PutUUID response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PutUUIDJSON200Response(body struct {
+	// Role name
+	Name *string `json:"name,omitempty"`
+	UUID *string `json:"uuid,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get a list of roles
@@ -127,12 +140,12 @@ type ServerInterface interface {
 	// Create a new role
 	// (POST /)
 	Post(w http.ResponseWriter, r *http.Request) *Response
-	// Update an existing role
-	// (PUT /)
-	Put(w http.ResponseWriter, r *http.Request) *Response
 	// Get a role by UUID
 	// (GET /{uuid})
 	GetUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response
+	// Update an existing role
+	// (PUT /{uuid})
+	PutUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -177,24 +190,6 @@ func (siw *ServerInterfaceWrapper) Post(w http.ResponseWriter, r *http.Request) 
 	handler(w, r.WithContext(ctx))
 }
 
-// Put operation middleware
-func (siw *ServerInterfaceWrapper) Put(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.Put(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
 // GetUUID operation middleware
 func (siw *ServerInterfaceWrapper) GetUUID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -209,6 +204,32 @@ func (siw *ServerInterfaceWrapper) GetUUID(w http.ResponseWriter, r *http.Reques
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.GetUUID(w, r, uuid)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PutUUID operation middleware
+func (siw *ServerInterfaceWrapper) PutUUID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "uuid" -------------
+	var uuid string
+
+	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PutUUID(w, r, uuid)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -338,8 +359,8 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Get("/", wrapper.Get)
 		r.Post("/", wrapper.Post)
-		r.Put("/", wrapper.Put)
 		r.Get("/{uuid}", wrapper.GetUUID)
+		r.Put("/{uuid}", wrapper.PutUUID)
 	})
 	return r
 }
@@ -365,14 +386,14 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8SUzW7bMAzHX0XgWajdrSfd1g0YAmxAMSCnoQfWZlIVtqRJVDbD0LsPVNJtWZx9IIde",
-	"wuBvfv5oeobOj8E7cpzAzEWDdRsPZga2PBAY+OQHUh/R4ZZGcqze3K1Aw45ist6Bgeur9qqFosEHchgs",
-	"GHhdJQ0B+VGyQiM/W2IxPlBEtt6tejDwnhg0RErBu0TV+VXbium8Y3I1BEMYbFeDmqckVWdI3SONKP8s",
-	"01gDQ5TcbPdpHI4ktqfURRt4322dpj7SwFOQARNH67YyQc62l5CNjyMymL1w4lh+KP7hiTqGnwLGiBMU",
-	"cTmu+8EmVn6joh8o1RQpjyPGac9AoRqOPTQEnxaA3YkqxL5kSnzr++m/YF3I6HR0kaQZG6kHwzFTOdnn",
-	"9ZkaXSRk6n/D8baqCpWjr5VGhZGXWOQXRHHB6/IvzNozzeTQLzBbV1WhU/TNJrZueyBXNDSz9FX+dILr",
-	"9epdvdeIIzHFBObzDFaKyg2DPuB5nvC4ef0L1L+xuL/w2F92aQt1emK0Qz3Ym/bmXDOe1cZn1y9evmxK",
-	"PUyqbqHWSRR3z1s4TneLieQTrA57yXEAAw0G2+yuodyX7wEAAP//zVXe39EFAAA=",
+	"H4sIAAAAAAAC/9SVz2obMRDGX0XMeYnXbU66NS0UQwuh4FPJYbI7dhRWfzoauV2WffcyctzWtdNSAg25",
+	"WObTaEbzzU/sBF30KQYKksFOcwMubCLYCcTJQGDhUxzIfMSAW/IUxLy5XkEDO+LsYgALy4v2ooW5gZgo",
+	"YHJg4XWVGkgod5oVFvqzJdElJmIUF8OqBwvvSaABppxiyFSDX7WtLl0MQqEewZQG19VDi/usVSfI3R15",
+	"1H9OyNeDiTW3uH2agJ507Sl37JLsb1u7qVsNyJi0wSzswlY7KMX1emQT2aOA3QsngfMPJd7eUyfwU0Bm",
+	"HGHWkOO6H1wWEzeG40C5psjFe+Rx74FBMxxHNJBiPmPYtarq2JdCWa5iP/6TWU/06LR1lfQyjqkHK1xo",
+	"Ppnn8pEaHRMK9b/Z8baqBk2gr9WNur+YdBjzn0Bar1fvKnWMnoQ4g/08gdNySiI0D/0exnp87eYXl/4G",
+	"wM0TkX0+Uk/JrHV6EnRDxe6yvXzsMlHMJpbQn+VXJ2VuR1OnoPiWc/SW/z2lF/RMXjhDJfVnXvO6qgaD",
+	"oW8uiwvbw5vWMOLdgYDjjFeYST815oGJwgNYWGByi90S5pv5ewAAAP//2YYDubkGAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

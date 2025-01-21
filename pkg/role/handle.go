@@ -51,7 +51,6 @@ func (h *Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 
 // GetUUID handles retrieving a role by UUID
 func (h *Handle) GetUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
-	// Parse the UUID
 	roleUUID, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
@@ -60,30 +59,29 @@ func (h *Handle) GetUUID(w http.ResponseWriter, r *http.Request, uuidStr string)
 		}
 	}
 
-	// Get the role
 	role, err := h.roleService.GetRole(r.Context(), roleUUID)
 	if err != nil {
 		if errors.Is(err, ErrRoleNotFound) {
 			return &Response{
 				Code: http.StatusNotFound,
-				body: "role not found",
+				body: fmt.Sprintf("role not found: %v", err),
 			}
 		}
 		return &Response{
 			Code: http.StatusInternalServerError,
-			body: fmt.Sprintf("failed to get role: %v", err),
+			body: fmt.Sprintf("failed to find role: %v", err),
 		}
 	}
 
-	// Convert the role to API format
-	name := role.Name
-	uuidString := role.Uuid.String()
+	name := role.Name             // Create a new variable to get the address
+	uuid := role.Uuid.String() // Convert UUID to string
+
 	return GetUUIDJSON200Response(struct {
 		Name *string `json:"name,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	}{
 		Name: &name,
-		UUID: &uuidString,
+		UUID: &uuid,
 	})
 }
 
@@ -112,10 +110,8 @@ func (h *Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	w.Header().Set("Location", roleUUID.String())
-	
-	// Return the created role information
 	uuidStr := roleUUID.String()
+
 	return &Response{
 		Code: http.StatusCreated,
 		body: struct {
@@ -128,9 +124,11 @@ func (h *Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 	}
 }
 
-// Put handles updating an existing role
-func (h *Handle) Put(w http.ResponseWriter, r *http.Request) *Response {
-	var requestBody PutJSONRequestBody
+// PutUUID handles updating an existing role
+func (h *Handle) PutUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	var requestBody struct {
+		Name *string `json:"name"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
@@ -138,14 +136,14 @@ func (h *Handle) Put(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	if requestBody.UUID == nil || requestBody.Name == nil {
+	if requestBody.Name == nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			body: "uuid and name are required",
+			body: "name is required",
 		}
 	}
 
-	roleUUID, err := uuid.Parse(*requestBody.UUID)
+	roleUUID, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
@@ -155,6 +153,12 @@ func (h *Handle) Put(w http.ResponseWriter, r *http.Request) *Response {
 
 	err = h.roleService.UpdateRole(r.Context(), roleUUID, *requestBody.Name)
 	if err != nil {
+		if errors.Is(err, ErrRoleNotFound) {
+			return &Response{
+				Code: http.StatusNotFound,
+				body: fmt.Sprintf("role not found: %v", err),
+			}
+		}
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: fmt.Sprintf("failed to update role: %v", err),
@@ -163,5 +167,12 @@ func (h *Handle) Put(w http.ResponseWriter, r *http.Request) *Response {
 
 	return &Response{
 		Code: http.StatusOK,
+		body: struct {
+			UUID *string `json:"uuid,omitempty"`
+			Name *string `json:"name,omitempty"`
+		}{
+			UUID: &uuidStr,
+			Name: requestBody.Name,
+		},
 	}
 }
