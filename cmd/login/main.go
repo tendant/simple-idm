@@ -15,10 +15,7 @@ import (
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
-	"github.com/tendant/simple-idm/pkg/role"
-	roleDb "github.com/tendant/simple-idm/pkg/role/db"
-
-	// authDb "github.com/tendant/simple-idm/pkg/auth/db"
+	roleDb "github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/pkg/user"

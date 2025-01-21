@@ -3,19 +3,19 @@ package role
 import (
 	"context"
 
-	"github.com/tendant/simple-idm/pkg/role/db"
+	"github.com/tendant/simple-idm/pkg/role/roledb"
 )
 
 type RoleService struct {
-	queries *db.Queries
+	queries *roledb.Queries
 }
 
-func NewRoleService(queries *db.Queries) *RoleService {
+func NewRoleService(queries *roledb.Queries) *RoleService {
 	return &RoleService{
 		queries: queries,
 	}
 }
 
-func (s *RoleService) FindRoles(ctx context.Context) ([]db.FindRolesRow, error) {
+func (s *RoleService) FindRoles(ctx context.Context) ([]roledb.FindRolesRow, error) {
 	return s.queries.FindRoles(ctx)
 }
