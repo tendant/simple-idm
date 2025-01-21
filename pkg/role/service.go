@@ -16,6 +16,6 @@ func NewRoleService(queries *db.Queries) *RoleService {
 	}
 }
 
-func (s *RoleService) FindRoles(ctx context.Context) ([]db.Role, error) {
+func (s *RoleService) FindRoles(ctx context.Context) ([]db.FindRolesRow, error) {
 	return s.queries.FindRoles(ctx)
 }

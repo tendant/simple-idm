@@ -15,6 +15,8 @@ import (
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
+	"github.com/tendant/simple-idm/pkg/role"
+	roleDb "github.com/tendant/simple-idm/pkg/role/db"
 
 	// authDb "github.com/tendant/simple-idm/pkg/auth/db"
 	"github.com/tendant/simple-idm/pkg/login"
@@ -141,6 +143,12 @@ func main() {
 		userService := user.NewUserService(userQueries)
 		userHandle := user.NewHandle(userService)
 		r.Mount("/idm", user.Handler(userHandle))
+
+		// Initialize role service and routes
+		roleQueries := roleDb.New(pool)
+		roleService := role.NewRoleService(roleQueries)
+		roleHandle := role.NewHandle(roleService)
+		r.Mount("/idm", role.Handler(roleHandle))
 	})
 
 	server.Run()

@@ -2,6 +2,9 @@ openapi: 3.0.0
 info:
   title: Role Management API
   version: 1.0.0
+servers:
+  - url: /api/v1
+    description: Base API path
 paths:
   /roles:
     get:
