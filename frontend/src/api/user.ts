@@ -4,26 +4,32 @@ interface LoginRequest {
 }
 
 interface CreateUserRequest {
+  email: string;
   username: string;
-  password: string;
-  name?: string;
-  roles?: string[];
+  name?: string | null;
+  role_uuids?: string[];
 }
 
 interface UpdateUserRequest {
-  name?: string;
+  name?: string | null;
+  username?: string;
   password?: string;
-  roles?: string[];
+  role_uuids?: string[];
 }
 
 interface User {
-  uuid: string;
-  username: string;
-  name?: string;
+  uuid?: string;
+  email?: string;
+  username?: string;
+  name?: string | null;
+  created_at?: string;
+  last_modified_at?: string;
+  deleted_at?: string | null;
+  created_by?: string | null;
   roles?: Array<{
-    uuid: string;
-    name: string;
-  }>;
+    uuid?: string;
+    name?: string;
+  }> | null;
 }
 
 export const userApi = {
@@ -57,11 +63,17 @@ export const userApi = {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(user),
+      body: JSON.stringify({
+        email: user.email,
+        username: user.username,
+        name: user.name || null,
+        role_uuids: user.role_uuids || []
+      }),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to create user');
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to create user');
     }
 
     return response.json();

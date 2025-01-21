@@ -13,15 +13,15 @@ import (
 )
 
 type GooseDbVersion struct {
-	ID        int32        `json:"id"`
-	VersionID int64        `json:"version_id"`
-	IsApplied bool         `json:"is_applied"`
-	Tstamp    sql.NullTime `json:"tstamp"`
+	ID        int32     `json:"id"`
+	VersionID int64     `json:"version_id"`
+	IsApplied bool      `json:"is_applied"`
+	Tstamp    time.Time `json:"tstamp"`
 }
 
 type Role struct {
 	Uuid        uuid.UUID   `json:"uuid"`
-	RoleName    string      `json:"role_name"`
+	Name        string      `json:"name"`
 	Description pgtype.Text `json:"description"`
 }
 

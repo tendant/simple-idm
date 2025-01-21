@@ -14,18 +14,19 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name)
-VALUES ($1, $2)
+INSERT INTO users (email, username, name)
+VALUES ($1, $2, $3)
 RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username
 `
 
 type CreateUserParams struct {
-	Email string         `json:"email"`
-	Name  sql.NullString `json:"name"`
+	Email    string         `json:"email"`
+	Username sql.NullString `json:"username"`
+	Name     sql.NullString `json:"name"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.Name)
+	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.Username, arg.Name)
 	var i User
 	err := row.Scan(
 		&i.Uuid,
