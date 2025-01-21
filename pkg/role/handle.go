@@ -2,6 +2,7 @@ package role
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -46,6 +47,44 @@ func (h *Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	return GetJSON200Response(apiRoles)
+}
+
+// GetUUID handles retrieving a role by UUID
+func (h *Handle) GetUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	// Parse the UUID
+	roleUUID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: fmt.Sprintf("invalid UUID format: %v", err),
+		}
+	}
+
+	// Get the role
+	role, err := h.roleService.GetRole(r.Context(), roleUUID)
+	if err != nil {
+		if errors.Is(err, ErrRoleNotFound) {
+			return &Response{
+				Code: http.StatusNotFound,
+				body: "role not found",
+			}
+		}
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: fmt.Sprintf("failed to get role: %v", err),
+		}
+	}
+
+	// Convert the role to API format
+	name := role.Name
+	uuidString := role.Uuid.String()
+	return GetUUIDJSON200Response(struct {
+		Name *string `json:"name,omitempty"`
+		UUID *string `json:"uuid,omitempty"`
+	}{
+		Name: &name,
+		UUID: &uuidString,
+	})
 }
 
 // Post handles the creation of a new role

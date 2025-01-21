@@ -1,4 +1,4 @@
-import { Component } from 'solid-js';
+import { Component, Suspense } from 'solid-js';
 import { Router, Route } from '@solidjs/router';
 import Login from './pages/Login';
 import Users from './pages/Users';
@@ -69,7 +69,9 @@ const EditRolePage: Component = () => {
     <div class="min-h-screen bg-gray-1">
       <main class="py-10 px-4 sm:px-6 lg:px-8">
         <Navigation />
-        <EditRole />
+        <Suspense>
+          <EditRole />
+        </Suspense>
       </main>
     </div>
   );

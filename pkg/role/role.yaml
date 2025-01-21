@@ -58,3 +58,29 @@ paths:
       responses:
         "200":
           description: Role updated
+  /{uuid}:
+    get:
+      summary: Get a role by UUID
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Role details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uuid:
+                    type: string
+                    format: uuid
+                  name:
+                    type: string
+                    description: Role name
+        "404":
+          description: Role not found

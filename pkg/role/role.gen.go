@@ -15,6 +15,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/discord-gophers/goapi-gen/runtime"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -104,6 +105,20 @@ func GetJSON200Response(body []struct {
 	}
 }
 
+// GetUUIDJSON200Response is a constructor method for a GetUUID response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetUUIDJSON200Response(body struct {
+	// Role name
+	Name *string `json:"name,omitempty"`
+	UUID *string `json:"uuid,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get a list of roles
@@ -115,6 +130,9 @@ type ServerInterface interface {
 	// Update an existing role
 	// (PUT /)
 	Put(w http.ResponseWriter, r *http.Request) *Response
+	// Get a role by UUID
+	// (GET /{uuid})
+	GetUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -165,6 +183,32 @@ func (siw *ServerInterfaceWrapper) Put(w http.ResponseWriter, r *http.Request) {
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Put(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetUUID operation middleware
+func (siw *ServerInterfaceWrapper) GetUUID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "uuid" -------------
+	var uuid string
+
+	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetUUID(w, r, uuid)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -295,6 +339,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Get("/", wrapper.Get)
 		r.Post("/", wrapper.Post)
 		r.Put("/", wrapper.Put)
+		r.Get("/{uuid}", wrapper.GetUUID)
 	})
 	return r
 }
@@ -320,13 +365,14 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8STT28TQQzFv8ronVfNBm5zoxxQJZAqJE6Ig9l10ql2/uDxFKJovzvyBIHapBKoBy5x",
-	"9NZ+tn+7PmLKseTESSv8cR0Q0i7DH6FBF4bHx7yw+0CJ9hw5qXtze4MBDyw15ASP7dV4NWIdkAsnKgEe",
-	"r7s0oJDemSs29rNntZALC2nI6WaGxztWDBCuJafKPfnVOFqYclJOvYRKWcLUizb31boeUac7jmT/gnLs",
-	"hUXMW8PJJlFkizPXSULR07R9m/5ogB6KLVhVQtrbBq2F2Up2WSIp/Ek4S1x/K/nrPU+KPwKJ0AGrpTzu",
-	"+z5UdXnnJC9cu0VtMZIcTgwcueVxxoCS6wVgt6YasW+Nq17n+fBPsF7I6Hx1k2yYIDzDqzRez97n9pke",
-	"kzApz09wvO2qI5f4e6fRYbRLLNp/RPGCz+VvmI3PDNPKfIHZp646So5/hKoh7X+R62ksdq7wn586XlNl",
-	"O2hnl4oBTRZ4bKiEzcMW65f1ZwAAAP//OFcC/B8EAAA=",
+	"H4sIAAAAAAAC/8SUzW7bMAzHX0XgWajdrSfd1g0YAmxAMSCnoQfWZlIVtqRJVDbD0LsPVNJtWZx9IIde",
+	"wuBvfv5oeobOj8E7cpzAzEWDdRsPZga2PBAY+OQHUh/R4ZZGcqze3K1Aw45ist6Bgeur9qqFosEHchgs",
+	"GHhdJQ0B+VGyQiM/W2IxPlBEtt6tejDwnhg0RErBu0TV+VXbium8Y3I1BEMYbFeDmqckVWdI3SONKP8s",
+	"01gDQ5TcbPdpHI4ktqfURRt4322dpj7SwFOQARNH67YyQc62l5CNjyMymL1w4lh+KP7hiTqGnwLGiBMU",
+	"cTmu+8EmVn6joh8o1RQpjyPGac9AoRqOPTQEnxaA3YkqxL5kSnzr++m/YF3I6HR0kaQZG6kHwzFTOdnn",
+	"9ZkaXSRk6n/D8baqCpWjr5VGhZGXWOQXRHHB6/IvzNozzeTQLzBbV1WhU/TNJrZueyBXNDSz9FX+dILr",
+	"9epdvdeIIzHFBObzDFaKyg2DPuB5nvC4ef0L1L+xuL/w2F92aQt1emK0Qz3Ym/bmXDOe1cZn1y9evmxK",
+	"PUyqbqHWSRR3z1s4TneLieQTrA57yXEAAw0G2+yuodyX7wEAAP//zVXe39EFAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
