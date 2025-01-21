@@ -24,7 +24,7 @@ const Login: Component = () => {
       localStorage.setItem('user', JSON.stringify(user));
 
       // Redirect to dashboard or home page
-      navigate('/dashboard');
+      navigate('/users');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

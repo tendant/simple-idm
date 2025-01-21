@@ -8,7 +8,7 @@ import EditUser from './pages/EditUser';
 const App: Component = () => {
   return (
     <Router>
-      <Route path="/" component={Login} />
+      <Route path="/login" component={Login} />
       <Route path="/users" component={Users} />
       <Route path="/users/create" component={CreateUser} />
       <Route path="/users/:id/edit" component={EditUser} />

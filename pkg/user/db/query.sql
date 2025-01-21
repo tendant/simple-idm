@@ -10,6 +10,7 @@ VALUES ($1, $2);
 -- name: FindUsers :many
 SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, username, name
 FROM users
+WHERE deleted_at IS NULL
 limit 20;
 
 -- name: UpdateUser :one
@@ -56,5 +57,6 @@ SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.e
 FROM users u
 LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
 LEFT JOIN roles r ON ur.role_uuid = r.uuid
+WHERE u.deleted_at IS NULL
 GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
 LIMIT 20;
