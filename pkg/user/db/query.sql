@@ -3,6 +3,11 @@ INSERT INTO users (email, username, name)
 VALUES ($1, $2, $3)
 RETURNING *;
 
+-- name: CreateUserRole :one
+INSERT INTO user_roles (user_uuid, role_uuid)
+VALUES ($1, $2)
+RETURNING *;
+
 -- name: CreateUserRoleBatch :copyfrom
 INSERT INTO user_roles (user_uuid, role_uuid)
 VALUES ($1, $2);
@@ -26,11 +31,6 @@ WHERE uuid = $1;
 SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, username, name
 FROM users
 WHERE uuid = $1;
-
--- name: CreateUserRole :one
-INSERT INTO user_roles (user_uuid, role_uuid)
-VALUES ($1, $2)
-RETURNING *;
 
 -- name: DeleteUserRoles :exec
 DELETE FROM user_roles

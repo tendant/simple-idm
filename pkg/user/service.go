@@ -37,7 +37,7 @@ func (s *UserService) CreateUser(ctx context.Context, email, username, name stri
 		Name:     nullString,
 	})
 	if err != nil {
-		return db.GetUserWithRolesRow{}, err
+		return db.GetUserWithRolesRow{}, fmt.Errorf("failed to create user: %w", err)
 	}
 
 	// If there are roles to assign, create the user-role associations
@@ -49,13 +49,18 @@ func (s *UserService) CreateUser(ctx context.Context, email, username, name stri
 				RoleUuid: roleUuid,
 			})
 			if err != nil {
-				return db.GetUserWithRolesRow{}, err
+				return db.GetUserWithRolesRow{}, fmt.Errorf("failed to assign role: %w", err)
 			}
 		}
 	}
 
 	// Get the user with roles
-	return s.queries.GetUserWithRoles(ctx, user.Uuid)
+	userWithRoles, err := s.queries.GetUserWithRoles(ctx, user.Uuid)
+	if err != nil {
+		return db.GetUserWithRolesRow{}, fmt.Errorf("failed to get user with roles: %w", err)
+	}
+
+	return userWithRoles, nil
 }
 
 func (s *UserService) FindUsers(ctx context.Context) ([]db.FindUsersWithRolesRow, error) {

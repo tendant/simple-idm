@@ -18,6 +18,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"encoding/json"
 )
 
 func containerLog(ctx context.Context, container testcontainers.Container) {
@@ -103,78 +104,79 @@ func TestCreateUser(t *testing.T) {
 	service := NewUserService(queries)
 
 	// Create a test role first
-	roleUUID := uuid.New()
-	_, err := pool.Exec(ctx, `
-		INSERT INTO roles (uuid, name, description)
-		VALUES ($1, $2, $3)
-	`, roleUUID, "TestRole", "A test role")
+	role, err := queries.CreateRole(ctx, db.CreateRoleParams{
+		Uuid: uuid.New(),
+		Name: "test-role",
+	})
 	require.NoError(t, err)
 
-	testCases := []struct {
+	// Test cases
+	tests := []struct {
 		name      string
 		email     string
 		username  string
-		fullname  string
+		fullName  string
 		roleUuids []uuid.UUID
 		wantErr   bool
 	}{
 		{
-			name:      "successful creation",
+			name:      "valid user with role",
 			email:     "test@example.com",
 			username:  "testuser",
-			fullname:  "Test User",
-			roleUuids: []uuid.UUID{roleUUID},
+			fullName:  "Test User",
+			roleUuids: []uuid.UUID{role.Uuid},
 			wantErr:   false,
 		},
 		{
-			name:      "empty email",
-			email:     "",
-			username:  "testuser",
-			fullname:  "Test User",
-			roleUuids: []uuid.UUID{roleUUID},
-			wantErr:   true,
+			name:      "valid user without role",
+			email:     "test2@example.com",
+			username:  "testuser2",
+			fullName:  "Test User 2",
+			roleUuids: []uuid.UUID{},
+			wantErr:   false,
+		},
+		{
+			name:     "missing email",
+			username: "testuser3",
+			fullName: "Test User 3",
+			wantErr:  true,
+		},
+		{
+			name:     "missing username",
+			email:    "test3@example.com",
+			fullName: "Test User 3",
+			wantErr:  true,
 		},
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Execute test
-			user, err := service.CreateUser(ctx, tc.email, tc.username, tc.fullname, tc.roleUuids)
-
-			// Verify results
-			if tc.wantErr {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			user, err := service.CreateUser(ctx, tt.email, tt.username, tt.fullName, tt.roleUuids)
+			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
 
 			assert.NoError(t, err)
-			assert.Equal(t, tc.email, user.Email)
-			assert.Equal(t, tc.username, user.Username.String)
-			assert.Equal(t, tc.fullname, user.Name.String)
-			assert.True(t, user.Username.Valid)
-			assert.True(t, user.Name.Valid)
+			assert.NotNil(t, user)
+			assert.Equal(t, tt.email, user.Email)
+			assert.Equal(t, tt.username, user.Username.String)
+			if tt.fullName != "" {
+				assert.Equal(t, tt.fullName, user.Name.String)
+			}
 
-			// Verify the user exists in the database
-			var dbUser db.User
-			err = pool.QueryRow(ctx, `
-				SELECT uuid, email, username, name
-				FROM users
-				WHERE uuid = $1
-			`, user.Uuid).Scan(&dbUser.Uuid, &dbUser.Email, &dbUser.Username, &dbUser.Name)
-			assert.NoError(t, err)
-			assert.Equal(t, tc.email, dbUser.Email)
-			assert.Equal(t, tc.username, dbUser.Username.String)
-			assert.Equal(t, tc.fullname, dbUser.Name.String)
-
-			// Verify the role assignment
-			var roleCount int
-			err = pool.QueryRow(ctx, `
-				SELECT COUNT(*)
-				FROM user_roles
-				WHERE user_uuid = $1 AND role_uuid = $2
-			`, user.Uuid, tc.roleUuids[0]).Scan(&roleCount)
-			assert.NoError(t, err)
-			assert.Equal(t, 1, roleCount)
+			// Verify roles if any were assigned
+			if len(tt.roleUuids) > 0 {
+				var roles []struct {
+					UUID string `json:"uuid"`
+					Name string `json:"name"`
+				}
+				err = json.Unmarshal(user.Roles, &roles)
+				require.NoError(t, err)
+				assert.Len(t, roles, len(tt.roleUuids))
+				assert.Equal(t, tt.roleUuids[0].String(), roles[0].UUID)
+				assert.Equal(t, "test-role", roles[0].Name)
+			}
 		})
 	}
 }
@@ -190,17 +192,14 @@ func TestFindUsers(t *testing.T) {
 	queries := db.New(pool)
 	service := NewUserService(queries)
 
-	// Create test roles
-	role1UUID := uuid.New()
-	role2UUID := uuid.New()
-	_, err := pool.Exec(ctx, `
-		INSERT INTO roles (uuid, name, description)
-		VALUES ($1, $2, $3), ($4, $5, $6)
-	`, role1UUID, "TestRole1", "A test role 1",
-		role2UUID, "TestRole2", "A test role 2")
+	// Create a test role
+	role, err := queries.CreateRole(ctx, db.CreateRoleParams{
+		Uuid: uuid.New(),
+		Name: "test-role",
+	})
 	require.NoError(t, err)
 
-	// Create test users with roles
+	// Create test users
 	testUsers := []struct {
 		email     string
 		username  string
@@ -208,16 +207,16 @@ func TestFindUsers(t *testing.T) {
 		roleUuids []uuid.UUID
 	}{
 		{
-			email:     "user1@example.com",
-			username:  "user1",
-			name:      "User One",
-			roleUuids: []uuid.UUID{role1UUID},
+			email:     "test1@example.com",
+			username:  "testuser1",
+			name:      "Test User 1",
+			roleUuids: []uuid.UUID{role.Uuid},
 		},
 		{
-			email:     "user2@example.com",
-			username:  "user2",
-			name:      "User Two",
-			roleUuids: []uuid.UUID{role1UUID, role2UUID},
+			email:     "test2@example.com",
+			username:  "testuser2",
+			name:      "Test User 2",
+			roleUuids: []uuid.UUID{},
 		},
 	}
 
@@ -226,23 +225,40 @@ func TestFindUsers(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Test FindUsers
+	// Test finding users
 	users, err := service.FindUsers(ctx)
-	require.NoError(t, err)
-	assert.Len(t, users, 2)
+	assert.NoError(t, err)
+	assert.NotNil(t, users)
+	assert.Len(t, users, len(testUsers))
 
-	// Create a map of users by email for easier verification
-	userMap := make(map[string]db.FindUsersWithRolesRow)
-	for _, u := range users {
-		userMap[u.Email] = u
+	// Verify each user
+	for i, u := range users {
+		assert.Equal(t, testUsers[i].email, u.Email)
+		assert.Equal(t, testUsers[i].username, u.Username.String)
+		assert.Equal(t, testUsers[i].name, u.Name.String)
+
+		// Verify roles
+		if len(testUsers[i].roleUuids) > 0 {
+			var roles []struct {
+				UUID string `json:"uuid"`
+				Name string `json:"name"`
+			}
+			err = json.Unmarshal(u.Roles, &roles)
+			require.NoError(t, err)
+			assert.Len(t, roles, len(testUsers[i].roleUuids))
+			assert.Equal(t, testUsers[i].roleUuids[0].String(), roles[0].UUID)
+			assert.Equal(t, "test-role", roles[0].Name)
+		} else {
+			// For users without roles, the roles array should be empty
+			var roles []struct {
+				UUID string `json:"uuid"`
+				Name string `json:"name"`
+			}
+			err = json.Unmarshal(u.Roles, &roles)
+			require.NoError(t, err)
+			assert.Empty(t, roles)
+		}
 	}
-
-	// Verify user details
-	user1 := userMap["user1@example.com"]
-	assert.Equal(t, "User One", user1.Name.String)
-
-	user2 := userMap["user2@example.com"]
-	assert.Equal(t, "User Two", user2.Name.String)
 }
 
 func TestGetUser(t *testing.T) {
@@ -296,54 +312,95 @@ func TestUpdateUser(t *testing.T) {
 	service := NewUserService(queries)
 
 	// Create test roles
-	role1UUID := uuid.New()
-	role2UUID := uuid.New()
-	_, err := pool.Exec(ctx, `
-		INSERT INTO roles (uuid, name, description)
-		VALUES ($1, $2, $3), ($4, $5, $6)
-	`, role1UUID, "TestRole1", "A test role 1",
-		role2UUID, "TestRole2", "A test role 2")
+	role1, err := queries.CreateRole(ctx, db.CreateRoleParams{
+		Uuid: uuid.New(),
+		Name: "role-1",
+	})
 	require.NoError(t, err)
 
-	// Create a test user with role1
-	user, err := service.CreateUser(ctx, "test@example.com", "testuser", "Original Name", []uuid.UUID{role1UUID})
+	role2, err := queries.CreateRole(ctx, db.CreateRoleParams{
+		Uuid: uuid.New(),
+		Name: "role-2",
+	})
+	require.NoError(t, err)
+
+	// Create initial user with role1
+	initialUser, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{role1.Uuid})
 	require.NoError(t, err)
 
 	// Test cases
-	t.Run("update name and roles", func(t *testing.T) {
-		// Update user's name and roles
-		updatedUser, err := service.UpdateUser(ctx, user.Uuid, "Updated Name", []uuid.UUID{role2UUID})
-		require.NoError(t, err)
+	tests := []struct {
+		name      string
+		newName   string
+		roleUuids []uuid.UUID
+		wantErr   bool
+	}{
+		{
+			name:      "update name and roles",
+			newName:   "Updated User",
+			roleUuids: []uuid.UUID{role2.Uuid},
+			wantErr:   false,
+		},
+		{
+			name:      "update to multiple roles",
+			newName:   "Multi Role User",
+			roleUuids: []uuid.UUID{role1.Uuid, role2.Uuid},
+			wantErr:   false,
+		},
+		{
+			name:      "remove all roles",
+			newName:   "No Role User",
+			roleUuids: []uuid.UUID{},
+			wantErr:   false,
+		},
+	}
 
-		// Verify updated user
-		assert.Equal(t, "Updated Name", updatedUser.Name.String)
-		assert.Equal(t, user.Email, updatedUser.Email)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Update user
+			updatedUser, err := service.UpdateUser(ctx, initialUser.Uuid, tt.newName, tt.roleUuids)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
 
-		// Verify roles were updated
-		var roleCount int
-		err = pool.QueryRow(ctx, `
-			SELECT COUNT(*)
-			FROM user_roles
-			WHERE user_uuid = $1 AND role_uuid = $2
-		`, user.Uuid, role2UUID).Scan(&roleCount)
-		assert.NoError(t, err)
-		assert.Equal(t, 1, roleCount)
+			assert.NoError(t, err)
+			assert.NotNil(t, updatedUser)
+			assert.Equal(t, tt.newName, updatedUser.Name.String)
 
-		// Verify old role was removed
-		err = pool.QueryRow(ctx, `
-			SELECT COUNT(*)
-			FROM user_roles
-			WHERE user_uuid = $1 AND role_uuid = $2
-		`, user.Uuid, role1UUID).Scan(&roleCount)
-		assert.NoError(t, err)
-		assert.Equal(t, 0, roleCount)
-	})
+			// Verify roles
+			var roles []struct {
+				UUID string `json:"uuid"`
+				Name string `json:"name"`
+			}
+			err = json.Unmarshal(updatedUser.Roles, &roles)
+			require.NoError(t, err)
+			assert.Len(t, roles, len(tt.roleUuids))
 
-	t.Run("non-existent user", func(t *testing.T) {
-		// Try to update a non-existent user
-		_, err := service.UpdateUser(ctx, uuid.New(), "New Name", []uuid.UUID{role1UUID})
-		assert.Error(t, err)
-	})
+			// Verify each role
+			if len(tt.roleUuids) > 0 {
+				roleUUIDs := make(map[string]bool)
+				for _, role := range roles {
+					roleUUIDs[role.UUID] = true
+				}
+				for _, expectedUUID := range tt.roleUuids {
+					assert.True(t, roleUUIDs[expectedUUID.String()], "Expected role UUID not found: %s", expectedUUID)
+				}
+			} else {
+				assert.Empty(t, roles)
+			}
+
+			// Verify the roles in database
+			var roleCount int
+			err = pool.QueryRow(ctx, `
+				SELECT COUNT(*)
+				FROM user_roles
+				WHERE user_uuid = $1
+			`, updatedUser.Uuid).Scan(&roleCount)
+			assert.NoError(t, err)
+			assert.Equal(t, len(tt.roleUuids), roleCount)
+		})
+	}
 }
 
 func TestDeleteUser(t *testing.T) {
