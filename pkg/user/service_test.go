@@ -203,28 +203,26 @@ func TestFindUsers(t *testing.T) {
 	// Create test users with roles
 	testUsers := []struct {
 		email     string
+		username  string
 		name      string
 		roleUuids []uuid.UUID
 	}{
 		{
-			email: "user1@example.com",
-			name:  "User 1",
-			roleUuids: []uuid.UUID{
-				role1UUID,
-			},
+			email:     "user1@example.com",
+			username:  "user1",
+			name:      "User One",
+			roleUuids: []uuid.UUID{role1UUID},
 		},
 		{
-			email: "user2@example.com",
-			name:  "User 2",
-			roleUuids: []uuid.UUID{
-				role1UUID,
-				role2UUID,
-			},
+			email:     "user2@example.com",
+			username:  "user2",
+			name:      "User Two",
+			roleUuids: []uuid.UUID{role1UUID, role2UUID},
 		},
 	}
 
 	for _, u := range testUsers {
-		_, err := service.CreateUser(ctx, u.email, "", u.name, u.roleUuids)
+		_, err := service.CreateUser(ctx, u.email, u.username, u.name, u.roleUuids)
 		require.NoError(t, err)
 	}
 
@@ -241,10 +239,10 @@ func TestFindUsers(t *testing.T) {
 
 	// Verify user details
 	user1 := userMap["user1@example.com"]
-	assert.Equal(t, "User 1", user1.Name.String)
+	assert.Equal(t, "User One", user1.Name.String)
 
 	user2 := userMap["user2@example.com"]
-	assert.Equal(t, "User 2", user2.Name.String)
+	assert.Equal(t, "User Two", user2.Name.String)
 }
 
 func TestGetUser(t *testing.T) {
@@ -267,7 +265,7 @@ func TestGetUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a test user
-	user, err := service.CreateUser(ctx, "test@example.com", "", "Test User", []uuid.UUID{roleUUID})
+	user, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{roleUUID})
 	require.NoError(t, err)
 
 	// Test cases
@@ -308,7 +306,7 @@ func TestUpdateUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a test user with role1
-	user, err := service.CreateUser(ctx, "test@example.com", "", "Original Name", []uuid.UUID{role1UUID})
+	user, err := service.CreateUser(ctx, "test@example.com", "testuser", "Original Name", []uuid.UUID{role1UUID})
 	require.NoError(t, err)
 
 	// Test cases
@@ -368,7 +366,7 @@ func TestDeleteUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a test user
-	user, err := service.CreateUser(ctx, "test@example.com", "", "Test User", []uuid.UUID{roleUUID})
+	user, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{roleUUID})
 	require.NoError(t, err)
 
 	// Test cases
