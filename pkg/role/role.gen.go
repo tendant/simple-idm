@@ -20,6 +20,35 @@ import (
 	"github.com/go-chi/render"
 )
 
+// PostJSONBody defines parameters for Post.
+type PostJSONBody struct {
+	// Role name
+	Name *string `json:"name,omitempty"`
+}
+
+// PutJSONBody defines parameters for Put.
+type PutJSONBody struct {
+	// Role name
+	Name *string `json:"name,omitempty"`
+	UUID *string `json:"uuid,omitempty"`
+}
+
+// PostJSONRequestBody defines body for Post for application/json ContentType.
+type PostJSONRequestBody PostJSONBody
+
+// Bind implements render.Binder.
+func (PostJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PutJSONRequestBody defines body for Put for application/json ContentType.
+type PutJSONRequestBody PutJSONBody
+
+// Bind implements render.Binder.
+func (PutJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
 // Response is a common response struct for all the API calls.
 // A Response object may be instantiated via functions for specific operation responses.
 // It may also be instantiated directly, for the purpose of responding with a single status code.
@@ -80,6 +109,12 @@ type ServerInterface interface {
 	// Get a list of roles
 	// (GET /)
 	Get(w http.ResponseWriter, r *http.Request) *Response
+	// Create a new role
+	// (POST /)
+	Post(w http.ResponseWriter, r *http.Request) *Response
+	// Update an existing role
+	// (PUT /)
+	Put(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -94,6 +129,42 @@ func (siw *ServerInterfaceWrapper) Get(w http.ResponseWriter, r *http.Request) {
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Get(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post operation middleware
+func (siw *ServerInterfaceWrapper) Post(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Put operation middleware
+func (siw *ServerInterfaceWrapper) Put(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Put(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -222,6 +293,8 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Get("/", wrapper.Get)
+		r.Post("/", wrapper.Post)
+		r.Put("/", wrapper.Put)
 	})
 	return r
 }
@@ -247,11 +320,13 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/2RRwWrrMBD8FTNnETvv3XR77/IIvELptfSwdTaJgqUV0joQjP+9rAwtTS9eM5qZ1YwW",
-	"jBKzJE5a4ZfVIaSTwC/QoBPD40Um7p4o0ZkjJ+3+PB/gcONSgyR47HfDbsDqIJkT5QCP3w1yyKQXc0Vv",
-	"nzOrDclcSIOkwxEe/1jhULhmSZUb+dcw2BglKacmoZynMDZRf622dUEdLxzJ/oJybMJczFvDZpMoss0j",
-	"17GErNttW5p25KD3bAGrlpDOlmCew9EkJymRFH4DfhDXT0TerzwqvgAqhe5YjfJ97/9QtZNTV2Ti2izq",
-	"HCOV+9ZBR930wDAKF+sZ/vUxxl+qbC/RWcVwmMsEj55y6G97rG/rRwAAAP//fWKhUdgBAAA=",
+	"H4sIAAAAAAAC/8STT28TQQzFv8ronVfNBm5zoxxQJZAqJE6Ig9l10ql2/uDxFKJovzvyBIHapBKoBy5x",
+	"9NZ+tn+7PmLKseTESSv8cR0Q0i7DH6FBF4bHx7yw+0CJ9hw5qXtze4MBDyw15ASP7dV4NWIdkAsnKgEe",
+	"r7s0oJDemSs29rNntZALC2nI6WaGxztWDBCuJafKPfnVOFqYclJOvYRKWcLUizb31boeUac7jmT/gnLs",
+	"hUXMW8PJJlFkizPXSULR07R9m/5ogB6KLVhVQtrbBq2F2Up2WSIp/Ek4S1x/K/nrPU+KPwKJ0AGrpTzu",
+	"+z5UdXnnJC9cu0VtMZIcTgwcueVxxoCS6wVgt6YasW+Nq17n+fBPsF7I6Hx1k2yYIDzDqzRez97n9pke",
+	"kzApz09wvO2qI5f4e6fRYbRLLNp/RPGCz+VvmI3PDNPKfIHZp646So5/hKoh7X+R62ksdq7wn586XlNl",
+	"O2hnl4oBTRZ4bKiEzcMW65f1ZwAAAP//OFcC/B8EAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
