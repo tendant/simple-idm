@@ -113,3 +113,34 @@ paths:
           description: Role deleted
         "404":
           description: Role not found
+  /{uuid}/users:
+    get:
+      summary: Get users assigned to a role
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of users assigned to the role
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    uuid:
+                      type: string
+                      format: uuid
+                    email:
+                      type: string
+                    name:
+                      type: string
+                    username:
+                      type: string
+        "404":
+          description: Role not found

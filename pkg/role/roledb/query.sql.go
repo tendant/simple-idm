@@ -7,6 +7,7 @@ package roledb
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 )
@@ -78,6 +79,46 @@ func (q *Queries) GetRoleUUID(ctx context.Context, argUuid uuid.UUID) (GetRoleUU
 	var i GetRoleUUIDRow
 	err := row.Scan(&i.Uuid, &i.Name)
 	return i, err
+}
+
+const getRoleUsers = `-- name: GetRoleUsers :many
+SELECT u.uuid, u.email, u.name, u.username
+FROM users u
+JOIN user_roles ur ON ur.user_uuid = u.uuid
+WHERE ur.role_uuid = $1
+ORDER BY u.email
+`
+
+type GetRoleUsersRow struct {
+	Uuid     uuid.UUID      `json:"uuid"`
+	Email    string         `json:"email"`
+	Name     sql.NullString `json:"name"`
+	Username sql.NullString `json:"username"`
+}
+
+func (q *Queries) GetRoleUsers(ctx context.Context, roleUuid uuid.UUID) ([]GetRoleUsersRow, error) {
+	rows, err := q.db.Query(ctx, getRoleUsers, roleUuid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRoleUsersRow
+	for rows.Next() {
+		var i GetRoleUsersRow
+		if err := rows.Scan(
+			&i.Uuid,
+			&i.Email,
+			&i.Name,
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const hasUsers = `-- name: HasUsers :one

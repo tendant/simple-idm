@@ -1,5 +1,6 @@
-import { Component, createSignal, createEffect } from 'solid-js';
+import { Component, createSignal, createEffect, onMount } from 'solid-js';
 import type { Role } from '../api/role';
+import { roleApi } from '../api/role';
 
 interface Props {
   initialData?: Role;
@@ -13,11 +14,23 @@ const RoleForm: Component<Props> = (props) => {
   const [name, setName] = createSignal(props.initialData?.name || '');
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
+  const [users, setUsers] = createSignal<RoleUser[]>([]);
 
   // Update form when initialData changes
   createEffect(() => {
     if (props.initialData?.name) {
       setName(props.initialData.name);
+    }
+  });
+
+  onMount(async () => {
+    if (props.initialData?.uuid) {
+      try {
+        const roleUsers = await roleApi.getRoleUsers(props.initialData.uuid);
+        setUsers(roleUsers);
+      } catch (error) {
+        console.error('Failed to fetch role users:', error);
+      }
     }
   });
 
@@ -85,6 +98,46 @@ const RoleForm: Component<Props> = (props) => {
           {loading() ? 'Loading...' : props.submitLabel}
         </button>
       </div>
+
+      {props.initialData && (
+        <div class="mt-8">
+          <h3 class="text-lg font-medium text-gray-900">Users with this Role</h3>
+          <div class="mt-4">
+            {users().length > 0 ? (
+              <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                <table class="min-w-full divide-y divide-gray-300">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
+                        Email
+                      </th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                        Name
+                      </th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                        Username
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-200 bg-white">
+                    {users().map((user) => (
+                      <tr>
+                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                          {user.email}
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{user.name}</td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{user.username}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p class="text-gray-500">No users have been assigned this role.</p>
+            )}
+          </div>
+        </div>
+      )}
     </form>
   );
 };

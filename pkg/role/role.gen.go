@@ -132,6 +132,21 @@ func PutUUIDJSON200Response(body struct {
 	}
 }
 
+// GetUUIDUsersJSON200Response is a constructor method for a GetUUIDUsers response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetUUIDUsersJSON200Response(body []struct {
+	Email    *string `json:"email,omitempty"`
+	Name     *string `json:"name,omitempty"`
+	Username *string `json:"username,omitempty"`
+	UUID     *string `json:"uuid,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get a list of roles
@@ -149,6 +164,9 @@ type ServerInterface interface {
 	// Update an existing role
 	// (PUT /{uuid})
 	PutUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response
+	// Get users assigned to a role
+	// (GET /{uuid}/users)
+	GetUUIDUsers(w http.ResponseWriter, r *http.Request, uuid string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -259,6 +277,32 @@ func (siw *ServerInterfaceWrapper) PutUUID(w http.ResponseWriter, r *http.Reques
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PutUUID(w, r, uuid)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetUUIDUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetUUIDUsers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "uuid" -------------
+	var uuid string
+
+	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetUUIDUsers(w, r, uuid)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -391,6 +435,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Delete("/{uuid}", wrapper.DeleteUUID)
 		r.Get("/{uuid}", wrapper.GetUUID)
 		r.Put("/{uuid}", wrapper.PutUUID)
+		r.Get("/{uuid}/users", wrapper.GetUUIDUsers)
 	})
 	return r
 }
@@ -416,15 +461,16 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9RVUWvbMBD+K+KeRe1ufdLbusIIbFAGeRp9uNqXVMWWNOmUzRj/93Fysi11wtgKHX2J",
-	"wqfT6b7vu5NHaHwfvCPHCcw4abBu48GMwJY7AgOffUfqEzrcUk+O1bvbFWjYUUzWOzBweVFf1DBp8IEc",
-	"BgsG3hZIQ0B+kKxQyc+WWBYfKCJb71YtGPhADBoipeBdohL8pq5labxjcuUIhtDZphyqHpPcOkJqHqhH",
-	"+WeZ+nIwRMnNdk7jsCdZW0pNtIHnagubsqWBhyAEE0frtsIgZ9vKkY2PPTKYGVgETj8Rf/9IDcMvAGPE",
-	"ASYJOb73o02s/EZF31EqKVLue4zDrIFC1R1HaAg+nRDsVlBR7GumxNe+Hf5KrGdqtKQukBRjI7VgOGaa",
-	"Fn5enrmjiYRM7RM53hdUoXL0rahR9qtRzJjmTB0xLaW5Kfh6vbopvRexJ6aYwHwZwcql0o+g96wP5h4X",
-	"r3/T6k9tcLcgenWG6FxxK65enQ1yntXGZ/dUj5mWwr0W+uwg/U/m9Ut24TMmdTmZe4MYbZf+zaB5fsUd",
-	"dT+o4oKMbz41vfmlXXpFz8Qr76Ec2hOv2bqgCp2i7zaxddvDmyZhFHeHDjjOeI2J5FOr9j2RYwcGKgy2",
-	"2l3CdDf9CAAA///DtsBluQcAAA==",
+	"H4sIAAAAAAAC/9RWwW7bMAz9FYFno062nnxbV2AIsAHFgJyGHlibSVTYkibS2QLD/z5QTroljjesxTrk",
+	"EgdPFKX3Hkm7g9I3wTtywlB0fQbWrTwUHYiVmqCAz74m8wkdrqkhJ+bd3QIy2FJk6x0UML+aXc2gz8AH",
+	"chgsFPA2QRkElI1mhVx/1iT68IEiivVuUUEBH0ggg0gcvGNKwW9mM32U3gm5tAVDqG2ZNuWPrKd2wOWG",
+	"GtR/VqhJG0PU3GKHNA4b0mdFXEYbZLhtYpOWMpBdUIIs0bq1MmhbW+mWlY8NChQDMArsnxD/8EilwE8A",
+	"Y8Qd9BpyfO5Hy2L8ykRfE6cU3DYNxt2ggUFTH0dkEDyfEexOUVXsa0ssN77a/ZVYL9RoTF0hvYyNVEEh",
+	"saV+5Od84owyEgpVJ3K8T6hB4+hbUiOt552a0Q+ZahIaS3Ob8OVycZtqL2JDQpGh+NKB1UO1HiHbsz6Y",
+	"e3z57Bet/lQG9yOi1xNEhxtX6ur1ZJDzYla+dad6DLQM7rXIJhvpfzKfvWYVvqBTx525N0jQ1vw8g4b+",
+	"VXfMw84kF7R923Pd2762Sxc0Ji68htpQnZlmy4QadIa+Wxbr1qOZlrecyqD7bWcvU9BFtPfEG5katHX6",
+	"tDi14uDe2COmOL3471/XyRmDzHbtqDLijWzoaRA/b1SMcx5Ge4qluD14e5z4Bpn068vs3W5jDQXkGGy+",
+	"nUN/3/8IAAD//+FQ7eDMCQAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

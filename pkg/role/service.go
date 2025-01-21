@@ -97,3 +97,22 @@ func (s *RoleService) GetRole(ctx context.Context, id uuid.UUID) (roledb.GetRole
 	}
 	return role, nil
 }
+
+// GetRoleUsers retrieves all users assigned to a role
+func (s *RoleService) GetRoleUsers(ctx context.Context, id uuid.UUID) ([]roledb.GetRoleUsersRow, error) {
+	// Check if role exists
+	_, err := s.queries.GetRoleUUID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrRoleNotFound
+		}
+		return nil, fmt.Errorf("error checking role existence: %w", err)
+	}
+
+	users, err := s.queries.GetRoleUsers(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("error getting role users: %w", err)
+	}
+
+	return users, nil
+}

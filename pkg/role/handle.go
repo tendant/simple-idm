@@ -85,6 +85,63 @@ func (h *Handle) GetUUID(w http.ResponseWriter, r *http.Request, uuidStr string)
 	})
 }
 
+// GetUUIDUsers handles retrieving users assigned to a role
+func (h *Handle) GetUUIDUsers(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	roleUUID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: fmt.Sprintf("invalid UUID format: %v", err),
+		}
+	}
+
+	users, err := h.roleService.GetRoleUsers(r.Context(), roleUUID)
+	if err != nil {
+		if errors.Is(err, ErrRoleNotFound) {
+			return &Response{
+				Code: http.StatusNotFound,
+				body: fmt.Sprintf("role not found: %v", err),
+			}
+		}
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: fmt.Sprintf("failed to get role users: %v", err),
+		}
+	}
+
+	// Convert to API format
+	apiUsers := make([]struct {
+		UUID     *string `json:"uuid,omitempty"`
+		Email    *string `json:"email,omitempty"`
+		Name     *string `json:"name,omitempty"`
+		Username *string `json:"username,omitempty"`
+	}, len(users))
+
+	for i, user := range users {
+		uuid := user.Uuid.String()
+		email := user.Email
+		name := user.Name.String
+		username := user.Username.String
+
+		apiUsers[i] = struct {
+			UUID     *string `json:"uuid,omitempty"`
+			Email    *string `json:"email,omitempty"`
+			Name     *string `json:"name,omitempty"`
+			Username *string `json:"username,omitempty"`
+		}{
+			UUID:     &uuid,
+			Email:    &email,
+			Name:     &name,
+			Username: &username,
+		}
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: apiUsers,
+	}
+}
+
 // Post handles the creation of a new role
 func (h *Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 	var requestBody PostJSONRequestBody

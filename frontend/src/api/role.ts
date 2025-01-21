@@ -13,6 +13,13 @@ export interface UpdateRoleRequest {
   name: string;
 }
 
+export interface RoleUser {
+  uuid?: string;
+  email?: string;
+  name?: string;
+  username?: string;
+}
+
 export const roleApi = {
   listRoles: async (): Promise<Role[]> => {
     const response = await apiClient('/idm/roles');
@@ -36,6 +43,14 @@ export const roleApi = {
     const data = await response.json();
     console.log('Response data:', JSON.stringify(data, null, 2));
     return data;
+  },
+
+  getRoleUsers: async (uuid: string): Promise<RoleUser[]> => {
+    const response = await apiClient(`/idm/roles/${uuid}/users`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch role users');
+    }
+    return response.json();
   },
 
   createRole: async (role: CreateRoleRequest): Promise<Role> => {

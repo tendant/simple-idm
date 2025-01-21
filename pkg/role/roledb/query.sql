@@ -21,3 +21,10 @@ WHERE uuid = $1;
 SELECT EXISTS (
     SELECT 1 FROM user_roles WHERE role_uuid = $1
 ) as has_users;
+
+-- name: GetRoleUsers :many
+SELECT u.uuid, u.email, u.name, u.username
+FROM users u
+JOIN user_roles ur ON ur.user_uuid = u.uuid
+WHERE ur.role_uuid = $1
+ORDER BY u.email;
