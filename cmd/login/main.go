@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jinzhu/copier"
-	"github.com/tendant/simple-idm/pkg/app"
+	"github.com/tendant/chi-demo/app"
 	"github.com/tendant/simple-idm/pkg/auth"
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
 	authDb "github.com/tendant/simple-idm/pkg/auth/db"
@@ -19,7 +19,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/pkg/user"
 	userDb "github.com/tendant/simple-idm/pkg/user/db"
-	"github.com/tendant/simple-idm/pkg/utils"
+	dbutils "github.com/tendant/db-utils/db"
 )
 
 type IdmDbConfig struct {
@@ -36,8 +36,8 @@ type JwtConfig struct {
 	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"true"`
 }
 
-func (d IdmDbConfig) toDbConfig() utils.DbConfig {
-	return utils.DbConfig{
+func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
+	return dbutils.DbConfig{
 		Host:     d.Host,
 		Port:     d.Port,
 		Database: d.Database,
@@ -72,7 +72,7 @@ func main() {
 	app.RoutesHealthzReady(server.R)
 
 	dbConfig := config.IdmDbConfig.toDbConfig()
-	pool, err := utils.NewDbPool(context.Background(), dbConfig)
+	pool, err := dbutils.NewDbPool(context.Background(), dbConfig)
 	if err != nil {
 		slog.Error("Failed creating dbpool", "db", dbConfig.Database, "host", dbConfig.Host, "port", dbConfig.Port, "user", dbConfig.User)
 		os.Exit(-1)

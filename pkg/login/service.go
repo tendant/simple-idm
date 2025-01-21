@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/login/db"
-	"github.com/tendant/simple-idm/utils"
+	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
 )

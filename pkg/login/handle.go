@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
-	"github.com/tendant/simple-idm/utils"
+	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 const (
