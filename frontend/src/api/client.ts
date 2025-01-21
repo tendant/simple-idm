@@ -4,6 +4,19 @@ interface RequestConfig extends RequestInit {
 
 let refreshPromise: Promise<void> | null = null;
 
+// Function to redirect to login page
+function redirectToLogin() {
+  // Clear any auth-related data from localStorage
+  localStorage.removeItem('user');
+  
+  // Get the current path to redirect back after login
+  const currentPath = window.location.pathname;
+  const loginPath = `/login${currentPath !== '/login' ? `?redirect=${encodeURIComponent(currentPath)}` : ''}`;
+  
+  // Use replace to prevent back button from returning to the failed page
+  window.location.replace(loginPath);
+}
+
 async function refreshToken() {
   if (refreshPromise) {
     return refreshPromise;
@@ -14,6 +27,9 @@ async function refreshToken() {
     credentials: 'include',
   }).then(async (response) => {
     if (!response.ok) {
+      if (response.status === 401) {
+        redirectToLogin();
+      }
       throw new Error('Failed to refresh token');
     }
     refreshPromise = null;
@@ -26,6 +42,14 @@ async function refreshToken() {
 }
 
 export async function apiClient(url: string, config: RequestConfig = {}): Promise<Response> {
+  // Skip auth for login-related endpoints
+  if (config.skipAuth) {
+    return fetch(url, {
+      ...config,
+      credentials: 'include',
+    });
+  }
+
   // First attempt
   const response = await fetch(url, {
     ...config,
@@ -49,7 +73,8 @@ export async function apiClient(url: string, config: RequestConfig = {}): Promis
 
     return retryResponse;
   } catch (error) {
-    // If refresh fails, throw an error that can be handled by the UI
-    throw new Error('Authentication expired. Please log in again.');
+    // If refresh token fails, redirect to login
+    redirectToLogin();
+    throw error;
   }
 }

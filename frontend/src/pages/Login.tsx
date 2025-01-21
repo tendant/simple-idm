@@ -1,9 +1,10 @@
 import { Component, createSignal } from 'solid-js';
-import { useNavigate } from '@solidjs/router';
+import { useNavigate, useSearchParams } from '@solidjs/router';
 import { userApi } from '../api/user';
 
 const Login: Component = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [username, setUsername] = createSignal('');
   const [password, setPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
@@ -20,11 +21,12 @@ const Login: Component = () => {
         password: password(),
       });
 
-      // Store the user info in localStorage or a global store
+      // Store the user info in localStorage
       localStorage.setItem('user', JSON.stringify(user));
 
-      // Redirect to dashboard or home page
-      navigate('/users');
+      // Redirect to the original page or default to /users
+      const redirectPath = searchParams.redirect || '/users';
+      navigate(redirectPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
