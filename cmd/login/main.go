@@ -148,7 +148,7 @@ func main() {
 		roleQueries := roleDb.New(pool)
 		roleService := role.NewRoleService(roleQueries)
 		roleHandle := role.NewHandle(roleService)
-		r.Mount("/idm", role.Handler(roleHandle))
+		r.Mount("/idm/roles", role.Handler(roleHandle))
 	})
 
 	server.Run()

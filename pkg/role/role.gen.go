@@ -61,9 +61,9 @@ func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Encode(resp.body)
 }
 
-// GetRolesJSON200Response is a constructor method for a GetRoles response.
+// GetJSON200Response is a constructor method for a Get response.
 // A *Response is returned with the configured status code and content type from the spec.
-func GetRolesJSON200Response(body []struct {
+func GetJSON200Response(body []struct {
 	// Role name
 	Name *string `json:"name,omitempty"`
 	UUID *string `json:"uuid,omitempty"`
@@ -78,8 +78,8 @@ func GetRolesJSON200Response(body []struct {
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get a list of roles
-	// (GET /roles)
-	GetRoles(w http.ResponseWriter, r *http.Request) *Response
+	// (GET /)
+	Get(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -88,12 +88,12 @@ type ServerInterfaceWrapper struct {
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
 }
 
-// GetRoles operation middleware
-func (siw *ServerInterfaceWrapper) GetRoles(w http.ResponseWriter, r *http.Request) {
+// Get operation middleware
+func (siw *ServerInterfaceWrapper) Get(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.GetRoles(w, r)
+		resp := siw.Handler.Get(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -221,7 +221,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
-		r.Get("/roles", wrapper.GetRoles)
+		r.Get("/", wrapper.Get)
 	})
 	return r
 }
@@ -247,11 +247,11 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/2RQ0WrDMAz8lXDPoc22N7/taRQ2GP0DLVVbl1gytjoIIf8+5MDGtqczpzudTwtGTVmF",
-	"xSrCsvaIclaEBRZtYgQcdeLujYQunFise34/oMcnlxpVEPCwG3YD1h6aWShHBDw1qkcmu/pW7ItO3F4X",
-	"NgfNXMiiyuGEgBe2YxP0KFyzSt3Ej8PgMKoYS/NRzlMcm3N/q56/oI5XTuSvaJyaMRcPsLitEUrseOI6",
-	"lpht+3fr1UY9bM5etVqJcvEu93s8ueWsJZEhbMQ/4frN6MeNR8MPQaXQjNUlv3NfY7VOz912Ep/Xe0pU",
-	"5u0QHXXTH8W6fgUAAP//R+WHe6YBAAA=",
+	"H4sIAAAAAAAC/2RRwWrrMBD8FTNnETvv3XR77/IIvELptfSwdTaJgqUV0joQjP+9rAwtTS9eM5qZ1YwW",
+	"jBKzJE5a4ZfVIaSTwC/QoBPD40Um7p4o0ZkjJ+3+PB/gcONSgyR47HfDbsDqIJkT5QCP3w1yyKQXc0Vv",
+	"nzOrDclcSIOkwxEe/1jhULhmSZUb+dcw2BglKacmoZynMDZRf622dUEdLxzJ/oJybMJczFvDZpMoss0j",
+	"17GErNttW5p25KD3bAGrlpDOlmCew9EkJymRFH4DfhDXT0TerzwqvgAqhe5YjfJ97/9QtZNTV2Ti2izq",
+	"HCOV+9ZBR930wDAKF+sZ/vUxxl+qbC/RWcVwmMsEj55y6G97rG/rRwAAAP//fWKhUdgBAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -6,7 +6,7 @@ servers:
   - url: /api/v1
     description: Base API path
 paths:
-  /roles:
+  /:
     get:
       summary: Get a list of roles
       responses:

@@ -14,8 +14,8 @@ func NewHandle(roleService *RoleService) Handle {
 	}
 }
 
-// GetRoles handles the GET /roles endpoint
-func (h Handle) GetRoles(w http.ResponseWriter, r *http.Request) *Response {
+// Get handles the GET / endpoint
+func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 	roles, err := h.roleService.FindRoles(r.Context())
 	if err != nil {
 		return &Response{
@@ -42,5 +42,5 @@ func (h Handle) GetRoles(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	return GetRolesJSON200Response(apiRoles)
+	return GetJSON200Response(apiRoles)
 }

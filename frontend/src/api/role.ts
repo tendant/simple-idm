@@ -15,7 +15,7 @@ export interface UpdateRoleRequest {
 
 export const roleApi = {
   listRoles: async (): Promise<Role[]> => {
-    const response = await apiClient('/api/roles');
+    const response = await apiClient('/idm/roles');
     if (!response.ok) {
       throw new Error('Failed to fetch roles');
     }
@@ -23,7 +23,7 @@ export const roleApi = {
   },
 
   getRole: async (uuid: string): Promise<Role> => {
-    const response = await apiClient(`/api/roles/${uuid}`);
+    const response = await apiClient(`/idm/roles/${uuid}`);
     if (!response.ok) {
       throw new Error('Failed to fetch role');
     }
@@ -31,7 +31,7 @@ export const roleApi = {
   },
 
   createRole: async (role: CreateRoleRequest): Promise<Role> => {
-    const response = await apiClient('/api/roles', {
+    const response = await apiClient('/idm/roles', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -46,7 +46,7 @@ export const roleApi = {
   },
 
   updateRole: async (uuid: string, role: UpdateRoleRequest): Promise<Role> => {
-    const response = await apiClient(`/api/roles/${uuid}`, {
+    const response = await apiClient(`/idm/roles/${uuid}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -61,7 +61,7 @@ export const roleApi = {
   },
 
   deleteRole: async (uuid: string): Promise<void> => {
-    const response = await apiClient(`/api/roles/${uuid}`, {
+    const response = await apiClient(`/idm/roles/${uuid}`, {
       method: 'DELETE',
     });
 
