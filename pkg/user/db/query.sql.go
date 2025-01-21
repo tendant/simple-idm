@@ -88,7 +88,7 @@ func (q *Queries) DeleteUserRoles(ctx context.Context, userUuid uuid.UUID) error
 }
 
 const findUsers = `-- name: FindUsers :many
-SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
+SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, username, name
 FROM users
 limit 20
 `
@@ -100,6 +100,7 @@ type FindUsersRow struct {
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
+	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 }
 
@@ -119,6 +120,7 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 			&i.DeletedAt,
 			&i.CreatedBy,
 			&i.Email,
+			&i.Username,
 			&i.Name,
 		); err != nil {
 			return nil, err
@@ -132,7 +134,7 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 }
 
 const findUsersWithRoles = `-- name: FindUsersWithRoles :many
-SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name,
+SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
        json_agg(json_build_object(
            'uuid', r.uuid,
            'name', r.name
@@ -140,7 +142,7 @@ SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.e
 FROM users u
 LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
 LEFT JOIN roles r ON ur.role_uuid = r.uuid
-GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name
+GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
 LIMIT 20
 `
 
@@ -151,6 +153,7 @@ type FindUsersWithRolesRow struct {
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
+	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 	Roles          []byte         `json:"roles"`
 }
@@ -171,6 +174,7 @@ func (q *Queries) FindUsersWithRoles(ctx context.Context) ([]FindUsersWithRolesR
 			&i.DeletedAt,
 			&i.CreatedBy,
 			&i.Email,
+			&i.Username,
 			&i.Name,
 			&i.Roles,
 		); err != nil {
@@ -185,7 +189,7 @@ func (q *Queries) FindUsersWithRoles(ctx context.Context) ([]FindUsersWithRolesR
 }
 
 const getUserUUID = `-- name: GetUserUUID :one
-SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
+SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, username, name
 FROM users
 WHERE uuid = $1
 `
@@ -197,6 +201,7 @@ type GetUserUUIDRow struct {
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
+	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 }
 
@@ -210,13 +215,14 @@ func (q *Queries) GetUserUUID(ctx context.Context, argUuid uuid.UUID) (GetUserUU
 		&i.DeletedAt,
 		&i.CreatedBy,
 		&i.Email,
+		&i.Username,
 		&i.Name,
 	)
 	return i, err
 }
 
 const getUserWithRoles = `-- name: GetUserWithRoles :one
-SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name,
+SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
        json_agg(json_build_object(
            'uuid', r.uuid,
            'name', r.name
@@ -225,7 +231,7 @@ FROM users u
 LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
 LEFT JOIN roles r ON ur.role_uuid = r.uuid
 WHERE u.uuid = $1
-GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name
+GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
 `
 
 type GetUserWithRolesRow struct {
@@ -235,6 +241,7 @@ type GetUserWithRolesRow struct {
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
+	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 	Roles          []byte         `json:"roles"`
 }
@@ -249,6 +256,7 @@ func (q *Queries) GetUserWithRoles(ctx context.Context, argUuid uuid.UUID) (GetU
 		&i.DeletedAt,
 		&i.CreatedBy,
 		&i.Email,
+		&i.Username,
 		&i.Name,
 		&i.Roles,
 	)

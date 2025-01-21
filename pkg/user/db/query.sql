@@ -8,7 +8,7 @@ INSERT INTO user_roles (user_uuid, role_uuid)
 VALUES ($1, $2);
 
 -- name: FindUsers :many
-SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
+SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, username, name
 FROM users
 limit 20;
 
@@ -22,7 +22,7 @@ SET deleted_at = CURRENT_TIMESTAMP
 WHERE uuid = $1;
 
 -- name: GetUserUUID :one
-SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
+SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, username, name
 FROM users
 WHERE uuid = $1;
 
@@ -36,7 +36,7 @@ DELETE FROM user_roles
 WHERE user_uuid = $1;
 
 -- name: GetUserWithRoles :one
-SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name,
+SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
        json_agg(json_build_object(
            'uuid', r.uuid,
            'name', r.name
@@ -45,10 +45,10 @@ FROM users u
 LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
 LEFT JOIN roles r ON ur.role_uuid = r.uuid
 WHERE u.uuid = $1
-GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name;
+GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name;
 
 -- name: FindUsersWithRoles :many
-SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name,
+SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
        json_agg(json_build_object(
            'uuid', r.uuid,
            'name', r.name
@@ -56,5 +56,5 @@ SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.e
 FROM users u
 LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
 LEFT JOIN roles r ON ur.role_uuid = r.uuid
-GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name
+GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
 LIMIT 20;

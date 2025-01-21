@@ -113,34 +113,33 @@ func TestCreateUser(t *testing.T) {
 	testCases := []struct {
 		name      string
 		email     string
-		userName  string
+		username  string
+		fullname  string
 		roleUuids []uuid.UUID
 		wantErr   bool
 	}{
 		{
-			name:     "successful creation",
-			email:    "test@example.com",
-			userName: "Test User",
-			roleUuids: []uuid.UUID{
-				roleUUID,
-			},
-			wantErr: false,
+			name:      "successful creation",
+			email:     "test@example.com",
+			username:  "testuser",
+			fullname:  "Test User",
+			roleUuids: []uuid.UUID{roleUUID},
+			wantErr:   false,
 		},
 		{
-			name:     "empty email",
-			email:    "",
-			userName: "Test User",
-			roleUuids: []uuid.UUID{
-				roleUUID,
-			},
-			wantErr: true,
+			name:      "empty email",
+			email:     "",
+			username:  "testuser",
+			fullname:  "Test User",
+			roleUuids: []uuid.UUID{roleUUID},
+			wantErr:   true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Execute test
-			user, err := service.CreateUser(ctx, tc.email, tc.userName, tc.roleUuids)
+			user, err := service.CreateUser(ctx, tc.email, tc.username, tc.fullname, tc.roleUuids)
 
 			// Verify results
 			if tc.wantErr {
@@ -150,19 +149,22 @@ func TestCreateUser(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Equal(t, tc.email, user.Email)
-			assert.Equal(t, tc.userName, user.Name.String)
+			assert.Equal(t, tc.username, user.Username.String)
+			assert.Equal(t, tc.fullname, user.Name.String)
+			assert.True(t, user.Username.Valid)
 			assert.True(t, user.Name.Valid)
 
 			// Verify the user exists in the database
 			var dbUser db.User
 			err = pool.QueryRow(ctx, `
-				SELECT uuid, email, name
+				SELECT uuid, email, username, name
 				FROM users
 				WHERE uuid = $1
-			`, user.Uuid).Scan(&dbUser.Uuid, &dbUser.Email, &dbUser.Name)
+			`, user.Uuid).Scan(&dbUser.Uuid, &dbUser.Email, &dbUser.Username, &dbUser.Name)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.email, dbUser.Email)
-			assert.Equal(t, tc.userName, dbUser.Name.String)
+			assert.Equal(t, tc.username, dbUser.Username.String)
+			assert.Equal(t, tc.fullname, dbUser.Name.String)
 
 			// Verify the role assignment
 			var roleCount int
@@ -222,7 +224,7 @@ func TestFindUsers(t *testing.T) {
 	}
 
 	for _, u := range testUsers {
-		_, err := service.CreateUser(ctx, u.email, u.name, u.roleUuids)
+		_, err := service.CreateUser(ctx, u.email, "", u.name, u.roleUuids)
 		require.NoError(t, err)
 	}
 
@@ -265,7 +267,7 @@ func TestGetUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a test user
-	user, err := service.CreateUser(ctx, "test@example.com", "Test User", []uuid.UUID{roleUUID})
+	user, err := service.CreateUser(ctx, "test@example.com", "", "Test User", []uuid.UUID{roleUUID})
 	require.NoError(t, err)
 
 	// Test cases
@@ -306,7 +308,7 @@ func TestUpdateUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a test user with role1
-	user, err := service.CreateUser(ctx, "test@example.com", "Original Name", []uuid.UUID{role1UUID})
+	user, err := service.CreateUser(ctx, "test@example.com", "", "Original Name", []uuid.UUID{role1UUID})
 	require.NoError(t, err)
 
 	// Test cases
@@ -366,7 +368,7 @@ func TestDeleteUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a test user
-	user, err := service.CreateUser(ctx, "test@example.com", "Test User", []uuid.UUID{roleUUID})
+	user, err := service.CreateUser(ctx, "test@example.com", "", "Test User", []uuid.UUID{roleUUID})
 	require.NoError(t, err)
 
 	// Test cases
