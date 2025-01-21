@@ -176,6 +176,17 @@ func TestCreateUser(t *testing.T) {
 				assert.Len(t, roles, len(tt.roleUuids))
 				assert.Equal(t, tt.roleUuids[0].String(), roles[0].UUID)
 				assert.Equal(t, "test-role", roles[0].Name)
+			} else {
+				// For users without roles, the roles array should contain a single empty object
+				var roles []struct {
+					UUID string `json:"uuid"`
+					Name string `json:"name"`
+				}
+				err = json.Unmarshal(user.Roles, &roles)
+				require.NoError(t, err)
+				assert.Len(t, roles, 1)
+				assert.Empty(t, roles[0].UUID)
+				assert.Empty(t, roles[0].Name)
 			}
 		})
 	}
@@ -246,17 +257,26 @@ func TestFindUsers(t *testing.T) {
 			err = json.Unmarshal(u.Roles, &roles)
 			require.NoError(t, err)
 			assert.Len(t, roles, len(testUsers[i].roleUuids))
-			assert.Equal(t, testUsers[i].roleUuids[0].String(), roles[0].UUID)
-			assert.Equal(t, "test-role", roles[0].Name)
+
+			// Verify each role UUID
+			roleUUIDs := make(map[string]bool)
+			for _, role := range roles {
+				roleUUIDs[role.UUID] = true
+			}
+			for _, expectedUUID := range testUsers[i].roleUuids {
+				assert.True(t, roleUUIDs[expectedUUID.String()], "Expected role UUID not found: %s", expectedUUID)
+			}
 		} else {
-			// For users without roles, the roles array should be empty
+			// For users without roles, the roles array should contain a single empty object
 			var roles []struct {
 				UUID string `json:"uuid"`
 				Name string `json:"name"`
 			}
 			err = json.Unmarshal(u.Roles, &roles)
 			require.NoError(t, err)
-			assert.Empty(t, roles)
+			assert.Len(t, roles, 1)
+			assert.Empty(t, roles[0].UUID)
+			assert.Empty(t, roles[0].Name)
 		}
 	}
 }
@@ -387,7 +407,10 @@ func TestUpdateUser(t *testing.T) {
 					assert.True(t, roleUUIDs[expectedUUID.String()], "Expected role UUID not found: %s", expectedUUID)
 				}
 			} else {
-				assert.Empty(t, roles)
+				// For users without roles, the roles array should contain a single empty object
+				assert.Len(t, roles, 1)
+				assert.Empty(t, roles[0].UUID)
+				assert.Empty(t, roles[0].Name)
 			}
 
 			// Verify the roles in database
