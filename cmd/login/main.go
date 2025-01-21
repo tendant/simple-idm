@@ -12,14 +12,14 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/chi-demo/app"
-	"github.com/tendant/simple-idm/pkg/auth"
+	dbutils "github.com/tendant/db-utils/db"
+	"github.com/tendant/simple-idm/auth"
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
 	authDb "github.com/tendant/simple-idm/pkg/auth/db"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/pkg/user"
 	userDb "github.com/tendant/simple-idm/pkg/user/db"
-	dbutils "github.com/tendant/db-utils/db"
 )
 
 type IdmDbConfig struct {
@@ -33,7 +33,7 @@ type IdmDbConfig struct {
 type JwtConfig struct {
 	JwtSecret      string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
 	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
-	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"true"`
+	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
 }
 
 func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
@@ -112,7 +112,7 @@ func main() {
 
 	server.R.Group(func(r chi.Router) {
 		r.Use(login.Verifier(tokenAuth))
-		r.Use(jwtauth.Authenticator)
+		r.Use(jwtauth.Authenticator(tokenAuth))
 		r.Use(login.AuthUserMiddleware)
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
 			authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
