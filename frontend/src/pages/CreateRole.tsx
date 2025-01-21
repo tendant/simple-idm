@@ -12,7 +12,7 @@ const CreateRole: Component = () => {
   };
 
   return (
-    <div class="px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="sm:flex sm:items-center">
         <div class="sm:flex-auto">
           <h1 class="text-2xl font-semibold text-gray-12">Create Role</h1>
@@ -22,7 +22,7 @@ const CreateRole: Component = () => {
         </div>
       </div>
 
-      <div class="mt-8 max-w-md">
+      <div class="mt-8">
         <RoleForm onSubmit={handleSubmit} submitLabel="Create Role" />
       </div>
     </div>

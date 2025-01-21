@@ -25,7 +25,7 @@ const EditRole: Component = () => {
 
   if (error()) {
     return (
-      <div class="px-4 sm:px-6 lg:px-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="rounded-lg bg-red-50 p-4">
           <div class="flex">
             <div class="flex-shrink-0">
@@ -44,14 +44,14 @@ const EditRole: Component = () => {
 
   if (!role()) {
     return (
-      <div class="px-4 sm:px-6 lg:px-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="text-center">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div class="px-4 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="sm:flex sm:items-center">
         <div class="sm:flex-auto">
           <h1 class="text-2xl font-semibold text-gray-12">Edit Role</h1>
@@ -61,11 +61,11 @@ const EditRole: Component = () => {
         </div>
       </div>
 
-      <div class="mt-8 max-w-md">
+      <div class="mt-8">
         <RoleForm
-          initialData={role()}
           onSubmit={handleSubmit}
-          submitLabel="Save Changes"
+          submitLabel="Update Role"
+          initialData={{ name: role()?.name || '' }}
         />
       </div>
     </div>
