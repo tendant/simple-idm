@@ -25,3 +25,36 @@ paths:
                     name:
                       type: string
                       description: Role name
+    post:
+      summary: Create a new role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Role name
+      responses:
+        "201":
+          description: Role created
+    put:
+      summary: Update an existing role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                uuid:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                  description: Role name
+      responses:
+        "200":
+          description: Role updated

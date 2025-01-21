@@ -11,6 +11,24 @@ import (
 	"github.com/google/uuid"
 )
 
+const createRole = `-- name: CreateRole :exec
+INSERT INTO roles (name) VALUES ($1) RETURNING uuid
+`
+
+func (q *Queries) CreateRole(ctx context.Context, name string) error {
+	_, err := q.db.Exec(ctx, createRole, name)
+	return err
+}
+
+const deleteRole = `-- name: DeleteRole :exec
+DELETE FROM roles WHERE uuid = $1
+`
+
+func (q *Queries) DeleteRole(ctx context.Context, argUuid uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRole, argUuid)
+	return err
+}
+
 const findRoles = `-- name: FindRoles :many
 SELECT uuid, name
 FROM roles
@@ -40,4 +58,36 @@ func (q *Queries) FindRoles(ctx context.Context) ([]FindRolesRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const getRoleUUID = `-- name: GetRoleUUID :one
+SELECT uuid, name
+FROM roles
+WHERE uuid = $1
+`
+
+type GetRoleUUIDRow struct {
+	Uuid uuid.UUID `json:"uuid"`
+	Name string    `json:"name"`
+}
+
+func (q *Queries) GetRoleUUID(ctx context.Context, argUuid uuid.UUID) (GetRoleUUIDRow, error) {
+	row := q.db.QueryRow(ctx, getRoleUUID, argUuid)
+	var i GetRoleUUIDRow
+	err := row.Scan(&i.Uuid, &i.Name)
+	return i, err
+}
+
+const updateRole = `-- name: UpdateRole :exec
+UPDATE roles SET name = $2 WHERE uuid = $1
+`
+
+type UpdateRoleParams struct {
+	Uuid uuid.UUID `json:"uuid"`
+	Name string    `json:"name"`
+}
+
+func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) error {
+	_, err := q.db.Exec(ctx, updateRole, arg.Uuid, arg.Name)
+	return err
 }
