@@ -23,19 +23,28 @@ import (
 
 // PostUsersJSONBody defines parameters for PostUsers.
 type PostUsersJSONBody struct {
-	Email *string `json:"email,omitempty"`
-	Name  *string `json:"name,omitempty"`
+	Email string `json:"email"`
 
-	// List of role UUIDs to assign to the user
-	RoleUuids []string `json:"role_uuids,omitempty"`
-}
-
-// PutUsersUUIDJSONBody defines parameters for PutUsersUUID.
-type PutUsersUUIDJSONBody struct {
+	// Full name of the user
 	Name *string `json:"name,omitempty"`
 
 	// List of role UUIDs to assign to the user
 	RoleUuids []string `json:"role_uuids,omitempty"`
+
+	// Unique username for the user
+	Username string `json:"username"`
+}
+
+// PutUsersUUIDJSONBody defines parameters for PutUsersUUID.
+type PutUsersUUIDJSONBody struct {
+	// Full name of the user
+	Name *string `json:"name,omitempty"`
+
+	// List of role UUIDs to assign to the user
+	RoleUuids []string `json:"role_uuids,omitempty"`
+
+	// Unique username for the user
+	Username *string `json:"username,omitempty"`
 }
 
 // PostUsersJSONRequestBody defines body for PostUsers for application/json ContentType.
@@ -106,7 +115,8 @@ func GetUsersJSON200Response(body []struct {
 		Name *string `json:"name,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	} `json:"roles,omitempty"`
-	UUID *string `json:"uuid,omitempty"`
+	Username *string `json:"username,omitempty"`
+	UUID     *string `json:"uuid,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
@@ -126,7 +136,8 @@ func PostUsersJSON200Response(body struct {
 		Name *string `json:"name,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	} `json:"roles,omitempty"`
-	UUID *string `json:"uuid,omitempty"`
+	Username *string `json:"username,omitempty"`
+	UUID     *string `json:"uuid,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
@@ -146,7 +157,8 @@ func GetUsersUUIDJSON200Response(body struct {
 		Name *string `json:"name,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	} `json:"roles,omitempty"`
-	UUID *string `json:"uuid,omitempty"`
+	Username *string `json:"username,omitempty"`
+	UUID     *string `json:"uuid,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
@@ -166,7 +178,8 @@ func PutUsersUUIDJSON200Response(body struct {
 		Name *string `json:"name,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	} `json:"roles,omitempty"`
-	UUID *string `json:"uuid,omitempty"`
+	Username *string `json:"username,omitempty"`
+	UUID     *string `json:"uuid,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
@@ -459,16 +472,16 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+xVT4sbPwz9KkbnYZPfr7e5tV0ogRb2klMpxTujJF7Gf2rJuwzDfPcie7ed3UwS2gZy",
-	"yclGlmw/PT1pgMbb4B06JqiHsQLjNh7qAdhwh1DDmjCqL9rpLVp0rN7fraCCR4xkvIMa/rtZ3ixhrMAH",
-	"dDoYqOFdNlUQNO/kVlgkwph3W2RZfMCo2Xi3aqGGT8jr7FBBRAreEWbn/5dLWRrvGF2O0yF0psmRiweS",
-	"9wegZodWy84w2hwYojzAplyDVpsuQ+qDICKOxm3ly05bnD2IviuxLVITTeCC9bMhVn6jNJHZOmxV9lNP",
-	"hneKd2iiapG16QTJgc8cfDIl08rBxkerGepiqN46jr8s/v4BG4bfBh2j7s96lbjMZ6AQKueUrNWxLzQq",
-	"rbrXHhUETzOc33makP4jIfEH3/Z/xPdZaP4uyTnCtfio9Xp1S4r9M/Oy4x1mjFOqTyR8L717BIhJsmEi",
-	"tlBzTDj+oyauUvi7q/ZLPzfCJqJmbBWlpkGiTeq6/o0MPmYXpZXDp1Ihcl5a4GKQ98eSzg4Z94Vxm+1Z",
-	"GlJ1uY1GbZFzB/06gJHPSGuFF9ZeQL2unGpSBafgf5uvspkElG8fTUBBkKGr+z5rR6g42vovDvUqqMsI",
-	"6hmUisjR4OPxypIJk6ZRk/IKaW7KpIuU1znG2XVoXTV2Zo2l0J4aXuvsckBk4zj+DAAA///dt1h7MAwA",
-	"AA==",
+	"H4sIAAAAAAAC/+xVT2vcPhD9KmLOJru/X2++tQ0tCy3k4lMIRbFndxVkSZFGCcb4u5eRNqk36/US2pAW",
+	"9mQhzb83856nh9q2zho0FKDshwKUWVsoeyBFGqGEKqAX36WRG2zRkPh4tYICHtAHZQ2U8N/F8mIJQwHW",
+	"oZFOQQkf0lUBTtKWo8IiBvTptEHij3XoJSlrVg2U8BWpSgYFeAzOmoDJ+P/lkj+1NYQm+UnntKqT5+Iu",
+	"cP4eQr3FVvJJEbbJ0XlOQCqHwVYqnSB1jhEF8spsuGQjW5x88FZn3wZD7ZWjjPWbCiTsWsgQ1MZgI5Kd",
+	"eFS0FbRF5UWDJJVmJEeKOZoyRtXww9r6VhKU+aJ4aTg839jbO6wJfl1I72WXQgX0b5+HTabbk6fN7yG2",
+	"rfRdnrGQQu9bFOBsmCDElQ0jRtxHDPTJNt2ryPBaDuxD+RK1FvzE1dIWU8WHXcpM+cEtnKEL24iqWl0G",
+	"QXZHHj6N4j6z5cRY5oe9n74y6j7mDAnJ2voZKENutfLYQHm9a9go/M0BIfZdyEccflPAZ92+gW4PdZp+",
+	"6bVHSdiIEOsaQ1hHrbsXmv2cTIQUBh8za/g9/8wXPecfcq81Eh6q+DLdJx0z+dNC8LJFSrvgugfFxfCS",
+	"gKeRPoHap1Uxosgp+DfTFJxoQC57tgEZQYIubrskYR7F7BJ7d6hntf2FatshFh7JK3yYpx3vyjj2GnHP",
+	"xal9Gd+Fe39iMZ/X7xyTzuv1Xxd8dM2pNVslkyOKH4bhZwAAAP//ONp9+aQNAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
