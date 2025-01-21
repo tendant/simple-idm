@@ -1,8 +1,8 @@
 import { apiClient } from './client';
 
 export interface Role {
-  uuid?: string;
-  name?: string;
+  uuid: string;
+  name: string;
 }
 
 export interface CreateRoleRequest {
@@ -23,11 +23,19 @@ export const roleApi = {
   },
 
   getRole: async (uuid: string): Promise<Role> => {
+    console.log('Fetching role with UUID:', uuid);
     const response = await apiClient(`/idm/roles/${uuid}`);
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
+      console.error('Failed to fetch role:', response.status, response.statusText);
       throw new Error('Failed to fetch role');
     }
-    return response.json();
+
+    const data = await response.json();
+    console.log('Response data:', JSON.stringify(data, null, 2));
+    return data;
   },
 
   createRole: async (role: CreateRoleRequest): Promise<Role> => {

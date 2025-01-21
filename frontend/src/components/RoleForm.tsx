@@ -1,4 +1,5 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createEffect } from 'solid-js';
+import { createStore } from 'solid-js/store';
 import type { Role } from '../api/role';
 
 interface Props {
@@ -10,29 +11,40 @@ interface Props {
 }
 
 const RoleForm: Component<Props> = (props) => {
-  const [name, setName] = createSignal(props.initialData?.name || '');
-  const [error, setError] = createSignal<string | null>(null);
-  const [loading, setLoading] = createSignal(false);
+  // Create store for form state
+  const [state, setState] = createStore({
+    name: props.initialData?.name || '',
+    error: null as string | null,
+    loading: false
+  });
+
+  // Update form when initialData changes
+  createEffect(() => {
+    const name = props.initialData?.name;
+    if (name && name !== state.name) {
+      setState('name', name);
+    }
+  });
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
-    setError(null);
-    setLoading(true);
+    setState('error', null);
+    setState('loading', true);
 
     try {
       await props.onSubmit({
-        name: name(),
+        name: state.name,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save role');
+      setState('error', err instanceof Error ? err.message : 'Failed to save role');
     } finally {
-      setLoading(false);
+      setState('loading', false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} class="space-y-6">
-      {error() && (
+      {state.error && (
         <div class="rounded-lg bg-red-50 p-4">
           <div class="flex">
             <div class="flex-shrink-0">
@@ -41,7 +53,7 @@ const RoleForm: Component<Props> = (props) => {
               </svg>
             </div>
             <div class="ml-3">
-              <h3 class="text-sm font-medium text-red-800">{error()}</h3>
+              <h3 class="text-sm font-medium text-red-800">{state.error}</h3>
             </div>
           </div>
         </div>
@@ -57,8 +69,8 @@ const RoleForm: Component<Props> = (props) => {
             name="name"
             id="name"
             required
-            value={name()}
-            onInput={(e) => setName(e.currentTarget.value)}
+            value={state.name}
+            onInput={(e) => setState('name', e.currentTarget.value)}
             class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
@@ -67,10 +79,10 @@ const RoleForm: Component<Props> = (props) => {
       <div>
         <button
           type="submit"
-          disabled={loading()}
+          disabled={state.loading}
           class="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50"
         >
-          {loading() ? 'Loading...' : props.submitLabel}
+          {state.loading ? 'Loading...' : props.submitLabel}
         </button>
       </div>
     </form>
