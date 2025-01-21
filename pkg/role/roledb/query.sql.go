@@ -11,13 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
-const createRole = `-- name: CreateRole :exec
+const createRole = `-- name: CreateRole :one
 INSERT INTO roles (name) VALUES ($1) RETURNING uuid
 `
 
-func (q *Queries) CreateRole(ctx context.Context, name string) error {
-	_, err := q.db.Exec(ctx, createRole, name)
-	return err
+func (q *Queries) CreateRole(ctx context.Context, name string) (uuid.UUID, error) {
+	var id uuid.UUID
+	err := q.db.QueryRow(ctx, createRole, name).Scan(&id)
+	return id, err
 }
 
 const deleteRole = `-- name: DeleteRole :exec
