@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"encoding/json"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -18,11 +20,10 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
-	"encoding/json"
 )
 
 func containerLog(ctx context.Context, container testcontainers.Container) {
-		// Retrieve logs
+	// Retrieve logs
 	logs, err := container.Logs(ctx)
 	if err != nil {
 		slog.Error("Failed to get container logs:", "err", err)
@@ -68,10 +69,9 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 
 	// containerLog(ctx, container)
 
-	
-    // Generate the connection string
-    connString, err := container.ConnectionString(ctx)
-    fmt.Println("Connection string:", connString)
+	// Generate the connection string
+	connString, err := container.ConnectionString(ctx)
+	fmt.Println("Connection string:", connString)
 	require.NoError(t, err)
 
 	// Create connection pool
@@ -87,7 +87,6 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 			t.Logf("failed to terminate container: %v", err)
 		}
 	}
-
 
 	return pool, cleanup
 }
@@ -177,16 +176,16 @@ func TestCreateUser(t *testing.T) {
 				assert.Equal(t, tt.roleUuids[0].String(), roles[0].UUID)
 				assert.Equal(t, "test-role", roles[0].Name)
 			} else {
-				// For users without roles, the roles array should contain a single empty object
+				// For users without roles, the roles array should contain a single null role
 				var roles []struct {
-					UUID string `json:"uuid"`
-					Name string `json:"name"`
+					UUID interface{} `json:"uuid"`
+					Name interface{} `json:"name"`
 				}
 				err = json.Unmarshal(user.Roles, &roles)
 				require.NoError(t, err)
 				assert.Len(t, roles, 1)
-				assert.Empty(t, roles[0].UUID)
-				assert.Empty(t, roles[0].Name)
+				assert.Nil(t, roles[0].UUID)
+				assert.Nil(t, roles[0].Name)
 			}
 		})
 	}
@@ -267,16 +266,16 @@ func TestFindUsers(t *testing.T) {
 				assert.True(t, roleUUIDs[expectedUUID.String()], "Expected role UUID not found: %s", expectedUUID)
 			}
 		} else {
-			// For users without roles, the roles array should contain a single empty object
+			// For users without roles, the roles array should contain a single null role
 			var roles []struct {
-				UUID string `json:"uuid"`
-				Name string `json:"name"`
+				UUID interface{} `json:"uuid"`
+				Name interface{} `json:"name"`
 			}
 			err = json.Unmarshal(u.Roles, &roles)
 			require.NoError(t, err)
 			assert.Len(t, roles, 1)
-			assert.Empty(t, roles[0].UUID)
-			assert.Empty(t, roles[0].Name)
+			assert.Nil(t, roles[0].UUID)
+			assert.Nil(t, roles[0].Name)
 		}
 	}
 }
@@ -390,27 +389,27 @@ func TestUpdateUser(t *testing.T) {
 
 			// Verify roles
 			var roles []struct {
-				UUID string `json:"uuid"`
-				Name string `json:"name"`
+				UUID interface{} `json:"uuid"`
+				Name interface{} `json:"name"`
 			}
 			err = json.Unmarshal(updatedUser.Roles, &roles)
 			require.NoError(t, err)
-			assert.Len(t, roles, len(tt.roleUuids))
 
-			// Verify each role
 			if len(tt.roleUuids) > 0 {
+				assert.Len(t, roles, len(tt.roleUuids))
 				roleUUIDs := make(map[string]bool)
 				for _, role := range roles {
-					roleUUIDs[role.UUID] = true
+					roleUUIDs[role.UUID.(string)] = true
 				}
 				for _, expectedUUID := range tt.roleUuids {
 					assert.True(t, roleUUIDs[expectedUUID.String()], "Expected role UUID not found: %s", expectedUUID)
 				}
 			} else {
-				// For users without roles, the roles array should contain a single empty object
+				// When there are no roles, we get [{"uuid": null, "name": null}] from the database
+				// This is expected behavior from PostgreSQL's json_agg
 				assert.Len(t, roles, 1)
-				assert.Empty(t, roles[0].UUID)
-				assert.Empty(t, roles[0].Name)
+				assert.Nil(t, roles[0].UUID)
+				assert.Nil(t, roles[0].Name)
 			}
 
 			// Verify the roles in database
