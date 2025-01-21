@@ -13,6 +13,24 @@ import (
 	"github.com/google/uuid"
 )
 
+const createRole = `-- name: CreateRole :one
+INSERT INTO roles (uuid, name)
+VALUES ($1, $2)
+RETURNING uuid, name, description
+`
+
+type CreateRoleParams struct {
+	Uuid uuid.UUID `json:"uuid"`
+	Name string    `json:"name"`
+}
+
+func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
+	row := q.db.QueryRow(ctx, createRole, arg.Uuid, arg.Name)
+	var i Role
+	err := row.Scan(&i.Uuid, &i.Name, &i.Description)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, username, name)
 VALUES ($1, $2, $3)

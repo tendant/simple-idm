@@ -60,3 +60,8 @@ LEFT JOIN roles r ON ur.role_uuid = r.uuid
 WHERE u.deleted_at IS NULL
 GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
 LIMIT 20;
+
+-- name: CreateRole :one
+INSERT INTO roles (uuid, name)
+VALUES ($1, $2)
+RETURNING *;
