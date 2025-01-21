@@ -97,7 +97,7 @@ func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
 
 // Create a new user
 // (POST /users)
-func (h Handle) CreateUser(w http.ResponseWriter, r *http.Request) *Response {
+func (h Handle) PostUsers(w http.ResponseWriter, r *http.Request) *Response {
 	var request CreateUserRequest
 	if err := render.DecodeJSON(r.Body, &request); err != nil {
 		return &Response{
@@ -167,7 +167,7 @@ func (h Handle) CreateUser(w http.ResponseWriter, r *http.Request) *Response {
 
 // Get user details by UUID
 // (GET /users/{uuid})
-func (h Handle) GetUser(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+func (h Handle) GetUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
 	userUuid, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
@@ -225,7 +225,7 @@ func (h Handle) GetUser(w http.ResponseWriter, r *http.Request, uuidStr string) 
 
 // Update user details by UUID
 // (PUT /users/{uuid})
-func (h Handle) UpdateUser(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+func (h Handle) PutUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
 	userUuid, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
@@ -296,8 +296,8 @@ func (h Handle) UpdateUser(w http.ResponseWriter, r *http.Request, uuidStr strin
 
 // Delete user by UUID
 // (DELETE /users/{uuid})
-func (h Handle) DeleteUsersUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
-	userUuid, err := uuid.Parse(uuid)
+func (h Handle) DeleteUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	userUuid, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
 			body: "Invalid UUID format",
