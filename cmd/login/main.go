@@ -2,22 +2,24 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"os"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth"
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jinzhu/copier"
-	"github.com/tendant/chi-demo/app"
-	utils "github.com/tendant/db-utils/db"
-	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/pkg/app"
+	"github.com/tendant/simple-idm/pkg/auth"
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
 	authDb "github.com/tendant/simple-idm/pkg/auth/db"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
-	"golang.org/x/exp/slog"
+	"github.com/tendant/simple-idm/pkg/user"
+	userDb "github.com/tendant/simple-idm/pkg/user/db"
+	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 type IdmDbConfig struct {
@@ -79,6 +81,9 @@ func main() {
 	queries := db.New(pool)
 	loginService := login.New(queries)
 
+	// Create user queries
+	userQueries := userDb.New(pool)
+
 	// jwt service
 	jwtService := auth.NewJwtServiceOptions(
 		config.JwtConfig.JwtSecret,
@@ -101,7 +106,7 @@ func main() {
 
 	authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
-	server.R.Mount("/idm", login.Handler(loginHandle))
+	server.R.Mount("/local", login.Handler(loginHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
@@ -131,6 +136,10 @@ func main() {
 		})
 
 		r.Mount("/auth", authpkg.Handler(authHandle))
+		// Initialize user service and handle
+		userService := user.NewUserService(userQueries)
+		userHandle := user.NewHandle(userService)
+		r.Mount("/idm", user.Handler(userHandle))
 	})
 
 	server.Run()

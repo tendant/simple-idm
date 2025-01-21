@@ -33,8 +33,8 @@ type UpdateUserRequest struct {
 }
 
 // Get a list of users
-// (GET /user)
-func (h Handle) GetUser(w http.ResponseWriter, r *http.Request) *Response {
+// (GET /users)
+func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
 	users, err := h.userService.FindUsers(r.Context())
 	if err != nil {
 		slog.Error("Failed getting users", "error", err)
@@ -96,8 +96,8 @@ func (h Handle) GetUser(w http.ResponseWriter, r *http.Request) *Response {
 }
 
 // Create a new user
-// (POST /user)
-func (h Handle) PostUser(w http.ResponseWriter, r *http.Request) *Response {
+// (POST /users)
+func (h Handle) CreateUser(w http.ResponseWriter, r *http.Request) *Response {
 	var request CreateUserRequest
 	if err := render.DecodeJSON(r.Body, &request); err != nil {
 		return &Response{
@@ -166,8 +166,8 @@ func (h Handle) PostUser(w http.ResponseWriter, r *http.Request) *Response {
 }
 
 // Get user details by UUID
-// (GET /user/{uuid})
-func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+// (GET /users/{uuid})
+func (h Handle) GetUser(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
 	userUuid, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
@@ -224,8 +224,8 @@ func (h Handle) GetUserUUID(w http.ResponseWriter, r *http.Request, uuidStr stri
 }
 
 // Update user details by UUID
-// (PUT /user/{uuid})
-func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+// (PUT /users/{uuid})
+func (h Handle) UpdateUser(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
 	userUuid, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
@@ -295,9 +295,9 @@ func (h Handle) PutUserUUID(w http.ResponseWriter, r *http.Request, uuidStr stri
 }
 
 // Delete user by UUID
-// (DELETE /user/{uuid})
-func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
-	userUuid, err := uuid.Parse(uuidStr)
+// (DELETE /users/{uuid})
+func (h Handle) DeleteUsersUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response {
+	userUuid, err := uuid.Parse(uuid)
 	if err != nil {
 		return &Response{
 			body: "Invalid UUID format",
@@ -323,6 +323,6 @@ func (h Handle) DeleteUserUUID(w http.ResponseWriter, r *http.Request, uuidStr s
 func Routes(r *chi.Mux, handle Handle) {
 	r.Group(func(r chi.Router) {
 		// add auth middleware
-		r.Mount("/api/v4", Handler(&handle))
+		r.Mount("/", Handler(&handle))
 	})
 }
