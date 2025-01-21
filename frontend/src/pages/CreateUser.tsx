@@ -6,9 +6,10 @@ import UserForm from '../components/UserForm';
 const CreateUser: Component = () => {
   const navigate = useNavigate();
 
-  const handleSubmit = async (data: { username?: string; password?: string; name?: string }) => {
+  const handleSubmit = async (data: { username?: string; email?: string; password?: string; name?: string }) => {
     await userApi.createUser({
       username: data.username!,
+      email: data.email!,
       password: data.password!,
       name: data.name,
     });

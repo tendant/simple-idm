@@ -5,6 +5,7 @@ interface Props {
   initialData?: User;
   onSubmit: (data: {
     username?: string;
+    email?: string;
     password?: string;
     name?: string;
   }) => Promise<void>;
@@ -13,6 +14,7 @@ interface Props {
 
 const UserForm: Component<Props> = (props) => {
   const [username, setUsername] = createSignal(props.initialData?.username || '');
+  const [email, setEmail] = createSignal(props.initialData?.email || '');
   const [password, setPassword] = createSignal('');
   const [name, setName] = createSignal(props.initialData?.name || '');
   const [error, setError] = createSignal<string | null>(null);
@@ -25,8 +27,9 @@ const UserForm: Component<Props> = (props) => {
 
     try {
       await props.onSubmit({
-        username: props.initialData ? undefined : username(), // Only send username for new users
-        password: password() || undefined, // Only send password if it's set
+        username: username(),
+        email: email(),
+        password: password() || undefined,
         name: name() || undefined,
       });
     } catch (err) {
@@ -53,28 +56,45 @@ const UserForm: Component<Props> = (props) => {
         </div>
       )}
 
-      {!props.initialData && (
-        <div>
-          <label for="username" class="block text-sm font-medium text-gray-11">
-            Username
-          </label>
-          <div class="mt-1">
-            <input
-              type="text"
-              name="username"
-              id="username"
-              required
-              value={username()}
-              onInput={(e) => setUsername(e.currentTarget.value)}
-              class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
+      <div>
+        <label for="username" class="block text-sm font-medium text-gray-11">
+          Username
+        </label>
+        <div class="mt-1">
+          <input
+            type="text"
+            name="username"
+            id="username"
+            required
+            value={username()}
+            onInput={(e) => setUsername(e.currentTarget.value)}
+            class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            disabled={!!props.initialData}
+          />
         </div>
-      )}
+      </div>
+
+      <div>
+        <label for="email" class="block text-sm font-medium text-gray-11">
+          Email
+        </label>
+        <div class="mt-1">
+          <input
+            type="email"
+            name="email"
+            id="email"
+            required
+            value={email()}
+            onInput={(e) => setEmail(e.currentTarget.value)}
+            class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            disabled={!!props.initialData}
+          />
+        </div>
+      </div>
 
       <div>
         <label for="name" class="block text-sm font-medium text-gray-11">
-          Name
+          Full Name
         </label>
         <div class="mt-1">
           <input
@@ -109,7 +129,7 @@ const UserForm: Component<Props> = (props) => {
         <button
           type="submit"
           disabled={loading()}
-          class="flex w-full justify-center rounded-lg border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="w-full rounded-lg border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
         >
           {loading() ? 'Saving...' : props.submitLabel}
         </button>

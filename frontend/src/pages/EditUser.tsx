@@ -24,8 +24,9 @@ const EditUser: Component = () => {
     }
   });
 
-  const handleSubmit = async (data: { username?: string; password?: string; name?: string }) => {
+  const handleSubmit = async (data: { username?: string; email?: string; password?: string; name?: string }) => {
     await userApi.updateUser(params.id, {
+      username: data.username,
       password: data.password,
       name: data.name,
     });

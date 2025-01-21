@@ -74,16 +74,19 @@ const Users: Component = () => {
         <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
           <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
             <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
-              <table class="min-w-full divide-y divide-gray-300">
-                <thead class="bg-gray-50">
+              <table class="min-w-full divide-y divide-gray-6">
+                <thead>
                   <tr>
-                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
+                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-11 sm:pl-6">
                       Name
                     </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
                       Username
                     </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                      Email
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
                       Roles
                     </th>
                     <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
@@ -91,15 +94,20 @@ const Users: Component = () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                  <Show when={!loading()} fallback={<tr><td colspan="4" class="text-center py-4">Loading...</td></tr>}>
+                <tbody class="divide-y divide-gray-6">
+                  <Show when={!loading()} fallback={<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>}>
                     {users().map((user) => (
-                      <tr>
-                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                      <tr key={user.uuid}>
+                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
                           {user.name || '-'}
                         </td>
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{user.username}</td>
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                          {user.username || '-'}
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                          {user.email}
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
                           {user.roles?.map(role => role.name).join(', ') || '-'}
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
@@ -110,7 +118,7 @@ const Users: Component = () => {
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDelete(user.uuid)}
+                            onClick={() => handleDelete(user.uuid!)}
                             class="text-red-600 hover:text-red-900"
                           >
                             Delete
