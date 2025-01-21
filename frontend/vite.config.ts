@@ -12,10 +12,14 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/idm': {
+      '/auth': {
         target: 'http://localhost:4000',
         changeOrigin: true,
       },
+      '/idm': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      }
     },
   },
   build: {

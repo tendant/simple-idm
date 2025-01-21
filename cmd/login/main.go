@@ -15,7 +15,7 @@ import (
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
-	authDb "github.com/tendant/simple-idm/pkg/auth/db"
+	// authDb "github.com/tendant/simple-idm/pkg/auth/db"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/pkg/user"
@@ -92,21 +92,21 @@ func main() {
 	)
 
 	// auth queries
-	authQueries := authDb.New(pool)
+	// authQueries := authDb.New(pool)
 
 	// auth login service
 	var pwdComplex authpkg.PasswordComplexity
 	copier.Copy(&pwdComplex, &config.PasswordComplexityConfig)
-	authLoginService := authpkg.NewAuthLoginService(
-		authQueries,
-		authpkg.WithPwdComplex(pwdComplex),
-	)
+	// authLoginService := authpkg.NewAuthLoginService(
+	// 	authQueries,
+	// 	authpkg.WithPwdComplex(pwdComplex),
+	// )
 
 	loginHandle := login.NewHandle(loginService, *jwtService)
 
-	authHandle := authpkg.NewHandle(*jwtService, authLoginService)
+	// authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
-	server.R.Mount("/local", login.Handler(loginHandle))
+	server.R.Mount("/auth", login.Handler(loginHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
@@ -135,7 +135,7 @@ func main() {
 			render.PlainText(w, r, http.StatusText(http.StatusOK))
 		})
 
-		r.Mount("/auth", authpkg.Handler(authHandle))
+		// r.Mount("/auth", authpkg.Handler(authHandle))
 		// Initialize user service and handle
 		userService := user.NewUserService(userQueries)
 		userHandle := user.NewHandle(userService)
