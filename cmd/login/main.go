@@ -18,6 +18,7 @@ import (
 	roleDb "github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
+	"github.com/tendant/simple-idm/pkg/role"
 	"github.com/tendant/simple-idm/pkg/user"
 	userDb "github.com/tendant/simple-idm/pkg/user/db"
 )
