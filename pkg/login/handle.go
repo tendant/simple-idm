@@ -256,23 +256,30 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		}
 	}
 
-	slog.Info("role", "role", customClaims["role"].([]interface{}))
-	role, ok := customClaims["role"].([]interface{})
-	if !ok {
-		slog.Error("missing or invalid role in claims", "ok", ok)
-		return &Response{
-			body: "Unauthorized",
-			Code: http.StatusUnauthorized,
-		}
-	}
-
+	// Initialize empty roles slice
 	var roles []string
-	for _, role := range role {
-		strRole, ok := role.(string)
+	
+	// Safely check if role exists in claims
+	if roleClaim, exists := customClaims["role"]; exists && roleClaim != nil {
+		roleSlice, ok := roleClaim.([]interface{})
 		if !ok {
-			slog.Error("invalid role value: not a string")
+			slog.Error("invalid role format in claims")
+			return &Response{
+				body: "Unauthorized",
+				Code: http.StatusUnauthorized,
+			}
 		}
-		roles = append(roles, strRole)
+
+		// Convert roles to strings
+		for _, r := range roleSlice {
+			if strRole, ok := r.(string); ok {
+				roles = append(roles, strRole)
+			} else {
+				slog.Error("invalid role value: not a string")
+			}
+		}
+	} else {
+		slog.Info("no roles found in claims")
 	}
 
 	// Create the IdmUser object
