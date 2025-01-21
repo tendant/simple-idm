@@ -140,6 +140,9 @@ type ServerInterface interface {
 	// Create a new role
 	// (POST /)
 	Post(w http.ResponseWriter, r *http.Request) *Response
+	// Delete a role
+	// (DELETE /{uuid})
+	DeleteUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response
 	// Get a role by UUID
 	// (GET /{uuid})
 	GetUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response
@@ -178,6 +181,32 @@ func (siw *ServerInterfaceWrapper) Post(w http.ResponseWriter, r *http.Request) 
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Post(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// DeleteUUID operation middleware
+func (siw *ServerInterfaceWrapper) DeleteUUID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "uuid" -------------
+	var uuid string
+
+	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.DeleteUUID(w, r, uuid)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -359,6 +388,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Get("/", wrapper.Get)
 		r.Post("/", wrapper.Post)
+		r.Delete("/{uuid}", wrapper.DeleteUUID)
 		r.Get("/{uuid}", wrapper.GetUUID)
 		r.Put("/{uuid}", wrapper.PutUUID)
 	})
@@ -386,14 +416,15 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9SVz2obMRDGX0XMeYnXbU66NS0UQwuh4FPJYbI7dhRWfzoauV2WffcyctzWtdNSAg25",
-	"WObTaEbzzU/sBF30KQYKksFOcwMubCLYCcTJQGDhUxzIfMSAW/IUxLy5XkEDO+LsYgALy4v2ooW5gZgo",
-	"YHJg4XWVGkgod5oVFvqzJdElJmIUF8OqBwvvSaABppxiyFSDX7WtLl0MQqEewZQG19VDi/usVSfI3R15",
-	"1H9OyNeDiTW3uH2agJ507Sl37JLsb1u7qVsNyJi0wSzswlY7KMX1emQT2aOA3QsngfMPJd7eUyfwU0Bm",
-	"HGHWkOO6H1wWEzeG40C5psjFe+Rx74FBMxxHNJBiPmPYtarq2JdCWa5iP/6TWU/06LR1lfQyjqkHK1xo",
-	"Ppnn8pEaHRMK9b/Z8baqBk2gr9WNur+YdBjzn0Bar1fvKnWMnoQ4g/08gdNySiI0D/0exnp87eYXl/4G",
-	"wM0TkX0+Uk/JrHV6EnRDxe6yvXzsMlHMJpbQn+VXJ2VuR1OnoPiWc/SW/z2lF/RMXjhDJfVnXvO6qgaD",
-	"oW8uiwvbw5vWMOLdgYDjjFeYST815oGJwgNYWGByi90S5pv5ewAAAP//2YYDubkGAAA=",
+	"H4sIAAAAAAAC/9RVUWvbMBD+K+KeRe1ufdLbusIIbFAGeRp9uNqXVMWWNOmUzRj/93Fysi11wtgKHX2J",
+	"wqfT6b7vu5NHaHwfvCPHCcw4abBu48GMwJY7AgOffUfqEzrcUk+O1bvbFWjYUUzWOzBweVFf1DBp8IEc",
+	"BgsG3hZIQ0B+kKxQyc+WWBYfKCJb71YtGPhADBoipeBdohL8pq5labxjcuUIhtDZphyqHpPcOkJqHqhH",
+	"+WeZ+nIwRMnNdk7jsCdZW0pNtIHnagubsqWBhyAEE0frtsIgZ9vKkY2PPTKYGVgETj8Rf/9IDcMvAGPE",
+	"ASYJOb73o02s/EZF31EqKVLue4zDrIFC1R1HaAg+nRDsVlBR7GumxNe+Hf5KrGdqtKQukBRjI7VgOGaa",
+	"Fn5enrmjiYRM7RM53hdUoXL0rahR9qtRzJjmTB0xLaW5Kfh6vbopvRexJ6aYwHwZwcql0o+g96wP5h4X",
+	"r3/T6k9tcLcgenWG6FxxK65enQ1yntXGZ/dUj5mWwr0W+uwg/U/m9Ut24TMmdTmZe4MYbZf+zaB5fsUd",
+	"dT+o4oKMbz41vfmlXXpFz8Qr76Ec2hOv2bqgCp2i7zaxddvDmyZhFHeHDjjOeI2J5FOr9j2RYwcGKgy2",
+	"2l3CdDf9CAAA///DtsBluQcAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

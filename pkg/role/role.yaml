@@ -99,3 +99,17 @@ paths:
                   name:
                     type: string
                     description: Role name
+    delete:
+      summary: Delete a role
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Role deleted
+        "404":
+          description: Role not found

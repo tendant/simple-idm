@@ -16,9 +16,10 @@ INSERT INTO roles (name) VALUES ($1) RETURNING uuid
 `
 
 func (q *Queries) CreateRole(ctx context.Context, name string) (uuid.UUID, error) {
-	var id uuid.UUID
-	err := q.db.QueryRow(ctx, createRole, name).Scan(&id)
-	return id, err
+	row := q.db.QueryRow(ctx, createRole, name)
+	var uuid uuid.UUID
+	err := row.Scan(&uuid)
+	return uuid, err
 }
 
 const deleteRole = `-- name: DeleteRole :exec
@@ -77,6 +78,19 @@ func (q *Queries) GetRoleUUID(ctx context.Context, argUuid uuid.UUID) (GetRoleUU
 	var i GetRoleUUIDRow
 	err := row.Scan(&i.Uuid, &i.Name)
 	return i, err
+}
+
+const hasUsers = `-- name: HasUsers :one
+SELECT EXISTS (
+    SELECT 1 FROM user_roles WHERE role_uuid = $1
+) as has_users
+`
+
+func (q *Queries) HasUsers(ctx context.Context, roleUuid uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, hasUsers, roleUuid)
+	var has_users bool
+	err := row.Scan(&has_users)
+	return has_users, err
 }
 
 const updateRole = `-- name: UpdateRole :exec

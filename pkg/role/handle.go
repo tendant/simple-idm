@@ -176,3 +176,38 @@ func (h *Handle) PutUUID(w http.ResponseWriter, r *http.Request, uuidStr string)
 		},
 	}
 }
+
+// DeleteUUID handles deleting a role
+func (h *Handle) DeleteUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+	roleUUID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: fmt.Sprintf("invalid UUID format: %v", err),
+		}
+	}
+
+	err = h.roleService.DeleteRole(r.Context(), roleUUID)
+	if err != nil {
+		if errors.Is(err, ErrRoleNotFound) {
+			return &Response{
+				Code: http.StatusNotFound,
+				body: fmt.Sprintf("role not found: %v", err),
+			}
+		}
+		if errors.Is(err, ErrRoleHasUsers) {
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: "Cannot delete role that has users assigned. Please remove all users from the role first.",
+			}
+		}
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: fmt.Sprintf("failed to delete role: %v", err),
+		}
+	}
+
+	return &Response{
+		Code: http.StatusNoContent,
+	}
+}

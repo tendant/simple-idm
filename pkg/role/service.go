@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/google/uuid"
@@ -12,6 +13,7 @@ import (
 var (
 	ErrEmptyRoleName = errors.New("role name cannot be empty")
 	ErrRoleNotFound  = errors.New("role not found")
+	ErrRoleHasUsers  = errors.New("cannot delete role that has users assigned")
 )
 
 // RoleService provides methods for role management
@@ -57,7 +59,31 @@ func (s *RoleService) UpdateRole(ctx context.Context, id uuid.UUID, name string)
 
 // DeleteRole removes a role
 func (s *RoleService) DeleteRole(ctx context.Context, id uuid.UUID) error {
-	return s.queries.DeleteRole(ctx, id)
+	// Check if role exists
+	_, err := s.queries.GetRoleUUID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrRoleNotFound
+		}
+		return fmt.Errorf("error checking role existence: %w", err)
+	}
+
+	// Check if role has any users
+	hasUsers, err := s.queries.HasUsers(ctx, id)
+	if err != nil {
+		return fmt.Errorf("error checking if role has users: %w", err)
+	}
+	if hasUsers {
+		return ErrRoleHasUsers
+	}
+
+	// Delete the role
+	err = s.queries.DeleteRole(ctx, id)
+	if err != nil {
+		return fmt.Errorf("error deleting role: %w", err)
+	}
+
+	return nil
 }
 
 // GetRole retrieves a role by UUID
