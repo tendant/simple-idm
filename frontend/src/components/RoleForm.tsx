@@ -51,11 +51,17 @@ const RoleForm: Component<Props> = (props) => {
     }
   };
 
-  const handleRemoveUser = async (userUuid: string) => {
-    if (!props.initialData?.uuid) return;
+  const handleRemoveUser = async (user: RoleUser) => {
+    if (!props.initialData?.uuid || !user.uuid) return;
+
+    // Show confirmation dialog
+    const userName = user.name || user.email || user.username;
+    if (!window.confirm(`Are you sure you want to remove ${userName} from this role? This action cannot be undone.`)) {
+      return;
+    }
 
     try {
-      await roleApi.removeUserFromRole(props.initialData.uuid, userUuid);
+      await roleApi.removeUserFromRole(props.initialData.uuid, user.uuid);
       // Refresh the users list
       await loadUsers();
     } catch (error) {
@@ -66,15 +72,24 @@ const RoleForm: Component<Props> = (props) => {
 
   return (
     <form onSubmit={handleSubmit} class="space-y-6">
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Role Name</label>
-        <input
-          type="text"
-          value={name()}
-          onInput={(e) => setName(e.currentTarget.value)}
-          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          required
-        />
+      <div class="max-w-lg">
+        <label class="block text-base font-medium text-gray-700 mb-2">Role Name</label>
+        <div class="flex space-x-4">
+          <input
+            type="text"
+            value={name()}
+            onInput={(e) => setName(e.currentTarget.value)}
+            class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-base py-2"
+            required
+          />
+          <button
+            type="submit"
+            disabled={loading()}
+            class="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+          >
+            {loading() ? 'Loading...' : props.submitLabel}
+          </button>
+        </div>
       </div>
 
       {error() && (
@@ -82,16 +97,6 @@ const RoleForm: Component<Props> = (props) => {
           <div class="text-sm text-red-700">{error()}</div>
         </div>
       )}
-
-      <div class="flex justify-end">
-        <button
-          type="submit"
-          disabled={loading()}
-          class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
-        >
-          {loading() ? 'Loading...' : props.submitLabel}
-        </button>
-      </div>
 
       {props.initialData && (
         <div class="mt-8">
@@ -127,7 +132,7 @@ const RoleForm: Component<Props> = (props) => {
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                           <button
                             type="button"
-                            onClick={() => user.uuid && handleRemoveUser(user.uuid)}
+                            onClick={() => handleRemoveUser(user)}
                             class="text-red-600 hover:text-red-900"
                           >
                             Remove
