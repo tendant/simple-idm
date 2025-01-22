@@ -149,6 +149,7 @@ func main() {
 		r.Mount("/idm/roles", role.Handler(roleHandle))
 	})
 
+	app.RoutesHealthzReady(server.R)
 	server.Run()
 
 }
