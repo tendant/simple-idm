@@ -150,6 +150,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Tokens'
+  /mobile/login:
+    post:
+      summary: Mobile login endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+              required:
+                - username
+                - password
+      responses:
+        "200":
+          description: Mobile login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    description: JWT access token
+                  refreshToken:
+                    type: string
+                    description: JWT refresh token
+                required:
+                  - accessToken
+                  - refreshToken
 components:
   schemas:
     Login:
@@ -226,4 +260,5 @@ components:
         refreshToken:
           type: string
       required:
-        - username
+        - accessToken
+        - refreshToken
