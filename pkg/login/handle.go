@@ -315,6 +315,95 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 }
 
+// PostMobileLogin handles mobile login requests
+// (POST /mobile/login)
+func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Response {
+	data := PostLoginJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+
+	loginParams := LoginParams{}
+	copier.Copy(&loginParams, data)
+	dbUsers, err := h.loginService.Login(r.Context(), loginParams)
+	if err != nil || len(dbUsers) == 0 {
+		slog.Error("User does not exist", "err", err)
+		return &Response{
+			body: "Username/Password is wrong",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	if len(dbUsers) > 1 {
+		slog.Error("Multiple user records with same username", "username", loginParams.Username)
+		return &Response{
+			body: "Username/Password is wrong",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	valid, err := CheckPasswordHash(data.Password, dbUsers[0].Password.String)
+	if err != nil {
+		slog.Error("Failed checking password hash", "err", err)
+		return &Response{
+			body: "Username/Password is wrong",
+			Code: http.StatusUnauthorized,
+		}
+	}
+	if !valid {
+		slog.Error("Passwords does not match")
+		return &Response{
+			body: "Username/Password is wrong",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Find users related role
+	roles, err := h.loginService.FindUserRoles(r.Context(), dbUsers[0].Uuid)
+	if err != nil {
+		slog.Error("failed to find user roles", "user_uuid", dbUsers[0].Uuid, "err", err)
+		return &Response{
+			body: "Internal error",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	tokenUser := IdmUser{
+		UserUuid: dbUsers[0].Uuid.String(),
+		Role:     utils.GetValidStrings(roles),
+	}
+
+	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
+	if err != nil {
+		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
+		return &Response{
+			body: "Failed to create access token",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	refreshToken, err := h.jwtService.CreateRefreshToken(tokenUser)
+	if err != nil {
+		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
+		return &Response{
+			body: "Failed to create refresh token",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	return PostMobileLoginJSON200Response(struct {
+		AccessToken  string `json:"accessToken"`
+		RefreshToken string `json:"refreshToken"`
+	}{
+		AccessToken:  accessToken.Token,
+		RefreshToken: refreshToken.Token,
+	})
+}
+
 // Register a new user
 // (POST /register)
 func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
