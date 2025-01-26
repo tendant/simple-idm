@@ -1,20 +1,22 @@
 import { Component, createSignal } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import { Alert, AlertDescription } from "~/components/ui/alert";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const PasswordResetInit: Component = () => {
   const [email, setEmail] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal(false);
+  const [loading, setLoading] = createSignal(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
     setError(null);
+    setLoading(true);
     
     try {
       const response = await fetch('/api/password/reset/init', {
@@ -32,6 +34,8 @@ const PasswordResetInit: Component = () => {
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to initiate password reset');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,9 +49,11 @@ const PasswordResetInit: Component = () => {
           <form onSubmit={handleSubmit} class="space-y-4">
             {success() ? (
               <div class="space-y-4">
-                <p class="text-sm text-muted-foreground">
-                  If an account exists with that email, you will receive a password reset code.
-                </p>
+                <Alert class="mt-4">
+                  <AlertDescription>
+                    If an account exists with that email, we have sent password reset instructions.
+                  </AlertDescription>
+                </Alert>
                 <Button 
                   type="button"
                   onClick={() => navigate('/password-reset')}
@@ -64,27 +70,25 @@ const PasswordResetInit: Component = () => {
                     id="email"
                     type="email"
                     value={email()}
-                    onInput={(e) => setEmail(e.currentTarget.value)}
-                    placeholder="Enter your email"
+                    onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </div>
                 {error() && (
-                  <Alert variant="destructive">
+                  <Alert class="mt-4" variant="destructive">
                     <AlertDescription>{error()}</AlertDescription>
                   </Alert>
                 )}
-                <div class="space-y-2">
-                  <Button type="submit" class="w-full">
-                    Send Reset Code
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                <div class="flex justify-between">
+                  <Button
+                    type="button"
                     onClick={() => navigate('/login')}
-                    class="w-full"
+                    class="text-sm text-gray-500 hover:text-gray-900"
                   >
                     Back to Login
+                  </Button>
+                  <Button type="submit" disabled={loading()}>
+                    {loading() ? 'Sending...' : 'Send Reset Instructions'}
                   </Button>
                 </div>
               </>
