@@ -107,12 +107,21 @@ const Login: Component = () => {
               </button>
             </div>
             <div class="text-center">
-              <A
-                href="/password-reset-init"
-                class="text-sm text-blue-600 hover:text-blue-500"
-              >
-                Forgot your password?
-              </A>
+              <div class="flex justify-center space-x-4">
+                <A
+                  href="/password-reset-init"
+                  class="text-sm text-blue-600 hover:text-blue-500"
+                >
+                  Forgot your password?
+                </A>
+                <span class="text-gray-8">•</span>
+                <A
+                  href="/find-username"
+                  class="text-sm text-blue-600 hover:text-blue-500"
+                >
+                  Forgot your username?
+                </A>
+              </div>
             </div>
           </form>
         </div>

@@ -19,6 +19,10 @@ interface UpdateUserRequest {
   role_uuids?: string[];
 }
 
+interface FindUsernameRequest {
+  email: string;
+}
+
 interface User {
   uuid?: string;
   email?: string;
@@ -117,6 +121,21 @@ export const userApi = {
 
     if (!response.ok) {
       throw new Error('Failed to delete user');
+    }
+  },
+
+  findUsername: async (email: string): Promise<void> => {
+    const response = await apiClient('/auth/username/find', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+      skipAuth: true,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to find username');
     }
   },
 };
