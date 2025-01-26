@@ -54,28 +54,37 @@ func (nm *NotificationManager) RegisterNotification(notifType NotificationType, 
 	return nil
 }
 
-// Send sends a notification using the specified system and type.
-func (nm *NotificationManager) Send(notifType NotificationType, system NotificationSystem, notification NotificationData) error {
-	// Check if the template exists for the notification type and system
+// Send sends a notification to all systems registered for the specified notification type.
+func (nm *NotificationManager) Send(notifType NotificationType, notification NotificationData) error {
+	// Check if the notification type exists in the registry
 	systemTemplates, exists := nm.notificationRegistry[notifType]
 	if !exists {
 		return fmt.Errorf("no templates registered for notification type: %s", notifType)
 	}
 
-	templatePath, exists := systemTemplates[system]
-	if !exists {
-		return fmt.Errorf("no template registered for system: %s under notification type: %s", system, notifType)
+	var lastError error
+
+	// Iterate through all systems registered for the notification type
+	for system, templatePath := range systemTemplates {
+		// Get the notifier for the current system
+		notifier, notifierExists := nm.notifiers[system]
+		if !notifierExists {
+			fmt.Printf("Warning: No notifier registered for system: %s. Skipping.\n", system)
+			continue
+		}
+
+		// Render the template (if applicable)
+		fmt.Printf("Using template for system %s: %s\n", system, templatePath)
+
+		// Send the notification using the notifier
+		err := notifier.Send(notifType, notification)
+		if err != nil {
+			// Log the error and store it as the last error (if any)
+			fmt.Printf("Error sending notification via %s: %v\n", system, err)
+			lastError = err
+		}
 	}
 
-	// Get the notifier for the system
-	notifier, exists := nm.notifiers[system]
-	if !exists {
-		return fmt.Errorf("no notifier registered for system: %s", system)
-	}
-
-	// Here, you would typically render the template using the templatePath and data
-	fmt.Printf("Using template: %s\n", templatePath)
-
-	// Send the notification using the notifier
-	return notifier.Send(notification)
+	// Return the last error if any occurred during the process
+	return lastError
 }

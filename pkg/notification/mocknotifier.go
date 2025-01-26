@@ -1,10 +1,10 @@
 package notification
 
 type MockNotifier struct {
-    SentNotifications []NotificationData
+	SentNotifications []NotificationData
 }
 
-func (m *MockNotifier) Send(notification NotificationData) error {
-    m.SentNotifications = append(m.SentNotifications, notification)
-    return nil
+func (m *MockNotifier) Send(notificationType NotificationType, notification NotificationData) error {
+	m.SentNotifications = append(m.SentNotifications, notification)
+	return nil
 }
