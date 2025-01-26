@@ -19,6 +19,15 @@ type GooseDbVersion struct {
 	Tstamp    time.Time `json:"tstamp"`
 }
 
+type PasswordResetToken struct {
+	Uuid      uuid.UUID          `json:"uuid"`
+	UserUuid  uuid.UUID          `json:"user_uuid"`
+	Token     string             `json:"token"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ExpireAt  pgtype.Timestamptz `json:"expire_at"`
+	UsedAt    pgtype.Timestamptz `json:"used_at"`
+}
+
 type Role struct {
 	Uuid        uuid.UUID   `json:"uuid"`
 	Name        string      `json:"name"`

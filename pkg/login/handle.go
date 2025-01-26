@@ -1,10 +1,7 @@
 package login
 
 import (
-	"crypto/sha256"
-	"database/sql"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -12,12 +9,22 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/utils"
+	"golang.org/x/exp/slog"
 )
 
 const (
 	ACCESS_TOKEN_NAME  = "accessToken"
 	REFRESH_TOKEN_NAME = "refreshToken"
 )
+
+type PasswordResetInitJSONRequestBody struct {
+	Username string `json:"username"`
+}
+
+type PasswordResetJSONRequestBody struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
 
 type Handle struct {
 	loginService *LoginService
@@ -139,7 +146,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 }
 
 func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response {
-	var body PostPasswordResetInitJSONBody
+	var body PasswordResetInitJSONRequestBody
 
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -147,74 +154,70 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 		http.Error(w, "Failed extracting username", http.StatusBadRequest)
 		return nil
 	}
-	if body.Username != "" {
-		username := sql.NullString{
-			String: body.Username,
-			Valid:  true,
-		}
-		uuid, err := h.loginService.queries.InitPasswordByUsername(r.Context(), username)
-		if err != nil {
-			// Log the error but return 200 to prevent username enumeration
-			slog.Info("User not found for password reset", "username", username.String)
-			return &Response{
-				body:        []byte{},
-				Code:        200,
-				contentType: "application/json",
-			}
-		}
 
-		hash := sha256.New()
-		hash.Write([]byte(uuid.String()))
-		code := hash.Sum(nil)
+	if body.Username == "" {
 		return &Response{
-			body:        code,
-			Code:        200,
+			body: map[string]string{
+				"message": "Username is required",
+			},
+			Code:        400,
 			contentType: "application/json",
 		}
+	}
 
-	} else {
-		slog.Error("Username is missing in the request body")
-		http.Error(w, "Username is required", http.StatusBadRequest)
-		return nil
+	err = h.loginService.InitPasswordReset(r.Context(), body.Username)
+	if err != nil {
+		// Log the error but return 200 to prevent username enumeration
+		slog.Info("Failed to init password reset", "err", err, "username", body.Username)
+	}
+
+	return &Response{
+		body: map[string]string{
+			"message": "If an account exists with that username, we will send a password reset link to the associated email.",
+		},
+		Code:        200,
+		contentType: "application/json",
 	}
 }
 
 func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Response {
+	var body PasswordResetJSONRequestBody
 
-	data := PostPasswordResetJSONBody{}
-	err := render.DecodeJSON(r.Body, &data)
+	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
+		slog.Error("Failed extracting password reset data", "err", err)
+		http.Error(w, "Failed extracting password reset data", http.StatusBadRequest)
+		return nil
+	}
+
+	if body.Token == "" || body.NewPassword == "" {
 		return &Response{
-			Code: http.StatusBadRequest,
-			body: "unable to parse body",
+			body: map[string]string{
+				"message": "Token and new password are required",
+			},
+			Code:        400,
+			contentType: "application/json",
 		}
 	}
 
-	// FIXME: validate data.code
-	// slog.Info("password reset", "data", data)
-
-	if data.Code == "" || data.Password == "" {
-		slog.Error("Invalid Request.")
-		return &Response{
-			body: "Invalid Request.",
-			Code: http.StatusBadRequest,
-		}
-	}
-
-	// FIXME: hash/encode data.password, then write to database
-	resetPasswordParams := PasswordReset{}
-	copier.Copy(&resetPasswordParams, data)
-	err = h.loginService.ResetPasswordUsers(r.Context(), resetPasswordParams)
+	err = h.loginService.ResetPassword(r.Context(), body.Token, body.NewPassword)
 	if err != nil {
-		slog.Error("Failed updating password", "err", err)
+		slog.Error("Failed to reset password", "err", err)
 		return &Response{
-			body: "Failed updating password",
-			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"message": "Invalid or expired reset token",
+			},
+			Code:        400,
+			contentType: "application/json",
 		}
 	}
 
 	return &Response{
-		Code: http.StatusOK,
+		body: map[string]string{
+			"message": "Password has been reset successfully",
+		},
+		Code:        200,
+		contentType: "application/json",
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/role"
 	"github.com/tendant/simple-idm/pkg/user"
 	userDb "github.com/tendant/simple-idm/pkg/user/db"
+	"github.com/tendant/simple-idm/pkg/email"
 )
 
 type IdmDbConfig struct {
@@ -35,6 +36,14 @@ type JwtConfig struct {
 	JwtSecret      string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
 	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
 	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
+}
+
+type EmailConfig struct {
+	Host     string `env:"EMAIL_HOST" env-default:"localhost"`
+	Port     uint16 `env:"EMAIL_PORT" env-default:"587"`
+	Username string `env:"EMAIL_USERNAME" env-default:"username"`
+	Password string `env:"EMAIL_PASSWORD" env-default:"password"`
+	From     string `env:"EMAIL_FROM" env-default:"from@example.com"`
 }
 
 func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
@@ -59,6 +68,7 @@ type Config struct {
 	IdmDbConfig              IdmDbConfig
 	AppConfig                app.AppConfig
 	JwtConfig                JwtConfig
+	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
 }
 
@@ -80,7 +90,18 @@ func main() {
 	}
 
 	queries := db.New(pool)
-	loginService := login.New(queries)
+	emailService, err := email.NewService(email.Config{
+		Host:     config.EmailConfig.Host,
+		Port:     int(config.EmailConfig.Port),
+		Username: config.EmailConfig.Username,
+		Password: config.EmailConfig.Password,
+		From:     config.EmailConfig.From,
+	})
+	if err != nil {
+		slog.Error("failed to create email service", "error", err)
+		return
+	}
+	loginService := login.NewLoginService(queries, emailService)
 
 	// Create user queries
 	userQueries := userDb.New(pool)

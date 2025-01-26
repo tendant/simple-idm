@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jinzhu/copier"
+	"github.com/tendant/simple-idm/pkg/email"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/crypto/bcrypt"
@@ -15,11 +18,13 @@ import (
 
 type LoginService struct {
 	queries *db.Queries
+	email   *email.Service
 }
 
-func New(queries *db.Queries) *LoginService {
+func NewLoginService(queries *db.Queries, emailService *email.Service) *LoginService {
 	return &LoginService{
 		queries: queries,
+		email:   emailService,
 	}
 }
 
@@ -119,8 +124,83 @@ func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (db.FindUse
 }
 
 func (s *LoginService) SendUsernameEmail(ctx context.Context, email string, username string) error {
-	// TODO: Implement email sending logic
-	// This is a placeholder for the actual email sending implementation
-	slog.Info("Would send username email", "email", email, "username", username)
+	return s.email.SendUsernameReminder(email, username)
+}
+
+func (s *LoginService) SendPasswordResetEmail(ctx context.Context, email string, resetToken string) error {
+	resetLink := fmt.Sprintf("http://localhost:3000/password-reset?token=%s", resetToken)
+	return s.email.SendPasswordResetLink(email, resetLink)
+}
+
+// ResetPassword validates the reset token and updates the user's password
+func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	// Validate token and get user info
+	tokenInfo, err := s.queries.ValidatePasswordResetToken(ctx, token)
+	if err != nil {
+		return fmt.Errorf("invalid or expired reset token")
+	}
+
+	// Hash the new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Update password
+	err = s.queries.ResetPasswordByUuid(ctx, db.ResetPasswordByUuidParams{
+		Password: sql.NullString{String: string(hashedPassword), Valid: true},
+		Uuid:    tokenInfo.UserUuid,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	// Mark token as used
+	err = s.queries.MarkPasswordResetTokenUsed(ctx, token)
+	if err != nil {
+		slog.Error("Failed to mark token as used", "err", err)
+		// Don't return error as password was successfully reset
+	}
+
+	return nil
+}
+
+// InitPasswordReset generates a reset token and sends a reset email
+func (s *LoginService) InitPasswordReset(ctx context.Context, username string) error {
+	// Find user by username
+	users, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(username))
+	if err != nil || len(users) == 0 {
+		return fmt.Errorf("user not found")
+	}
+	user := users[0]
+
+	// Generate reset token
+	resetToken := utils.GenerateRandomString(32)
+
+	// Save token
+	expireAt := pgtype.Timestamptz{}
+	err = expireAt.Scan(time.Now().Add(24 * time.Hour))
+	if err != nil {
+		return fmt.Errorf("failed to create expiry time: %w", err)
+	}
+
+	err = s.queries.InitPasswordResetToken(ctx, db.InitPasswordResetTokenParams{
+		UserUuid: user.Uuid,
+		Token:    resetToken,
+		ExpireAt: expireAt,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to save reset token: %w", err)
+	}
+
+	// Send reset email
+	if user.Email == "" {
+		return fmt.Errorf("user has no email address")
+	}
+	err = s.SendPasswordResetEmail(ctx, user.Email, resetToken)
+	if err != nil {
+		return fmt.Errorf("failed to send reset email: %w", err)
+	}
+
 	return nil
 }

@@ -7,6 +7,8 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
+	"github.com/tendant/simple-idm/pkg/email"
+	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/user"
 	"github.com/tendant/simple-idm/pkg/user/db"
 	"golang.org/x/exp/slog"
@@ -50,10 +52,28 @@ func main() {
 		os.Exit(-1)
 	}
 
+	// Initialize email service
+	emailConfig, err := email.LoadConfigFromEnv()
+	if err != nil {
+		slog.Error("Failed to load email config", "err", err)
+		os.Exit(-1)
+	}
+
+	emailService, err := email.NewService(emailConfig)
+	if err != nil {
+		slog.Error("Failed to create email service", "err", err)
+		os.Exit(-1)
+	}
+
 	queries := db.New(pool)
 	userService := user.NewUserService(queries)
-	handler := user.NewHandle(userService)
-	user.Routes(myApp.R, handler)
+	userHandler := user.NewHandle(userService)
+	user.Routes(myApp.R, userHandler)
+
+	// Initialize login service with email
+	loginService := login.NewLoginService(queries, emailService)
+	loginHandler := login.NewHandle(loginService)
+	login.Routes(myApp.R, loginHandler)
 
 	myApp.Run()
 

@@ -30,9 +30,13 @@ SET password = $1,
 WHERE email = $2; 
 
 -- name: FindUserByUsername :many
-SELECT users.uuid, name, username, email, password
-FROM users
-WHERE username = $1;
+SELECT u.uuid, u.username, u.password, u.email, u.name, u.created_at, u.last_modified_at,
+       array_agg(r.name) as roles
+FROM users u
+LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
+LEFT JOIN roles r ON ur.role_uuid = r.uuid
+WHERE u.username = $1
+GROUP BY u.uuid, u.username, u.password, u.email, u.name, u.created_at, u.last_modified_at;
 
 -- name: InitPasswordByUsername :one
 SELECT uuid
@@ -57,3 +61,27 @@ LEFT JOIN public.user_roles ur ON u.uuid = ur.user_uuid
 LEFT JOIN public.roles r ON ur.role_uuid = r.uuid
 WHERE u.uuid = $1
 GROUP BY u.email, u.username, u.name;
+
+-- name: InitPasswordResetToken :exec
+INSERT INTO password_reset_tokens (user_uuid, token, expire_at)
+VALUES ($1, $2, $3);
+
+-- name: ValidatePasswordResetToken :one
+SELECT prt.uuid as uuid, prt.user_uuid as user_uuid, u.email as email
+FROM password_reset_tokens prt
+JOIN users u ON u.uuid = prt.user_uuid
+WHERE prt.token = $1
+  AND prt.expire_at > NOW()
+  AND prt.used_at IS NULL
+LIMIT 1;
+
+-- name: MarkPasswordResetTokenUsed :exec
+UPDATE password_reset_tokens
+SET used_at = NOW()
+WHERE token = $1;
+
+-- name: ResetPasswordByUuid :exec
+UPDATE users
+SET password = $1,
+    last_modified_at = NOW()
+WHERE uuid = $2;

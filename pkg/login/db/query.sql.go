@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const emailVerify = `-- name: EmailVerify :exec
@@ -50,17 +51,24 @@ func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, erro
 }
 
 const findUserByUsername = `-- name: FindUserByUsername :many
-SELECT users.uuid, name, username, email, password
-FROM users
-WHERE username = $1
+SELECT u.uuid, u.username, u.password, u.email, u.name, u.created_at, u.last_modified_at,
+       array_agg(r.name) as roles
+FROM users u
+LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
+LEFT JOIN roles r ON ur.role_uuid = r.uuid
+WHERE u.username = $1
+GROUP BY u.uuid, u.username, u.password, u.email, u.name, u.created_at, u.last_modified_at
 `
 
 type FindUserByUsernameRow struct {
-	Uuid     uuid.UUID      `json:"uuid"`
-	Name     sql.NullString `json:"name"`
-	Username sql.NullString `json:"username"`
-	Email    string         `json:"email"`
-	Password sql.NullString `json:"password"`
+	Uuid           uuid.UUID      `json:"uuid"`
+	Username       sql.NullString `json:"username"`
+	Password       sql.NullString `json:"password"`
+	Email          string         `json:"email"`
+	Name           sql.NullString `json:"name"`
+	CreatedAt      time.Time      `json:"created_at"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	Roles          interface{}    `json:"roles"`
 }
 
 func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullString) ([]FindUserByUsernameRow, error) {
@@ -74,10 +82,13 @@ func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullStrin
 		var i FindUserByUsernameRow
 		if err := rows.Scan(
 			&i.Uuid,
-			&i.Name,
 			&i.Username,
-			&i.Email,
 			&i.Password,
+			&i.Email,
+			&i.Name,
+			&i.CreatedAt,
+			&i.LastModifiedAt,
+			&i.Roles,
 		); err != nil {
 			return nil, err
 		}
@@ -227,6 +238,33 @@ func (q *Queries) InitPasswordByUsername(ctx context.Context, username sql.NullS
 	return uuid, err
 }
 
+const initPasswordResetToken = `-- name: InitPasswordResetToken :exec
+INSERT INTO password_reset_tokens (user_uuid, token, expire_at)
+VALUES ($1, $2, $3)
+`
+
+type InitPasswordResetTokenParams struct {
+	UserUuid uuid.UUID          `json:"user_uuid"`
+	Token    string             `json:"token"`
+	ExpireAt pgtype.Timestamptz `json:"expire_at"`
+}
+
+func (q *Queries) InitPasswordResetToken(ctx context.Context, arg InitPasswordResetTokenParams) error {
+	_, err := q.db.Exec(ctx, initPasswordResetToken, arg.UserUuid, arg.Token, arg.ExpireAt)
+	return err
+}
+
+const markPasswordResetTokenUsed = `-- name: MarkPasswordResetTokenUsed :exec
+UPDATE password_reset_tokens
+SET used_at = NOW()
+WHERE token = $1
+`
+
+func (q *Queries) MarkPasswordResetTokenUsed(ctx context.Context, token string) error {
+	_, err := q.db.Exec(ctx, markPasswordResetTokenUsed, token)
+	return err
+}
+
 const registerUser = `-- name: RegisterUser :one
 INSERT INTO users (email, name, password, created_at)
 VALUES ($1, $2, $3, NOW())
@@ -272,4 +310,44 @@ type ResetPasswordParams struct {
 func (q *Queries) ResetPassword(ctx context.Context, arg ResetPasswordParams) error {
 	_, err := q.db.Exec(ctx, resetPassword, arg.Password, arg.Email)
 	return err
+}
+
+const resetPasswordByUuid = `-- name: ResetPasswordByUuid :exec
+UPDATE users
+SET password = $1,
+    last_modified_at = NOW()
+WHERE uuid = $2
+`
+
+type ResetPasswordByUuidParams struct {
+	Password sql.NullString `json:"password"`
+	Uuid     uuid.UUID      `json:"uuid"`
+}
+
+func (q *Queries) ResetPasswordByUuid(ctx context.Context, arg ResetPasswordByUuidParams) error {
+	_, err := q.db.Exec(ctx, resetPasswordByUuid, arg.Password, arg.Uuid)
+	return err
+}
+
+const validatePasswordResetToken = `-- name: ValidatePasswordResetToken :one
+SELECT prt.uuid as uuid, prt.user_uuid as user_uuid, u.email as email
+FROM password_reset_tokens prt
+JOIN users u ON u.uuid = prt.user_uuid
+WHERE prt.token = $1
+  AND prt.expire_at > NOW()
+  AND prt.used_at IS NULL
+LIMIT 1
+`
+
+type ValidatePasswordResetTokenRow struct {
+	Uuid     uuid.UUID `json:"uuid"`
+	UserUuid uuid.UUID `json:"user_uuid"`
+	Email    string    `json:"email"`
+}
+
+func (q *Queries) ValidatePasswordResetToken(ctx context.Context, token string) (ValidatePasswordResetTokenRow, error) {
+	row := q.db.QueryRow(ctx, validatePasswordResetToken, token)
+	var i ValidatePasswordResetTokenRow
+	err := row.Scan(&i.Uuid, &i.UserUuid, &i.Email)
+	return i, err
 }
