@@ -19,7 +19,7 @@ const PasswordResetInit: Component = () => {
     setLoading(true);
     
     try {
-      const response = await fetch('/api/password/reset/init', {
+      const response = await fetch('/auth/password/reset/init', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -28,12 +28,14 @@ const PasswordResetInit: Component = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to initiate password reset');
+        const data = await response.text();
+        throw new Error(data || 'Failed to initiate password reset');
       }
-
+      
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initiate password reset');
+      console.error('Password reset error:', err);
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -49,18 +51,18 @@ const PasswordResetInit: Component = () => {
           <form onSubmit={handleSubmit} class="space-y-4">
             {success() ? (
               <div class="space-y-4">
-                <Alert class="mt-4">
-                  <AlertTitle>Success</AlertTitle>
+                <Alert>
+                  <AlertTitle>Check Your Email</AlertTitle>
                   <AlertDescription>
                     If an account exists with that email, we have sent password reset instructions.
                   </AlertDescription>
                 </Alert>
                 <Button 
                   type="button"
-                  onClick={() => navigate('/password-reset')}
+                  onClick={() => navigate('/login')}
                   class="w-full"
                 >
-                  Continue to Reset Password
+                  Back to Login
                 </Button>
               </div>
             ) : (
@@ -71,12 +73,13 @@ const PasswordResetInit: Component = () => {
                     id="email"
                     type="email"
                     value={email()}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => setEmail(e.currentTarget.value)}
+                    placeholder="Enter your email"
                     required
                   />
                 </div>
                 {error() && (
-                  <Alert class="mt-4" variant="destructive">
+                  <Alert variant="destructive">
                     <AlertTitle>Error</AlertTitle>
                     <AlertDescription>{error()}</AlertDescription>
                   </Alert>
@@ -85,7 +88,7 @@ const PasswordResetInit: Component = () => {
                   <Button
                     type="button"
                     onClick={() => navigate('/login')}
-                    class="text-sm text-gray-500 hover:text-gray-900"
+                    variant="outline"
                   >
                     Back to Login
                   </Button>
