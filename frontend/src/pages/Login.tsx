@@ -1,5 +1,5 @@
 import { Component, createSignal } from 'solid-js';
-import { useNavigate, useSearchParams } from '@solidjs/router';
+import { useNavigate, useSearchParams, A } from '@solidjs/router';
 import { userApi } from '../api/user';
 
 const Login: Component = () => {
@@ -105,6 +105,14 @@ const Login: Component = () => {
               >
                 {loading() ? 'Signing in...' : 'Sign in'}
               </button>
+            </div>
+            <div class="text-center">
+              <A
+                href="/password-reset-init"
+                class="text-sm text-blue-600 hover:text-blue-500"
+              >
+                Forgot your password?
+              </A>
             </div>
           </form>
         </div>

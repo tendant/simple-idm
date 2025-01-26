@@ -8,6 +8,8 @@ import Roles from './pages/Roles';
 import CreateRole from './pages/CreateRole';
 import EditRole from './pages/EditRole';
 import Navigation from './components/Navigation';
+import PasswordResetInit from './pages/PasswordResetInit';
+import PasswordReset from './pages/PasswordReset';
 
 const UsersPage: Component = () => {
   return (
@@ -88,6 +90,8 @@ const App: Component = () => {
       <Route path="/roles" component={RolesPage} />
       <Route path="/roles/create" component={CreateRolePage} />
       <Route path="/roles/:uuid/edit" component={EditRolePage} />
+      <Route path="/password-reset-init" component={PasswordResetInit} />
+      <Route path="/password-reset" component={PasswordReset} />
     </Router>
   );
 };
