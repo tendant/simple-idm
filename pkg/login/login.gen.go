@@ -26,6 +26,12 @@ type EmailVerifyRequest struct {
 	Email string `json:"email"`
 }
 
+// FindUsernameRequest defines model for FindUsernameRequest.
+type FindUsernameRequest struct {
+	// Email address to find username for
+	Email openapi_types.Email `json:"email"`
+}
+
 // Login defines model for Login.
 type Login struct {
 	Message string `json:"message"`
@@ -89,6 +95,9 @@ type PostPasswordResetInitJSONBody PasswordResetInit
 // PostRegisterJSONBody defines parameters for PostRegister.
 type PostRegisterJSONBody RegisterRequest
 
+// PostUsernameFindJSONBody defines parameters for PostUsernameFind.
+type PostUsernameFindJSONBody FindUsernameRequest
+
 // PostEmailVerifyJSONRequestBody defines body for PostEmailVerify for application/json ContentType.
 type PostEmailVerifyJSONRequestBody PostEmailVerifyJSONBody
 
@@ -134,6 +143,14 @@ type PostRegisterJSONRequestBody PostRegisterJSONBody
 
 // Bind implements render.Binder.
 func (PostRegisterJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostUsernameFindJSONRequestBody defines body for PostUsernameFind for application/json ContentType.
+type PostUsernameFindJSONRequestBody PostUsernameFindJSONBody
+
+// Bind implements render.Binder.
+func (PostUsernameFindJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -274,6 +291,19 @@ func PostTokenRefreshJSON200Response(body Tokens) *Response {
 	}
 }
 
+// PostUsernameFindJSON200Response is a constructor method for a PostUsernameFind response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostUsernameFindJSON200Response(body struct {
+	// A message indicating the request was processed
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Verify email address
@@ -300,6 +330,9 @@ type ServerInterface interface {
 	// Refresh JWT tokens
 	// (POST /token/refresh)
 	PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Response
+	// Send username to user's email address
+	// (POST /username/find)
+	PostUsernameFind(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -452,6 +485,24 @@ func (siw *ServerInterfaceWrapper) PostTokenRefresh(w http.ResponseWriter, r *ht
 	handler(w, r.WithContext(ctx))
 }
 
+// PostUsernameFind operation middleware
+func (siw *ServerInterfaceWrapper) PostUsernameFind(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostUsernameFind(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
 type UnescapedCookieParamError struct {
 	err       error
 	paramName string
@@ -575,6 +626,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/password/reset/init", wrapper.PostPasswordResetInit)
 		r.Post("/register", wrapper.PostRegister)
 		r.Post("/token/refresh", wrapper.PostTokenRefresh)
+		r.Post("/username/find", wrapper.PostUsernameFind)
 	})
 	return r
 }
@@ -600,20 +652,23 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

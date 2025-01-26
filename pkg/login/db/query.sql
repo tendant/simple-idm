@@ -39,6 +39,11 @@ SELECT uuid
 FROM users
 WHERE username = $1;
 
+-- name: FindUsernameByEmail :one
+SELECT username
+FROM users
+WHERE email = $1;
+
 -- name: FindUserRolesByUserUuid :many
 SELECT name
 FROM user_roles ur

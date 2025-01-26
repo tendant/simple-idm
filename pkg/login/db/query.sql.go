@@ -144,6 +144,19 @@ func (q *Queries) FindUserRolesByUserUuid(ctx context.Context, userUuid uuid.UUI
 	return items, nil
 }
 
+const findUsernameByEmail = `-- name: FindUsernameByEmail :one
+SELECT username
+FROM users
+WHERE email = $1
+`
+
+func (q *Queries) FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error) {
+	row := q.db.QueryRow(ctx, findUsernameByEmail, email)
+	var username sql.NullString
+	err := row.Scan(&username)
+	return username, err
+}
+
 const findUsers = `-- name: FindUsers :many
 SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users

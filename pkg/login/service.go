@@ -117,3 +117,10 @@ func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (db.FindUse
 	}
 	return userInfo, err
 }
+
+func (s *LoginService) SendUsernameEmail(ctx context.Context, email string, username string) error {
+	// TODO: Implement email sending logic
+	// This is a placeholder for the actual email sending implementation
+	slog.Info("Would send username email", "email", email, "username", username)
+	return nil
+}

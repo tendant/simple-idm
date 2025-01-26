@@ -264,7 +264,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 
 	// Initialize empty roles slice
 	var roles []string
-	
+
 	// Safely check if role exists in claims
 	if roleClaim, exists := customClaims["role"]; exists && roleClaim != nil {
 		roleSlice, ok := roleClaim.([]interface{})
@@ -483,4 +483,56 @@ func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 	return &Response{
 		Code: http.StatusOK,
 	}
+}
+
+func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Response {
+	var body PostUsernameFindJSONRequestBody
+
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		slog.Error("Failed extracting email", "err", err)
+		http.Error(w, "Failed extracting email", http.StatusBadRequest)
+		return nil
+	}
+
+	if body.Email != "" {
+		username, err := h.loginService.queries.FindUsernameByEmail(r.Context(), string(body.Email))
+		if err != nil {
+			// Return 200 even if user not found to prevent email enumeration
+			slog.Info("Username not found for email", "email", body.Email)
+			return &Response{
+				body: map[string]string{
+					"message": "If an account exists with that email, we will send the username to it.",
+				},
+				Code:        200,
+				contentType: "application/json",
+			}
+		}
+
+		// TODO: Send email with username
+		err = h.loginService.SendUsernameEmail(r.Context(), string(body.Email), username.String)
+		if err != nil {
+			slog.Error("Failed to send username email", "err", err, "email", body.Email)
+			// Still return 200 to prevent email enumeration
+			return &Response{
+				body: map[string]string{
+					"message": "If an account exists with that email, we will send the username to it.",
+				},
+				Code:        200,
+				contentType: "application/json",
+			}
+		}
+
+		return &Response{
+			body: map[string]string{
+				"message": "If an account exists with that email, we will send the username to it.",
+			},
+			Code:        200,
+			contentType: "application/json",
+		}
+	}
+
+	slog.Error("Email is missing in the request body")
+	http.Error(w, "Email is required", http.StatusBadRequest)
+	return nil
 }

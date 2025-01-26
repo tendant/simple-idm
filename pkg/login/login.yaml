@@ -161,6 +161,28 @@ paths:
                 required:
                   - accessToken
                   - refreshToken
+  /username/find:
+    post:
+      summary: Send username to user's email address
+      description: If an account exists with the provided email, the username will be sent to that email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FindUsernameRequest"
+      responses:
+        "200":
+          description: Request processed successfully. If an account exists, an email with the username will be sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: A message indicating the request was processed
+                    example: "If an account exists with that email, we will send the username to it."
 components:
   schemas:
     Login:
@@ -240,3 +262,12 @@ components:
       required:
         - accessToken
         - refreshToken
+    FindUsernameRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address to find username for
