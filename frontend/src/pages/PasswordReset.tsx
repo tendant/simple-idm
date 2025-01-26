@@ -23,7 +23,7 @@ const PasswordReset: Component = () => {
     }
 
     try {
-      const response = await fetch('/api/password/reset', {
+      const response = await fetch('/auth/password/reset', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
