@@ -150,15 +150,18 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 		email := body.Email
 		uuid, err := h.loginService.queries.InitPassword(r.Context(), email)
 		if err != nil {
-			slog.Error("Failed finding user of this email", "err", err)
-			http.Error(w, "Failed finding user of this email", http.StatusBadRequest)
-			return nil
+			// Log the error but return 200 to prevent email enumeration
+			slog.Info("User not found for password reset", "email", email)
+			return &Response{
+				body:        []byte{},
+				Code:        200,
+				contentType: "application/json",
+			}
 		}
 
 		hash := sha256.New()
 		hash.Write([]byte(uuid.String()))
 		code := hash.Sum(nil)
-		// slog.Info("generated code", "code", code)
 		return &Response{
 			body:        code,
 			Code:        200,
@@ -166,11 +169,10 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 		}
 
 	} else {
-		slog.Error("Email is missing in the request body", "err", err)
-		http.Error(w, "Failed finding user of this email", http.StatusBadRequest)
+		slog.Error("Email is missing in the request body")
+		http.Error(w, "Email is required", http.StatusBadRequest)
 		return nil
 	}
-
 }
 
 func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Response {
