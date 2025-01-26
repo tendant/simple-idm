@@ -27,7 +27,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Login"
-  /password/reset:init:
+  /password/reset/init:
     post:
       summary: Initiate password reset
       requestBody:
@@ -35,10 +35,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                email:
-                  type: string
+              $ref: "#/components/schemas/PasswordResetInit"
       responses:
         "200":
           description: Password reset initiated successfully
@@ -101,26 +98,6 @@ paths:
                   email:
                     type: string
                     format: email
-  /password/reset:init:
-    post:
-      summary: Initiate password reset
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PasswordResetInit'
-      responses:
-        '200':
-          description: Password reset email sent
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: User registered successfully
   /email/verify:
     post:
       summary: Verify email address
