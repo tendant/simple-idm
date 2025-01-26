@@ -38,14 +38,6 @@ type JwtConfig struct {
 	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
 }
 
-type EmailConfig struct {
-	Host     string `env:"EMAIL_HOST" env-default:"localhost"`
-	Port     uint16 `env:"EMAIL_PORT" env-default:"587"`
-	Username string `env:"EMAIL_USERNAME" env-default:"username"`
-	Password string `env:"EMAIL_PASSWORD" env-default:"password"`
-	From     string `env:"EMAIL_FROM" env-default:"from@example.com"`
-}
-
 func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
 	return dbutils.DbConfig{
 		Host:     d.Host,
@@ -53,6 +45,24 @@ func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
 		Database: d.Database,
 		User:     d.User,
 		Password: d.Password,
+	}
+}
+
+type EmailConfig struct {
+	Host     string `env:"EMAIL_HOST" env-default:"localhost"`
+	Port     uint16 `env:"EMAIL_PORT" env-default:"1025"`
+	Username string `env:"EMAIL_USERNAME" env-default:"noreply@example.com"`
+	Password string `env:"EMAIL_PASSWORD" env-default:"pwd"`
+	From     string `env:"EMAIL_FROM" env-default:"noreply@example.com"`
+}
+
+func (e EmailConfig) toEmailConfig() email.Config {
+	return email.Config{
+		Host: e.Host,
+		Port: int(e.Port),
+		Username: e.Username,
+		Password: e.Password,
+		From: e.From,
 	}
 }
 
