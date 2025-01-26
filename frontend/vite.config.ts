@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [
     solidPlugin(),
     tailwindcss({
-      config: './tailwind.config.cjs',
+      config: './tailwind.config.js',
     }),
   ],
   server: {
@@ -29,7 +29,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "~": path.resolve(__dirname, "./src")
+      "~": path.resolve(__dirname, ".")
     }
   }
 });

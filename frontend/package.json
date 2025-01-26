@@ -11,16 +11,17 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@tailwindcss/vite": "^4.0.0-beta.9",
+    "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^22.10.10",
     "autoprefixer": "^10.4.17",
-    "tailwindcss": "^4.0.0-beta.9",
+    "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
     "vite-plugin-solid": "^2.11.0"
   },
   "dependencies": {
     "@solidjs/router": "^0.15.3",
+    "@tailwindcss/cli": "^4.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "solid-js": "^1.9.3",

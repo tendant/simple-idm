@@ -13,8 +13,8 @@ export default {
     },
     extend: {
       colors: {
-        # border: "hsl(var(--border))",
-        border: '#E5E7EB',
+        border: "hsl(var(--border))",
+        // border: '#E5E7EB',
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
