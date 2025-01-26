@@ -201,6 +201,19 @@ func (q *Queries) InitPassword(ctx context.Context, email string) (uuid.UUID, er
 	return uuid, err
 }
 
+const initPasswordByUsername = `-- name: InitPasswordByUsername :one
+SELECT uuid
+FROM users
+WHERE username = $1
+`
+
+func (q *Queries) InitPasswordByUsername(ctx context.Context, username sql.NullString) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, initPasswordByUsername, username)
+	var uuid uuid.UUID
+	err := row.Scan(&uuid)
+	return uuid, err
+}
+
 const registerUser = `-- name: RegisterUser :one
 INSERT INTO users (email, name, password, created_at)
 VALUES ($1, $2, $3, NOW())

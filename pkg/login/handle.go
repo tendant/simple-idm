@@ -2,6 +2,7 @@ package login
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -142,16 +143,19 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		slog.Error("Failed extracting this email", "err", err)
-		http.Error(w, "Failed extracting this email", http.StatusBadRequest)
+		slog.Error("Failed extracting username", "err", err)
+		http.Error(w, "Failed extracting username", http.StatusBadRequest)
 		return nil
 	}
-	if body.Email != "" {
-		email := body.Email
-		uuid, err := h.loginService.queries.InitPassword(r.Context(), email)
+	if body.Username != "" {
+		username := sql.NullString{
+			String: body.Username,
+			Valid:  true,
+		}
+		uuid, err := h.loginService.queries.InitPasswordByUsername(r.Context(), username)
 		if err != nil {
-			// Log the error but return 200 to prevent email enumeration
-			slog.Info("User not found for password reset", "email", email)
+			// Log the error but return 200 to prevent username enumeration
+			slog.Info("User not found for password reset", "username", username.String)
 			return &Response{
 				body:        []byte{},
 				Code:        200,
@@ -169,8 +173,8 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 		}
 
 	} else {
-		slog.Error("Email is missing in the request body")
-		http.Error(w, "Email is required", http.StatusBadRequest)
+		slog.Error("Username is missing in the request body")
+		http.Error(w, "Username is required", http.StatusBadRequest)
 		return nil
 	}
 }

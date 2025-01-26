@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const PasswordResetInit: Component = () => {
-  const [email, setEmail] = createSignal('');
+  const [username, setUsername] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal(false);
   const [loading, setLoading] = createSignal(false);
@@ -24,7 +24,7 @@ const PasswordResetInit: Component = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: email() }),
+        body: JSON.stringify({ username: username() }),
       });
 
       if (!response.ok) {
@@ -54,7 +54,7 @@ const PasswordResetInit: Component = () => {
                 <Alert>
                   <AlertTitle>Check Your Email</AlertTitle>
                   <AlertDescription>
-                    If an account exists with that email, we have sent password reset instructions.
+                    If an account exists with that username, we have sent password reset instructions.
                   </AlertDescription>
                 </Alert>
                 <Button 
@@ -68,13 +68,13 @@ const PasswordResetInit: Component = () => {
             ) : (
               <>
                 <div class="space-y-2">
-                  <Label for="email">Email</Label>
+                  <Label for="username">Username</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    value={email()}
-                    onChange={(e) => setEmail(e.currentTarget.value)}
-                    placeholder="Enter your email"
+                    id="username"
+                    type="text"
+                    value={username()}
+                    onChange={(e) => setUsername(e.currentTarget.value)}
+                    placeholder="Enter your username"
                     required
                   />
                 </div>

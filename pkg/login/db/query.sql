@@ -34,6 +34,11 @@ SELECT users.uuid, name, username, email, password
 FROM users
 WHERE username = $1;
 
+-- name: InitPasswordByUsername :one
+SELECT uuid
+FROM users
+WHERE username = $1;
+
 -- name: FindUserRolesByUserUuid :many
 SELECT name
 FROM user_roles ur

@@ -29,7 +29,7 @@ paths:
                 $ref: "#/components/schemas/Login"
   /password/reset/init:
     post:
-      summary: Initiate password reset
+      summary: Initiate password reset using username
       requestBody:
         required: true
         content:
@@ -224,11 +224,12 @@ components:
         - email
     PasswordResetInit:
       type: object
-      properties:
-        email:
-          type: string
       required:
-        - email
+        - username
+      properties:
+        username:
+          type: string
+          description: Username of the account to reset password for
     Tokens:
       type: object
       properties:
