@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const PasswordReset: Component = () => {
   const [code, setCode] = createSignal('');
@@ -87,7 +87,8 @@ const PasswordReset: Component = () => {
               />
             </div>
             {error() && (
-              <Alert variant="destructive">
+              <Alert class="mt-4" variant="destructive">
+                <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{error()}</AlertDescription>
               </Alert>
             )}
