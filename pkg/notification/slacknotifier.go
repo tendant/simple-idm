@@ -14,7 +14,7 @@ func NewSlackNotifier(webhookURL string) *SlackNotifier {
 
 func (s *SlackNotifier) Send(notificationType NotificationType, notification NotificationData) error {
 	if notification.Body == "" {
-		return fmt.Errorf("Slack notification requires 'Body'")
+		return fmt.Errorf("slack notification requires 'Body'")
 	}
 	fmt.Printf("Sending Slack message to channel: %s via Webhook\n", notification.To)
 	fmt.Printf("Message: %s\n", notification.Body)
