@@ -1,3 +1,12 @@
+# TODO
+
+## Initial reset password 
+## Send password reset url to email
+## Password reset page and api
+## Password complexity
+## Change password
+## 2fa using otop
+
 # sqlc installation
 
     go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
