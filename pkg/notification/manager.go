@@ -63,15 +63,18 @@ func (nm *NotificationManager) Send(notifType NotificationType, notification Not
 	}
 
 	var lastError error
+	notifierFound := false
 
 	// Iterate through all systems registered for the notification type
 	for system, templatePath := range systemTemplates {
 		// Get the notifier for the current system
 		notifier, notifierExists := nm.notifiers[system]
 		if !notifierExists {
-			fmt.Printf("Warning: No notifier registered for system: %s. Skipping.\n", system)
+			lastError = fmt.Errorf("no notifier registered for system: %s", system)
 			continue
 		}
+
+		notifierFound = true
 
 		// Render the template (if applicable)
 		fmt.Printf("Using template for system %s: %s\n", system, templatePath)
@@ -83,6 +86,10 @@ func (nm *NotificationManager) Send(notifType NotificationType, notification Not
 			fmt.Printf("Error sending notification via %s: %v\n", system, err)
 			lastError = err
 		}
+	}
+
+	if !notifierFound {
+		return lastError
 	}
 
 	// Return the last error if any occurred during the process
