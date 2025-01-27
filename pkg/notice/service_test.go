@@ -31,7 +31,7 @@ func TestNewService(t *testing.T) {
 	}
 
 	// Test sending a username reminder
-	err = nm.Send(notification.NotificationType("username_reminder"), notification.NotificationData{
+	err = nm.Send(notification.NoticeType("username_reminder"), notification.NotificationData{
 		To:      "test@example.com",
 		Subject: "Username Reminder",
 		Body:    "Your username is: testuser",
@@ -41,7 +41,7 @@ func TestNewService(t *testing.T) {
 	}
 
 	// Test sending a password reminder
-	err = nm.Send(notification.NotificationType("password_reminder"), notification.NotificationData{
+	err = nm.Send(notification.NoticeType("password_reminder"), notification.NotificationData{
 		To:      "test@example.com",
 		Subject: "Password Reminder",
 		Body:    "Your password reset link is: https://example.com/reset",

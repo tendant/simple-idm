@@ -7,28 +7,34 @@ import (
 // NotificationSystem represents a type of notification system (e.g., email, SMS, Slack).
 type NotificationSystem string
 
-// NotificationType represents a type of notification (e.g., "welcome", "password_reset").
-type NotificationType string
+// NoticeType represents a type of notification (e.g., "welcome", "password_reset").
+type NoticeType string
 
 const (
 	EmailSystem NotificationSystem = "email"
 	SMSSystem   NotificationSystem = "sms"
 	SlackSystem NotificationSystem = "slack"
 
-	ExampleNotification NotificationType = "example"
+	ExampleNotice NoticeType = "example"
 )
+
+type NoticeTemplate struct {
+	Subject  string
+	Body     string
+	BodyPath string
+}
 
 // NotificationManager manages notifiers and notification templates.
 type NotificationManager struct {
-	notifiers            map[NotificationSystem]Notifier                               // Map of notification systems to their Notifier implementations
-	notificationRegistry map[NotificationType]map[NotificationSystem]map[string]string // Registry for notification templates
+	notifiers            map[NotificationSystem]Notifier                      // Map of notification systems to their Notifier implementations
+	notificationRegistry map[NoticeType]map[NotificationSystem]NoticeTemplate // Registry for notification templates
 }
 
 // NewNotificationManager creates and returns a new NotificationManager.
 func NewNotificationManager() *NotificationManager {
 	return &NotificationManager{
 		notifiers:            make(map[NotificationSystem]Notifier),
-		notificationRegistry: make(map[NotificationType]map[NotificationSystem]map[string]string),
+		notificationRegistry: make(map[NoticeType]map[NotificationSystem]NoticeTemplate),
 	}
 }
 
@@ -38,35 +44,35 @@ func (nm *NotificationManager) RegisterNotifier(system NotificationSystem, notif
 }
 
 // RegisterNotification dynamically adds a notification template to the registry.
-func (nm *NotificationManager) RegisterNotification(notifType NotificationType, system NotificationSystem, subject string, templatePath string) error {
+func (nm *NotificationManager) RegisterNotification(noticeType NoticeType, system NotificationSystem, template NoticeTemplate) error {
 	// Validate input
-	if notifType == "" || system == "" || templatePath == "" || subject == "" {
-		return fmt.Errorf("invalid input: notification type, system, subject, and templatePath cannot be empty")
+	if noticeType == "" || system == "" || template.BodyPath == "" || template.Subject == "" {
+		return fmt.Errorf("invalid input: notification type, system, subject, and bodyPath cannot be empty")
 	}
 
 	// Check if the notification type exists in the registry
-	if _, exists := nm.notificationRegistry[notifType]; !exists {
-		nm.notificationRegistry[notifType] = make(map[NotificationSystem]map[string]string)
+	if _, exists := nm.notificationRegistry[noticeType]; !exists {
+		nm.notificationRegistry[noticeType] = make(map[NotificationSystem]NoticeTemplate)
 	}
 
 	// Add or update the template for the system under the given notification type
-	nm.notificationRegistry[notifType][system] = map[string]string{"subject": subject, "template": templatePath}
+	nm.notificationRegistry[noticeType][system] = template
 	return nil
 }
 
 // Send sends a notification to all systems registered for the specified notification type.
-func (nm *NotificationManager) Send(notifType NotificationType, notification NotificationData) error {
+func (nm *NotificationManager) Send(noticeType NoticeType, notification NotificationData) error {
 	// Check if the notification type exists in the registry
-	systemTemplates, exists := nm.notificationRegistry[notifType]
+	systemTemplates, exists := nm.notificationRegistry[noticeType]
 	if !exists {
-		return fmt.Errorf("no templates registered for notification type: %s", notifType)
+		return fmt.Errorf("no templates registered for notification type: %s", noticeType)
 	}
 
 	var lastError error
 	notifierFound := false
 
 	// Iterate through all systems registered for the notification type
-	for system, templatePath := range systemTemplates {
+	for system, template := range systemTemplates {
 		// Get the notifier for the current system
 		notifier, notifierExists := nm.notifiers[system]
 		if !notifierExists {
@@ -77,10 +83,10 @@ func (nm *NotificationManager) Send(notifType NotificationType, notification Not
 		notifierFound = true
 
 		// Render the template (if applicable)
-		fmt.Printf("Using template for system %s: %s\n", system, templatePath)
+		fmt.Printf("Using template for system %s: %s\n", system, template.Subject)
 
 		// Send the notification using the notifier
-		err := notifier.Send(notifType, notification)
+		err := notifier.Send(noticeType, notification, template)
 		if err != nil {
 			// Log the error and store it as the last error (if any)
 			fmt.Printf("Error sending notification via %s: %v\n", system, err)

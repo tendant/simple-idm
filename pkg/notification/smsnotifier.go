@@ -12,7 +12,7 @@ func NewSMSNotifier(apiKey string) *SMSNotifier {
 	return &SMSNotifier{APIKey: apiKey}
 }
 
-func (s *SMSNotifier) Send(notificationType NotificationType, notification NotificationData) error {
+func (s *SMSNotifier) Send(noticeType NoticeType, notification NotificationData, template NoticeTemplate) error {
 	if notification.To == "" || notification.Body == "" {
 		return fmt.Errorf("SMS notification requires 'To' and 'Body'")
 	}

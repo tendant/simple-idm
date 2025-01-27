@@ -33,7 +33,7 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 
 }
 
-func (e *EmailNotifier) Send(notificationType NotificationType, notification NotificationData) error {
+func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationData, template NoticeTemplate) error {
 	if notification.To == "" || notification.Body == "" {
 		return fmt.Errorf("email notification requires 'To' and 'Body'")
 	}

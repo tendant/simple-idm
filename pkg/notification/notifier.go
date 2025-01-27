@@ -1,7 +1,7 @@
 package notification
 
 type Notifier interface {
-	Send(notificationType NotificationType, notification NotificationData) error
+	Send(noticeType NoticeType, data NotificationData, template NoticeTemplate) error
 }
 
 type NotificationData struct {

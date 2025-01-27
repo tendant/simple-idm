@@ -29,12 +29,12 @@ func NewService(smtpConfig notification.SMTPConfig) (*NoticeService, error) {
 
 	notificationManager.RegisterNotifier(notification.EmailSystem, emailNotifier)
 
-	err = notificationManager.RegisterNotification(notification.NotificationType("username_reminder"), notification.EmailSystem, "Username Reminder", "templates/username_reminder.tmpl")
+	err = notificationManager.RegisterNotification(notification.NoticeType("username_reminder"), notification.EmailSystem, notification.NoticeTemplate{Subject: "Username Reminder", BodyPath: "templates/username_reminder.tmpl"})
 	if err != nil {
 		return nil, err
 	}
 
-	err = notificationManager.RegisterNotification(notification.NotificationType("password_reminder"), notification.EmailSystem, "Password Reminder", "templates/password_reminder.tmpl")
+	err = notificationManager.RegisterNotification(notification.NoticeType("password_reminder"), notification.EmailSystem, notification.NoticeTemplate{Subject: "Password Reminder", BodyPath: "templates/password_reminder.tmpl"})
 	if err != nil {
 		return nil, err
 	}

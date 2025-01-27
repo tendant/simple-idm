@@ -12,7 +12,7 @@ func NewSlackNotifier(webhookURL string) *SlackNotifier {
 	return &SlackNotifier{WebhookURL: webhookURL}
 }
 
-func (s *SlackNotifier) Send(notificationType NotificationType, notification NotificationData) error {
+func (s *SlackNotifier) Send(noticeType NoticeType, notification NotificationData, template NoticeTemplate) error {
 	if notification.Body == "" {
 		return fmt.Errorf("slack notification requires 'Body'")
 	}

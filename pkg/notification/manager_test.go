@@ -42,57 +42,51 @@ func TestRegisterNotification(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		notifType   NotificationType
+		notifType   NoticeType
 		system      NotificationSystem
-		subject     string
-		template    string
+		template    NoticeTemplate
 		shouldError bool
 	}{
 		{
 			name:        "Valid registration",
-			notifType:   ExampleNotification,
+			notifType:   ExampleNotice,
 			system:      EmailSystem,
-			subject:     "Example Notification",
-			template:    "templates/example.tmpl",
+			template:    NoticeTemplate{Subject: "templates/example_email.tmpl", BodyPath: "templates/example_email.tmpl"},
 			shouldError: false,
 		},
 		{
 			name:        "Empty notification type",
 			notifType:   "",
 			system:      EmailSystem,
-			subject:     "Example Notification",
-			template:    "templates/example.tmpl",
+			template:    NoticeTemplate{Subject: "templates/example_email.tmpl", BodyPath: "templates/example_email.tmpl"},
 			shouldError: true,
 		},
 		{
 			name:        "Empty system",
-			notifType:   ExampleNotification,
+			notifType:   ExampleNotice,
 			system:      "",
-			subject:     "Example Notification",
-			template:    "templates/example.tmpl",
+			template:    NoticeTemplate{Subject: "templates/example_email.tmpl", BodyPath: "templates/example_email.tmpl"},
 			shouldError: true,
 		},
 		{
 			name:        "Empty template",
-			notifType:   ExampleNotification,
+			notifType:   ExampleNotice,
 			system:      EmailSystem,
-			subject:     "Example Notification",
-			template:    "",
+			template:    NoticeTemplate{Subject: "", BodyPath: ""},
 			shouldError: true,
 		},
 		{
 			name:        "Empty subject",
-			notifType:   ExampleNotification,
+			notifType:   ExampleNotice,
 			system:      EmailSystem,
-			subject:     "",
-			template:    "templates/example.tmpl",
+			template:    NoticeTemplate{Subject: "", BodyPath: ""},
 			shouldError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := nm.RegisterNotification(tt.notifType, tt.system, tt.subject, tt.template)
+			err := nm.RegisterNotification(tt.notifType, tt.system, tt.template)
 			if tt.shouldError && err == nil {
 				t.Error("Expected error but got none")
 			}
@@ -102,10 +96,10 @@ func TestRegisterNotification(t *testing.T) {
 			if !tt.shouldError {
 				if template, exists := nm.notificationRegistry[tt.notifType][tt.system]; !exists {
 					t.Error("Template not registered")
-				} else if templateValue, ok := template["template"]; !ok || templateValue != tt.template {
-					t.Errorf("Wrong template registered. Got %s, want %s", templateValue, tt.template)
-				} else if subjectValue, ok := template["subject"]; !ok || subjectValue != tt.subject {
-					t.Errorf("Wrong subject registered. Got %s, want %s", subjectValue, tt.subject)
+				} else if template.Subject != tt.template.Subject {
+					t.Errorf("Wrong subject registered. Got %s, want %s", template.Subject, tt.template.Subject)
+				} else if template.BodyPath != tt.template.BodyPath {
+					t.Errorf("Wrong body registered. Got %s, want %s", template.BodyPath, tt.template.BodyPath)
 				}
 			}
 		})
@@ -122,11 +116,11 @@ func TestSend(t *testing.T) {
 	nm.RegisterNotifier(SMSSystem, mockSMSNotifier)
 
 	// Register notifications
-	err := nm.RegisterNotification(ExampleNotification, EmailSystem, "Example Notification", "templates/example_email.tmpl")
+	err := nm.RegisterNotification(ExampleNotice, EmailSystem, NoticeTemplate{Subject: "Example Notification", BodyPath: "templates/example_email.tmpl"})
 	if err != nil {
 		t.Fatalf("Failed to register email notification: %v", err)
 	}
-	err = nm.RegisterNotification(ExampleNotification, SMSSystem, "Example Notification", "templates/example_sms.tmpl")
+	err = nm.RegisterNotification(ExampleNotice, SMSSystem, NoticeTemplate{Subject: "Example Notification", BodyPath: "templates/example_sms.tmpl"})
 	if err != nil {
 		t.Fatalf("Failed to register SMS notification: %v", err)
 	}
@@ -138,7 +132,7 @@ func TestSend(t *testing.T) {
 		Body:    "Test Body",
 	}
 
-	err = nm.Send(ExampleNotification, testData)
+	err = nm.Send(ExampleNotice, testData)
 	if err != nil {
 		t.Errorf("Failed to send notification: %v", err)
 	}
@@ -174,13 +168,13 @@ func TestSendErrors(t *testing.T) {
 	}
 
 	// Register notification without registering notifier
-	err = nm.RegisterNotification(ExampleNotification, EmailSystem, "Example Notification", "templates/example.tmpl")
+	err = nm.RegisterNotification(ExampleNotice, EmailSystem, NoticeTemplate{Subject: "Example Notification", BodyPath: "templates/example_email.tmpl"})
 	if err != nil {
 		t.Fatalf("Failed to register notification: %v", err)
 	}
 
 	// Test sending with missing notifier
-	err = nm.Send(ExampleNotification, NotificationData{})
+	err = nm.Send(ExampleNotice, NotificationData{})
 	if err == nil {
 		t.Error("Expected error for missing notifier")
 	} else if err.Error() != "no notifier registered for system: email" {
