@@ -28,7 +28,7 @@ func TestLoadConfigFromEnv(t *testing.T) {
 	// Test with required environment variables
 	os.Setenv("SMTP_USERNAME", "test@example.com")
 	os.Setenv("SMTP_PASSWORD", "password")
-	
+
 	config, err := LoadConfigFromEnv()
 	if err != nil {
 		t.Errorf("LoadConfigFromEnv() error = %v", err)
