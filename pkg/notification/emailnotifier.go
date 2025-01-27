@@ -1,21 +1,25 @@
 package notification
 
 import (
+	"bytes"
 	"fmt"
+	"html/template"
+	"os"
 
 	"github.com/wneessen/go-mail"
 )
-
-type EmailNotifier struct {
-	SMTPConfig SMTPConfig // SMTP server configuration
-	client     *mail.Client
-}
 
 type SMTPConfig struct {
 	Host     string
 	Port     int
 	Username string
 	Password string
+	From     string
+}
+
+type EmailNotifier struct {
+	SMTPConfig SMTPConfig
+	client     *mail.Client
 }
 
 func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
@@ -30,37 +34,51 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 		return nil, fmt.Errorf("failed to create mail client: %w", err)
 	}
 	return &EmailNotifier{SMTPConfig: config, client: client}, nil
-
 }
 
-func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationData, template NoticeTemplate) error {
-	if notification.To == "" || notification.Body == "" {
-		return fmt.Errorf("email notification requires 'To' and 'Body'")
+func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationData, noticeTemplate NoticeTemplate) error {
+	if notification.To == "" {
+		return fmt.Errorf("email notification requires 'To' address")
 	}
-	fmt.Printf("Sending Email to %s via SMTP %s:%d\n", notification.To, e.SMTPConfig.Host, e.SMTPConfig.Port)
-	fmt.Printf("Subject: %s\n", notification.Subject)
-	fmt.Printf("Body: %s\n", notification.Body)
-	// Add actual SMTP logic here
-	return nil
-}
 
-// SendEmail sends an email with the given parameters
-func (e *EmailNotifier) SendEmail(to, subject, body string) error {
+	// Read template file
+	templateContent := noticeTemplate.Body
+	if templateContent == "" {
+		content, err := os.ReadFile(noticeTemplate.BodyPath)
+		if err != nil {
+			return fmt.Errorf("failed to read template file: %v", err)
+		}
+		templateContent = string(content)
+	}
+
+	// Parse and execute the template
+	tmpl, err := template.New("email").Parse(templateContent)
+	if err != nil {
+		return fmt.Errorf("failed to parse template: %v", err)
+	}
+
+	var body bytes.Buffer
+	err = tmpl.Execute(&body, notification)
+	if err != nil {
+		return fmt.Errorf("failed to execute template: %v", err)
+	}
+
 	// Create a new message
 	msg := mail.NewMsg()
-	if err := msg.From(e.SMTPConfig.Username); err != nil {
+	if err := msg.From(e.SMTPConfig.From); err != nil {
 		return fmt.Errorf("failed to set from address: %w", err)
 	}
-	if err := msg.To(to); err != nil {
+	if err := msg.To(notification.To); err != nil {
 		return fmt.Errorf("failed to set to address: %w", err)
 	}
-	msg.Subject(subject)
-	msg.SetBodyString(mail.TypeTextHTML, body)
+	msg.Subject(noticeTemplate.Subject)
+	msg.SetBodyString(mail.TypeTextHTML, body.String())
 
 	// Send the email
 	if err := e.client.Send(msg); err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
 	}
 
+	fmt.Printf("Email sent successfully to %s via SMTP %s:%d\n", notification.To, e.SMTPConfig.Host, e.SMTPConfig.Port)
 	return nil
 }
