@@ -44,6 +44,7 @@ func TestRegisterNotification(t *testing.T) {
 		name        string
 		notifType   NotificationType
 		system      NotificationSystem
+		subject     string
 		template    string
 		shouldError bool
 	}{
@@ -51,6 +52,7 @@ func TestRegisterNotification(t *testing.T) {
 			name:        "Valid registration",
 			notifType:   ExampleNotification,
 			system:      EmailSystem,
+			subject:     "Example Notification",
 			template:    "templates/example.tmpl",
 			shouldError: false,
 		},
@@ -58,6 +60,7 @@ func TestRegisterNotification(t *testing.T) {
 			name:        "Empty notification type",
 			notifType:   "",
 			system:      EmailSystem,
+			subject:     "Example Notification",
 			template:    "templates/example.tmpl",
 			shouldError: true,
 		},
@@ -65,6 +68,7 @@ func TestRegisterNotification(t *testing.T) {
 			name:        "Empty system",
 			notifType:   ExampleNotification,
 			system:      "",
+			subject:     "Example Notification",
 			template:    "templates/example.tmpl",
 			shouldError: true,
 		},
@@ -72,14 +76,23 @@ func TestRegisterNotification(t *testing.T) {
 			name:        "Empty template",
 			notifType:   ExampleNotification,
 			system:      EmailSystem,
+			subject:     "Example Notification",
 			template:    "",
+			shouldError: true,
+		},
+		{
+			name:        "Empty subject",
+			notifType:   ExampleNotification,
+			system:      EmailSystem,
+			subject:     "",
+			template:    "templates/example.tmpl",
 			shouldError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := nm.RegisterNotification(tt.notifType, tt.system, tt.template)
+			err := nm.RegisterNotification(tt.notifType, tt.system, tt.subject, tt.template)
 			if tt.shouldError && err == nil {
 				t.Error("Expected error but got none")
 			}
@@ -89,8 +102,10 @@ func TestRegisterNotification(t *testing.T) {
 			if !tt.shouldError {
 				if template, exists := nm.notificationRegistry[tt.notifType][tt.system]; !exists {
 					t.Error("Template not registered")
-				} else if template != tt.template {
-					t.Errorf("Wrong template registered. Got %s, want %s", template, tt.template)
+				} else if templateValue, ok := template["template"]; !ok || templateValue != tt.template {
+					t.Errorf("Wrong template registered. Got %s, want %s", templateValue, tt.template)
+				} else if subjectValue, ok := template["subject"]; !ok || subjectValue != tt.subject {
+					t.Errorf("Wrong subject registered. Got %s, want %s", subjectValue, tt.subject)
 				}
 			}
 		})
@@ -107,11 +122,11 @@ func TestSend(t *testing.T) {
 	nm.RegisterNotifier(SMSSystem, mockSMSNotifier)
 
 	// Register notifications
-	err := nm.RegisterNotification(ExampleNotification, EmailSystem, "templates/example_email.tmpl")
+	err := nm.RegisterNotification(ExampleNotification, EmailSystem, "Example Notification", "templates/example_email.tmpl")
 	if err != nil {
 		t.Fatalf("Failed to register email notification: %v", err)
 	}
-	err = nm.RegisterNotification(ExampleNotification, SMSSystem, "templates/example_sms.tmpl")
+	err = nm.RegisterNotification(ExampleNotification, SMSSystem, "Example Notification", "templates/example_sms.tmpl")
 	if err != nil {
 		t.Fatalf("Failed to register SMS notification: %v", err)
 	}
@@ -159,7 +174,7 @@ func TestSendErrors(t *testing.T) {
 	}
 
 	// Register notification without registering notifier
-	err = nm.RegisterNotification(ExampleNotification, EmailSystem, "templates/example.tmpl")
+	err = nm.RegisterNotification(ExampleNotification, EmailSystem, "Example Notification", "templates/example.tmpl")
 	if err != nil {
 		t.Fatalf("Failed to register notification: %v", err)
 	}

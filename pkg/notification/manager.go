@@ -20,15 +20,15 @@ const (
 
 // NotificationManager manages notifiers and notification templates.
 type NotificationManager struct {
-	notifiers            map[NotificationSystem]Notifier                    // Map of notification systems to their Notifier implementations
-	notificationRegistry map[NotificationType]map[NotificationSystem]string // Registry for notification templates
+	notifiers            map[NotificationSystem]Notifier                               // Map of notification systems to their Notifier implementations
+	notificationRegistry map[NotificationType]map[NotificationSystem]map[string]string // Registry for notification templates
 }
 
 // NewNotificationManager creates and returns a new NotificationManager.
 func NewNotificationManager() *NotificationManager {
 	return &NotificationManager{
 		notifiers:            make(map[NotificationSystem]Notifier),
-		notificationRegistry: make(map[NotificationType]map[NotificationSystem]string),
+		notificationRegistry: make(map[NotificationType]map[NotificationSystem]map[string]string),
 	}
 }
 
@@ -38,19 +38,19 @@ func (nm *NotificationManager) RegisterNotifier(system NotificationSystem, notif
 }
 
 // RegisterNotification dynamically adds a notification template to the registry.
-func (nm *NotificationManager) RegisterNotification(notifType NotificationType, system NotificationSystem, templatePath string) error {
+func (nm *NotificationManager) RegisterNotification(notifType NotificationType, system NotificationSystem, subject string, templatePath string) error {
 	// Validate input
-	if notifType == "" || system == "" || templatePath == "" {
-		return fmt.Errorf("invalid input: notification type, system, and templatePath cannot be empty")
+	if notifType == "" || system == "" || templatePath == "" || subject == "" {
+		return fmt.Errorf("invalid input: notification type, system, subject, and templatePath cannot be empty")
 	}
 
 	// Check if the notification type exists in the registry
 	if _, exists := nm.notificationRegistry[notifType]; !exists {
-		nm.notificationRegistry[notifType] = make(map[NotificationSystem]string)
+		nm.notificationRegistry[notifType] = make(map[NotificationSystem]map[string]string)
 	}
 
 	// Add or update the template for the system under the given notification type
-	nm.notificationRegistry[notifType][system] = templatePath
+	nm.notificationRegistry[notifType][system] = map[string]string{"subject": subject, "template": templatePath}
 	return nil
 }
 
