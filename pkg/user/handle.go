@@ -353,6 +353,6 @@ func (h Handle) DeleteUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr 
 func Routes(r *chi.Mux, handle Handle) {
 	r.Group(func(r chi.Router) {
 		// add auth middleware
-		r.Mount("/", Handler(&handle))
+		r.Mount("/idm", Handler(&handle))
 	})
 }
