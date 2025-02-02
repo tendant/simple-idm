@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jinzhu/copier"
-	"github.com/tendant/simple-idm/pkg/email"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/crypto/bcrypt"
@@ -18,13 +18,13 @@ import (
 
 type LoginService struct {
 	queries *db.Queries
-	email   *email.Service
+	notificationManager *notification.NotificationManager
 }
 
-func NewLoginService(queries *db.Queries, emailService *email.Service) *LoginService {
+func NewLoginService(queries *db.Queries, notificationManager *notification.NotificationManager) *LoginService {
 	return &LoginService{
 		queries: queries,
-		email:   emailService,
+		notificationManager: notificationManager,
 	}
 }
 
@@ -124,12 +124,24 @@ func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (db.FindUse
 }
 
 func (s *LoginService) SendUsernameEmail(ctx context.Context, email string, username string) error {
-	return s.email.SendUsernameReminder(email, username)
+	data := map[string]string{
+		"Username": username,
+	}
+	return s.notificationManager.Send(notification.UsernameReminderNotice, notification.NotificationData{
+		To:   email,
+		Data: data,
+	})
 }
 
 func (s *LoginService) SendPasswordResetEmail(ctx context.Context, email string, resetToken string) error {
-	resetLink := fmt.Sprintf("http://localhost:3000/password-reset?token=%s", resetToken)
-	return s.email.SendPasswordResetLink(email, resetLink)
+	resetLink := fmt.Sprintf("https://example.com/reset-password?token=%s", resetToken)
+	data := map[string]string{
+		"ResetLink": resetLink,
+	}
+	return s.notificationManager.Send(notification.PasswordResetNotice, notification.NotificationData{
+		To:   email,
+		Data: data,
+	})
 }
 
 // ResetPassword validates the reset token and updates the user's password

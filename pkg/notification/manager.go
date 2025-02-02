@@ -16,6 +16,8 @@ const (
 	SlackSystem NotificationSystem = "slack"
 
 	ExampleNotice NoticeType = "example"
+	PasswordResetNotice NoticeType = "password_reset"
+	UsernameReminderNotice NoticeType = "username_reminder"
 )
 
 type NoticeTemplate struct {

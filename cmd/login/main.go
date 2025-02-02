@@ -15,13 +15,13 @@ import (
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
-	roleDb "github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/role"
+	roleDb "github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/tendant/simple-idm/pkg/user"
 	userDb "github.com/tendant/simple-idm/pkg/user/db"
-	"github.com/tendant/simple-idm/pkg/email"
 )
 
 type IdmDbConfig struct {
@@ -54,16 +54,6 @@ type EmailConfig struct {
 	Username string `env:"EMAIL_USERNAME" env-default:"noreply@example.com"`
 	Password string `env:"EMAIL_PASSWORD" env-default:"pwd"`
 	From     string `env:"EMAIL_FROM" env-default:"noreply@example.com"`
-}
-
-func (e EmailConfig) toEmailConfig() email.Config {
-	return email.Config{
-		Host: e.Host,
-		Port: int(e.Port),
-		Username: e.Username,
-		Password: e.Password,
-		From: e.From,
-	}
 }
 
 type PasswordComplexityConfig struct {
@@ -100,7 +90,7 @@ func main() {
 	}
 
 	queries := db.New(pool)
-	emailService, err := email.NewService(email.Config{
+	emailNotifier, err := notification.NewEmailNotifier(notification.SMTPConfig{
 		Host:     config.EmailConfig.Host,
 		Port:     int(config.EmailConfig.Port),
 		Username: config.EmailConfig.Username,
@@ -108,10 +98,34 @@ func main() {
 		From:     config.EmailConfig.From,
 	})
 	if err != nil {
-		slog.Error("failed to create email service", "error", err)
+		slog.Error("failed to create email notifier", "error", err)
 		return
 	}
-	loginService := login.NewLoginService(queries, emailService)
+
+	// Initialize NotificationManager and register email notifier
+	notificationManager := notification.NewNotificationManager()
+	notificationManager.RegisterNotifier(notification.EmailSystem, emailNotifier)
+
+	// Register notification templates
+	err = notificationManager.RegisterNotification(notification.PasswordResetNotice, notification.EmailSystem, notification.NoticeTemplate{
+		Subject:  "Password Reset Request",
+		BodyPath: "templates/email/password_reset.html",
+	})
+	if err != nil {
+		slog.Error("failed to register password reset notification", "error", err)
+		return
+	}
+
+	err = notificationManager.RegisterNotification(notification.UsernameReminderNotice, notification.EmailSystem, notification.NoticeTemplate{
+		Subject:  "Username Reminder",
+		BodyPath: "templates/email/username_reminder.html",
+	})
+	if err != nil {
+		slog.Error("failed to register username reminder notification", "error", err)
+		return
+	}
+
+	loginService := login.NewLoginService(queries, notificationManager)
 
 	// Create user queries
 	userQueries := userDb.New(pool)
