@@ -152,7 +152,7 @@ func main() {
 
 	// authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
-	server.R.Mount("/auth", login.Handler(loginHandle))
+	server.R.Mount("/api/admin/auth", login.Handler(loginHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
