@@ -27,6 +27,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Login"
+        "400":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Username/Password is wrong"
   /password/reset/init:
     post:
       summary: Initiate password reset using username

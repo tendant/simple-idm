@@ -71,7 +71,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		slog.Error("User does not exist", "err", err)
 		return &Response{
 			body: "Username/Password is wrong",
-			Code: http.StatusUnauthorized,
+			Code: http.StatusBadRequest,
 		}
 	}
 
@@ -79,7 +79,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		slog.Error("Multiple user records with same username", "username", loginParams.Username)
 		return &Response{
 			body: "Username/Password is wrong",
-			Code: http.StatusUnauthorized,
+			Code: http.StatusBadRequest,
 		}
 	}
 
@@ -88,14 +88,14 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		slog.Error("Failed checking password hash", "err", err)
 		return &Response{
 			body: "Username/Password is wrong",
-			Code: http.StatusUnauthorized,
+			Code: http.StatusBadRequest,
 		}
 	}
 	if !valid {
 		slog.Error("Passwords does not match")
 		return &Response{
 			body: "Username/Password is wrong",
-			Code: http.StatusUnauthorized,
+			Code: http.StatusBadRequest,
 		}
 	}
 
@@ -343,7 +343,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		slog.Error("User does not exist", "err", err)
 		return &Response{
 			body: "Username/Password is wrong",
-			Code: http.StatusUnauthorized,
+			Code: http.StatusBadRequest,
 		}
 	}
 
@@ -351,7 +351,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		slog.Error("Multiple user records with same username", "username", loginParams.Username)
 		return &Response{
 			body: "Username/Password is wrong",
-			Code: http.StatusUnauthorized,
+			Code: http.StatusBadRequest,
 		}
 	}
 
@@ -360,14 +360,14 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		slog.Error("Failed checking password hash", "err", err)
 		return &Response{
 			body: "Username/Password is wrong",
-			Code: http.StatusUnauthorized,
+			Code: http.StatusBadRequest,
 		}
 	}
 	if !valid {
 		slog.Error("Passwords does not match")
 		return &Response{
 			body: "Username/Password is wrong",
-			Code: http.StatusUnauthorized,
+			Code: http.StatusBadRequest,
 		}
 	}
 
