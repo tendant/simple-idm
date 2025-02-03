@@ -42,6 +42,13 @@
     update users set password = convert_to('$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6', 'UTF8') where username = 'admin';
     
     update users set password = '$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6' where username = 'admin';
+    
+    -- test
+    INSERT INTO users (username, name, password, email, created_by)
+    VALUES ('test', 'test', '$2a$10$Ly3ACkZKafj455GovEcivOxtgD3QMjaq0p16PtMWJNSzUs0il4mrq', 'test@example.com', 'system');
+    
+    SELECT convert_from(password, 'UTF8') FROM users WHERE username = 'test';
+    
 
 # Insert roles record
 

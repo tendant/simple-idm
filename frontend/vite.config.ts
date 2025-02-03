@@ -34,7 +34,7 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/idm': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:4001',
         changeOrigin: true,
       }
     },
