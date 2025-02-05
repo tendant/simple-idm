@@ -17,6 +17,7 @@ import (
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
+	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/role"
 	roleDb "github.com/tendant/simple-idm/pkg/role/roledb"
@@ -90,7 +91,9 @@ func main() {
 	}
 
 	queries := db.New(pool)
-	emailNotifier, err := notification.NewEmailNotifier(notification.SMTPConfig{
+
+	// Initialize NotificationManager and register email notifier
+	notificationManager, err := notice.NewNotificationManager(notification.SMTPConfig{
 		Host:     config.EmailConfig.Host,
 		Port:     int(config.EmailConfig.Port),
 		Username: config.EmailConfig.Username,
@@ -98,31 +101,7 @@ func main() {
 		From:     config.EmailConfig.From,
 	})
 	if err != nil {
-		slog.Error("failed to create email notifier", "error", err)
-		return
-	}
-
-	// Initialize NotificationManager and register email notifier
-	notificationManager := notification.NewNotificationManager()
-	notificationManager.RegisterNotifier(notification.EmailSystem, emailNotifier)
-
-	// Register notification templates
-	err = notificationManager.RegisterNotification(notification.PasswordResetNotice, notification.EmailSystem, notification.NoticeTemplate{
-		Subject:  "Password Reset Request",
-		BodyPath: "templates/email/password_reset.html",
-	})
-	if err != nil {
-		slog.Error("failed to register password reset notification", "error", err)
-		return
-	}
-
-	err = notificationManager.RegisterNotification(notification.UsernameReminderNotice, notification.EmailSystem, notification.NoticeTemplate{
-		Subject:  "Username Reminder",
-		BodyPath: "templates/email/username_reminder.html",
-	})
-	if err != nil {
-		slog.Error("failed to register username reminder notification", "error", err)
-		return
+		slog.Error("Failed initialize notification manager", "err", err)
 	}
 
 	loginService := login.NewLoginService(queries, notificationManager)

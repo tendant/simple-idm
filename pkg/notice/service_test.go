@@ -1,4 +1,4 @@
-package email
+package notice
 
 import (
 	"testing"
@@ -14,17 +14,17 @@ func TestNewService(t *testing.T) {
 		Password: "password",
 	}
 
-	service, err := NewService(smtpConfig)
+	manager, err := NewNotificationManager(smtpConfig)
 	if err != nil {
 		t.Errorf("NewService() error = %v", err)
 		return
 	}
-	if service == nil {
+	if manager == nil {
 		t.Error("NewService() returned nil service")
 	}
 
 	// Test that notifications are properly registered
-	nm := service.notificationManager
+	nm := manager
 	if nm == nil {
 		t.Error("NotificationManager is nil")
 		return

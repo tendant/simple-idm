@@ -1,6 +1,8 @@
-package email
+package notice
 
 import (
+	"log/slog"
+
 	"github.com/tendant/simple-idm/pkg/notification"
 )
 
@@ -13,13 +15,8 @@ type Config struct {
 	From     string
 }
 
-// Service provides email sending functionality
-type NoticeService struct {
-	notificationManager *notification.NotificationManager
-}
-
 // NewService creates a new email service instance
-func NewService(smtpConfig notification.SMTPConfig) (*NoticeService, error) {
+func NewNotificationManager(smtpConfig notification.SMTPConfig) (*notification.NotificationManager, error) {
 	notificationManager := notification.NewNotificationManager()
 
 	emailNotifier, err := notification.NewEmailNotifier(smtpConfig)
@@ -39,7 +36,24 @@ func NewService(smtpConfig notification.SMTPConfig) (*NoticeService, error) {
 		return nil, err
 	}
 
-	return &NoticeService{
-		notificationManager: notificationManager,
-	}, nil
+	// Register notification templates
+	err = notificationManager.RegisterNotification(notification.PasswordResetNotice, notification.EmailSystem, notification.NoticeTemplate{
+		Subject:  "Password Reset Request",
+		BodyPath: "templates/email/password_reset.html",
+	})
+	if err != nil {
+		slog.Error("failed to register password reset notification", "error", err)
+		return nil, err
+	}
+
+	err = notificationManager.RegisterNotification(notification.UsernameReminderNotice, notification.EmailSystem, notification.NoticeTemplate{
+		Subject:  "Username Reminder",
+		BodyPath: "templates/email/username_reminder.html",
+	})
+	if err != nil {
+		slog.Error("failed to register username reminder notification", "error", err)
+		return nil, err
+	}
+
+	return notificationManager, nil
 }
