@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
-	"os"
 
 	"github.com/wneessen/go-mail"
 )
@@ -41,28 +40,35 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 		return fmt.Errorf("email notification requires 'To' address")
 	}
 
-	// Read template file
-	templateContent := noticeTemplate.Body
-	if templateContent == "" {
-		content, err := os.ReadFile(noticeTemplate.BodyPath)
+	// Prepare text content if available
+	var textBody string
+	if noticeTemplate.Text != "" {
+		tmpl, err := template.New("text").Parse(noticeTemplate.Text)
 		if err != nil {
-			return fmt.Errorf("failed to read template file: %v", err)
+			return fmt.Errorf("failed to parse text template: %v", err)
 		}
-		templateContent = string(content)
+		var buf bytes.Buffer
+		err = tmpl.Execute(&buf, notification)
+		if err != nil {
+			return fmt.Errorf("failed to execute text template: %v", err)
+		}
+		textBody = buf.String()
 	}
 
-	// Parse and execute the template
-	tmpl, err := template.New("email").Parse(templateContent)
-	if err != nil {
-		return fmt.Errorf("failed to parse template: %v", err)
+	// Prepare HTML content if available
+	var htmlBody string
+	if noticeTemplate.Html != "" {
+		tmpl, err := template.New("html").Parse(noticeTemplate.Html)
+		if err != nil {
+			return fmt.Errorf("failed to parse HTML template: %v", err)
+		}
+		var buf bytes.Buffer
+		err = tmpl.Execute(&buf, notification)
+		if err != nil {
+			return fmt.Errorf("failed to execute HTML template: %v", err)
+		}
+		htmlBody = buf.String()
 	}
-
-	var body bytes.Buffer
-	err = tmpl.Execute(&body, notification)
-	if err != nil {
-		return fmt.Errorf("failed to execute template: %v", err)
-	}
-
 	// Create a new message
 	msg := mail.NewMsg()
 	if err := msg.From(e.SMTPConfig.From); err != nil {
@@ -72,7 +78,21 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 		return fmt.Errorf("failed to set to address: %w", err)
 	}
 	msg.Subject(noticeTemplate.Subject)
-	msg.SetBodyString(mail.TypeTextHTML, body.String())
+
+	// Set text body if available
+	if textBody != "" {
+		msg.SetBodyString(mail.TypeTextPlain, textBody)
+	}
+
+	// Set HTML body if available
+	if htmlBody != "" {
+		// If we already have a text body, add HTML as alternative
+		if textBody != "" {
+			msg.AddAlternativeString(mail.TypeTextHTML, htmlBody)
+		} else {
+			msg.SetBodyString(mail.TypeTextHTML, htmlBody)
+		}
+	}
 
 	// Send the email
 	if err := e.client.Send(msg); err != nil {

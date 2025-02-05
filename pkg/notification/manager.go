@@ -21,9 +21,9 @@ const (
 )
 
 type NoticeTemplate struct {
-	Subject  string
-	Body     string
-	BodyPath string
+	Subject string
+	Text    string // Plain text version of the notification
+	Html    string // HTML version of the notification
 }
 
 // NotificationManager manages notifiers and notification templates.
@@ -48,8 +48,8 @@ func (nm *NotificationManager) RegisterNotifier(system NotificationSystem, notif
 // RegisterNotification dynamically adds a notification template to the registry.
 func (nm *NotificationManager) RegisterNotification(noticeType NoticeType, system NotificationSystem, template NoticeTemplate) error {
 	// Validate input
-	if noticeType == "" || system == "" || template.BodyPath == "" || template.Subject == "" {
-		return fmt.Errorf("invalid input: notification type, system, subject, and bodyPath cannot be empty")
+	if noticeType == "" || system == "" || template.Subject == "" || (template.Text == "" && template.Html == "") {
+		return fmt.Errorf("invalid input: notification type, system, subject, and at least one of text or html content must be provided")
 	}
 
 	// Check if the notification type exists in the registry

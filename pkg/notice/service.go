@@ -1,6 +1,7 @@
 package notice
 
 import (
+	"embed"
 	"log/slog"
 
 	"github.com/tendant/simple-idm/pkg/notification"
@@ -15,6 +16,18 @@ type Config struct {
 	From     string
 }
 
+//go:embed templates/*
+var templateFiles embed.FS
+
+func loadTemplate(filename string) string {
+	content, err := templateFiles.ReadFile(filename)
+	if err != nil {
+		slog.Error("Error reading template file!", "err", err, "filename", filename)
+		return ""
+	}
+	return string(content)
+}
+
 // NewService creates a new email service instance
 func NewNotificationManager(smtpConfig notification.SMTPConfig) (*notification.NotificationManager, error) {
 	notificationManager := notification.NewNotificationManager()
@@ -26,20 +39,26 @@ func NewNotificationManager(smtpConfig notification.SMTPConfig) (*notification.N
 
 	notificationManager.RegisterNotifier(notification.EmailSystem, emailNotifier)
 
-	err = notificationManager.RegisterNotification(notification.NoticeType("username_reminder"), notification.EmailSystem, notification.NoticeTemplate{Subject: "Username Reminder", BodyPath: "templates/username_reminder.tmpl"})
+	err = notificationManager.RegisterNotification(notification.NoticeType("username_reminder"), notification.EmailSystem, notification.NoticeTemplate{
+		Subject: "Username Reminder",
+		Html:    loadTemplate("email/username_reminder.tmpl"),
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	err = notificationManager.RegisterNotification(notification.NoticeType("password_reminder"), notification.EmailSystem, notification.NoticeTemplate{Subject: "Password Reminder", BodyPath: "templates/password_reminder.tmpl"})
+	err = notificationManager.RegisterNotification(notification.NoticeType("password_reminder"), notification.EmailSystem, notification.NoticeTemplate{
+		Subject: "Password Reminder",
+		Html:    "email/password_reminder.tmpl"},
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	// Register notification templates
 	err = notificationManager.RegisterNotification(notification.PasswordResetNotice, notification.EmailSystem, notification.NoticeTemplate{
-		Subject:  "Password Reset Request",
-		BodyPath: "templates/email/password_reset.html",
+		Subject: "Password Reset Request",
+		Html:    loadTemplate("email/password_reset.html"),
 	})
 	if err != nil {
 		slog.Error("failed to register password reset notification", "error", err)
@@ -47,8 +66,8 @@ func NewNotificationManager(smtpConfig notification.SMTPConfig) (*notification.N
 	}
 
 	err = notificationManager.RegisterNotification(notification.UsernameReminderNotice, notification.EmailSystem, notification.NoticeTemplate{
-		Subject:  "Username Reminder",
-		BodyPath: "templates/email/username_reminder.html",
+		Subject: "Username Reminder",
+		Html:    loadTemplate("email/username_reminder.html"),
 	})
 	if err != nil {
 		slog.Error("failed to register username reminder notification", "error", err)
