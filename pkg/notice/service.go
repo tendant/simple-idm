@@ -39,7 +39,7 @@ func NewNotificationManager(smtpConfig notification.SMTPConfig) (*notification.N
 
 	notificationManager.RegisterNotifier(notification.EmailSystem, emailNotifier)
 
-	err = notificationManager.RegisterNotification(notification.NoticeType("username_reminder"), notification.EmailSystem, notification.NoticeTemplate{
+	err = notificationManager.RegisterNotification(notification.UsernameReminderNotice, notification.EmailSystem, notification.NoticeTemplate{
 		Subject: "Username Reminder",
 		Html:    loadTemplate("email/username_reminder.tmpl"),
 	})
@@ -47,10 +47,10 @@ func NewNotificationManager(smtpConfig notification.SMTPConfig) (*notification.N
 		return nil, err
 	}
 
-	err = notificationManager.RegisterNotification(notification.NoticeType("password_reminder"), notification.EmailSystem, notification.NoticeTemplate{
-		Subject: "Password Reminder",
-		Html:    "email/password_reminder.tmpl"},
-	)
+	err = notificationManager.RegisterNotification(notification.PasswordResetNotice, notification.EmailSystem, notification.NoticeTemplate{
+		Subject: "Password Reset Request",
+		Html:    loadTemplate("email/password_reset.tmpl"),
+	})
 	if err != nil {
 		return nil, err
 	}
