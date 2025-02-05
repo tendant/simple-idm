@@ -16,7 +16,7 @@ func TestNewService(t *testing.T) {
 
 	manager, err := NewNotificationManager(smtpConfig)
 	if err != nil {
-		t.Errorf("NewService() error = %v", err)
+		t.Errorf("NewNotificationManager() error = %v", err)
 		return
 	}
 	if manager == nil {
