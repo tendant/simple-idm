@@ -2,6 +2,7 @@ package notification
 
 import (
 	"fmt"
+	"log/slog"
 )
 
 type SMSNotifier struct {
@@ -16,8 +17,8 @@ func (s *SMSNotifier) Send(noticeType NoticeType, notification NotificationData,
 	if notification.To == "" || notification.Body == "" {
 		return fmt.Errorf("SMS notification requires 'To' and 'Body'")
 	}
-	fmt.Printf("Sending SMS to %s via API Key %s\n", notification.To, s.APIKey)
-	fmt.Printf("Message: %s\n", notification.Body)
+	slog.Info("Sending SMS via API Key", "To", notification.To)
+	slog.Info("Message", "Body", notification.Body)
 	// Add actual SMS API logic here
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"log/slog"
 
 	"github.com/wneessen/go-mail"
 )
@@ -99,6 +100,6 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 		return fmt.Errorf("failed to send email: %w", err)
 	}
 
-	fmt.Printf("Email sent successfully to %s via SMTP %s:%d\n", notification.To, e.SMTPConfig.Host, e.SMTPConfig.Port)
+	slog.Info("Email sent successfully to %s via SMTP", "To", notification.To, "Host", e.SMTPConfig.Host, "Port", e.SMTPConfig.Port)
 	return nil
 }

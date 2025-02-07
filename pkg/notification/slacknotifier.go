@@ -2,6 +2,7 @@ package notification
 
 import (
 	"fmt"
+	"log/slog"
 )
 
 type SlackNotifier struct {
@@ -16,8 +17,8 @@ func (s *SlackNotifier) Send(noticeType NoticeType, notification NotificationDat
 	if notification.Body == "" {
 		return fmt.Errorf("slack notification requires 'Body'")
 	}
-	fmt.Printf("Sending Slack message to channel: %s via Webhook\n", notification.To)
-	fmt.Printf("Message: %s\n", notification.Body)
+	slog.Info("Sending Slack message to channel via Webhook", "To", notification.To)
+	slog.Info("Message:", "Body", notification.Body)
 	// Add actual Slack webhook logic here
 	return nil
 }

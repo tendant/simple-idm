@@ -75,6 +75,14 @@ type Config struct {
 
 func main() {
 
+	// Create a logger with source enabled
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true, // Enables line number & file path
+	}))
+
+	// Set the logger as the default
+	slog.SetDefault(logger)
+
 	config := Config{}
 	cleanenv.ReadEnv(&config)
 

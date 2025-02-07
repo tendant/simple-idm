@@ -2,6 +2,7 @@ package notification
 
 import (
 	"fmt"
+	"log/slog"
 )
 
 // NotificationSystem represents a type of notification system (e.g., email, SMS, Slack).
@@ -15,8 +16,8 @@ const (
 	SMSSystem   NotificationSystem = "sms"
 	SlackSystem NotificationSystem = "slack"
 
-	ExampleNotice NoticeType = "example"
-	PasswordResetNotice NoticeType = "password_reset"
+	ExampleNotice          NoticeType = "example"
+	PasswordResetNotice    NoticeType = "password_reset"
 	UsernameReminderNotice NoticeType = "username_reminder"
 )
 
@@ -85,13 +86,13 @@ func (nm *NotificationManager) Send(noticeType NoticeType, notification Notifica
 		notifierFound = true
 
 		// Render the template (if applicable)
-		fmt.Printf("Using template for system %s: %s\n", system, template.Subject)
+		slog.Info("Using template for system", "system", system, "subject", template.Subject)
 
 		// Send the notification using the notifier
 		err := notifier.Send(noticeType, notification, template)
 		if err != nil {
 			// Log the error and store it as the last error (if any)
-			fmt.Printf("Error sending notification via %s: %v\n", system, err)
+			slog.Info("Error sending notification", "system", system, "err", err)
 			lastError = err
 		}
 	}
