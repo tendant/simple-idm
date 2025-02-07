@@ -9,21 +9,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jinzhu/copier"
-	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/login/db"
+	"github.com/tendant/simple-idm/pkg/notice"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
 )
 
 type LoginService struct {
-	queries *db.Queries
+	queries             *db.Queries
 	notificationManager *notification.NotificationManager
 }
 
 func NewLoginService(queries *db.Queries, notificationManager *notification.NotificationManager) *LoginService {
 	return &LoginService{
-		queries: queries,
+		queries:             queries,
 		notificationManager: notificationManager,
 	}
 }
@@ -138,7 +139,7 @@ func (s *LoginService) SendPasswordResetEmail(ctx context.Context, email string,
 	data := map[string]string{
 		"ResetLink": resetLink,
 	}
-	return s.notificationManager.Send(notification.PasswordResetNotice, notification.NotificationData{
+	return s.notificationManager.Send(notice.PasswordResetInit, notification.NotificationData{
 		To:   email,
 		Data: data,
 	})
@@ -161,7 +162,7 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 	// Update password
 	err = s.queries.ResetPasswordByUuid(ctx, db.ResetPasswordByUuidParams{
 		Password: sql.NullString{String: string(hashedPassword), Valid: true},
-		Uuid:    tokenInfo.UserUuid,
+		Uuid:     tokenInfo.UserUuid,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)

@@ -28,6 +28,11 @@ func loadTemplate(filename string) string {
 	return string(content)
 }
 
+const (
+	UsernameReminder  notification.NoticeType = "username_reminder"
+	PasswordResetInit notification.NoticeType = "password_reset_init"
+)
+
 // NewService creates a new email service instance
 func NewNotificationManager(smtpConfig notification.SMTPConfig) (*notification.NotificationManager, error) {
 	notificationManager := notification.NewNotificationManager()
@@ -39,38 +44,19 @@ func NewNotificationManager(smtpConfig notification.SMTPConfig) (*notification.N
 
 	notificationManager.RegisterNotifier(notification.EmailSystem, emailNotifier)
 
-	err = notificationManager.RegisterNotification(notification.UsernameReminderNotice, notification.EmailSystem, notification.NoticeTemplate{
+	err = notificationManager.RegisterNotification(UsernameReminder, notification.EmailSystem, notification.NoticeTemplate{
 		Subject: "Username Reminder",
-		Html:    loadTemplate("email/username_reminder.tmpl"),
+		Html:    loadTemplate("templates/email/username_reminder.tmpl"),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	err = notificationManager.RegisterNotification(notification.PasswordResetNotice, notification.EmailSystem, notification.NoticeTemplate{
+	err = notificationManager.RegisterNotification(PasswordResetInit, notification.EmailSystem, notification.NoticeTemplate{
 		Subject: "Password Reset Request",
-		Html:    loadTemplate("email/password_reset.tmpl"),
+		Html:    loadTemplate("templates/email/password_reset.tmpl"),
 	})
 	if err != nil {
-		return nil, err
-	}
-
-	// Register notification templates
-	err = notificationManager.RegisterNotification(notification.PasswordResetNotice, notification.EmailSystem, notification.NoticeTemplate{
-		Subject: "Password Reset Request",
-		Html:    loadTemplate("email/password_reset.html"),
-	})
-	if err != nil {
-		slog.Error("failed to register password reset notification", "error", err)
-		return nil, err
-	}
-
-	err = notificationManager.RegisterNotification(notification.UsernameReminderNotice, notification.EmailSystem, notification.NoticeTemplate{
-		Subject: "Username Reminder",
-		Html:    loadTemplate("email/username_reminder.html"),
-	})
-	if err != nil {
-		slog.Error("failed to register username reminder notification", "error", err)
 		return nil, err
 	}
 
