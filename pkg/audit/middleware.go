@@ -75,7 +75,7 @@ func (m *Middleware) AuditAuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Audit the request asynchronously
-		go m.auditRequest(ctx, event)
+		m.auditRequest(ctx, event)
 
 		// Continue with the request
 		next.ServeHTTP(w, r)
