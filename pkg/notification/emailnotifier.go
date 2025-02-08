@@ -30,8 +30,11 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 		mail.WithPassword(config.Password),
 		mail.WithSMTPAuth(mail.SMTPAuthPlain),
 	)
+	slog.Info("Created mail client", "Host", config.Host, "Port", config.Port, "Username", config.Username, "Password", config.Password)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create mail client: %w", err)
+		slog.Error("Failed to create mail client", "err", err)
+		return nil, err
+
 	}
 	return &EmailNotifier{SMTPConfig: config, client: client}, nil
 }
@@ -46,12 +49,14 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 	if noticeTemplate.Text != "" {
 		tmpl, err := template.New("text").Parse(noticeTemplate.Text)
 		if err != nil {
-			return fmt.Errorf("failed to parse text template: %v", err)
+			slog.Error("Failed to parse text template", "err", err)
+			return err
 		}
 		var buf bytes.Buffer
 		err = tmpl.Execute(&buf, notification.Data)
 		if err != nil {
-			return fmt.Errorf("failed to execute text template: %v", err)
+			slog.Error("Failed to execute text template", "err", err)
+			return err
 		}
 		textBody = buf.String()
 	}
@@ -61,22 +66,26 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 	if noticeTemplate.Html != "" {
 		tmpl, err := template.New("html").Parse(noticeTemplate.Html)
 		if err != nil {
-			return fmt.Errorf("failed to parse HTML template: %v", err)
+			slog.Error("Failed to parse HTML template", "err", err)
+			return err
 		}
 		var buf bytes.Buffer
 		err = tmpl.Execute(&buf, notification.Data)
 		if err != nil {
-			return fmt.Errorf("failed to execute HTML template: %v", err)
+			slog.Error("Failed to execute HTML template", "err", err)
+			return err
 		}
 		htmlBody = buf.String()
 	}
 	// Create a new message
 	msg := mail.NewMsg()
 	if err := msg.From(e.SMTPConfig.From); err != nil {
-		return fmt.Errorf("failed to set from address: %w", err)
+		slog.Error("Failed to set from address", "err", err)
+		return err
 	}
 	if err := msg.To(notification.To); err != nil {
-		return fmt.Errorf("failed to set to address: %w", err)
+		slog.Error("Failed to set to address", "err", err)
+		return err
 	}
 	msg.Subject(noticeTemplate.Subject)
 
@@ -97,7 +106,8 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 
 	// Send the email
 	if err := e.client.Send(msg); err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
+		slog.Error("Failed to send email", "err", err, "client", e.client)
+		return err
 	}
 
 	slog.Info("Email sent successfully to %s via SMTP", "To", notification.To, "Host", e.SMTPConfig.Host, "Port", e.SMTPConfig.Port)
