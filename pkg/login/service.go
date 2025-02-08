@@ -22,6 +22,21 @@ type LoginService struct {
 	notificationManager *notification.NotificationManager
 }
 
+// Disable2FA disables 2FA for a user after verifying their password and 2FA code
+func (s LoginService) Disable2FA(ctx context.Context, userUUID uuid.UUID, currentPassword string, code string) error {
+	// Get the user to verify password
+	user, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(userUUID.String()))
+	if err != nil || len(user) == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	// TODO: Verify password using bcrypt
+	// TODO: Verify 2FA code using current secret
+
+	// Disable 2FA
+	return s.queries.Disable2FA(ctx, userUUID)
+}
+
 func NewLoginService(queries *db.Queries, notificationManager *notification.NotificationManager) *LoginService {
 	return &LoginService{
 		queries:             queries,

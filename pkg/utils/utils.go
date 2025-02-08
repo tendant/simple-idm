@@ -2,6 +2,11 @@ package utils
 
 import "database/sql"
 
+// StringPtr returns a pointer to the string value passed in
+func StringPtr(s string) *string {
+	return &s
+}
+
 func ToNullString(str string) sql.NullString {
 	if str == "" {
 		return sql.NullString{

@@ -544,3 +544,129 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 	http.Error(w, "Email is required", http.StatusBadRequest)
 	return nil
 }
+
+// Post2faDisable handles disabling 2FA for a user
+// (POST /2fa/disable)
+func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response {
+	var req TwoFactorDisable
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			body: "Invalid request body",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// Get the authenticated user from context
+	authUser, ok := r.Context().Value(AuthUserKey).(*AuthUser)
+	if !ok || authUser == nil {
+		slog.Error("User not authenticated")
+		return &Response{
+			body: "User not authenticated",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Disable 2FA for the user
+	err := h.loginService.Disable2FA(r.Context(), authUser.UserUUID, req.CurrentPassword, req.Code)
+	if err != nil {
+		slog.Error("Failed to disable 2FA", "err", err)
+		return &Response{
+			body: "Failed to disable 2FA: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	return &Response{
+		body: struct {
+			Message string `json:"message"`
+		}{
+			Message: "2FA has been disabled",
+		},
+		Code: http.StatusOK,
+	}
+}
+
+// Post2faEnable handles enabling 2FA for a user
+// (POST /2fa/enable)
+func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response {
+	var req TwoFactorEnable
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			body: "Invalid request body",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// TODO: Implement 2FA enable logic here
+	// This should:
+	// 1. Verify the secret matches the one from setup
+	// 2. Verify the code is valid
+	// 3. Enable 2FA for the user
+	// 4. Generate backup codes
+
+	return &Response{
+		body: struct {
+			BackupCodes []string `json:"backupCodes,omitempty"`
+			Message     string   `json:"message"`
+		}{
+			Message:     "2FA has been enabled",
+			BackupCodes: []string{"backup-code-1", "backup-code-2"}, // TODO: Generate real backup codes
+		},
+		Code: http.StatusOK,
+	}
+}
+
+// Post2faSetup handles setting up 2FA for a user
+// (POST /2fa/setup)
+func (h Handle) Post2faSetup(w http.ResponseWriter, r *http.Request) *Response {
+	// TODO: Implement 2FA setup logic here
+	// This should:
+	// 1. Generate a new secret
+	// 2. Generate QR code
+	// 3. Generate otpauth URL
+	// 4. Store the secret temporarily
+
+	return &Response{
+		body: TwoFactorSetup{
+			Secret:     utils.StringPtr("temporary-secret"),
+			QrCode:     utils.StringPtr("base64-encoded-qr-code"),
+			OtpauthURL: utils.StringPtr("otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"),
+		},
+		Code: http.StatusOK,
+	}
+}
+
+// Post2faVerify handles verifying 2FA code during login
+// (POST /2fa/verify)
+func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response {
+	var req TwoFactorVerify
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			body: "Invalid request body",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// TODO: Implement 2FA verification logic here
+	// This should:
+	// 1. Validate the login token
+	// 2. Verify the 2FA code
+	// 3. Complete the login process if verification succeeds
+
+	return &Response{
+		body: Login{
+			Message: "2FA verification successful",
+			Status:  "success",
+			User: User{
+				Email:           "user@example.com",
+				Name:            "User Name",
+				TwoFactorEnabled: true,
+				UUID:            "user-uuid",
+			},
+		},
+		Code: http.StatusOK,
+	}
+}

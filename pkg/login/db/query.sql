@@ -48,6 +48,14 @@ SELECT username
 FROM users
 WHERE email = $1;
 
+-- name: Disable2FA :exec
+UPDATE users
+SET two_factor_secret = NULL,
+    two_factor_enabled = FALSE,
+    two_factor_backup_codes = NULL,
+    last_modified_at = NOW()
+WHERE uuid = $1;
+
 -- name: FindUserRolesByUserUuid :many
 SELECT name
 FROM user_roles ur
