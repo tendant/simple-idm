@@ -56,6 +56,14 @@ SET two_factor_secret = NULL,
     last_modified_at = NOW()
 WHERE uuid = $1;
 
+-- name: Enable2FA :exec
+UPDATE users
+SET two_factor_secret = $1,
+    two_factor_enabled = TRUE,
+    two_factor_backup_codes = $2,
+    last_modified_at = NOW()
+WHERE uuid = $3;
+
 -- name: FindUserRolesByUserUuid :many
 SELECT name
 FROM user_roles ur

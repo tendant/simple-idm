@@ -39,6 +39,26 @@ func (q *Queries) EmailVerify(ctx context.Context, email string) error {
 	return err
 }
 
+const enable2FA = `-- name: Enable2FA :exec
+UPDATE users
+SET two_factor_secret = $1,
+    two_factor_enabled = TRUE,
+    two_factor_backup_codes = $2,
+    last_modified_at = NOW()
+WHERE uuid = $3
+`
+
+type Enable2FAParams struct {
+	TwoFactorSecret      pgtype.Text `json:"two_factor_secret"`
+	TwoFactorBackupCodes []string    `json:"two_factor_backup_codes"`
+	Uuid                 uuid.UUID   `json:"uuid"`
+}
+
+func (q *Queries) Enable2FA(ctx context.Context, arg Enable2FAParams) error {
+	_, err := q.db.Exec(ctx, enable2FA, arg.TwoFactorSecret, arg.TwoFactorBackupCodes, arg.Uuid)
+	return err
+}
+
 const findUser = `-- name: FindUser :one
 SELECT uuid, name, email, password
 FROM users
@@ -49,7 +69,7 @@ type FindUserRow struct {
 	Uuid     uuid.UUID      `json:"uuid"`
 	Name     sql.NullString `json:"name"`
 	Email    string         `json:"email"`
-	Password sql.NullString `json:"password"`
+	Password []byte         `json:"password"`
 }
 
 func (q *Queries) FindUser(ctx context.Context, email string) (FindUserRow, error) {
@@ -77,7 +97,7 @@ GROUP BY u.uuid, u.username, u.password, u.email, u.name, u.created_at, u.last_m
 type FindUserByUsernameRow struct {
 	Uuid           uuid.UUID      `json:"uuid"`
 	Username       sql.NullString `json:"username"`
-	Password       sql.NullString `json:"password"`
+	Password       []byte         `json:"password"`
 	Email          string         `json:"email"`
 	Name           sql.NullString `json:"name"`
 	CreatedAt      time.Time      `json:"created_at"`
@@ -282,13 +302,13 @@ func (q *Queries) MarkPasswordResetTokenUsed(ctx context.Context, token string) 
 const registerUser = `-- name: RegisterUser :one
 INSERT INTO users (email, name, password, created_at)
 VALUES ($1, $2, $3, NOW())
-RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username
+RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes
 `
 
 type RegisterUserParams struct {
 	Email    string         `json:"email"`
 	Name     sql.NullString `json:"name"`
-	Password sql.NullString `json:"password"`
+	Password []byte         `json:"password"`
 }
 
 func (q *Queries) RegisterUser(ctx context.Context, arg RegisterUserParams) (User, error) {
@@ -305,6 +325,9 @@ func (q *Queries) RegisterUser(ctx context.Context, arg RegisterUserParams) (Use
 		&i.Password,
 		&i.VerifiedAt,
 		&i.Username,
+		&i.TwoFactorSecret,
+		&i.TwoFactorEnabled,
+		&i.TwoFactorBackupCodes,
 	)
 	return i, err
 }
@@ -317,8 +340,8 @@ WHERE email = $2
 `
 
 type ResetPasswordParams struct {
-	Password sql.NullString `json:"password"`
-	Email    string         `json:"email"`
+	Password []byte `json:"password"`
+	Email    string `json:"email"`
 }
 
 func (q *Queries) ResetPassword(ctx context.Context, arg ResetPasswordParams) error {
@@ -334,8 +357,8 @@ WHERE uuid = $2
 `
 
 type ResetPasswordByUuidParams struct {
-	Password sql.NullString `json:"password"`
-	Uuid     uuid.UUID      `json:"uuid"`
+	Password []byte    `json:"password"`
+	Uuid     uuid.UUID `json:"uuid"`
 }
 
 func (q *Queries) ResetPasswordByUuid(ctx context.Context, arg ResetPasswordByUuidParams) error {

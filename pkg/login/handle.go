@@ -83,7 +83,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	valid, err := CheckPasswordHash(data.Password, dbUsers[0].Password.String)
+	valid, err := CheckPasswordHash(data.Password, string(dbUsers[0].Password))
 	if err != nil {
 		slog.Error("Failed checking password hash", "err", err)
 		return &Response{
@@ -360,7 +360,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	valid, err := CheckPasswordHash(data.Password, dbUsers[0].Password.String)
+	valid, err := CheckPasswordHash(data.Password, string(dbUsers[0].Password))
 	if err != nil {
 		slog.Error("Failed checking password hash", "err", err)
 		return &Response{
@@ -599,20 +599,33 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 		}
 	}
 
-	// TODO: Implement 2FA enable logic here
-	// This should:
-	// 1. Verify the secret matches the one from setup
-	// 2. Verify the code is valid
-	// 3. Enable 2FA for the user
-	// 4. Generate backup codes
+	// Get the authenticated user from context
+	authUser, ok := r.Context().Value(AuthUserKey).(*AuthUser)
+	if !ok || authUser == nil {
+		slog.Error("User not authenticated")
+		return &Response{
+			body: "User not authenticated",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Enable 2FA and get backup codes
+	backupCodes, err := h.loginService.Enable2FA(r.Context(), authUser.UserUUID, req.Secret, req.Code)
+	if err != nil {
+		slog.Error("Failed to enable 2FA", "err", err)
+		return &Response{
+			body: "Failed to enable 2FA: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
 
 	return &Response{
 		body: struct {
-			BackupCodes []string `json:"backupCodes,omitempty"`
+			BackupCodes []string `json:"backupCodes"`
 			Message     string   `json:"message"`
 		}{
+			BackupCodes: backupCodes,
 			Message:     "2FA has been enabled",
-			BackupCodes: []string{"backup-code-1", "backup-code-2"}, // TODO: Generate real backup codes
 		},
 		Code: http.StatusOK,
 	}
@@ -661,10 +674,10 @@ func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response 
 			Message: "2FA verification successful",
 			Status:  "success",
 			User: User{
-				Email:           "user@example.com",
-				Name:            "User Name",
+				Email:            "user@example.com",
+				Name:             "User Name",
 				TwoFactorEnabled: true,
-				UUID:            "user-uuid",
+				UUID:             "user-uuid",
 			},
 		},
 		Code: http.StatusOK,

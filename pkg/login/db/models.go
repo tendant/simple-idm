@@ -35,16 +35,19 @@ type Role struct {
 }
 
 type User struct {
-	Uuid           uuid.UUID      `json:"uuid"`
-	CreatedAt      time.Time      `json:"created_at"`
-	LastModifiedAt time.Time      `json:"last_modified_at"`
-	DeletedAt      sql.NullTime   `json:"deleted_at"`
-	CreatedBy      sql.NullString `json:"created_by"`
-	Email          string         `json:"email"`
-	Name           sql.NullString `json:"name"`
-	Password       sql.NullString `json:"password"`
-	VerifiedAt     sql.NullTime   `json:"verified_at"`
-	Username       sql.NullString `json:"username"`
+	Uuid                 uuid.UUID      `json:"uuid"`
+	CreatedAt            time.Time      `json:"created_at"`
+	LastModifiedAt       time.Time      `json:"last_modified_at"`
+	DeletedAt            sql.NullTime   `json:"deleted_at"`
+	CreatedBy            sql.NullString `json:"created_by"`
+	Email                string         `json:"email"`
+	Name                 sql.NullString `json:"name"`
+	Password             []byte         `json:"password"`
+	VerifiedAt           sql.NullTime   `json:"verified_at"`
+	Username             sql.NullString `json:"username"`
+	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
+	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
+	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
 }
 
 type UserRole struct {

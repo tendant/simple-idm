@@ -2,17 +2,21 @@ package login
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jinzhu/copier"
+	"github.com/lib/pq"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/utils"
+	"github.com/xlzd/gotp"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
 )
@@ -35,6 +39,38 @@ func (s LoginService) Disable2FA(ctx context.Context, userUUID uuid.UUID, curren
 
 	// Disable 2FA
 	return s.queries.Disable2FA(ctx, userUUID)
+}
+
+// Enable2FA enables 2FA for a user and generates backup codes
+func (s LoginService) Enable2FA(ctx context.Context, userUUID uuid.UUID, secret string, code string) ([]string, error) {
+	// Verify the code is valid for the secret
+	totp := gotp.NewDefaultTOTP(secret)
+	if !totp.Verify(code, time.Now().Unix()) {
+		return nil, fmt.Errorf("invalid 2FA code")
+	}
+
+	// Generate backup codes (8 random codes)
+	backupCodes := make([]string, 8)
+	for i := range backupCodes {
+		bytes := make([]byte, 4)
+		if _, err := rand.Read(bytes); err != nil {
+			return nil, fmt.Errorf("failed to generate backup codes: %w", err)
+		}
+		backupCodes[i] = hex.EncodeToString(bytes)
+	}
+
+	// Enable 2FA in database
+	params := db.Enable2FAParams{
+		TwoFactorSecret:      pgtype.Text{String: secret, Valid: true},
+		TwoFactorBackupCodes: pq.StringArray(backupCodes),
+		Uuid:                 userUUID,  // Note: lowercase 'u' in Uuid
+	}
+
+	if err := s.queries.Enable2FA(ctx, params); err != nil {
+		return nil, fmt.Errorf("failed to enable 2FA: %w", err)
+	}
+
+	return backupCodes, nil
 }
 
 func NewLoginService(queries *db.Queries, notificationManager *notification.NotificationManager) *LoginService {
@@ -176,7 +212,7 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 
 	// Update password
 	err = s.queries.ResetPasswordByUuid(ctx, db.ResetPasswordByUuidParams{
-		Password: sql.NullString{String: string(hashedPassword), Valid: true},
+		Password: hashedPassword,
 		Uuid:     tokenInfo.UserUuid,
 	})
 	if err != nil {
