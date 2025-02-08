@@ -49,7 +49,7 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 			return fmt.Errorf("failed to parse text template: %v", err)
 		}
 		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, notification)
+		err = tmpl.Execute(&buf, notification.Data)
 		if err != nil {
 			return fmt.Errorf("failed to execute text template: %v", err)
 		}
@@ -64,7 +64,7 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 			return fmt.Errorf("failed to parse HTML template: %v", err)
 		}
 		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, notification)
+		err = tmpl.Execute(&buf, notification.Data)
 		if err != nil {
 			return fmt.Errorf("failed to execute HTML template: %v", err)
 		}
