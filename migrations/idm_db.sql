@@ -115,9 +115,12 @@ CREATE TABLE public.users (
     created_by character varying(255),
     email character varying(255) NOT NULL,
     name character varying(255),
-    password character varying(255),
+    password bytea,
     verified_at timestamp without time zone,
-    username character varying(255)
+    username character varying(255),
+    two_factor_secret text,
+    two_factor_enabled boolean DEFAULT false,
+    two_factor_backup_codes text[]
 );
 
 
