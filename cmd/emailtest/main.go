@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -62,26 +63,30 @@ func main() {
 
 	// Create client options
 	opts := []mail.Option{
-		mail.WithPort(*port),
-		mail.WithTimeout(30), // Set timeout to 30 seconds
-		mail.WithDebugLog(),  // Enable debug logging
+		mail.WithPort(1025),
+		// mail.WithTimeout(30), // Set timeout to 30 seconds
+		mail.WithDebugLog(), // Enable debug logging
 		mail.WithLogger(mailLogger),
 	}
-
-	// For production SMTP servers (not local testing)
 
 	// Add authentication if provided
 	if *username != "" && *password != "" {
 		slog.Info("Adding authentication", "user", *username, "pass", *password)
 		opts = append(opts,
-			mail.WithUsername(*username),
-			mail.WithPassword(*password),
 			mail.WithSMTPAuth(mail.SMTPAuthPlain),
+			mail.WithUsername("noreply@example.com"),
+			mail.WithPassword("pwd"),
 		)
 	}
 
+	// For production SMTP servers (not local testing)
+	opts = append(opts,
+		mail.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}),
+		mail.WithTLSPolicy(mail.NoTLS))
+
 	// Create new mail client
-	client, err := mail.NewClient(*host, opts...)
+	client, err := mail.NewClient("localhost", opts...)
+	client.SetSSL(false)
 	if err != nil {
 		slog.Error("Failed to create mail client", "err", err, "host", *host)
 		return
