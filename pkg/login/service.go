@@ -63,7 +63,7 @@ func (s LoginService) Enable2FA(ctx context.Context, userUUID uuid.UUID, secret 
 	params := db.Enable2FAParams{
 		TwoFactorSecret:      pgtype.Text{String: secret, Valid: true},
 		TwoFactorBackupCodes: pq.StringArray(backupCodes),
-		Uuid:                 userUUID,  // Note: lowercase 'u' in Uuid
+		Uuid:                 userUUID, // Note: lowercase 'u' in Uuid
 	}
 
 	if err := s.queries.Enable2FA(ctx, params); err != nil {
@@ -254,16 +254,18 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 		ExpireAt: expireAt,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to save reset token: %w", err)
+		slog.Error("Failed to save reset token", "err", err)
+		return err
 	}
 
 	// Send reset email
 	if user.Email == "" {
-		return fmt.Errorf("user has no email address")
+		slog.Info("User has no email address", "user", user)
+		return err
 	}
 	err = s.SendPasswordResetEmail(ctx, user.Email, resetToken)
 	if err != nil {
-		return fmt.Errorf("failed to send reset email: %w", err)
+		return err
 	}
 
 	return nil

@@ -168,7 +168,7 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 	err = h.loginService.InitPasswordReset(r.Context(), body.Username)
 	if err != nil {
 		// Log the error but return 200 to prevent username enumeration
-		slog.Error("Failed to init password reset", "err", err, "username", body.Username)
+		slog.Error("Failed to init password reset for username", "err", err, "username", body.Username)
 		return &Response{
 			body:        http.StatusText(http.StatusInternalServerError),
 			Code:        http.StatusInternalServerError,

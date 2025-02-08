@@ -2,6 +2,7 @@ package notification
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -20,23 +21,43 @@ type SMTPConfig struct {
 type EmailNotifier struct {
 	SMTPConfig SMTPConfig
 	client     *mail.Client
+	opts       []mail.Option
 }
 
 func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
-	// Create mail client
-	client, err := mail.NewClient(config.Host,
+	// Create mail client options
+	opts := []mail.Option{
 		mail.WithPort(config.Port),
-		mail.WithUsername(config.Username),
-		mail.WithPassword(config.Password),
-		mail.WithSMTPAuth(mail.SMTPAuthPlain),
-	)
-	slog.Info("Created mail client", "Host", config.Host, "Port", config.Port, "Username", config.Username, "Password", config.Password)
+		mail.WithTLSPolicy(mail.NoTLS),    // Disable TLS for local development
+		mail.WithTimeout(30),              // Set timeout to 30 seconds
+		mail.WithHELO("localhost"),        // Use simple HELO
+		mail.WithDebugLog(),               // Enable debug logging
+		// mail.WithoutStartTLS(),         // Removed: not available in current version
+		mail.WithoutNoop(),                // Disable NOOP command
+		mail.WithTLSConfig(&tls.Config{    // Configure TLS settings
+			InsecureSkipVerify: true,      // Skip hostname verification
+		}),
+	}
+
+	// Only add authentication if username and password are provided
+	if config.Username != "" && config.Password != "" {
+		opts = append(opts,
+			mail.WithUsername(config.Username),
+			mail.WithPassword(config.Password),
+			mail.WithSMTPAuth(mail.SMTPAuthPlain),
+		)
+	}
+
+	client, err := mail.NewClient(config.Host, opts...)
+	slog.Info("Created mail client", "Host", config.Host, "Port", config.Port)
 	if err != nil {
 		slog.Error("Failed to create mail client", "err", err)
 		return nil, err
-
 	}
-	return &EmailNotifier{SMTPConfig: config, client: client}, nil
+
+	// Connection will be handled automatically when sending emails
+
+	return &EmailNotifier{SMTPConfig: config, client: client, opts: opts}, nil
 }
 
 func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationData, noticeTemplate NoticeTemplate) error {
@@ -77,6 +98,7 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 		}
 		htmlBody = buf.String()
 	}
+
 	// Create a new message
 	msg := mail.NewMsg()
 	if err := msg.From(e.SMTPConfig.From); err != nil {
@@ -104,12 +126,17 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 		}
 	}
 
+	// Connection is handled automatically by the mail client
+
 	// Send the email
 	if err := e.client.Send(msg); err != nil {
-		slog.Error("Failed to send email", "err", err, "client", e.client)
+		slog.Error("Failed to send email", "err", err)
 		return err
 	}
 
-	slog.Info("Email sent successfully to %s via SMTP", "To", notification.To, "Host", e.SMTPConfig.Host, "Port", e.SMTPConfig.Port)
+	// Close the connection
+	e.client.Close()
+
+	slog.Info("Email sent successfully", "to", notification.To, "host", e.SMTPConfig.Host, "port", e.SMTPConfig.Port)
 	return nil
 }
