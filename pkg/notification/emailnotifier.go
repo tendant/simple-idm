@@ -13,6 +13,7 @@ import (
 type SMTPConfig struct {
 	Host     string
 	Port     int
+	NoTLS    bool
 	Username string
 	Password string
 	From     string
@@ -28,15 +29,22 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 	// Create mail client options
 	opts := []mail.Option{
 		mail.WithPort(config.Port),
-		mail.WithTLSPolicy(mail.NoTLS),    // Disable TLS for local development
-		mail.WithTimeout(30),              // Set timeout to 30 seconds
-		mail.WithHELO("localhost"),        // Use simple HELO
-		mail.WithDebugLog(),               // Enable debug logging
+		mail.WithTimeout(30), // Set timeout to 30 seconds
+		mail.WithDebugLog(),  // Enable debug logging
 		// mail.WithoutStartTLS(),         // Removed: not available in current version
-		mail.WithoutNoop(),                // Disable NOOP command
-		mail.WithTLSConfig(&tls.Config{    // Configure TLS settings
-			InsecureSkipVerify: true,      // Skip hostname verification
-		}),
+		mail.WithoutNoop(), // Disable NOOP command
+	}
+
+	if config.NoTLS {
+		opts = append(opts,
+			mail.WithTLSPolicy(mail.NoTLS),
+			mail.WithTLSConfig(&tls.Config{ // Configure TLS settings
+				InsecureSkipVerify: true, // Skip hostname verification
+			}),
+		)
+	} else {
+		opts = append(opts,
+			mail.WithTLSPolicy(mail.TLSMandatory))
 	}
 
 	// Only add authentication if username and password are provided
