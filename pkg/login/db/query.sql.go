@@ -14,6 +14,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const disable2FA = `-- name: Disable2FA :exec
+UPDATE users
+SET two_factor_secret = NULL,
+    two_factor_enabled = FALSE,
+    two_factor_backup_codes = NULL,
+    last_modified_at = NOW()
+WHERE uuid = $1
+`
+
+func (q *Queries) Disable2FA(ctx context.Context, argUuid uuid.UUID) error {
+	_, err := q.db.Exec(ctx, disable2FA, argUuid)
+	return err
+}
+
 const emailVerify = `-- name: EmailVerify :exec
 UPDATE users
 SET verified_at = NOW()
