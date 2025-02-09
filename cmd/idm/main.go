@@ -7,11 +7,11 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
-	"github.com/tendant/simple-idm/pkg/email"
+	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/login"
-	"github.com/tendant/simple-idm/pkg/login/db"
+	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"golang.org/x/exp/slog"
 )
 
@@ -33,9 +33,16 @@ func (d IdmDbConfig) toDbConfig() utils.DbConfig {
 	}
 }
 
+type JwtConfig struct {
+	JwtSecret      string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
+	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
+	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
+}
+
 type Config struct {
 	IdmDbConfig IdmDbConfig
 	AppConfig   app.AppConfig
+	JwtConfig   JwtConfig
 }
 
 func main() {
@@ -53,29 +60,23 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// Initialize email service
-	emailConfig, err := email.LoadConfigFromEnv()
-	if err != nil {
-		slog.Error("Failed to load email config", "err", err)
-		os.Exit(-1)
-	}
-
-	emailService, err := email.NewService(emailConfig)
-	if err != nil {
-		slog.Error("Failed to create email service", "err", err)
-		os.Exit(-1)
-	}
-
 	iamQueries := iamdb.New(pool)
 	iamService := iam.NewIamService(iamQueries)
 	iamHandler := iam.NewHandle(iamService)
 	iam.Routes(myApp.R, iamHandler)
 
+	// jwt service
+	jwtService := auth.NewJwtServiceOptions(
+		config.JwtConfig.JwtSecret,
+		auth.WithCookieHttpOnly(config.JwtConfig.CookieHttpOnly),
+		auth.WithCookieSecure(config.JwtConfig.CookieSecure),
+	)
+
 	// Initialize login service with email
-	loginQueries := db.New(pool)
-	loginService := login.NewLoginService(loginQueries, emailService)
-	loginHandler := login.NewHandle(loginService)
-	login.Routes(myApp.R, loginHandler)
+	loginQueries := logindb.New(pool)
+	loginService := login.NewLoginService(loginQueries)
+	loginHandler := login.NewHandle(loginService, *jwtService)
+	myApp.R.Mount("/auth", login.Handler(loginHandler))
 
 	myApp.Run()
 

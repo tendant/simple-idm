@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import Navigation from '@/components/Navigation';
 
 const Settings: Component = () => {
   const [currentPassword, setCurrentPassword] = createSignal('');
@@ -49,9 +50,12 @@ const Settings: Component = () => {
   };
 
   return (
-    <div class="container mx-auto p-4">
-      <div class="mx-auto max-w-2xl">
-        <h1 class="mb-8 text-2xl font-bold">User Settings</h1>
+    <div>
+      <Navigation />
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <div class="container mx-auto p-4">
+          <div class="mx-auto max-w-2xl">
+            <h1 class="mb-8 text-2xl font-bold">User Settings</h1>
         
         {success() && (
           <Alert class="mb-4">
@@ -112,6 +116,8 @@ const Settings: Component = () => {
             </form>
           </CardContent>
         </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
