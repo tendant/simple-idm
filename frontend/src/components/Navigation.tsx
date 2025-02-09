@@ -1,5 +1,7 @@
 import { Component } from 'solid-js';
 import { A } from '@solidjs/router';
+import { logout } from '@/lib/auth';
+import { Button } from '@/components/ui/button';
 
 const Navigation: Component = () => {
   return (
@@ -26,6 +28,20 @@ const Navigation: Component = () => {
                 Roles
               </A>
             </div>
+          </div>
+          <div class="flex items-center">
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                try {
+                  await logout();
+                } catch (error) {
+                  console.error('Logout failed:', error);
+                }
+              }}
+            >
+              Logout
+            </Button>
           </div>
         </div>
       </div>
