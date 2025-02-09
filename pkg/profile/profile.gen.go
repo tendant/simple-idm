@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	BearerAuthScopes = "BearerAuth.Scopes"
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
@@ -34,6 +35,42 @@ type Error struct {
 	Message string `json:"message"`
 }
 
+// TwoFactorDisable defines model for TwoFactorDisable.
+type TwoFactorDisable struct {
+	// Current TOTP code
+	Code string `json:"code"`
+
+	// Current account password
+	CurrentPassword string `json:"currentPassword"`
+}
+
+// TwoFactorEnable defines model for TwoFactorEnable.
+type TwoFactorEnable struct {
+	// Current TOTP code
+	Code string `json:"code"`
+
+	// TOTP secret from setup
+	Secret string `json:"secret"`
+}
+
+// TwoFactorSetup defines model for TwoFactorSetup.
+type TwoFactorSetup struct {
+	// otpauth:// URL for manual setup
+	OtpauthURL *string `json:"otpauthUrl,omitempty"`
+
+	// Data URI of QR code image
+	QrCode *string `json:"qrCode,omitempty"`
+
+	// TOTP secret key
+	Secret *string `json:"secret,omitempty"`
+}
+
+// Post2faDisableJSONBody defines parameters for Post2faDisable.
+type Post2faDisableJSONBody TwoFactorDisable
+
+// Post2faEnableJSONBody defines parameters for Post2faEnable.
+type Post2faEnableJSONBody TwoFactorEnable
+
 // PutPasswordJSONBody defines parameters for PutPassword.
 type PutPasswordJSONBody struct {
 	// User's current password
@@ -41,6 +78,22 @@ type PutPasswordJSONBody struct {
 
 	// User's new password
 	NewPassword string `json:"newPassword"`
+}
+
+// Post2faDisableJSONRequestBody defines body for Post2faDisable for application/json ContentType.
+type Post2faDisableJSONRequestBody Post2faDisableJSONBody
+
+// Bind implements render.Binder.
+func (Post2faDisableJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faEnableJSONRequestBody defines body for Post2faEnable for application/json ContentType.
+type Post2faEnableJSONRequestBody Post2faEnableJSONBody
+
+// Bind implements render.Binder.
+func (Post2faEnableJSONRequestBody) Bind(*http.Request) error {
+	return nil
 }
 
 // PutPasswordJSONRequestBody defines body for PutPassword for application/json ContentType.
@@ -92,6 +145,42 @@ func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Encode(resp.body)
 }
 
+// Post2faDisableJSON200Response is a constructor method for a Post2faDisable response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faDisableJSON200Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// Post2faEnableJSON200Response is a constructor method for a Post2faEnable response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faEnableJSON200Response(body struct {
+	// One-time use backup codes
+	BackupCodes []string `json:"backupCodes,omitempty"`
+	Message     *string  `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// Post2faSetupJSON200Response is a constructor method for a Post2faSetup response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faSetupJSON200Response(body TwoFactorSetup) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // PutPasswordJSON400Response is a constructor method for a PutPassword response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PutPasswordJSON400Response(body Error) *Response {
@@ -134,6 +223,15 @@ func PutPasswordJSON500Response(body Error) *Response {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Disable 2FA for the user
+	// (POST /2fa/disable)
+	Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
+	// Enable 2FA for the user
+	// (POST /2fa/enable)
+	Post2faEnable(w http.ResponseWriter, r *http.Request) *Response
+	// Generate 2FA secret and QR code
+	// (POST /2fa/setup)
+	Post2faSetup(w http.ResponseWriter, r *http.Request) *Response
 	// Change user password
 	// (PUT /password)
 	PutPassword(w http.ResponseWriter, r *http.Request) *Response
@@ -143,6 +241,66 @@ type ServerInterface interface {
 type ServerInterfaceWrapper struct {
 	Handler          ServerInterface
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// Post2faDisable operation middleware
+func (siw *ServerInterfaceWrapper) Post2faDisable(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{""})
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faDisable(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post2faEnable operation middleware
+func (siw *ServerInterfaceWrapper) Post2faEnable(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{""})
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faEnable(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post2faSetup operation middleware
+func (siw *ServerInterfaceWrapper) Post2faSetup(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{""})
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faSetup(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
 }
 
 // PutPassword operation middleware
@@ -280,6 +438,9 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
+		r.Post("/2fa/disable", wrapper.Post2faDisable)
+		r.Post("/2fa/enable", wrapper.Post2faEnable)
+		r.Post("/2fa/setup", wrapper.Post2faSetup)
 		r.Put("/password", wrapper.PutPassword)
 	})
 	return r
@@ -306,15 +467,21 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/7yUTW/UPBDHv4o1zyNRpGh3S+GSW0FUKhLSSlBxqHpw40niKrHNeLyrUOW7I9vZhn2h",
-	"cCmnzXpe/PvPix+hsr2zBg17KB/BVy32Mn1+JLIUPxxZh8Qa03FlFcZfhb4i7VhbA2V2FslWAA8OoQTP",
-	"pE0DYwE9ei+b34btzEeRYwGE34MmVFDewpR+53735G/vH7Di5O+xCqR5+BKFZOJ7lIR0Gbid/11Z6iVD",
-	"CZ++fYUiy46ZsnUmaZkdjDGxNrWN8ay5i5Y12Vp3KD5LIxvs0bC4XF9DARskn9WdL1aLVdRvHRrpNJRw",
-	"kY4KcJLbBLd00vutJZUqHfi4RjdOSUbBLYrgkV55sQsRsmYksUHS9aBNE300iSoQRZynzAmAZMx3rSJ6",
-	"4PVsixVGz++tGnJ/DaNJHNK5TlcpbvngI8xuQE6MRb50/YuaAxmZ/QTc0bgY3P4xj8HtMzkOB+cAbv+K",
-	"E3O0F88UMB14Z43Pct+sVsdou4wipJYp4UNVofd16LohCnubo/66xP8T1lDCf8t5SZfThi7zeibUfYpr",
-	"s5GdVmLqqzjDRbMohJ6ODxvwOoOdvzzYjZGBW0v6BypxZiyLzjYNKqHNBHHx8hBXlu61UmjE2bMVefdv",
-	"WsVIRnbCI22QBE6O8zMG5e3+A3Z7N94V4EPfSxqghA+tNE1+GeZ9GMdx/BkAAP//kyPIvNoFAAA=",
+	"H4sIAAAAAAAC/7xWUU/kNhD+KyO3UqmUEo5rX/LGcUdF1eoox6oPiAdvMsn6LrF9Yxu6Rfnvle0E2CS7",
+	"Fwrbp1059szn7/tmxvcsV41WEqU1LLtnJl9hw8PfD0SK/B9NSiNZgWE5VwX63wJNTkJboSTL4mYI3xJm",
+	"1xpZxowlISvWJqxBY3i19Vj/eXSyTRjhVycIC5Zdsy58v/3mYb9afsbc+kxXd+qM51bRe2H4sg4pl8gJ",
+	"6UxRwy3L2G9/XbFk1qVOHRFKC1cfry623i2Pmy64MXeKiu1ReJ4rJy3ofufM6w4T3CRRJX8yXo3tIuKD",
+	"7Hl4tSsbzAnt+HA4FD9CSaoBg9bpuffsou5U9VMIOLqLspo7u1pQPQbVfcvSFBaXv0Pp/cal4/U2dAn7",
+	"SqeT5LznlsPi8hxUCX9eBnpANJPOnUfSF1xPsjMgwC8JWSofzArr1WQXpEpRI/zBJa+w8ZqdXJyzhN0i",
+	"mZjpzeHR4ZGHojRKrgXL2NuwlDDN7Sowlx6XPC0ea0UrEzB7drlHfF74ZMrY45L3NRXlQ2PfqWIdvSQt",
+	"ynCQa12LPBxNPxuPo28q/t/3hCXL2HfpY9dJu5aTjkq33TSKJYdhwWglTRT++OjoWfk3bfOkLeHfvNGB",
+	"2OOzE+gIKcC4PEdjSlfXs5XalHt7uDaaxJGwa5Zd37N3oZhPnF2x7Pqm9XXumobT2lsvhgAfzlvYrhCc",
+	"QQpRgogoZ2nYtYM9S9hl2buCS55/cdpXqxlX2keJP1nRBKIg7gw1a1jChMUmHBnVbbfAifh6MLs2TRIJ",
+	"fy2PTEZ7lkUi5zscYh6a5y6DfOq64otUmmWSmGkLHwEs+K7nx7ZQEiqUHu6LOPq1iwExRWjCXBZ9N49c",
+	"6SejXLuJFr7QhY/RM/yDeZjpwEuLBLdIolwLWfk9gqAb4U9H/4B79zjf/3tpDgb8tx4mi4h9AtyoKCTe",
+	"fTOOxLtnvG0G4DZT3EwWzaxGsgmtjwguSDa0TsJ+fkVjxwfzhJ/P5S2vRQGdrnCAh9VhAqJbHgrwYwT2",
+	"Zv/AFtI/jRSJf7CAA6ks1KqqsAAhOxBv9w/iTNFSFAVKONjJyC//j1QWSYbHId0iAXYbBz1muaPHnK64",
+	"rGJneKyHtm3bfwMAAP//mQ1SDWwNAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

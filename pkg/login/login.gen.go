@@ -6,7 +6,6 @@ package login
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
@@ -20,10 +19,6 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-)
-
-const (
-	BearerAuthScopes = "BearerAuth.Scopes"
 )
 
 // EmailVerifyRequest defines model for EmailVerifyRequest.
@@ -74,36 +69,6 @@ type Tokens struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
-// TwoFactorDisable defines model for TwoFactorDisable.
-type TwoFactorDisable struct {
-	// Current TOTP code
-	Code string `json:"code"`
-
-	// Current account password
-	CurrentPassword string `json:"currentPassword"`
-}
-
-// TwoFactorEnable defines model for TwoFactorEnable.
-type TwoFactorEnable struct {
-	// Current TOTP code
-	Code string `json:"code"`
-
-	// TOTP secret from setup
-	Secret string `json:"secret"`
-}
-
-// TwoFactorSetup defines model for TwoFactorSetup.
-type TwoFactorSetup struct {
-	// otpauth:// URL for manual setup
-	OtpauthURL *string `json:"otpauthUrl,omitempty"`
-
-	// Data URI of QR code image
-	QrCode *string `json:"qrCode,omitempty"`
-
-	// TOTP secret key
-	Secret *string `json:"secret,omitempty"`
-}
-
 // TwoFactorVerify defines model for TwoFactorVerify.
 type TwoFactorVerify struct {
 	// TOTP code
@@ -122,12 +87,6 @@ type User struct {
 	TwoFactorEnabled bool   `json:"twoFactorEnabled"`
 	UUID             string `json:"uuid"`
 }
-
-// Post2faDisableJSONBody defines parameters for Post2faDisable.
-type Post2faDisableJSONBody TwoFactorDisable
-
-// Post2faEnableJSONBody defines parameters for Post2faEnable.
-type Post2faEnableJSONBody TwoFactorEnable
 
 // Post2faVerifyJSONBody defines parameters for Post2faVerify.
 type Post2faVerifyJSONBody TwoFactorVerify
@@ -158,22 +117,6 @@ type PostRegisterJSONBody RegisterRequest
 
 // PostUsernameFindJSONBody defines parameters for PostUsernameFind.
 type PostUsernameFindJSONBody FindUsernameRequest
-
-// Post2faDisableJSONRequestBody defines body for Post2faDisable for application/json ContentType.
-type Post2faDisableJSONRequestBody Post2faDisableJSONBody
-
-// Bind implements render.Binder.
-func (Post2faDisableJSONRequestBody) Bind(*http.Request) error {
-	return nil
-}
-
-// Post2faEnableJSONRequestBody defines body for Post2faEnable for application/json ContentType.
-type Post2faEnableJSONRequestBody Post2faEnableJSONBody
-
-// Bind implements render.Binder.
-func (Post2faEnableJSONRequestBody) Bind(*http.Request) error {
-	return nil
-}
 
 // Post2faVerifyJSONRequestBody defines body for Post2faVerify for application/json ContentType.
 type Post2faVerifyJSONRequestBody Post2faVerifyJSONBody
@@ -278,42 +221,6 @@ func (resp *Response) MarshalJSON() ([]byte, error) {
 // This is used to only marshal the body of the response.
 func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Encode(resp.body)
-}
-
-// Post2faDisableJSON200Response is a constructor method for a Post2faDisable response.
-// A *Response is returned with the configured status code and content type from the spec.
-func Post2faDisableJSON200Response(body struct {
-	Message *string `json:"message,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// Post2faEnableJSON200Response is a constructor method for a Post2faEnable response.
-// A *Response is returned with the configured status code and content type from the spec.
-func Post2faEnableJSON200Response(body struct {
-	// One-time use backup codes
-	BackupCodes []string `json:"backupCodes,omitempty"`
-	Message     *string  `json:"message,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// Post2faSetupJSON200Response is a constructor method for a Post2faSetup response.
-// A *Response is returned with the configured status code and content type from the spec.
-func Post2faSetupJSON200Response(body TwoFactorSetup) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
 }
 
 // Post2faVerifyJSON200Response is a constructor method for a Post2faVerify response.
@@ -449,15 +356,6 @@ func PostUsernameFindJSON200Response(body struct {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Disable 2FA for the user
-	// (POST /2fa/disable)
-	Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
-	// Enable 2FA for the user
-	// (POST /2fa/enable)
-	Post2faEnable(w http.ResponseWriter, r *http.Request) *Response
-	// Generate 2FA secret and QR code
-	// (POST /2fa/setup)
-	Post2faSetup(w http.ResponseWriter, r *http.Request) *Response
 	// Verify 2FA code during login
 	// (POST /2fa/verify)
 	Post2faVerify(w http.ResponseWriter, r *http.Request) *Response
@@ -494,66 +392,6 @@ type ServerInterface interface {
 type ServerInterfaceWrapper struct {
 	Handler          ServerInterface
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
-}
-
-// Post2faDisable operation middleware
-func (siw *ServerInterfaceWrapper) Post2faDisable(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{""})
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.Post2faDisable(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
-// Post2faEnable operation middleware
-func (siw *ServerInterfaceWrapper) Post2faEnable(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{""})
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.Post2faEnable(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
-// Post2faSetup operation middleware
-func (siw *ServerInterfaceWrapper) Post2faSetup(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	ctx = context.WithValue(ctx, BearerAuthScopes, []string{""})
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.Post2faSetup(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
 }
 
 // Post2faVerify operation middleware
@@ -851,9 +689,6 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
-		r.Post("/2fa/disable", wrapper.Post2faDisable)
-		r.Post("/2fa/enable", wrapper.Post2faEnable)
-		r.Post("/2fa/setup", wrapper.Post2faSetup)
 		r.Post("/2fa/verify", wrapper.Post2faVerify)
 		r.Post("/email/verify", wrapper.PostEmailVerify)
 		r.Post("/login", wrapper.PostLogin)
@@ -889,32 +724,27 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"H4sIAAAAAAAC/+xYTW/cNhD9KwRboBdh5bg97akOGgMOGtRwnOZQ9ECLoxVdiVTIkTeLYP97wQ9JK4kr",
+	"bZ1s4ENvC+6IM3zvzQf5hWaqqpUEiYauv1CTFVAx9/NNxUT5J2iR7+7gUwMG7WqtVQ0aBTgbsDb2B+5q",
+	"oGtqUAu5oft9QjV8aoQGTtd/BbO/k9ZMPTxChnSf0Gsh+QcDWrIKlr1wMJkWNQol6doHSBjnGowhqEgu",
+	"JCdN2I3kStOE5kpXDOk6bJI8O9Lf1UbIaWylXb5X/4CcBuiWbRzk8vqKPFkoRcbsn0TkpHM7iSmhFRjD",
+	"NhBBtgvXXF5fTV1+LAALiDk0EYcPSpXApN3VIMPGo/2ZVXXpfDZZBsbEArQoW+MfNeR0TX9IexmlQUOp",
+	"5XUCcPDTHzHsFYP8lhmzVZrfgYGILDLF4wjV4btlYbotDj5YjOJGikgkreamfLTaJionWABhWaYaiVat",
+	"2u5HWtdBrvPhdn5icd7BRhgEvZxGPcOPqpArruDXsLTKVBWjuz1c/+VbVUjym4KY9en4u32TLjdneXDZ",
+	"ZKbHYk6kXQpG8iXXYIpjBqOIDncbfRsNaquuWYZK+0J5XKSjyvDH/S0J4psEfEJJ0aoiQgoUrCTO3Kqp",
+	"VtLAooaC1wMnsXN9CPl9WrnvBTL5A1uA3kj2UAKfL1nCEPB2rmxiIYwr6NGS1TTiBIk5q2SstElYUxBs",
+	"UYSs0QJ3721F8xC8BqZBXzVYdO3SheWW+zALxJru7R5C5spFKdAljkWWvGOSbaACieTq9oYm9Am08XC8",
+	"Wl2sLuzxVA2S1YKu6c9uyaYHFi6I9DJn6VOvOOXT3VLlqv0Np2t6qwxe5iwI04MCBl8rvvPClAjSfcfq",
+	"ugx9In00SvaDwFKJH8t/P0QfdQNuwWvTxX55cfHN3Pue7JwONWW1ZIUeeiBwEnpZ3pTlznPbVBXTO7qm",
+	"PnbSfcMbKySfV840dao5CfCDoelMkEfGsjOgPsz74+PIfpo2EzL8nPYfmIDDwc4zUHbT11HovRieD/rw",
+	"yDM9LBn0+xM79mxzeyFZ40qTbydDkhL6y7fSTz9BtKNR2g5YtvpvtZKbaA9blNmNfGKl4CTTwEHa1mhG",
+	"8nIHJ8x3lFZWqsFFXVmbF5RQPqK5RAoW/UEr9SBKOCWN3jnL/5Pp6GFG8+aQmrcf74k3IBhmyMWBdLpD",
+	"sDi2xdeMrFM1ecIneT9S1MAKJK+VkH5ISlsuUt3d046qa3ilO0+HHPp44c2xK37+OjiT03eD+2IM+lS0",
+	"t9PT8HeX2e/AgfNzdh6OPAc8gwR/s8L5WeUmGPU3eP9xY+zw2JUqR5MOV/N5btoL/JkoGb8PnETIq68g",
+	"pLstnvAGt0iRm00yDUu0tKckjEjYHnRAV0vTUB3niXC18y5YnnEQCy8akdP6f9o+sHRi3yxs48B2x4Sm",
+	"rQTTXEh+eODR2JQTJrt3KfgsDBqyFVi496paqyfBgfuZPHFr3QvrVpQleQBiwL9oYcFwNLwnEXjbwe/a",
+	"xnUerceelb9nIxhCfEXCX0RI7naTG4dkODrZMmORtgy759l+SJ5jpwU7IdvAhQHJhxShIgJXz0u5AFwf",
+	"2UCFKxKLLbFLXgKdhqJ6WY1U/B4O3+5Rud8/mcldcL//NwAA//+1yA+hsxgAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

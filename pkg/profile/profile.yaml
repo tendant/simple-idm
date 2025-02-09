@@ -52,6 +52,67 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /2fa/setup:
+    post:
+      summary: Generate 2FA secret and QR code
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: 2FA setup information generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFactorSetup"
+  /2fa/enable:
+    post:
+      summary: Enable 2FA for the user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFactorEnable"
+      responses:
+        "200":
+          description: 2FA enabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "2FA enabled successfully"
+                  backupCodes:
+                    type: array
+                    items:
+                      type: string
+                    description: One-time use backup codes
+  /2fa/disable:
+    post:
+      summary: Disable 2FA for the user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFactorDisable"
+      responses:
+        "200":
+          description: 2FA disabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "2FA disabled successfully"
 
 components:
   schemas:
@@ -67,8 +128,41 @@ components:
       required:
         - code
         - message
-  securitySchemes:
-    bearerAuth:
-      type: http
+    TwoFactorSetup:
+      type: object
+      properties:
+        secret:
+          type: string
+          description: TOTP secret key
+        qrCode:
+          type: string
+          description: Data URI of QR code image
+        otpauthUrl:
+          type: string
+          description: otpauth:// URL for manual setup
+    TwoFactorEnable:
+      type: object
+      required:
+        - code
+        - secret
+      properties:
+        code:
+          type: string
+          description: Current TOTP code
+        secret:
+          type: string
+          description: TOTP secret from setup
+    TwoFactorDisable:
+      type: object
+      required:
+        - code
+        - currentPassword
+      properties:
+        code:
+          type: string
+          description: Current TOTP code
+        currentPassword:
+          type: string
+          description: Current account password        
       scheme: bearer
       bearerFormat: JWT
