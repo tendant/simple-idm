@@ -29,8 +29,8 @@ const PasswordReset: Component = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          code: params.code,
-          password: password(),
+          token: params.code,
+          new_password: password(),
         }),
       });
 
