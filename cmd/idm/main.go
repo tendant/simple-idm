@@ -8,9 +8,10 @@ import (
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/pkg/email"
-	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/iam"
-	"github.com/tendant/simple-idm/pkg/iam/db"
+	"github.com/tendant/simple-idm/pkg/iam/iamdb"
+	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/login/db"
 	"golang.org/x/exp/slog"
 )
 
@@ -65,13 +66,14 @@ func main() {
 		os.Exit(-1)
 	}
 
-	queries := db.New(pool)
-	userService := iam.NewUserService(queries)
-	userHandler := iam.NewHandle(userService)
-	iam.Routes(myApp.R, userHandler)
+	iamQueries := iamdb.New(pool)
+	iamService := iam.NewIamService(iamQueries)
+	iamHandler := iam.NewHandle(iamService)
+	iam.Routes(myApp.R, iamHandler)
 
 	// Initialize login service with email
-	loginService := login.NewLoginService(queries, emailService)
+	loginQueries := db.New(pool)
+	loginService := login.NewLoginService(loginQueries, emailService)
 	loginHandler := login.NewHandle(loginService)
 	login.Routes(myApp.R, loginHandler)
 

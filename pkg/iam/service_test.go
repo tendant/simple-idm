@@ -100,7 +100,7 @@ func TestCreateUser(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewUserService(queries)
+	service := NewIamService(queries)
 
 	// Create a test role first
 	role, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
@@ -200,7 +200,7 @@ func TestFindUsers(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewUserService(queries)
+	service := NewIamService(queries)
 
 	// Create a test role
 	role, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
@@ -289,7 +289,7 @@ func TestGetUser(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewUserService(queries)
+	service := NewIamService(queries)
 
 	// Create a test role
 	roleUUID := uuid.New()
@@ -328,7 +328,7 @@ func TestUpdateUser(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewUserService(queries)
+	service := NewIamService(queries)
 
 	// Create test roles
 	role1, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
@@ -434,7 +434,7 @@ func TestDeleteUser(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewUserService(queries)
+	service := NewIamService(queries)
 
 	// Create a test role
 	roleUUID := uuid.New()
