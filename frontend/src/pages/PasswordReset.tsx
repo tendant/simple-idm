@@ -11,6 +11,7 @@ const PasswordReset: Component = () => {
   const [password, setPassword] = createSignal('');
   const [confirmPassword, setConfirmPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
+  const [success, setSuccess] = createSignal<string | null>(null);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: Event) => {
@@ -35,11 +36,17 @@ const PasswordReset: Component = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to reset password');
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to reset password');
       }
 
-      // Redirect to login page after successful password reset
-      navigate('/login');
+      const data = await response.json();
+      setSuccess(data.message || 'Password has been reset successfully');
+      
+      // Redirect to login page after 2 seconds
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset password');
     }
@@ -47,6 +54,18 @@ const PasswordReset: Component = () => {
 
   return (
     <div class="container mx-auto flex h-screen w-screen flex-col items-center justify-center">
+      {success() && (
+        <Alert class="mb-4 w-[400px]">
+          <AlertTitle>Success</AlertTitle>
+          <AlertDescription>{success()}</AlertDescription>
+        </Alert>
+      )}
+      {error() && (
+        <Alert class="mb-4 w-[400px]" variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error()}</AlertDescription>
+        </Alert>
+      )}
       <Card class="w-[400px]">
         <CardHeader>
           <CardTitle>Reset Password</CardTitle>
