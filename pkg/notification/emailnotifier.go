@@ -29,27 +29,14 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 	// Create mail client options
 	opts := []mail.Option{
 		mail.WithPort(config.Port),
-		mail.WithTimeout(30), // Set timeout to 30 seconds
-		mail.WithDebugLog(),  // Enable debug logging
-		mail.WithoutNoop(),   // Disable NOOP command
-	}
-
-	if config.NoTLS {
-		slog.Info("NoTLS")
-		opts = append(opts,
-			mail.WithTLSPolicy(mail.NoTLS),
-			mail.WithTLSConfig(&tls.Config{ // Configure TLS settings
-				InsecureSkipVerify: true, // Skip hostname verification
-			}),
-		)
-	} else {
-		slog.Info("With TLS")
-		opts = append(opts,
-			mail.WithTLSPolicy(mail.TLSMandatory))
+		// mail.WithTimeout(30), // Set timeout to 30 seconds
+		// mail.WithDebugLog(),  // Enable debug logging
+		// mail.WithoutNoop(),   // Disable NOOP command
 	}
 
 	// Only add authentication if username and password are provided
 	if config.Username != "" && config.Password != "" {
+		slog.Info("Adding authentication", "user", config.Username, "pass", config.Password)
 		opts = append(opts,
 			mail.WithSMTPAuth(mail.SMTPAuthPlain),
 			mail.WithUsername(config.Username),
@@ -57,9 +44,23 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 		)
 	}
 
+	if config.NoTLS {
+		slog.Info("NoTLS")
+		opts = append(opts,
+			mail.WithTLSConfig(&tls.Config{ // Configure TLS settings
+				InsecureSkipVerify: true, // Skip hostname verification
+			}),
+			mail.WithTLSPolicy(mail.NoTLS),
+		)
+	} else {
+		slog.Info("With TLS")
+		opts = append(opts,
+			mail.WithTLSPolicy(mail.TLSMandatory))
+	}
+
+	slog.Info("Creating mail client", "Host", config.Host, "Port", config.Port)
 	client, err := mail.NewClient(config.Host, opts...)
 	client.SetSSL(false)
-	slog.Info("Created mail client", "Host", config.Host, "Port", config.Port)
 	if err != nil {
 		slog.Error("Failed to create mail client", "err", err)
 		return nil, err
@@ -139,7 +140,7 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 	// Connection is handled automatically by the mail client
 
 	// Send the email
-	if err := e.client.Send(msg); err != nil {
+	if err := e.client.DialAndSend(msg); err != nil {
 		slog.Error("Failed to send email", "err", err)
 		return err
 	}
