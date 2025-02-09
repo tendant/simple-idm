@@ -81,6 +81,19 @@ const EditRolePage: Component = () => {
   );
 };
 
+const SettingsPage: Component = () => {
+  return (
+    <div class="min-h-screen bg-gray-1">
+      <main class="py-10 px-4 sm:px-6 lg:px-8">
+        <Navigation />
+        <Suspense>
+          <Settings />
+        </Suspense>
+      </main>
+    </div>
+  );
+};
+
 const App: Component = () => {
   return (
     <Router>
@@ -95,7 +108,7 @@ const App: Component = () => {
       <Route path="/password-reset-init" component={PasswordResetInit} />
       <Route path="/password-reset/:code" component={PasswordReset} />
       <Route path="/find-username" component={FindUsername} />
-      <Route path="/settings" component={Settings} />
+      <Route path="/settings" component={SettingsPage} />
     </Router>
   );
 };
