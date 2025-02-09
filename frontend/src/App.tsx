@@ -10,6 +10,7 @@ import EditRole from './pages/EditRole';
 import Navigation from './components/Navigation';
 import PasswordResetInit from './pages/PasswordResetInit';
 import PasswordReset from './pages/PasswordReset';
+import Settings from './pages/Settings';
 import FindUsername from './pages/FindUsername';
 
 const UsersPage: Component = () => {
@@ -94,6 +95,7 @@ const App: Component = () => {
       <Route path="/password-reset-init" component={PasswordResetInit} />
       <Route path="/password-reset/:code" component={PasswordReset} />
       <Route path="/find-username" component={FindUsername} />
+      <Route path="/settings" component={Settings} />
     </Router>
   );
 };
