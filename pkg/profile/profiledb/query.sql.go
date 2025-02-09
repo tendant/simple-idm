@@ -15,7 +15,7 @@ import (
 
 const getUserByUUID = `-- name: GetUserByUUID :one
 
-SELECT uuid, username, email, name, created_at, last_modified_at
+SELECT uuid, username, email, password, created_at, last_modified_at
 FROM users
 WHERE uuid = $1
 `
@@ -24,7 +24,7 @@ type GetUserByUUIDRow struct {
 	Uuid           uuid.UUID      `json:"uuid"`
 	Username       sql.NullString `json:"username"`
 	Email          string         `json:"email"`
-	Name           sql.NullString `json:"name"`
+	Password       []byte         `json:"password"`
 	CreatedAt      time.Time      `json:"created_at"`
 	LastModifiedAt time.Time      `json:"last_modified_at"`
 }
@@ -37,7 +37,7 @@ func (q *Queries) GetUserByUUID(ctx context.Context, argUuid uuid.UUID) (GetUser
 		&i.Uuid,
 		&i.Username,
 		&i.Email,
-		&i.Name,
+		&i.Password,
 		&i.CreatedAt,
 		&i.LastModifiedAt,
 	)
@@ -49,7 +49,6 @@ UPDATE users
 SET password = $2,
     last_modified_at = NOW()
 WHERE uuid = $1
-  AND password = $1
 `
 
 type UpdateUserPasswordParams struct {

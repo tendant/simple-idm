@@ -5,6 +5,6 @@ SET password = $2,
 WHERE uuid = $1;  -- Verify current password
 
 -- name: GetUserByUUID :one
-SELECT uuid, username, email, name, created_at, last_modified_at
+SELECT uuid, username, email, password, created_at, last_modified_at
 FROM users
 WHERE uuid = $1;
