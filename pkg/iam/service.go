@@ -6,50 +6,50 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/pkg/iam/db"
+	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 )
 
 type UserService struct {
-	queries *db.Queries
+	queries *iamdb.Queries
 }
 
-func NewUserService(queries *db.Queries) *UserService {
+func NewUserService(queries *iamdb.Queries) *UserService {
 	return &UserService{
 		queries: queries,
 	}
 }
 
-func (s *UserService) CreateUser(ctx context.Context, email, username, name string, roleUuids []uuid.UUID) (db.GetUserWithRolesRow, error) {
+func (s *UserService) CreateUser(ctx context.Context, email, username, name string, roleUuids []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
 	// Validate email
 	if email == "" {
-		return db.GetUserWithRolesRow{}, fmt.Errorf("email is required")
+		return iamdb.GetUserWithRolesRow{}, fmt.Errorf("email is required")
 	}
 	// Validate username
 	if username == "" {
-		return db.GetUserWithRolesRow{}, fmt.Errorf("username is required")
+		return iamdb.GetUserWithRolesRow{}, fmt.Errorf("username is required")
 	}
 
 	// Create the user first
 	nullString := sql.NullString{String: name, Valid: name != ""}
-	user, err := s.queries.CreateUser(ctx, db.CreateUserParams{
+	user, err := s.queries.CreateUser(ctx, iamdb.CreateUserParams{
 		Email:    email,
 		Username: sql.NullString{String: username, Valid: true},
 		Name:     nullString,
 	})
 	if err != nil {
-		return db.GetUserWithRolesRow{}, fmt.Errorf("failed to create user: %w", err)
+		return iamdb.GetUserWithRolesRow{}, fmt.Errorf("failed to create user: %w", err)
 	}
 
 	// If there are roles to assign, create the user-role associations
 	if len(roleUuids) > 0 {
 		// Insert role assignments one by one
 		for _, roleUuid := range roleUuids {
-			_, err = s.queries.CreateUserRole(ctx, db.CreateUserRoleParams{
+			_, err = s.queries.CreateUserRole(ctx, iamdb.CreateUserRoleParams{
 				UserUuid: user.Uuid,
 				RoleUuid: roleUuid,
 			})
 			if err != nil {
-				return db.GetUserWithRolesRow{}, fmt.Errorf("failed to assign role: %w", err)
+				return iamdb.GetUserWithRolesRow{}, fmt.Errorf("failed to assign role: %w", err)
 			}
 		}
 	}
@@ -57,47 +57,47 @@ func (s *UserService) CreateUser(ctx context.Context, email, username, name stri
 	// Get the user with roles
 	userWithRoles, err := s.queries.GetUserWithRoles(ctx, user.Uuid)
 	if err != nil {
-		return db.GetUserWithRolesRow{}, fmt.Errorf("failed to get user with roles: %w", err)
+		return iamdb.GetUserWithRolesRow{}, fmt.Errorf("failed to get user with roles: %w", err)
 	}
 
 	return userWithRoles, nil
 }
 
-func (s *UserService) FindUsers(ctx context.Context) ([]db.FindUsersWithRolesRow, error) {
+func (s *UserService) FindUsers(ctx context.Context) ([]iamdb.FindUsersWithRolesRow, error) {
 	return s.queries.FindUsersWithRoles(ctx)
 }
 
-func (s *UserService) GetUser(ctx context.Context, userUuid uuid.UUID) (db.GetUserWithRolesRow, error) {
+func (s *UserService) GetUser(ctx context.Context, userUuid uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
 	return s.queries.GetUserWithRoles(ctx, userUuid)
 }
 
-func (s *UserService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name string, roleUuids []uuid.UUID) (db.GetUserWithRolesRow, error) {
+func (s *UserService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name string, roleUuids []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
 	// Update the user's name
 	nullString := sql.NullString{String: name, Valid: name != ""}
-	_, err := s.queries.UpdateUser(ctx, db.UpdateUserParams{
+	_, err := s.queries.UpdateUser(ctx, iamdb.UpdateUserParams{
 		Uuid: userUuid,
 		Name: nullString,
 	})
 	if err != nil {
-		return db.GetUserWithRolesRow{}, err
+		return iamdb.GetUserWithRolesRow{}, err
 	}
 
 	// Delete existing roles
 	err = s.queries.DeleteUserRoles(ctx, userUuid)
 	if err != nil {
-		return db.GetUserWithRolesRow{}, err
+		return iamdb.GetUserWithRolesRow{}, err
 	}
 
 	// If there are new roles to assign, create the user-role associations
 	if len(roleUuids) > 0 {
 		// Insert role assignments one by one
 		for _, roleUuid := range roleUuids {
-			_, err = s.queries.CreateUserRole(ctx, db.CreateUserRoleParams{
+			_, err = s.queries.CreateUserRole(ctx, iamdb.CreateUserRoleParams{
 				UserUuid: userUuid,
 				RoleUuid: roleUuid,
 			})
 			if err != nil {
-				return db.GetUserWithRolesRow{}, err
+				return iamdb.GetUserWithRolesRow{}, err
 			}
 		}
 	}

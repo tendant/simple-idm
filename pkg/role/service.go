@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/role/roledb"
 )
 
 var (

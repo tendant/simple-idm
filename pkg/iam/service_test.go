@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tendant/simple-idm/pkg/iam/db"
+	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -99,11 +99,11 @@ func TestCreateUser(t *testing.T) {
 	defer cleanup()
 
 	// Create test dependencies
-	queries := db.New(pool)
+	queries := iamdb.New(pool)
 	service := NewUserService(queries)
 
 	// Create a test role first
-	role, err := queries.CreateRole(ctx, db.CreateRoleParams{
+	role, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
 		Uuid: uuid.New(),
 		Name: "test-role",
 	})
@@ -199,11 +199,11 @@ func TestFindUsers(t *testing.T) {
 	defer cleanup()
 
 	// Create test dependencies
-	queries := db.New(pool)
+	queries := iamdb.New(pool)
 	service := NewUserService(queries)
 
 	// Create a test role
-	role, err := queries.CreateRole(ctx, db.CreateRoleParams{
+	role, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
 		Uuid: uuid.New(),
 		Name: "test-role",
 	})
@@ -288,7 +288,7 @@ func TestGetUser(t *testing.T) {
 	defer cleanup()
 
 	// Create test dependencies
-	queries := db.New(pool)
+	queries := iamdb.New(pool)
 	service := NewUserService(queries)
 
 	// Create a test role
@@ -327,17 +327,17 @@ func TestUpdateUser(t *testing.T) {
 	defer cleanup()
 
 	// Create test dependencies
-	queries := db.New(pool)
+	queries := iamdb.New(pool)
 	service := NewUserService(queries)
 
 	// Create test roles
-	role1, err := queries.CreateRole(ctx, db.CreateRoleParams{
+	role1, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
 		Uuid: uuid.New(),
 		Name: "role-1",
 	})
 	require.NoError(t, err)
 
-	role2, err := queries.CreateRole(ctx, db.CreateRoleParams{
+	role2, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
 		Uuid: uuid.New(),
 		Name: "role-2",
 	})
@@ -433,7 +433,7 @@ func TestDeleteUser(t *testing.T) {
 	defer cleanup()
 
 	// Create test dependencies
-	queries := db.New(pool)
+	queries := iamdb.New(pool)
 	service := NewUserService(queries)
 
 	// Create a test role

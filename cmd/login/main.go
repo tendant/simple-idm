@@ -15,14 +15,14 @@ import (
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
+	"github.com/tendant/simple-idm/pkg/iam"
+	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/role"
-	roleDb "github.com/tendant/simple-idm/pkg/role/roledb"
-	"github.com/tendant/simple-idm/pkg/iam"
-	iamDb "github.com/tendant/simple-idm/pkg/iam/db"
+	"github.com/tendant/simple-idm/pkg/role/roledb"
 )
 
 type IdmDbConfig struct {
@@ -99,7 +99,10 @@ func main() {
 		os.Exit(-1)
 	}
 
-	queries := db.New(pool)
+	// Initialize database queries
+	roleQueries := roledb.New(pool)
+	iamQueries := iamdb.New(pool)
+	loginQueries := db.New(pool)
 
 	// Initialize NotificationManager and register email notifier
 	notificationManager, err := notice.NewNotificationManager(config.BaseUrl, notification.SMTPConfig{
@@ -114,10 +117,7 @@ func main() {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
 
-	loginService := login.NewLoginService(queries, notificationManager)
-
-	// Create user queries
-	userQueries := userDb.New(pool)
+	loginService := login.NewLoginService(loginQueries, notificationManager)
 
 	// jwt service
 	jwtService := auth.NewJwtServiceOptions(
@@ -177,7 +177,6 @@ func main() {
 		r.Mount("/idm", iam.Handler(userHandle))
 
 		// Initialize role service and routes
-		roleQueries := roleDb.New(pool)
 		roleService := role.NewRoleService(roleQueries)
 		roleHandle := role.NewHandle(roleService)
 		r.Mount("/idm/roles", role.Handler(roleHandle))
