@@ -116,13 +116,13 @@ func HashPassword(password string) (string, error) {
 }
 
 // CheckPasswordHash compares the plain-text password with the stored hashed password.
-func CheckPasswordHash(password, hashedPassword string) (bool, error) {
-	if password == "" || hashedPassword == "" { // Null or empty checks
+func CheckPasswordHash(password string, hashedPassword []byte) (bool, error) {
+	if password == "" || len(hashedPassword) == 0 { // Null or empty checks
 		return false, fmt.Errorf("password and hashed password cannot be empty")
 	}
 
 	// Compare the password with the hashed password
-	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	err := bcrypt.CompareHashAndPassword(hashedPassword, []byte(password))
 	if err != nil {
 		return false, err
 	}
