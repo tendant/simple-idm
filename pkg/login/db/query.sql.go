@@ -366,6 +366,23 @@ func (q *Queries) ResetPasswordByUuid(ctx context.Context, arg ResetPasswordByUu
 	return err
 }
 
+const updateUserPassword = `-- name: UpdateUserPassword :exec
+UPDATE users
+SET password = $1,
+    last_modified_at = NOW()
+WHERE uuid = $2
+`
+
+type UpdateUserPasswordParams struct {
+	Password []byte    `json:"password"`
+	Uuid     uuid.UUID `json:"uuid"`
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.Password, arg.Uuid)
+	return err
+}
+
 const validatePasswordResetToken = `-- name: ValidatePasswordResetToken :one
 SELECT prt.uuid as uuid, prt.user_uuid as user_uuid, u.email as email
 FROM password_reset_tokens prt

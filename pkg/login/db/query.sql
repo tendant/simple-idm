@@ -48,6 +48,12 @@ SELECT username
 FROM users
 WHERE email = $1;
 
+-- name: UpdateUserPassword :exec
+UPDATE users
+SET password = $1,
+    last_modified_at = NOW()
+WHERE uuid = $2;
+
 -- name: Disable2FA :exec
 UPDATE users
 SET two_factor_secret = NULL,
