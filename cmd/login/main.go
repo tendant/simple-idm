@@ -21,6 +21,8 @@ import (
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
+	"github.com/tendant/simple-idm/pkg/profile"
+	"github.com/tendant/simple-idm/pkg/profile/profiledb"
 	"github.com/tendant/simple-idm/pkg/role"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
 )
@@ -169,6 +171,11 @@ func main() {
 		r.Get("/private", func(w http.ResponseWriter, r *http.Request) {
 			render.PlainText(w, r, http.StatusText(http.StatusOK))
 		})
+
+		profileQueries := profiledb.New(pool)
+		profileService := profile.NewProfileService(profileQueries)
+		profileHandle := profile.NewHandle(profileService)
+		r.Mount("/profile", profile.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
 		// Initialize user service and handle
