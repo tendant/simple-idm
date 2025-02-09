@@ -60,7 +60,9 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 
 	slog.Info("Creating mail client", "Host", config.Host, "Port", config.Port)
 	client, err := mail.NewClient(config.Host, opts...)
-	client.SetSSL(false)
+	if config.NoTLS {
+		client.SetSSL(false)
+	}
 	if err != nil {
 		slog.Error("Failed to create mail client", "err", err)
 		return nil, err
