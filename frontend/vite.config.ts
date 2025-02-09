@@ -36,6 +36,10 @@ export default defineConfig({
       '/idm': {
         target: 'http://localhost:4001',
         changeOrigin: true,
+      },
+      '/profile': {
+        target: 'http://localhost:4001',
+        changeOrigin: true,
       }
     },
   },

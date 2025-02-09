@@ -24,14 +24,14 @@ const Settings: Component = () => {
     }
 
     try {
-      const response = await fetch('/auth/password/change', {
-        method: 'POST',
+      const response = await fetch('/profile/password', {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          current_password: currentPassword(),
-          new_password: newPassword(),
+          currentPassword: currentPassword(),
+          newPassword: newPassword(),
         }),
       });
 
