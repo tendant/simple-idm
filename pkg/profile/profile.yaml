@@ -1,0 +1,74 @@
+openapi: 3.0.0
+info:
+  title: Profile Management API
+  version: 1.0.0
+paths:
+  /profile/password:
+    put:
+      summary: Change user password
+      description: Update the user's password after verifying their current password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentPassword:
+                  type: string
+                  description: User's current password
+                newPassword:
+                  type: string
+                  description: User's new password
+              required:
+                - currentPassword
+                - newPassword
+      responses:
+        "200":
+          description: Password updated successfully
+        "400":
+          description: Invalid request (e.g., invalid current password)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized (not logged in)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden (invalid current password)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Error message
+      required:
+        - code
+        - message
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
