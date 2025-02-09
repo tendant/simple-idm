@@ -18,7 +18,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/login"
-	"github.com/tendant/simple-idm/pkg/login/db"
+	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/role"
@@ -102,7 +102,7 @@ func main() {
 	// Initialize database queries
 	roleQueries := roledb.New(pool)
 	iamQueries := iamdb.New(pool)
-	loginQueries := db.New(pool)
+	loginQueries := logindb.New(pool)
 
 	// Initialize NotificationManager and register email notifier
 	notificationManager, err := notice.NewNotificationManager(config.BaseUrl, notification.SMTPConfig{
