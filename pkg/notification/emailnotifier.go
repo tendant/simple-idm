@@ -36,6 +36,7 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 	}
 
 	if config.NoTLS {
+		slog.Info("NoTLS")
 		opts = append(opts,
 			mail.WithTLSPolicy(mail.NoTLS),
 			mail.WithTLSConfig(&tls.Config{ // Configure TLS settings
@@ -43,6 +44,7 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 			}),
 		)
 	} else {
+		slog.Info("With TLS")
 		opts = append(opts,
 			mail.WithTLSPolicy(mail.TLSMandatory))
 	}
@@ -57,6 +59,7 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 	}
 
 	client, err := mail.NewClient(config.Host, opts...)
+	client.SetSSL(false)
 	slog.Info("Created mail client", "Host", config.Host, "Port", config.Port)
 	if err != nil {
 		slog.Error("Failed to create mail client", "err", err)

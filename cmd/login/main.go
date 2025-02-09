@@ -107,6 +107,7 @@ func main() {
 		Username: config.EmailConfig.Username,
 		Password: config.EmailConfig.Password,
 		From:     config.EmailConfig.From,
+		NoTLS:    true,
 	})
 	if err != nil {
 		slog.Error("Failed initialize notification manager", "err", err)
