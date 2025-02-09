@@ -9,17 +9,17 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 )
 
-type UserService struct {
+type IamService struct {
 	queries *iamdb.Queries
 }
 
-func NewUserService(queries *iamdb.Queries) *UserService {
-	return &UserService{
+func NewIamService(queries *iamdb.Queries) *IamService {
+	return &IamService{
 		queries: queries,
 	}
 }
 
-func (s *UserService) CreateUser(ctx context.Context, email, username, name string, roleUuids []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
+func (s *IamService) CreateUser(ctx context.Context, email, username, name string, roleUuids []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
 	// Validate email
 	if email == "" {
 		return iamdb.GetUserWithRolesRow{}, fmt.Errorf("email is required")
@@ -63,15 +63,15 @@ func (s *UserService) CreateUser(ctx context.Context, email, username, name stri
 	return userWithRoles, nil
 }
 
-func (s *UserService) FindUsers(ctx context.Context) ([]iamdb.FindUsersWithRolesRow, error) {
+func (s *IamService) FindUsers(ctx context.Context) ([]iamdb.FindUsersWithRolesRow, error) {
 	return s.queries.FindUsersWithRoles(ctx)
 }
 
-func (s *UserService) GetUser(ctx context.Context, userUuid uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
+func (s *IamService) GetUser(ctx context.Context, userUuid uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
 	return s.queries.GetUserWithRoles(ctx, userUuid)
 }
 
-func (s *UserService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name string, roleUuids []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
+func (s *IamService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name string, roleUuids []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
 	// Update the user's name
 	nullString := sql.NullString{String: name, Valid: name != ""}
 	_, err := s.queries.UpdateUser(ctx, iamdb.UpdateUserParams{
@@ -106,7 +106,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name s
 	return s.queries.GetUserWithRoles(ctx, userUuid)
 }
 
-func (s *UserService) DeleteUser(ctx context.Context, userUuid uuid.UUID) error {
+func (s *IamService) DeleteUser(ctx context.Context, userUuid uuid.UUID) error {
 	// Check if user exists
 	_, err := s.queries.GetUserWithRoles(ctx, userUuid)
 	if err != nil {

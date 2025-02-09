@@ -172,8 +172,8 @@ func main() {
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
 		// Initialize user service and handle
-		userService := iam.NewUserService(iamQueries)
-		userHandle := iam.NewHandle(userService)
+		iamService := iam.NewIamService(iamQueries)
+		userHandle := iam.NewHandle(iamService)
 		r.Mount("/idm", iam.Handler(userHandle))
 
 		// Initialize role service and routes

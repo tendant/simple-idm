@@ -12,10 +12,10 @@ import (
 )
 
 type Handle struct {
-	userService *UserService
+	userService *IamService
 }
 
-func NewHandle(userService *UserService) Handle {
+func NewHandle(userService *IamService) Handle {
 	return Handle{
 		userService: userService,
 	}
