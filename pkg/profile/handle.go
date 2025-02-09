@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/login"
 	"golang.org/x/exp/slog"
 )
 
@@ -21,31 +21,18 @@ func NewHandle(profileService *ProfileService) Handle {
 // PutPassword handles password change requests
 // (PUT /password)
 func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
-	// Get user UUID from context (assuming it's set by auth middleware)
-	userUUID, ok := r.Context().Value("user_uuid").(string)
+
+	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
 	if !ok {
-		slog.Error("User UUID not found in context")
+		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
 			Code: http.StatusUnauthorized,
-			body: map[string]string{
-				"code":    "unauthorized",
-				"message": "User not authenticated",
-			},
 		}
 	}
 
-	// Parse UUID
-	parsedUUID, err := uuid.Parse(userUUID)
-	if err != nil {
-		slog.Error("Invalid UUID format", "err", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: map[string]string{
-				"code":    "invalid_uuid",
-				"message": "Invalid user ID format",
-			},
-		}
-	}
+	// Get user UUID from context (assuming it's set by auth middleware)
+	userUUID := authUser.UserUUID
 
 	// Parse request body
 	var data PutPasswordJSONRequestBody
@@ -72,8 +59,8 @@ func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Update password
-	err = h.profileService.UpdatePassword(r.Context(), UpdatePasswordParams{
-		UserUUID:        parsedUUID,
+	err := h.profileService.UpdatePassword(r.Context(), UpdatePasswordParams{
+		UserUUID:        userUUID,
 		CurrentPassword: data.CurrentPassword,
 		NewPassword:     data.NewPassword,
 	})
