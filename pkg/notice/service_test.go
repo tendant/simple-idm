@@ -14,7 +14,7 @@ func TestNewService(t *testing.T) {
 		Password: "password",
 	}
 
-	manager, err := NewNotificationManager(smtpConfig)
+	manager, err := NewNotificationManager("http://localhost:3000", smtpConfig)
 	if err != nil {
 		t.Errorf("NewNotificationManager() error = %v", err)
 		return

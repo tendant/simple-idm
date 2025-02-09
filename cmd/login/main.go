@@ -66,6 +66,7 @@ type PasswordComplexityConfig struct {
 }
 
 type Config struct {
+	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:3000"`
 	IdmDbConfig              IdmDbConfig
 	AppConfig                app.AppConfig
 	JwtConfig                JwtConfig
@@ -101,7 +102,7 @@ func main() {
 	queries := db.New(pool)
 
 	// Initialize NotificationManager and register email notifier
-	notificationManager, err := notice.NewNotificationManager(notification.SMTPConfig{
+	notificationManager, err := notice.NewNotificationManager(config.BaseUrl, notification.SMTPConfig{
 		Host:     config.EmailConfig.Host,
 		Port:     int(config.EmailConfig.Port),
 		Username: config.EmailConfig.Username,

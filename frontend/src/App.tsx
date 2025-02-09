@@ -92,7 +92,7 @@ const App: Component = () => {
       <Route path="/roles/create" component={CreateRolePage} />
       <Route path="/roles/:uuid/edit" component={EditRolePage} />
       <Route path="/password-reset-init" component={PasswordResetInit} />
-      <Route path="/password-reset" component={PasswordReset} />
+      <Route path="/password-reset/:code" component={PasswordReset} />
       <Route path="/find-username" component={FindUsername} />
     </Router>
   );

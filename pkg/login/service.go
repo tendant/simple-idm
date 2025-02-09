@@ -186,7 +186,7 @@ func (s *LoginService) SendUsernameEmail(ctx context.Context, email string, user
 }
 
 func (s *LoginService) SendPasswordResetEmail(ctx context.Context, email string, resetToken string) error {
-	resetLink := fmt.Sprintf("https://example.com/reset-password?token=%s", resetToken)
+	resetLink := fmt.Sprintf("%s/password-reset/%s", s.notificationManager.BaseUrl, resetToken)
 	data := map[string]string{
 		"Link": resetLink,
 	}

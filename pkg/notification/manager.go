@@ -29,13 +29,15 @@ type NoticeTemplate struct {
 
 // NotificationManager manages notifiers and notification templates.
 type NotificationManager struct {
+	BaseUrl              string
 	notifiers            map[NotificationSystem]Notifier                      // Map of notification systems to their Notifier implementations
 	notificationRegistry map[NoticeType]map[NotificationSystem]NoticeTemplate // Registry for notification templates
 }
 
 // NewNotificationManager creates and returns a new NotificationManager.
-func NewNotificationManager() *NotificationManager {
+func NewNotificationManager(baseUrl string) *NotificationManager {
 	return &NotificationManager{
+		BaseUrl:              baseUrl,
 		notifiers:            make(map[NotificationSystem]Notifier),
 		notificationRegistry: make(map[NoticeType]map[NotificationSystem]NoticeTemplate),
 	}

@@ -1,5 +1,5 @@
 import { Component, createSignal } from 'solid-js';
-import { useNavigate } from '@solidjs/router';
+import { useNavigate, useParams } from '@solidjs/router';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const PasswordReset: Component = () => {
-  const [code, setCode] = createSignal('');
+  const params = useParams();
   const [password, setPassword] = createSignal('');
   const [confirmPassword, setConfirmPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
@@ -29,7 +29,7 @@ const PasswordReset: Component = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          code: code(),
+          code: params.code,
           password: password(),
         }),
       });
@@ -53,17 +53,7 @@ const PasswordReset: Component = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} class="space-y-4">
-            <div class="space-y-2">
-              <Label for="code">Reset Code</Label>
-              <Input
-                id="code"
-                type="text"
-                value={code()}
-                onInput={(e) => setCode(e.currentTarget.value)}
-                placeholder="Enter reset code"
-                required
-              />
-            </div>
+
             <div class="space-y-2">
               <Label for="password">New Password</Label>
               <Input

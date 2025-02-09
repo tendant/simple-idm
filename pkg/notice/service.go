@@ -34,8 +34,8 @@ const (
 )
 
 // NewService creates a new email service instance
-func NewNotificationManager(smtpConfig notification.SMTPConfig) (*notification.NotificationManager, error) {
-	notificationManager := notification.NewNotificationManager()
+func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig) (*notification.NotificationManager, error) {
+	notificationManager := notification.NewNotificationManager(baseUrl)
 
 	emailNotifier, err := notification.NewEmailNotifier(smtpConfig)
 	if err != nil {
