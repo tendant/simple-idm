@@ -36,7 +36,7 @@ func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswo
 	}
 
 	// Verify the current password
-	match, err := login.CheckPasswordHash(params.CurrentPassword, user.Password)
+	match, err := login.CheckPasswordHash(params.CurrentPassword, string(user.Password))
 	if err != nil || !match {
 		slog.Error("Invalid current password", "uuid", params.UserUUID)
 		return fmt.Errorf("invalid current password")
