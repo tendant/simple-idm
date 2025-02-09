@@ -36,7 +36,7 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 
 	// Only add authentication if username and password are provided
 	if config.Username != "" && config.Password != "" {
-		slog.Info("Adding authentication", "user", config.Username, "pass", config.Password)
+		slog.Info("Adding authentication", "user", config.Username)
 		opts = append(opts,
 			mail.WithSMTPAuth(mail.SMTPAuthPlain),
 			mail.WithUsername(config.Username),

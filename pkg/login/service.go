@@ -234,7 +234,11 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	// Find user by username
 	users, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(username))
 	if err != nil || len(users) == 0 {
-		return fmt.Errorf("user not found")
+		slog.Warn("User not found", "err", err)
+		return nil
+	}
+	if len(users) > 1 {
+		slog.Warn("Unexpected: found multiple users")
 	}
 	user := users[0]
 
