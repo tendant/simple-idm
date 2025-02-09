@@ -11,13 +11,11 @@ import (
 
 type Handle struct {
 	profileService *ProfileService
-	loginService   *login.LoginService
 }
 
-func NewHandle(profileService *ProfileService, loginService *login.LoginService) Handle {
+func NewHandle(profileService *ProfileService) Handle {
 	return Handle{
 		profileService: profileService,
-		loginService:   loginService,
 	}
 }
 
