@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jinzhu/copier"
 	"github.com/lib/pq"
-	"github.com/tendant/simple-idm/pkg/login/db"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/utils"
@@ -22,7 +21,7 @@ import (
 )
 
 type LoginService struct {
-	queries             *db.Queries
+	queries             *logindb.Queries
 	notificationManager *notification.NotificationManager
 }
 
@@ -60,7 +59,7 @@ func (s LoginService) Enable2FA(ctx context.Context, userUUID uuid.UUID, secret 
 	}
 
 	// Enable 2FA in database
-	params := db.Enable2FAParams{
+	params := logindb.Enable2FAParams{
 		TwoFactorSecret:      pgtype.Text{String: secret, Valid: true},
 		TwoFactorBackupCodes: pq.StringArray(backupCodes),
 		Uuid:                 userUUID, // Note: lowercase 'u' in Uuid
@@ -73,7 +72,7 @@ func (s LoginService) Enable2FA(ctx context.Context, userUUID uuid.UUID, secret 
 	return backupCodes, nil
 }
 
-func NewLoginService(queries *db.Queries, notificationManager *notification.NotificationManager) *LoginService {
+func NewLoginService(queries *logindb.Queries, notificationManager *notification.NotificationManager) *LoginService {
 	return &LoginService{
 		queries:             queries,
 		notificationManager: notificationManager,
@@ -90,7 +89,7 @@ type IdmUser struct {
 	Role     []string `json:"role,omitempty"`
 }
 
-func (s LoginService) Login(ctx context.Context, params LoginParams) ([]db.FindUserByUsernameRow, error) {
+func (s LoginService) Login(ctx context.Context, params LoginParams) ([]logindb.FindUserByUsernameRow, error) {
 	user, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(params.Username))
 	return user, err
 }
@@ -129,14 +128,14 @@ func CheckPasswordHash(password, hashedPassword string) (bool, error) {
 	return true, nil
 }
 
-func (s LoginService) Create(ctx context.Context, params RegisterParam) (db.User, error) {
+func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb.User, error) {
 	slog.Debug("Registering user use params:", "params", params)
-	registerRequest := db.RegisterUserParams{}
+	registerRequest := logindb.RegisterUserParams{}
 	copier.Copy(&registerRequest, params)
 	user, err := s.queries.RegisterUser(ctx, registerRequest)
 	if err != nil {
 		slog.Error("Failed to register user", "params", params, "err", err)
-		return db.User{}, err
+		return logindb.User{}, err
 	}
 	return user, err
 }
@@ -152,7 +151,7 @@ func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 }
 
 func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) error {
-	resetPasswordParams := db.ResetPasswordParams{}
+	resetPasswordParams := logindb.ResetPasswordParams{}
 	slog.Debug("resetPasswordParams", "params", params)
 	copier.Copy(&resetPasswordParams, params)
 	err := s.queries.ResetPassword(ctx, resetPasswordParams)
@@ -165,12 +164,12 @@ func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.
 	return roles, err
 }
 
-func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (db.FindUserInfoWithRolesRow, error) {
+func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (logindb.FindUserInfoWithRolesRow, error) {
 	slog.Debug("GetMe", "userUuid", userUuid)
 	userInfo, err := s.queries.FindUserInfoWithRoles(ctx, userUuid)
 	if err != nil {
 		slog.Error("Failed getting userinfo with roles", "err", err)
-		return db.FindUserInfoWithRolesRow{}, err
+		return logindb.FindUserInfoWithRolesRow{}, err
 	}
 	return userInfo, err
 }
@@ -211,7 +210,7 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 	}
 
 	// Update password
-	err = s.queries.ResetPasswordByUuid(ctx, db.ResetPasswordByUuidParams{
+	err = s.queries.ResetPasswordByUuid(ctx, logindb.ResetPasswordByUuidParams{
 		Password: hashedPassword,
 		Uuid:     tokenInfo.UserUuid,
 	})
@@ -252,7 +251,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 		return fmt.Errorf("failed to create expiry time: %w", err)
 	}
 
-	err = s.queries.InitPasswordResetToken(ctx, db.InitPasswordResetTokenParams{
+	err = s.queries.InitPasswordResetToken(ctx, logindb.InitPasswordResetTokenParams{
 		UserUuid: user.Uuid,
 		Token:    resetToken,
 		ExpireAt: expireAt,
