@@ -31,8 +31,7 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 		mail.WithPort(config.Port),
 		mail.WithTimeout(30), // Set timeout to 30 seconds
 		mail.WithDebugLog(),  // Enable debug logging
-		// mail.WithoutStartTLS(),         // Removed: not available in current version
-		mail.WithoutNoop(), // Disable NOOP command
+		mail.WithoutNoop(),   // Disable NOOP command
 	}
 
 	if config.NoTLS {
@@ -52,9 +51,9 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 	// Only add authentication if username and password are provided
 	if config.Username != "" && config.Password != "" {
 		opts = append(opts,
+			mail.WithSMTPAuth(mail.SMTPAuthPlain),
 			mail.WithUsername(config.Username),
 			mail.WithPassword(config.Password),
-			mail.WithSMTPAuth(mail.SMTPAuthPlain),
 		)
 	}
 
