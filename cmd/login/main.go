@@ -21,8 +21,8 @@ import (
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/role"
 	roleDb "github.com/tendant/simple-idm/pkg/role/roledb"
-	"github.com/tendant/simple-idm/pkg/user"
-	userDb "github.com/tendant/simple-idm/pkg/user/db"
+	"github.com/tendant/simple-idm/pkg/iam"
+	iamDb "github.com/tendant/simple-idm/pkg/iam/db"
 )
 
 type IdmDbConfig struct {
@@ -172,9 +172,9 @@ func main() {
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
 		// Initialize user service and handle
-		userService := user.NewUserService(userQueries)
-		userHandle := user.NewHandle(userService)
-		r.Mount("/idm", user.Handler(userHandle))
+		userService := iam.NewUserService(iamQueries)
+		userHandle := iam.NewHandle(userService)
+		r.Mount("/idm", iam.Handler(userHandle))
 
 		// Initialize role service and routes
 		roleQueries := roleDb.New(pool)

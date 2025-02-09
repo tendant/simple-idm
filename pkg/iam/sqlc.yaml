@@ -1,11 +1,11 @@
 version: 1
 packages:
-  - path: "db"
-    name: "db"
+  - path: "iamdb"
+    name: "iamdb"
     engine: "postgresql"
     sql_package: "pgx/v5"
     schema: "../../migrations/idm_db.sql"
-    queries: "db/query.sql"
+    queries: "iamdb/query.sql"
     emit_json_tags: true
 overrides:
   - go_type: "github.com/shopspring/decimal.Decimal"

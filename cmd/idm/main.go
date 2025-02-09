@@ -9,8 +9,8 @@ import (
 	utils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/pkg/email"
 	"github.com/tendant/simple-idm/pkg/login"
-	"github.com/tendant/simple-idm/pkg/user"
-	"github.com/tendant/simple-idm/pkg/user/db"
+	"github.com/tendant/simple-idm/pkg/iam"
+	"github.com/tendant/simple-idm/pkg/iam/db"
 	"golang.org/x/exp/slog"
 )
 
@@ -66,9 +66,9 @@ func main() {
 	}
 
 	queries := db.New(pool)
-	userService := user.NewUserService(queries)
-	userHandler := user.NewHandle(userService)
-	user.Routes(myApp.R, userHandler)
+	userService := iam.NewUserService(queries)
+	userHandler := iam.NewHandle(userService)
+	iam.Routes(myApp.R, userHandler)
 
 	// Initialize login service with email
 	loginService := login.NewLoginService(queries, emailService)

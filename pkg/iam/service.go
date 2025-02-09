@@ -1,4 +1,4 @@
-package user
+package iam
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/pkg/user/db"
+	"github.com/tendant/simple-idm/pkg/iam/db"
 )
 
 type UserService struct {

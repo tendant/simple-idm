@@ -1,4 +1,4 @@
-package user
+package iam
 
 import (
 	"encoding/json"

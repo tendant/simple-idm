@@ -1,4 +1,4 @@
-package user
+package iam
 
 import (
 	"bufio"
@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tendant/simple-idm/pkg/user/db"
+	"github.com/tendant/simple-idm/pkg/iam/db"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"

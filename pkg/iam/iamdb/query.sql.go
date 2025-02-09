@@ -3,7 +3,7 @@
 //   sqlc v1.27.0
 // source: query.sql
 
-package db
+package iamdb
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, username, name)
 VALUES ($1, $2, $3)
-RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username
+RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes
 `
 
 type CreateUserParams struct {
@@ -57,6 +57,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Password,
 		&i.VerifiedAt,
 		&i.Username,
+		&i.TwoFactorSecret,
+		&i.TwoFactorEnabled,
+		&i.TwoFactorBackupCodes,
 	)
 	return i, err
 }
@@ -287,7 +290,7 @@ func (q *Queries) GetUserWithRoles(ctx context.Context, argUuid uuid.UUID) (GetU
 
 const updateUser = `-- name: UpdateUser :one
 UPDATE users SET name = $2 WHERE uuid = $1
-RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username
+RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes
 `
 
 type UpdateUserParams struct {
@@ -309,6 +312,9 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Password,
 		&i.VerifiedAt,
 		&i.Username,
+		&i.TwoFactorSecret,
+		&i.TwoFactorEnabled,
+		&i.TwoFactorBackupCodes,
 	)
 	return i, err
 }
