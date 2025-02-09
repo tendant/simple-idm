@@ -3,7 +3,7 @@ info:
   title: Profile Management API
   version: 1.0.0
 paths:
-  /profile/password:
+  /password:
     put:
       summary: Change user password
       description: Update the user's password after verifying their current password

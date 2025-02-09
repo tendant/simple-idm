@@ -18,9 +18,9 @@ func NewHandle(profileService *ProfileService) Handle {
 	}
 }
 
-// PutProfilePassword handles password change requests
-// (PUT /profile/password)
-func (h Handle) PutProfilePassword(w http.ResponseWriter, r *http.Request) *Response {
+// PutPassword handles password change requests
+// (PUT /password)
+func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 	// Get user UUID from context (assuming it's set by auth middleware)
 	userUUID, ok := r.Context().Value("user_uuid").(string)
 	if !ok {
@@ -48,7 +48,7 @@ func (h Handle) PutProfilePassword(w http.ResponseWriter, r *http.Request) *Resp
 	}
 
 	// Parse request body
-	var data PutProfilePasswordJSONRequestBody
+	var data PutPasswordJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		slog.Error("Failed to decode request body", "err", err)
 		return &Response{
