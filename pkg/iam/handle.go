@@ -12,12 +12,12 @@ import (
 )
 
 type Handle struct {
-	userService *IamService
+	iamService *IamService
 }
 
-func NewHandle(userService *IamService) Handle {
+func NewHandle(iamService *IamService) Handle {
 	return Handle{
-		userService: userService,
+		iamService: iamService,
 	}
 }
 
@@ -36,7 +36,7 @@ type UpdateUserRequest struct {
 // Get a list of users
 // (GET /users)
 func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
-	users, err := h.userService.FindUsers(r.Context())
+	users, err := h.iamService.FindUsers(r.Context())
 	if err != nil {
 		slog.Error("Failed getting users", "error", err)
 		return &Response{
@@ -130,7 +130,7 @@ func (h Handle) PostUsers(w http.ResponseWriter, r *http.Request) *Response {
 		name = *request.Name
 	}
 
-	user, err := h.userService.CreateUser(r.Context(), request.Email, request.Username, name, request.RoleUuids)
+	user, err := h.iamService.CreateUser(r.Context(), request.Email, request.Username, name, request.RoleUuids)
 	if err != nil {
 		slog.Error("Failed creating user", "error", err)
 		return &Response{
@@ -194,7 +194,7 @@ func (h Handle) GetUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 		}
 	}
 
-	user, err := h.userService.GetUser(r.Context(), userUuid)
+	user, err := h.iamService.GetUser(r.Context(), userUuid)
 	if err != nil {
 		slog.Error("Failed getting user", "error", err)
 		return &Response{
@@ -271,7 +271,7 @@ func (h Handle) PutUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 		name = *request.Name
 	}
 
-	user, err := h.userService.UpdateUser(r.Context(), userUuid, name, request.RoleUuids)
+	user, err := h.iamService.UpdateUser(r.Context(), userUuid, name, request.RoleUuids)
 	if err != nil {
 		slog.Error("Failed updating user", "error", err)
 		return &Response{
@@ -335,7 +335,7 @@ func (h Handle) DeleteUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr 
 		}
 	}
 
-	err = h.userService.DeleteUser(r.Context(), userUuid)
+	err = h.iamService.DeleteUser(r.Context(), userUuid)
 	if err != nil {
 		slog.Error("Failed deleting user", "error", err)
 		return &Response{
