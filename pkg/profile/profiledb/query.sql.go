@@ -11,7 +11,90 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const disable2FA = `-- name: Disable2FA :exec
+UPDATE users
+SET two_factor_secret = NULL,
+    two_factor_enabled = FALSE,
+    two_factor_backup_codes = NULL,
+    last_modified_at = NOW()
+WHERE uuid = $1
+`
+
+func (q *Queries) Disable2FA(ctx context.Context, argUuid uuid.UUID) error {
+	_, err := q.db.Exec(ctx, disable2FA, argUuid)
+	return err
+}
+
+const enable2FA = `-- name: Enable2FA :exec
+UPDATE users
+SET two_factor_secret = $1::text,
+    two_factor_enabled = TRUE,
+    two_factor_backup_codes = $2::text[],
+    last_modified_at = NOW()
+WHERE uuid = $3
+`
+
+type Enable2FAParams struct {
+	Column1 string    `json:"column_1"`
+	Column2 []string  `json:"column_2"`
+	Uuid    uuid.UUID `json:"uuid"`
+}
+
+func (q *Queries) Enable2FA(ctx context.Context, arg Enable2FAParams) error {
+	_, err := q.db.Exec(ctx, enable2FA, arg.Column1, arg.Column2, arg.Uuid)
+	return err
+}
+
+const findUserByUsername = `-- name: FindUserByUsername :many
+SELECT uuid, username, email, password, two_factor_secret, two_factor_enabled, two_factor_backup_codes, created_at, last_modified_at
+FROM users
+WHERE username = $1
+`
+
+type FindUserByUsernameRow struct {
+	Uuid                 uuid.UUID      `json:"uuid"`
+	Username             sql.NullString `json:"username"`
+	Email                string         `json:"email"`
+	Password             []byte         `json:"password"`
+	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
+	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
+	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
+	CreatedAt            time.Time      `json:"created_at"`
+	LastModifiedAt       time.Time      `json:"last_modified_at"`
+}
+
+func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullString) ([]FindUserByUsernameRow, error) {
+	rows, err := q.db.Query(ctx, findUserByUsername, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindUserByUsernameRow
+	for rows.Next() {
+		var i FindUserByUsernameRow
+		if err := rows.Scan(
+			&i.Uuid,
+			&i.Username,
+			&i.Email,
+			&i.Password,
+			&i.TwoFactorSecret,
+			&i.TwoFactorEnabled,
+			&i.TwoFactorBackupCodes,
+			&i.CreatedAt,
+			&i.LastModifiedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const getUserByUUID = `-- name: GetUserByUUID :one
 

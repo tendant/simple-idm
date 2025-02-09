@@ -11,10 +11,10 @@ import (
 
 type Handle struct {
 	profileService *ProfileService
-	loginService   login.Service
+	loginService   *login.LoginService
 }
 
-func NewHandle(profileService *ProfileService, loginService login.Service) Handle {
+func NewHandle(profileService *ProfileService, loginService *login.LoginService) Handle {
 	return Handle{
 		profileService: profileService,
 		loginService:   loginService,
@@ -119,7 +119,7 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Disable 2FA for the user
-	err := h.loginService.Disable2FA(r.Context(), authUser.UserUUID, req.CurrentPassword, req.Code)
+	err := h.profileService.Disable2FA(r.Context(), authUser.UserUUID, req.CurrentPassword, req.Code)
 	if err != nil {
 		slog.Error("Failed to disable 2FA", "err", err)
 		return &Response{
@@ -161,7 +161,7 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 	}
 
 	// Enable 2FA and get backup codes
-	backupCodes, err := h.loginService.Enable2FA(r.Context(), authUser.UserUUID, req.Secret, req.Code)
+	backupCodes, err := h.profileService.Enable2FA(r.Context(), authUser.UserUUID, req.Secret, req.Code)
 	if err != nil {
 		slog.Error("Failed to enable 2FA", "err", err)
 		return &Response{

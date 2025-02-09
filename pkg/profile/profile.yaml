@@ -163,6 +163,9 @@ components:
           description: Current TOTP code
         currentPassword:
           type: string
-          description: Current account password        
+          description: Current account password
+  securitySchemes:
+    BearerAuth:
+      type: http
       scheme: bearer
       bearerFormat: JWT
