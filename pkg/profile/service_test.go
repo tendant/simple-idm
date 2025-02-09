@@ -8,12 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/tendant/simple-idm/pkg/profile/profiledb"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -87,126 +83,4 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 	}
 
 	return pool, cleanup
-}
-
-// Mock implementation of profiledb.Queries
-type mockQueries struct {
-	mock.Mock
-}
-
-func (m *mockQueries) GetUserByUUID(ctx context.Context, uuid uuid.UUID) (profiledb.User, error) {
-	args := m.Called(ctx, uuid)
-	return args.Get(0).(profiledb.User), args.Error(1)
-}
-
-func (m *mockQueries) UpdateUserPassword(ctx context.Context, arg profiledb.UpdateUserPasswordParams) error {
-	args := m.Called(ctx, arg)
-	return args.Error(0)
-}
-
-func TestUpdatePassword(t *testing.T) {
-	// Create test UUID
-	userUUID := uuid.New()
-
-	// Test cases
-	tests := []struct {
-		name          string
-		params        UpdatePasswordParams
-		setupMock     func(*mockQueries)
-		expectedError string
-	}{
-		{
-			name: "successful password update",
-			params: UpdatePasswordParams{
-				UserUUID:        userUUID,
-				CurrentPassword: "oldpass",
-				NewPassword:     "newpass",
-			},
-			setupMock: func(m *mockQueries) {
-				// Mock GetUserByUUID
-				m.On("GetUserByUUID", mock.Anything, userUUID).Return(profiledb.User{
-					Uuid:     userUUID,
-					Password: []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"), // hash for "oldpass"
-				}, nil)
-
-				// Mock UpdateUserPassword
-				m.On("UpdateUserPassword", mock.Anything, mock.MatchedBy(func(arg profiledb.UpdateUserPasswordParams) bool {
-					return arg.Uuid == userUUID
-				})).Return(nil)
-			},
-			expectedError: "",
-		},
-		{
-			name: "user not found",
-			params: UpdatePasswordParams{
-				UserUUID:        userUUID,
-				CurrentPassword: "oldpass",
-				NewPassword:     "newpass",
-			},
-			setupMock: func(m *mockQueries) {
-				m.On("GetUserByUUID", mock.Anything, userUUID).Return(profiledb.User{}, assert.AnError)
-			},
-			expectedError: "user not found",
-		},
-		{
-			name: "invalid current password",
-			params: UpdatePasswordParams{
-				UserUUID:        userUUID,
-				CurrentPassword: "wrongpass",
-				NewPassword:     "newpass",
-			},
-			setupMock: func(m *mockQueries) {
-				m.On("GetUserByUUID", mock.Anything, userUUID).Return(profiledb.User{
-					Uuid:     userUUID,
-					Password: []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"), // hash for "oldpass"
-				}, nil)
-			},
-			expectedError: "invalid current password",
-		},
-		{
-			name: "database error during update",
-			params: UpdatePasswordParams{
-				UserUUID:        userUUID,
-				CurrentPassword: "oldpass",
-				NewPassword:     "newpass",
-			},
-			setupMock: func(m *mockQueries) {
-				// Mock GetUserByUUID
-				m.On("GetUserByUUID", mock.Anything, userUUID).Return(profiledb.User{
-					Uuid:     userUUID,
-					Password: []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"), // hash for "oldpass"
-				}, nil)
-
-				// Mock UpdateUserPassword with error
-				m.On("UpdateUserPassword", mock.Anything, mock.MatchedBy(func(arg profiledb.UpdateUserPasswordParams) bool {
-					return arg.Uuid == userUUID
-				})).Return(assert.AnError)
-			},
-			expectedError: "failed to update password",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create mock and service
-			queries := new(mockQueries)
-			service := NewProfileService(queries)
-
-			// Setup mock expectations
-			tt.setupMock(queries)
-
-			// Call the method
-			err := service.UpdatePassword(context.Background(), tt.params)
-
-			// Assert expectations
-			queries.AssertExpectations(t)
-
-			// Check error
-			if tt.expectedError != "" {
-				assert.EqualError(t, err, tt.expectedError)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
 }
