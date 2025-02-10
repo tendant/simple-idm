@@ -1,4 +1,5 @@
 import { Component, createSignal, Show } from 'solid-js';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -74,11 +75,18 @@ const Settings: Component = () => {
           </Alert>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Security Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Tabs defaultValue="password" class="w-full">
+          <TabsList class="grid w-full grid-cols-2">
+            <TabsTrigger value="password">Password</TabsTrigger>
+            <TabsTrigger value="2fa">Two-Factor Auth</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="password">
+            <Card>
+              <CardHeader>
+                <CardTitle>Change Password</CardTitle>
+              </CardHeader>
+              <CardContent>
             <form onSubmit={handleSubmit} class="space-y-4">
               <div class="space-y-2">
                 <Label for="current-password">Current Password</Label>
@@ -117,9 +125,16 @@ const Settings: Component = () => {
                 Change Password
               </Button>
             </form>
+          </CardContent>
+        </Card>
+      </TabsContent>
 
-            <div class="mt-8 pt-8 border-t">
-              <h3 class="text-lg font-medium mb-4">Two-Factor Authentication</h3>
+      <TabsContent value="2fa">
+        <Card>
+          <CardHeader>
+            <CardTitle>Two-Factor Authentication</CardTitle>
+          </CardHeader>
+          <CardContent>
               
               <Show when={!twoFactorEnabled()}>
                 <div class="space-y-4">
@@ -248,9 +263,10 @@ const Settings: Component = () => {
                   </Button>
                 </div>
               </Show>
-            </div>
           </CardContent>
         </Card>
+      </TabsContent>
+    </Tabs>
           </div>
         </div>
       </div>
