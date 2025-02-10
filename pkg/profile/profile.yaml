@@ -3,6 +3,65 @@ info:
   title: Profile Management API
   version: 1.0.0
 paths:
+  /username:
+    put:
+      summary: Change username
+      description: Update the user's username after verifying their password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentPassword:
+                  type: string
+                  description: User's current password for verification
+                newUsername:
+                  type: string
+                  description: New username to set
+                  minLength: 3
+                  maxLength: 50
+                  pattern: '^[a-zA-Z0-9_-]+$'
+              required:
+                - currentPassword
+                - newUsername
+      responses:
+        "200":
+          description: Username updated successfully
+        "400":
+          description: Invalid request (e.g., invalid username format)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized (not logged in)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: Forbidden (invalid password)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Conflict (username already taken)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /password:
     put:
       summary: Change user password

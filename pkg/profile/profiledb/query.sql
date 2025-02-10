@@ -1,3 +1,9 @@
+-- name: UpdateUsername :exec
+UPDATE users
+SET username = $2,
+    last_modified_at = NOW()
+WHERE uuid = $1;
+
 -- name: UpdateUserPassword :exec
 UPDATE users
 SET password = $2,

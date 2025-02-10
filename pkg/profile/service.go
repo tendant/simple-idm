@@ -25,6 +25,51 @@ func NewProfileService(queries *profiledb.Queries) *ProfileService {
 	}
 }
 
+type UpdateUsernameParams struct {
+	UserUUID        uuid.UUID
+	CurrentPassword string
+	NewUsername     string
+}
+
+// UpdateUsername updates a user's username after verifying their password
+func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUsernameParams) error {
+	// Get the user to verify they exist and check password
+	user, err := s.queries.GetUserByUUID(ctx, params.UserUUID)
+	if err != nil {
+		slog.Error("Failed to find user", "uuid", params.UserUUID, "err", err)
+		return fmt.Errorf("user not found")
+	}
+
+	// Verify the current password
+	match, err := login.CheckPasswordHash(params.CurrentPassword, string(user.Password))
+	if err != nil || !match {
+		slog.Error("Invalid current password", "uuid", params.UserUUID)
+		return fmt.Errorf("invalid current password")
+	}
+
+	// Check if the new username is already taken
+	existingUsers, err := s.queries.FindUserByUsername(ctx, params.NewUsername)
+	if err != nil {
+		slog.Error("Failed to check username availability", "err", err)
+		return fmt.Errorf("internal error")
+	}
+	if len(existingUsers) > 0 {
+		return fmt.Errorf("username already taken")
+	}
+
+	// Update the username
+	err = s.queries.UpdateUsername(ctx, profiledb.UpdateUsernameParams{
+		Uuid:     params.UserUUID,
+		Username: params.NewUsername,
+	})
+	if err != nil {
+		slog.Error("Failed to update username", "uuid", params.UserUUID, "err", err)
+		return fmt.Errorf("failed to update username")
+	}
+
+	return nil
+}
+
 type UpdatePasswordParams struct {
 	UserUUID        uuid.UUID
 	CurrentPassword string
