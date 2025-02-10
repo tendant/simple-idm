@@ -1,4 +1,4 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, Show } from 'solid-js';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,10 @@ const Settings: Component = () => {
   const [confirmPassword, setConfirmPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal<string | null>(null);
+  const [twoFactorEnabled, setTwoFactorEnabled] = createSignal(false);
+  const [qrCode, setQrCode] = createSignal<string | null>(null);
+  const [backupCodes, setBackupCodes] = createSignal<string[] | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = createSignal('');
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -72,7 +76,7 @@ const Settings: Component = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Change Password</CardTitle>
+            <CardTitle>Security Settings</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} class="space-y-4">
@@ -113,6 +117,138 @@ const Settings: Component = () => {
                 Change Password
               </Button>
             </form>
+
+            <div class="mt-8 pt-8 border-t">
+              <h3 class="text-lg font-medium mb-4">Two-Factor Authentication</h3>
+              
+              <Show when={!twoFactorEnabled()}>
+                <div class="space-y-4">
+                  <p class="text-sm text-gray-600">
+                    Two-factor authentication adds an extra layer of security to your account.
+                    When enabled, you'll need to enter both your password and a code from your
+                    authenticator app when signing in.
+                  </p>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/profile/2fa/setup', {
+                          method: 'POST'
+                        });
+                        if (!response.ok) throw new Error('Failed to setup 2FA');
+                        const data = await response.json();
+                        setQrCode(data.qrCode);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to setup 2FA');
+                      }
+                    }}
+                  >
+                    Setup 2FA
+                  </Button>
+                </div>
+              </Show>
+
+              <Show when={qrCode() && !twoFactorEnabled()}>
+                <div class="mt-4 space-y-4">
+                  <img src={qrCode()} alt="2FA QR Code" class="w-48 h-48" />
+                  <p class="text-sm text-gray-600">
+                    Scan this QR code with your authenticator app, then enter the code below to enable 2FA.
+                  </p>
+                  <div class="space-y-2">
+                    <Label for="2fa-code">Authentication Code</Label>
+                    <Input
+                      id="2fa-code"
+                      type="text"
+                      value={twoFactorCode()}
+                      onInput={(e) => setTwoFactorCode(e.currentTarget.value)}
+                      required
+                    />
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/profile/2fa/enable', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            code: twoFactorCode()
+                          }),
+                        });
+                        if (!response.ok) throw new Error('Failed to enable 2FA');
+                        const data = await response.json();
+                        setBackupCodes(data.backupCodes);
+                        setTwoFactorEnabled(true);
+                        setQrCode(null);
+                        setSuccess('2FA enabled successfully');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to enable 2FA');
+                      }
+                    }}
+                  >
+                    Enable 2FA
+                  </Button>
+                </div>
+              </Show>
+
+              <Show when={backupCodes()}>
+                <div class="mt-4 space-y-4">
+                  <h4 class="font-medium">Backup Codes</h4>
+                  <p class="text-sm text-gray-600">
+                    Save these backup codes in a secure place. You can use them to access your account if you
+                    lose access to your authenticator app.
+                  </p>
+                  <div class="bg-gray-100 p-4 rounded-md">
+                    <pre class="text-sm">
+                      {backupCodes()?.join('\n')}
+                    </pre>
+                  </div>
+                </div>
+              </Show>
+
+              <Show when={twoFactorEnabled()}>
+                <div class="space-y-4">
+                  <p class="text-sm text-gray-600">
+                    Two-factor authentication is enabled. You'll need to enter a code from your
+                    authenticator app when signing in.
+                  </p>
+                  <div class="space-y-2">
+                    <Label for="disable-2fa-code">Enter Code to Disable 2FA</Label>
+                    <Input
+                      id="disable-2fa-code"
+                      type="text"
+                      value={twoFactorCode()}
+                      onInput={(e) => setTwoFactorCode(e.currentTarget.value)}
+                      required
+                    />
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/profile/2fa/disable', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            code: twoFactorCode()
+                          }),
+                        });
+                        if (!response.ok) throw new Error('Failed to disable 2FA');
+                        setTwoFactorEnabled(false);
+                        setTwoFactorCode('');
+                        setSuccess('2FA disabled successfully');
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to disable 2FA');
+                      }
+                    }}
+                  >
+                    Disable 2FA
+                  </Button>
+                </div>
+              </Show>
+            </div>
           </CardContent>
         </Card>
           </div>
