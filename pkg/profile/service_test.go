@@ -88,6 +88,102 @@ func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 	return pool, cleanup
 }
 
+func TestUpdateUsername(t *testing.T) {
+	// Setup test database
+	pool, cleanup := setupTestDatabase(t)
+	defer cleanup()
+
+	// Create queries and service
+	queries := profiledb.New(pool)
+	service := NewProfileService(queries)
+
+	// Create a test user with a known password
+	ctx := context.Background()
+	password := "testpass"
+	hashedPassword, err := login.HashPassword(password)
+	require.NoError(t, err)
+
+	// Create test user directly in database
+	userUUID := uuid.New()
+	_, err = pool.Exec(ctx, `
+		INSERT INTO users (uuid, username, email, password, created_at, last_modified_at)
+		VALUES ($1, $2, $3, $4, NOW(), NOW())
+	`, userUUID, "oldusername", "test@example.com", []byte(hashedPassword))
+	require.NoError(t, err)
+
+	// Create another user for testing username conflicts
+	conflictUserUUID := uuid.New()
+	_, err = pool.Exec(ctx, `
+		INSERT INTO users (uuid, username, email, password, created_at, last_modified_at)
+		VALUES ($1, $2, $3, $4, NOW(), NOW())
+	`, conflictUserUUID, "existinguser", "existing@example.com", []byte(hashedPassword))
+	require.NoError(t, err)
+
+	// Test cases
+	tests := []struct {
+		name          string
+		params        UpdateUsernameParams
+		expectedError string
+	}{
+		{
+			name: "successful username update",
+			params: UpdateUsernameParams{
+				UserUUID:        userUUID,
+				CurrentPassword: password,
+				NewUsername:     "newusername",
+			},
+			expectedError: "",
+		},
+		{
+			name: "invalid current password",
+			params: UpdateUsernameParams{
+				UserUUID:        userUUID,
+				CurrentPassword: "wrongpass",
+				NewUsername:     "newusername2",
+			},
+			expectedError: "invalid current password",
+		},
+		{
+			name: "username already taken",
+			params: UpdateUsernameParams{
+				UserUUID:        userUUID,
+				CurrentPassword: password,
+				NewUsername:     "existinguser",
+			},
+			expectedError: "username already taken",
+		},
+		{
+			name: "user not found",
+			params: UpdateUsernameParams{
+				UserUUID:        uuid.New(), // Different UUID
+				CurrentPassword: password,
+				NewUsername:     "newusername3",
+			},
+			expectedError: "user not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Call the method
+			err := service.UpdateUsername(ctx, tt.params)
+
+			// Check error
+			if tt.expectedError != "" {
+				require.EqualError(t, err, tt.expectedError)
+			} else {
+				require.NoError(t, err)
+
+				// Verify username was actually updated
+				var storedUsername string
+				err = pool.QueryRow(ctx, "SELECT username FROM users WHERE uuid = $1", tt.params.UserUUID).Scan(&storedUsername)
+				require.NoError(t, err)
+				require.Equal(t, tt.params.NewUsername, storedUsername, "New username should be stored in database")
+			}
+		})
+	}
+}
+
 func TestUpdatePassword(t *testing.T) {
 	// Setup test database
 	pool, cleanup := setupTestDatabase(t)
