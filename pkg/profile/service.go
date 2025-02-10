@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -48,7 +49,7 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	}
 
 	// Check if the new username is already taken
-	existingUsers, err := s.queries.FindUserByUsername(ctx, params.NewUsername)
+	existingUsers, err := s.queries.FindUserByUsername(ctx, sql.NullString{String: params.NewUsername, Valid: true})
 	if err != nil {
 		slog.Error("Failed to check username availability", "err", err)
 		return fmt.Errorf("internal error")
@@ -60,7 +61,7 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	// Update the username
 	err = s.queries.UpdateUsername(ctx, profiledb.UpdateUsernameParams{
 		Uuid:     params.UserUUID,
-		Username: params.NewUsername,
+		Username: sql.NullString{String: params.NewUsername, Valid: true},
 	})
 	if err != nil {
 		slog.Error("Failed to update username", "uuid", params.UserUUID, "err", err)
