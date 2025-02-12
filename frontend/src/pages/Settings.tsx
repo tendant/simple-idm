@@ -1,4 +1,5 @@
 import { Component, createSignal, Show } from 'solid-js';
+import { useApi } from '@/lib/hooks/useApi';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,8 @@ const Settings: Component = () => {
   const [backupCodes, setBackupCodes] = createSignal<string[] | null>(null);
   const [twoFactorCode, setTwoFactorCode] = createSignal('');
 
+  const { request } = useApi();
+
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
     setError(null);
@@ -29,7 +32,7 @@ const Settings: Component = () => {
     }
 
     try {
-      const response = await fetch('/profile/password', {
+      await request('/profile/password', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -39,11 +42,6 @@ const Settings: Component = () => {
           newPassword: newPassword(),
         }),
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to change password');
-      }
 
       setSuccess('Password changed successfully');
       setCurrentPassword('');
@@ -146,12 +144,12 @@ const Settings: Component = () => {
                   <Button
                     onClick={async () => {
                       try {
-                        const response = await fetch('/profile/2fa/setup', {
+                        const data = await request('/profile/2fa/setup', {
                           method: 'POST'
                         });
-                        if (!response.ok) throw new Error('Failed to setup 2FA');
-                        const data = await response.json();
-                        setQrCode(data.qrCode);
+                        if (data) {
+                          setQrCode(data.qrCode);
+                        }
                       } catch (err) {
                         setError(err instanceof Error ? err.message : 'Failed to setup 2FA');
                       }
@@ -181,7 +179,7 @@ const Settings: Component = () => {
                   <Button
                     onClick={async () => {
                       try {
-                        const response = await fetch('/profile/2fa/enable', {
+                        const data = await request('/profile/2fa/enable', {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
@@ -190,12 +188,12 @@ const Settings: Component = () => {
                             code: twoFactorCode()
                           }),
                         });
-                        if (!response.ok) throw new Error('Failed to enable 2FA');
-                        const data = await response.json();
-                        setBackupCodes(data.backupCodes);
-                        setTwoFactorEnabled(true);
-                        setQrCode(null);
-                        setSuccess('2FA enabled successfully');
+                        if (data) {
+                          setBackupCodes(data.backupCodes);
+                          setTwoFactorEnabled(true);
+                          setQrCode(null);
+                          setSuccess('2FA enabled successfully');
+                        }
                       } catch (err) {
                         setError(err instanceof Error ? err.message : 'Failed to enable 2FA');
                       }
@@ -241,7 +239,7 @@ const Settings: Component = () => {
                     variant="destructive"
                     onClick={async () => {
                       try {
-                        const response = await fetch('/profile/2fa/disable', {
+                        await request('/profile/2fa/disable', {
                           method: 'POST',
                           headers: {
                             'Content-Type': 'application/json',
@@ -250,7 +248,6 @@ const Settings: Component = () => {
                             code: twoFactorCode()
                           }),
                         });
-                        if (!response.ok) throw new Error('Failed to disable 2FA');
                         setTwoFactorEnabled(false);
                         setTwoFactorCode('');
                         setSuccess('2FA disabled successfully');
