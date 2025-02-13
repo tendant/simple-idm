@@ -17,6 +17,8 @@ import (
 	authpkg "github.com/tendant/simple-idm/pkg/auth"
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
+	"github.com/tendant/simple-idm/pkg/impersonate"
+	"github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/notice"
@@ -105,6 +107,7 @@ func main() {
 	roleQueries := roledb.New(pool)
 	iamQueries := iamdb.New(pool)
 	loginQueries := logindb.New(pool)
+	impersonateQueries := impersonatedb.New(pool)
 
 	// Initialize NotificationManager and register email notifier
 	notificationManager, err := notice.NewNotificationManager(config.BaseUrl, notification.SMTPConfig{
@@ -187,6 +190,11 @@ func main() {
 		roleService := role.NewRoleService(roleQueries)
 		roleHandle := role.NewHandle(roleService)
 		r.Mount("/idm/roles", role.Handler(roleHandle))
+
+		// Initialize impersonate service and routes
+		impersonateService := impersonate.NewImpersonateService(impersonateQueries)
+		impersonateHandle := impersonate.NewHandle(impersonateService, *jwtService)
+		r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
 	})
 
 	app.RoutesHealthzReady(server.R)
