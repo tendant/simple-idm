@@ -122,7 +122,9 @@ func main() {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
 
-	loginService := login.NewLoginService(loginQueries, notificationManager)
+	userMapper := &login.DefaultUserMapper{}
+	delegatedUserMapper := &login.DefaultDelegatedUserMapper{}
+	loginService := login.NewLoginService(loginQueries, notificationManager, userMapper, delegatedUserMapper)
 
 	// jwt service
 	jwtService := auth.NewJwtServiceOptions(

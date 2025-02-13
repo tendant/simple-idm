@@ -20,12 +20,16 @@ import (
 type LoginService struct {
 	queries             *logindb.Queries
 	notificationManager *notification.NotificationManager
+	userMapper          UserMapper
+	delegatedUserMapper DelegatedUserMapper
 }
 
-func NewLoginService(queries *logindb.Queries, notificationManager *notification.NotificationManager) *LoginService {
+func NewLoginService(queries *logindb.Queries, notificationManager *notification.NotificationManager, userMapper UserMapper, delegatedUserMapper DelegatedUserMapper) *LoginService {
 	return &LoginService{
 		queries:             queries,
 		notificationManager: notificationManager,
+		userMapper:          userMapper,
+		delegatedUserMapper: delegatedUserMapper,
 	}
 }
 
