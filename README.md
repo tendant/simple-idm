@@ -1,6 +1,18 @@
 # Simple IDM
 
-A simple Identity Management system with user authentication and authorization capabilities.
+A simple Identity Management system with user authentication and authorization capabilities. This system provides basic user management, authentication, and role-based access control.
+
+## Getting Started
+
+### Running the Application
+
+```bash
+# Build and run the application
+make build
+make run
+```
+
+The application will start on port 4000 by default.
 
 ## Roadmap
 
@@ -16,6 +28,10 @@ The following features are planned for implementation:
 ## Development Setup
 
 ### Prerequisites
+
+- Go 1.21 or later
+- PostgreSQL 14 or later
+- Make
 
 #### Install sqlc
 
@@ -50,21 +66,30 @@ ALTER TABLE users OWNER TO idm;
 
 #### Insert Users
 
+The following commands will create two users:
+- Admin user (username: `admin`, password: `pwd`)
+- Test user (username: `test`, password: `test`)
+
 ```sql
--- crypt pwd -> $2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6
-
+-- Create admin user
 INSERT INTO users (username, name, password, email, created_by)
-VALUES ('admin', 'admin', convert_to('$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6', 'UTF8'), 'admin@example.com', 'system');
+VALUES (
+    'admin',
+    'admin',
+    '$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6',  -- hashed value of 'pwd'
+    'admin@example.com',
+    'system'
+);
 
-update users set password = convert_to('$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6', 'UTF8') where username = 'admin';
-
-update users set password = '$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6' where username = 'admin';
-
--- test user
+-- Create test user
 INSERT INTO users (username, name, password, email, created_by)
-VALUES ('test', 'test', '$2a$10$Ly3ACkZKafj455GovEcivOxtgD3QMjaq0p16PtMWJNSzUs0il4mrq', 'test@example.com', 'system');
-
-SELECT convert_from(password, 'UTF8') FROM users WHERE username = 'test';
+VALUES (
+    'test',
+    'test',
+    '$2a$10$Ly3ACkZKafj455GovEcivOxtgD3QMjaq0p16PtMWJNSzUs0il4mrq',  -- hashed value of 'test'
+    'test@example.com',
+    'system'
+);
 ```
 
 #### Insert Roles
@@ -86,27 +111,42 @@ VALUES ((SELECT uuid FROM users WHERE username = 'admin'), (SELECT uuid FROM rol
 
 ## API Testing Guide
 
-### Basic API Tests
-
-Test the users API endpoint:
-```bash
-curl -i -X POST localhost:4000/api/users -d '{"email": "test@example.com"}' -H "Content-Type: application/json" 
-
-curl -i localhost:4000/api/users
-```
+All API endpoints are available on port 4000 by default. Make sure the application is running before testing the APIs.
 
 ### User Management
 
-#### Create User
-
+#### List Users
 ```bash
-curl -i -X POST localhost:4000/api/v4/user  --data '{"name":"xyz", "email": "abc"}'  --header "Content-Type: application/json"
+curl -i localhost:4000/api/users
+```
+
+#### Create User
+```bash
+curl -i -X POST localhost:4000/api/v4/user \
+    --header "Content-Type: application/json" \
+    --data '{
+        "name": "xyz",
+        "email": "abc@example.com"
+    }'
 ```
 
 #### Login
-
 ```bash
-curl -i -X POST localhost:4000/login  --data '{"username":"admin", "password": "pwd"}'  --header "Content-Type: application/json"
+# Login as admin
+curl -i -X POST localhost:4000/login \
+    --header "Content-Type: application/json" \
+    --data '{
+        "username": "admin",
+        "password": "pwd"
+    }'
+
+# Login as test user
+curl -i -X POST localhost:4000/login \
+    --header "Content-Type: application/json" \
+    --data '{
+        "username": "test",
+        "password": "test"
+    }'
 ```
 
     
