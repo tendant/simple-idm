@@ -20,12 +20,16 @@ import (
 type LoginService struct {
 	queries             *logindb.Queries
 	notificationManager *notification.NotificationManager
+	userMapper          UserMapper
+	delegatedUserMapper DelegatedUserMapper
 }
 
-func NewLoginService(queries *logindb.Queries, notificationManager *notification.NotificationManager) *LoginService {
+func NewLoginService(queries *logindb.Queries, notificationManager *notification.NotificationManager, userMapper UserMapper, delegatedUserMapper DelegatedUserMapper) *LoginService {
 	return &LoginService{
 		queries:             queries,
 		notificationManager: notificationManager,
+		userMapper:          userMapper,
+		delegatedUserMapper: delegatedUserMapper,
 	}
 }
 
@@ -80,23 +84,23 @@ func CheckPasswordHash(password, hashedPassword string) (bool, error) {
 
 func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb.User, error) {
 	slog.Debug("Registering user use params:", "params", params)
-	registerRequest := logindb.RegisterUserParams{}
-	copier.Copy(&registerRequest, params)
-	user, err := s.queries.RegisterUser(ctx, registerRequest)
-	if err != nil {
-		slog.Error("Failed to register user", "params", params, "err", err)
-		return logindb.User{}, err
-	}
-	return user, err
+	// registerRequest := logindb.RegisterUserParams{}
+	// copier.Copy(&registerRequest, params)
+	// user, err := s.queries.RegisterUser(ctx, registerRequest)
+	// if err != nil {
+	// 	slog.Error("Failed to register user", "params", params, "err", err)
+	// 	return logindb.User{}, err
+	// }
+	return logindb.User{}, nil
 }
 
 func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 	slog.Debug("Verifying user use params:", "params", param)
-	err := s.queries.EmailVerify(ctx, param)
-	if err != nil {
-		slog.Error("Failed to verify user", "params", param, "err", err)
-		return err
-	}
+	// err := s.queries.EmailVerify(ctx, param)
+	// if err != nil {
+	// 	slog.Error("Failed to verify user", "params", param, "err", err)
+	// 	return err
+	// }
 	return nil
 }
 
