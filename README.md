@@ -71,6 +71,15 @@ The following commands will create two users:
 - Test user (username: `test`, password: `test`)
 
 ```sql
+-- create login
+INSERT INTO login (username, password, created_at)
+VALUES (
+    'admin',
+    '$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6',  -- hashed value of 'pwd'
+    NOW()
+);
+
+
 -- Create admin user
 INSERT INTO users (username, name, password, email, created_by)
 VALUES (
