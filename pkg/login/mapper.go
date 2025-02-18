@@ -10,9 +10,9 @@ import (
 )
 
 type MappedUser struct {
-	UserId       string
-	DisplayName  string
-	CustomClaims map[string]interface{}
+	UserId       string                 `json:"user_id,omitempty"`
+	DisplayName  string                 `json:"display_name,omitempty"`
+	CustomClaims map[string]interface{} `json:"custom_claims,omitempty"`
 }
 
 type UserMapper interface {

@@ -252,9 +252,9 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 
 	slog.Info("customClaims", "customClaims", customClaims)
 
-	userUuid, ok := customClaims["user_uuid"].(string)
+	userUuid, ok := customClaims["user_id"].(string)
 	if !ok {
-		slog.Error("missing or invalid UserUuid in claims")
+		slog.Error("missing or invalid user_id in claims")
 		return &Response{
 			body: "Unauthorized",
 			Code: http.StatusUnauthorized,
