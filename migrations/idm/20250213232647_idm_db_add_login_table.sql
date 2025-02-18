@@ -10,7 +10,8 @@ CREATE TABLE login (
     username VARCHAR(255),
     two_factor_secret TEXT,
     two_factor_enabled BOOLEAN DEFAULT FALSE,
-    two_factor_backup_codes TEXT[]
+    two_factor_backup_codes TEXT[],
+    CONSTRAINT login_uuid_pk PRIMARY KEY (uuid)  -- Explicit primary key constraint
 );
 -- +goose StatementEnd
 
