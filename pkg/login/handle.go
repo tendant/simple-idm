@@ -111,10 +111,15 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Convert mapped users to API users
 	apiUsers := make([]User, len(mappedUsers))
 	for i, mu := range mappedUsers {
+		// Extract email and name from custom claims
+		email, _ := mu.CustomClaims["email"].(string)
+		name := mu.DisplayName
+
 		apiUsers[i] = User{
-			Id:           mu.UserId,
-			DisplayName:  mu.DisplayName,
-			CustomClaims: mu.CustomClaims,
+			UUID:             mu.UserId,
+			Name:             name,
+			Email:            email,
+			TwoFactorEnabled: false, // TODO: Add 2FA support
 		}
 	}
 
@@ -278,10 +283,10 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Info("no roles found in claims")
 	}
 
-	// FIXME: Create the MappedUser object
+	// Create the MappedUser object
 	mappedUser := MappedUser{
 		UserId:       userUuid,
-		DisplayName:  customClaims["display_name"].(string),
+		DisplayName:  customClaims["name"].(string),
 		CustomClaims: customClaims,
 	}
 
