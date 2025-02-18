@@ -71,23 +71,24 @@ The following commands will create two users:
 - Test user (username: `test`, password: `test`)
 
 ```sql
--- create login
-INSERT INTO login (username, password, created_at)
+-- Create login record and store its UUID
+WITH new_login AS (
+    INSERT INTO login (username, password, created_at)
+    VALUES (
+        'admin',
+        '$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6',  -- hashed value of 'pwd'
+        NOW()
+    )
+    RETURNING uuid
+)
+-- Create admin user with the login UUID
+INSERT INTO users (username, name, email, created_by, login_uuid)
 VALUES (
     'admin',
-    '$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6',  -- hashed value of 'pwd'
-    NOW()
-);
-
-
--- Create admin user
-INSERT INTO users (username, name, password, email, created_by)
-VALUES (
     'admin',
-    'admin',
-    '$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6',  -- hashed value of 'pwd'
     'admin@example.com',
-    'system'
+    'system',
+    (SELECT uuid FROM login where username = 'admin')
 );
 
 -- Create test user

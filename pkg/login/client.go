@@ -12,14 +12,15 @@ import (
 )
 
 type AuthUser struct {
-	UserUuid string   `json:"user_uuid,omitempty"`
-	Roles    []string `json:"role,omitempty"`
-	UserUUID uuid.UUID
+	UserId string   `json:"user_id,omitempty"`
+	Roles  []string `json:"role,omitempty"`
+	// For backward compatibility, we still need to support UserUuid, also it is convenient to have it as a uuid.UUID
+	UserUuid uuid.UUID
 }
 
 func (i AuthUser) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.String("user", i.UserUuid),
+		slog.String("user", i.UserId),
 		slog.Any("role", i.Roles),
 	)
 }
@@ -85,18 +86,17 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 			http.Error(w, em.Error(), http.StatusUnauthorized)
 			return
 		}
-		if authUser.UserUuid == "" {
-			http.Error(w, "missing user uuid", http.StatusUnauthorized)
+		if authUser.UserId == "" {
+			http.Error(w, "missing user id", http.StatusUnauthorized)
 			return
 		}
-		authUser.UserUUID, err = uuid.Parse(authUser.UserUuid)
+		authUser.UserUuid, err = uuid.Parse(authUser.UserId)
 		if err != nil {
-			slog.Error("failed to parse user uuid", "err", err)
-			http.Error(w, "invalid user uuid", http.StatusUnauthorized)
-			return
+			slog.Warn("failed to parse user id", "err", err)
+			//http.Error(w, "invalid user id", http.StatusUnauthorized)
 		}
 
-		slog.Info("AdminUserMiddleware", "userUuid", authUser.UserUuid, "roles", authUser.Roles)
+		slog.Info("AdminUserMiddleware", "userId", authUser.UserId, "roles", authUser.Roles)
 		// create new context from `r` request context, and assign key `"user"`
 		// to value of `"123"`
 		ctx := context.WithValue(r.Context(), AuthUserKey, authUser)

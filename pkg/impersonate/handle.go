@@ -68,7 +68,7 @@ func (h Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Respo
 	}
 
 	// Get user UUID from context (assuming it's set by auth middleware)
-	delegatee_uuid := authUser.UserUUID
+	delegatee_uuid := authUser.UserUuid
 
 	data := CreateImpersonateJSONRequestBody{}
 	err := render.DecodeJSON(r.Body, &data)

@@ -33,7 +33,7 @@ func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Get user UUID from context (assuming it's set by auth middleware)
-	userUUID := authUser.UserUUID
+	userUuid := authUser.UserUuid
 
 	// Parse request body
 	var data PutPasswordJSONRequestBody
@@ -61,7 +61,7 @@ func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 
 	// Update password
 	err := h.profileService.UpdatePassword(r.Context(), UpdatePasswordParams{
-		UserUUID:        userUUID,
+		UserUuid:        userUuid,
 		CurrentPassword: data.CurrentPassword,
 		NewPassword:     data.NewPassword,
 	})
@@ -117,7 +117,7 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Disable 2FA for the user
-	err := h.profileService.Disable2FA(r.Context(), authUser.UserUUID, req.CurrentPassword, req.Code)
+	err := h.profileService.Disable2FA(r.Context(), authUser.UserUuid, req.CurrentPassword, req.Code)
 	if err != nil {
 		slog.Error("Failed to disable 2FA", "err", err)
 		return &Response{
@@ -159,7 +159,7 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 	}
 
 	// Enable 2FA and get backup codes
-	backupCodes, err := h.profileService.Enable2FA(r.Context(), authUser.UserUUID, req.Secret, req.Code)
+	backupCodes, err := h.profileService.Enable2FA(r.Context(), authUser.UserUuid, req.Secret, req.Code)
 	if err != nil {
 		slog.Error("Failed to enable 2FA", "err", err)
 		return &Response{

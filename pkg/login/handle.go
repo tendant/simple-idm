@@ -129,6 +129,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	response := Login{
 		Status:  "success",
 		Message: "Login successful",
+		User:    apiUsers[0],
 		Users:   apiUsers,
 	}
 

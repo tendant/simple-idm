@@ -164,7 +164,7 @@ func main() {
 				return
 			}
 
-			userInfo, err := loginService.GetMe(r.Context(), authUser.UserUUID)
+			userInfo, err := loginService.GetMe(r.Context(), authUser.UserUuid)
 			if err != nil {
 				slog.Error("Failed getting me", "err", err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

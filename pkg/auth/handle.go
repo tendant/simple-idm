@@ -97,7 +97,7 @@ func (h Handle) PutLoginPassword(w http.ResponseWriter, r *http.Request) *Respon
 	}
 	// check password match
 	passMatch, err := h.authLoginService.MatchPasswordByUuids(r.Context(), MatchPassParam{
-		UserUuid: authUser.UserUUID,
+		UserUuid: authUser.UserUuid,
 		Password: data.CurrentPassword,
 	})
 	if err != nil {
@@ -107,7 +107,7 @@ func (h Handle) PutLoginPassword(w http.ResponseWriter, r *http.Request) *Respon
 			Code: http.StatusBadRequest, // prevent info leakage
 		}
 	} else if !passMatch {
-		slog.Error("Passwords does not match", "user uuid", authUser.UserUUID)
+		slog.Error("Passwords does not match", "user uuid", authUser.UserUuid)
 		return &Response{
 			body: "Bad request",
 			Code: http.StatusBadRequest, // prevent info leakage
@@ -124,11 +124,11 @@ func (h Handle) PutLoginPassword(w http.ResponseWriter, r *http.Request) *Respon
 	}
 	// update password
 	err = h.authLoginService.UpdatePassword(r.Context(), UpdatePassParam{
-		UserUuid:    authUser.UserUUID,
+		UserUuid:    authUser.UserUuid,
 		NewPassword: data.NewPassword,
 	})
 	if err != nil {
-		slog.Error("Failed to update user password", "user uuid", authUser.UserUUID, "err", err)
+		slog.Error("Failed to update user password", "user uuid", authUser.UserUuid, "err", err)
 		return &Response{
 			body: "Internal system error",
 			Code: http.StatusInternalServerError,
