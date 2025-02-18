@@ -294,7 +294,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	mappedUser := MappedUser{
 		UserId:      userId,
 		DisplayName: displayName,
-		// ExtraClaims: extraClaims,
+		ExtraClaims: customClaims["extra_claims"].(map[string]interface{}),
 	}
 
 	accessToken, err := h.jwtService.CreateAccessToken(mappedUser)
