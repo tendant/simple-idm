@@ -46,17 +46,17 @@ type IdmUser struct {
 
 func (s LoginService) Login(ctx context.Context, params LoginParams, password string) ([]IdmUser, error) {
 	// Find user by username
-	dbUsers, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(params.Username))
-	if err != nil || len(dbUsers) == 0 {
+	loginUsers, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(params.Username))
+	if err != nil || len(loginUsers) == 0 {
 		return []IdmUser{}, fmt.Errorf("user not found: %w", err)
 	}
 
-	if len(dbUsers) > 1 {
+	if len(loginUsers) > 1 {
 		return []IdmUser{}, fmt.Errorf("multiple users found with username %s", params.Username)
 	}
 
 	// Verify password
-	valid, err := CheckPasswordHash(password, string(dbUsers[0].Password))
+	valid, err := CheckPasswordHash(password, string(loginUsers[0].Password))
 	if err != nil {
 		return []IdmUser{}, fmt.Errorf("error checking password: %w", err)
 	}
@@ -64,19 +64,23 @@ func (s LoginService) Login(ctx context.Context, params LoginParams, password st
 		return []IdmUser{}, fmt.Errorf("invalid password")
 	}
 
-	// Find user roles
-	roles, err := s.FindUserRoles(ctx, dbUsers[0].Uuid)
-	if err != nil {
-		return []IdmUser{}, fmt.Errorf("error finding user roles: %w", err)
+	// Convert roles from interface{} to []string
+	roles, ok := loginUsers[0].Roles.([]interface{})
+	if !ok {
+		return []IdmUser{}, fmt.Errorf("invalid roles format")
 	}
 
-	// Convert roles to string array
-	validRoles := utils.GetValidStrings(roles)
+	strRoles := make([]string, 0, len(roles))
+	for _, r := range roles {
+		if str, ok := r.(string); ok {
+			strRoles = append(strRoles, str)
+		}
+	}
 
 	return []IdmUser{
 		{
-			UserUuid: dbUsers[0].Uuid.String(),
-			Role:     validRoles,
+			UserUuid: loginUsers[0].Uuid.String(),
+			Role:     strRoles,
 			Custom:   make(map[string]interface{}),
 		},
 	}, nil

@@ -30,14 +30,15 @@ SET password = $1,
     last_modified_at = NOW()
 WHERE email = $2; 
 
--- name: FindUserByUsername :many
-SELECT u.uuid, u.username, u.password, u.email, u.name, u.created_at, u.last_modified_at,
+-- name: FindLoginByUsername :many
+SELECT l.uuid, l.username, l.password, l.created_at, l.updated_at,
        array_agg(r.name) as roles
-FROM users u
-LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
+FROM login l
+LEFT JOIN user_roles ur ON l.uuid = ur.user_uuid
 LEFT JOIN roles r ON ur.role_uuid = r.uuid
-WHERE u.username = $1
-GROUP BY u.uuid, u.username, u.password, u.email, u.name, u.created_at, u.last_modified_at;
+WHERE l.username = $1
+AND l.deleted_at IS NULL
+GROUP BY l.uuid, l.username, l.password, l.created_at, l.updated_at;
 
 -- name: InitPasswordByUsername :one
 SELECT uuid
