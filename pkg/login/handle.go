@@ -319,6 +319,117 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 
 // PostMobileLogin handles mobile login requests
 // (POST /mobile/login)
+func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
+	data := PostUserSwitchJSONRequestBody{}
+	if err := render.DecodeJSON(r.Body, &data); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+
+	// Parse user UUID
+	userUuid, err := uuid.Parse(data.UserUuid)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Invalid user UUID format",
+		}
+	}
+
+	// Get current login UUID from access token
+	claims, err := h.jwtService.ValidateAccessToken(r)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
+		}
+	}
+
+	loginUuid, err := uuid.Parse(claims["sub"].(string))
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid login UUID in token",
+		}
+	}
+
+	// Get all users for the current login
+	users, err := h.loginService.GetUsersByLoginUuid(r.Context(), loginUuid)
+	if err != nil {
+		slog.Error("Failed to get users", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to get users",
+		}
+	}
+
+	// Check if the requested user is in the list
+	var targetUser MappedUser
+	found := false
+	for _, user := range users {
+		if user.UserId == data.UserUuid {
+			targetUser = user
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return &Response{
+			Code: http.StatusForbidden,
+			body: "Not authorized to switch to this user",
+		}
+	}
+
+	// Create new JWT tokens for the target user
+	accessToken, err := h.jwtService.CreateAccessToken(targetUser)
+	if err != nil {
+		slog.Error("Failed to create access token", "user", targetUser, "err", err)
+		return &Response{
+			body: "Failed to create access token",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	refreshToken, err := h.jwtService.CreateRefreshToken(targetUser)
+	if err != nil {
+		slog.Error("Failed to create refresh token", "user", targetUser, "err", err)
+		return &Response{
+			body: "Failed to create refresh token",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	// Set cookies and prepare response
+	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
+	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
+
+	// Convert mapped users to API users (including all available users)
+	apiUsers := make([]User, len(users))
+	for i, mu := range users {
+		// Extract email and name from custom claims
+		email, _ := mu.CustomClaims["email"].(string)
+		name := mu.DisplayName
+
+		apiUsers[i] = User{
+			UUID:             mu.UserId,
+			Name:             name,
+			Email:            email,
+			TwoFactorEnabled: false, // TODO: Add 2FA support
+		}
+	}
+
+	response := Login{
+		Status:  "success",
+		Message: "Successfully switched user",
+		Users:   apiUsers,
+	}
+
+	return PostUserSwitchJSON200Response(response)
+}
+
 func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Parse request body
 	data := PostLoginJSONRequestBody{}

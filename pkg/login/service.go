@@ -38,6 +38,10 @@ type LoginParams struct {
 	Username string
 }
 
+func (s LoginService) GetUsersByLoginUuid(ctx context.Context, loginUuid uuid.UUID) ([]MappedUser, error) {
+	return s.userMapper.GetUsers(ctx, loginUuid)
+}
+
 func (s LoginService) Login(ctx context.Context, params LoginParams, password string) ([]MappedUser, error) {
 	// Find user by username
 	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(params.Username))

@@ -193,6 +193,49 @@ paths:
                     type: string
                     description: A message indicating the request was processed
                     example: "If an account exists with that email, we will send the username to it."
+  /user/switch:
+    post:
+      summary: Switch to a different user when multiple users are available for the same login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_uuid:
+                  type: string
+                  description: UUID of the user to switch to
+              required:
+                - user_uuid
+      responses:
+        "200":
+          description: Successfully switched to the specified user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Login"
+        "400":
+          description: Invalid request or user not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid user UUID or user not found"
+        "403":
+          description: Not authorized to switch to this user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Not authorized to switch to this user"
+
   /2fa/verify:
     post:
       summary: Verify 2FA code during login
