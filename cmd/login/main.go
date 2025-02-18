@@ -122,7 +122,7 @@ func main() {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
 
-	userMapper := &login.DefaultUserMapper{}
+	userMapper := login.NewDefaultUserMapper(loginQueries)
 	delegatedUserMapper := &login.DefaultDelegatedUserMapper{}
 	loginService := login.NewLoginService(loginQueries, notificationManager, userMapper, delegatedUserMapper)
 
