@@ -3,6 +3,7 @@ package login
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
@@ -34,6 +35,10 @@ func NewDefaultUserMapper(queries *logindb.Queries) *DefaultUserMapper {
 
 func (m DefaultUserMapper) GetUsers(ctx context.Context, loginUuid uuid.UUID) ([]MappedUser, error) {
 	// Get users by login UUID
+	if m.queries == nil {
+		slog.Warn("DefaultUserMapper queries is nil")
+		return nil, nil
+	}
 	users, err := m.queries.GetUsersByLoginUuid(ctx, uuid.NullUUID{UUID: loginUuid, Valid: true})
 	if err != nil {
 		return nil, fmt.Errorf("error getting users: %w", err)
