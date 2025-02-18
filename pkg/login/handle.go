@@ -83,7 +83,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Create JWT tokens
+	// Create JWT tokens for the first user
 	tokenUser := mappedUsers[0]
 
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
@@ -108,12 +108,21 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
 	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
 
+	// Convert mapped users to API users
+	apiUsers := make([]User, len(mappedUsers))
+	for i, mu := range mappedUsers {
+		apiUsers[i] = User{
+			Id:           mu.UserId,
+			DisplayName:  mu.DisplayName,
+			CustomClaims: mu.CustomClaims,
+		}
+	}
+
 	response := Login{
 		Status:  "success",
 		Message: "Login successful",
-		User:    User{},
+		Users:   apiUsers,
 	}
-	copier.Copy(&response.User, tokenUser)
 
 	return PostLoginJSON200Response(response)
 }

@@ -211,9 +211,43 @@ paths:
                 $ref: "#/components/schemas/Login"
 components:
   schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          description: User's unique identifier
+        display_name:
+          type: string
+          description: User's display name
+        custom_claims:
+          type: object
+          description: Additional user information
+          properties:
+            email:
+              type: string
+              format: email
+            username:
+              type: string
+            roles:
+              type: array
+              items:
+                type: string
+
     Login:
       type: object
       properties:
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "Login successful"
+        users:
+          type: array
+          description: List of users associated with the login. Usually contains one user, but may contain multiple if same username is shared.
+          items:
+            $ref: "#/components/schemas/User"
         status:
           type: string
           example: success
