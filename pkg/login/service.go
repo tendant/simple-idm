@@ -39,47 +39,47 @@ type LoginParams struct {
 }
 
 type IdmUser struct {
-	UserUuid string   `json:"user_uuid,omitempty"`
-	Role     []string `json:"role,omitempty"`
+	UserUuid string                 `json:"user_uuid,omitempty"`
+	Role     []string               `json:"role,omitempty"`
+	Custom   map[string]interface{} `json:"custom,omitempty"`
 }
 
-type LoginResult struct {
-	User  logindb.FindUserByUsernameRow
-	Roles []sql.NullString
-	Error error
-}
-
-func (s LoginService) Login(ctx context.Context, params LoginParams, password string) LoginResult {
+func (s LoginService) Login(ctx context.Context, params LoginParams, password string) ([]IdmUser, error) {
 	// Find user by username
 	dbUsers, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(params.Username))
 	if err != nil || len(dbUsers) == 0 {
-		return LoginResult{Error: fmt.Errorf("user not found: %w", err)}
+		return []IdmUser{}, fmt.Errorf("user not found: %w", err)
 	}
 
 	if len(dbUsers) > 1 {
-		return LoginResult{Error: fmt.Errorf("multiple users found with username %s", params.Username)}
+		return []IdmUser{}, fmt.Errorf("multiple users found with username %s", params.Username)
 	}
 
 	// Verify password
 	valid, err := CheckPasswordHash(password, string(dbUsers[0].Password))
 	if err != nil {
-		return LoginResult{Error: fmt.Errorf("error checking password: %w", err)}
+		return []IdmUser{}, fmt.Errorf("error checking password: %w", err)
 	}
 	if !valid {
-		return LoginResult{Error: fmt.Errorf("invalid password")}
+		return []IdmUser{}, fmt.Errorf("invalid password")
 	}
 
 	// Find user roles
 	roles, err := s.FindUserRoles(ctx, dbUsers[0].Uuid)
 	if err != nil {
-		return LoginResult{Error: fmt.Errorf("error finding user roles: %w", err)}
+		return []IdmUser{}, fmt.Errorf("error finding user roles: %w", err)
 	}
 
-	return LoginResult{
-		User:  dbUsers[0],
-		Roles: roles,
-		Error: nil,
-	}
+	// Convert roles to string array
+	validRoles := utils.GetValidStrings(roles)
+
+	return []IdmUser{
+		{
+			UserUuid: dbUsers[0].Uuid.String(),
+			Role:     validRoles,
+			Custom:   make(map[string]interface{}),
+		},
+	}, nil
 }
 
 type RegisterParam struct {

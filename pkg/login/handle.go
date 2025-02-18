@@ -8,7 +8,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
-	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
 )
 
@@ -67,9 +66,17 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Call login service
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	result := h.loginService.Login(r.Context(), loginParams, data.Password)
-	if result.Error != nil {
-		slog.Error("Login failed", "err", result.Error)
+	idmUsers, err := h.loginService.Login(r.Context(), loginParams, data.Password)
+	if err != nil {
+		slog.Error("Login failed", "err", err)
+		return &Response{
+			body: "Username/Password is wrong",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	if len(idmUsers) == 0 {
+		slog.Error("No user found after login")
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
@@ -77,10 +84,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Create JWT tokens
-	tokenUser := IdmUser{
-		UserUuid: result.User.Uuid.String(),
-		Role:     utils.GetValidStrings(result.Roles),
-	}
+	tokenUser := idmUsers[0]
 
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
 	if err != nil {
@@ -109,7 +113,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		Message: "Login successful",
 		User:    User{},
 	}
-	copier.Copy(&response.User, result.User)
+	copier.Copy(&response.User, tokenUser)
 
 	return PostLoginJSON200Response(response)
 }
@@ -313,9 +317,17 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	// Call login service
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	result := h.loginService.Login(r.Context(), loginParams, data.Password)
-	if result.Error != nil {
-		slog.Error("Login failed", "err", result.Error)
+	idmUsers, err := h.loginService.Login(r.Context(), loginParams, data.Password)
+	if err != nil {
+		slog.Error("Login failed", "err", err)
+		return &Response{
+			body: "Username/Password is wrong",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	if len(idmUsers) == 0 {
+		slog.Error("No user found after login")
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
@@ -323,10 +335,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Create JWT tokens
-	tokenUser := IdmUser{
-		UserUuid: result.User.Uuid.String(),
-		Role:     utils.GetValidStrings(result.Roles),
-	}
+	tokenUser := idmUsers[0]
 
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
 	if err != nil {
