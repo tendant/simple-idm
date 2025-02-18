@@ -15,11 +15,8 @@ import (
 )
 
 const findLoginByUsername = `-- name: FindLoginByUsername :many
-SELECT l.uuid, l.username, l.password, l.created_at, l.updated_at,
-       array_agg(r.name) as roles
+SELECT l.uuid, l.username, l.password, l.created_at, l.updated_at
 FROM login l
-LEFT JOIN user_roles ur ON l.uuid = ur.user_uuid
-LEFT JOIN roles r ON ur.role_uuid = r.uuid
 WHERE l.username = $1
 AND l.deleted_at IS NULL
 GROUP BY l.uuid, l.username, l.password, l.created_at, l.updated_at
@@ -31,7 +28,6 @@ type FindLoginByUsernameRow struct {
 	Password  []byte         `json:"password"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
-	Roles     interface{}    `json:"roles"`
 }
 
 func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullString) ([]FindLoginByUsernameRow, error) {
@@ -49,7 +45,6 @@ func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullStri
 			&i.Password,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Roles,
 		); err != nil {
 			return nil, err
 		}
@@ -102,12 +97,12 @@ func (q *Queries) FindUser(ctx context.Context, username sql.NullString) (FindUs
 }
 
 const findUserInfoWithRoles = `-- name: FindUserInfoWithRoles :one
-SELECT u.email, u.username, u.name, COALESCE(array_agg(r.name), '{}') AS roles
-FROM public.users u
-LEFT JOIN public.user_roles ur ON u.uuid = ur.user_uuid
+SELECT l.email, l.username, l.name, COALESCE(array_agg(r.name), '{}') AS roles
+FROM public.users l
+LEFT JOIN public.user_roles ur ON l.uuid = ur.user_uuid
 LEFT JOIN public.roles r ON ur.role_uuid = r.uuid
-WHERE u.uuid = $1
-GROUP BY u.email, u.username, u.name
+WHERE l.uuid = $1
+GROUP BY l.email, l.username, l.name
 `
 
 type FindUserInfoWithRolesRow struct {
@@ -171,7 +166,7 @@ func (q *Queries) FindUsernameByEmail(ctx context.Context, email string) (sql.Nu
 
 const initPasswordByUsername = `-- name: InitPasswordByUsername :one
 SELECT uuid
-FROM users
+FROM login
 WHERE username = $1
 `
 
@@ -227,7 +222,7 @@ func (q *Queries) ResetPassword(ctx context.Context, arg ResetPasswordParams) er
 }
 
 const resetPasswordByUuid = `-- name: ResetPasswordByUuid :exec
-UPDATE users
+UPDATE login
 SET password = $1,
     last_modified_at = NOW()
 WHERE uuid = $2
@@ -244,7 +239,7 @@ func (q *Queries) ResetPasswordByUuid(ctx context.Context, arg ResetPasswordByUu
 }
 
 const updateUserPassword = `-- name: UpdateUserPassword :exec
-UPDATE users
+UPDATE login
 SET password = $1,
     last_modified_at = NOW()
 WHERE uuid = $2
@@ -261,9 +256,9 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 }
 
 const validatePasswordResetToken = `-- name: ValidatePasswordResetToken :one
-SELECT prt.uuid as uuid, prt.user_uuid as user_uuid, u.email as email
+SELECT prt.uuid as uuid, prt.user_uuid as user_uuid
 FROM password_reset_tokens prt
-JOIN users u ON u.uuid = prt.user_uuid
+JOIN users u ON u.uuid = prt.user_uuid 
 WHERE prt.token = $1
   AND prt.expire_at > NOW()
   AND prt.used_at IS NULL
@@ -273,12 +268,11 @@ LIMIT 1
 type ValidatePasswordResetTokenRow struct {
 	Uuid     uuid.UUID `json:"uuid"`
 	UserUuid uuid.UUID `json:"user_uuid"`
-	Email    string    `json:"email"`
 }
 
 func (q *Queries) ValidatePasswordResetToken(ctx context.Context, token string) (ValidatePasswordResetTokenRow, error) {
 	row := q.db.QueryRow(ctx, validatePasswordResetToken, token)
 	var i ValidatePasswordResetTokenRow
-	err := row.Scan(&i.Uuid, &i.UserUuid, &i.Email)
+	err := row.Scan(&i.Uuid, &i.UserUuid)
 	return i, err
 }

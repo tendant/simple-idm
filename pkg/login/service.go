@@ -223,15 +223,15 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 // InitPasswordReset generates a reset token and sends a reset email
 func (s *LoginService) InitPasswordReset(ctx context.Context, username string) error {
 	// Find user by username
-	users, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(username))
-	if err != nil || len(users) == 0 {
+	loginUsers, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(username))
+	if err != nil || len(loginUsers) == 0 {
 		slog.Warn("User not found", "err", err)
 		return nil
 	}
-	if len(users) > 1 {
+	if len(loginUsers) > 1 {
 		slog.Warn("Unexpected: found multiple users")
 	}
-	user := users[0]
+	loginUser := loginUsers[0]
 
 	// Generate reset token
 	resetToken := utils.GenerateRandomString(32)
@@ -244,7 +244,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	err = s.queries.InitPasswordResetToken(ctx, logindb.InitPasswordResetTokenParams{
-		UserUuid: user.Uuid,
+		UserUuid: loginUser.Uuid,
 		Token:    resetToken,
 		ExpireAt: expireAt,
 	})
@@ -254,11 +254,11 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	// Send reset email
-	if user.Email == "" {
-		slog.Info("User has no email address", "user", user)
+	if loginUser.Email == "" {
+		slog.Info("User has no email address", "user", loginUser)
 		return err
 	}
-	err = s.SendPasswordResetEmail(ctx, user.Email, resetToken)
+	err = s.SendPasswordResetEmail(ctx, loginUser.Email, resetToken)
 	if err != nil {
 		return err
 	}

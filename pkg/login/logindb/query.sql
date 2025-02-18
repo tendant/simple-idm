@@ -31,18 +31,15 @@ SET password = $1,
 WHERE email = $2; 
 
 -- name: FindLoginByUsername :many
-SELECT l.uuid, l.username, l.password, l.created_at, l.updated_at,
-       array_agg(r.name) as roles
+SELECT l.uuid, l.username, l.password, l.created_at, l.updated_at
 FROM login l
-LEFT JOIN user_roles ur ON l.uuid = ur.user_uuid
-LEFT JOIN roles r ON ur.role_uuid = r.uuid
 WHERE l.username = $1
 AND l.deleted_at IS NULL
 GROUP BY l.uuid, l.username, l.password, l.created_at, l.updated_at;
 
 -- name: InitPasswordByUsername :one
 SELECT uuid
-FROM users
+FROM login
 WHERE username = $1;
 
 -- name: FindUsernameByEmail :one
@@ -51,7 +48,7 @@ FROM users
 WHERE email = $1;
 
 -- name: UpdateUserPassword :exec
-UPDATE users
+UPDATE login
 SET password = $1,
     last_modified_at = NOW()
 WHERE uuid = $2;
@@ -63,21 +60,21 @@ LEFT JOIN roles ON ur.role_uuid = roles.uuid
 WHERE ur.user_uuid = $1;
 
 -- name: FindUserInfoWithRoles :one
-SELECT u.email, u.username, u.name, COALESCE(array_agg(r.name), '{}') AS roles
-FROM public.users u
-LEFT JOIN public.user_roles ur ON u.uuid = ur.user_uuid
+SELECT l.email, l.username, l.name, COALESCE(array_agg(r.name), '{}') AS roles
+FROM public.users l
+LEFT JOIN public.user_roles ur ON l.uuid = ur.user_uuid
 LEFT JOIN public.roles r ON ur.role_uuid = r.uuid
-WHERE u.uuid = $1
-GROUP BY u.email, u.username, u.name;
+WHERE l.uuid = $1
+GROUP BY l.email, l.username, l.name;
 
 -- name: InitPasswordResetToken :exec
 INSERT INTO password_reset_tokens (user_uuid, token, expire_at)
 VALUES ($1, $2, $3);
 
 -- name: ValidatePasswordResetToken :one
-SELECT prt.uuid as uuid, prt.user_uuid as user_uuid, u.email as email
+SELECT prt.uuid as uuid, prt.user_uuid as user_uuid
 FROM password_reset_tokens prt
-JOIN users u ON u.uuid = prt.user_uuid
+JOIN users u ON u.uuid = prt.user_uuid 
 WHERE prt.token = $1
   AND prt.expire_at > NOW()
   AND prt.used_at IS NULL
@@ -89,7 +86,7 @@ SET used_at = NOW()
 WHERE token = $1;
 
 -- name: ResetPasswordByUuid :exec
-UPDATE users
+UPDATE login
 SET password = $1,
     last_modified_at = NOW()
 WHERE uuid = $2;
