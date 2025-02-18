@@ -55,63 +55,31 @@ func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue stri
 // Login a user
 // (POST /login)
 func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
 	data := PostLoginJSONRequestBody{}
-	err := render.DecodeJSON(r.Body, &data)
-	if err != nil {
+	if err := render.DecodeJSON(r.Body, &data); err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "Unable to parse request body",
 		}
 	}
 
+	// Call login service
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	dbUsers, err := h.loginService.Login(r.Context(), loginParams)
-	if err != nil || len(dbUsers) == 0 {
-		slog.Error("User does not exist", "err", err)
+	result := h.loginService.Login(r.Context(), loginParams, data.Password)
+	if result.Error != nil {
+		slog.Error("Login failed", "err", result.Error)
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
 		}
 	}
 
-	if len(dbUsers) > 1 {
-		slog.Error("Multiple user records with same username", "username", loginParams.Username)
-		return &Response{
-			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
-		}
-	}
-
-	valid, err := CheckPasswordHash(data.Password, string(dbUsers[0].Password))
-	if err != nil {
-		slog.Error("Failed checking password hash", "err", err)
-		return &Response{
-			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
-		}
-	}
-	if !valid {
-		slog.Error("Passwords does not match")
-		return &Response{
-			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
-		}
-	}
-
-	// Find users related role
-	roles, err := h.loginService.FindUserRoles(r.Context(), dbUsers[0].Uuid)
-	if err != nil {
-		slog.Error("failed to find user roles", "user_uuid", dbUsers[0].Uuid, "err", err)
-		return &Response{
-			body: "Internal error",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
+	// Create JWT tokens
 	tokenUser := IdmUser{
-		UserUuid: dbUsers[0].Uuid.String(),
-		Role:     utils.GetValidStrings(roles),
+		UserUuid: result.User.Uuid.String(),
+		Role:     utils.GetValidStrings(result.Roles),
 	}
 
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
@@ -132,6 +100,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// Set cookies and prepare response
 	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
 	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
 
@@ -140,7 +109,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		Message: "Login successful",
 		User:    User{},
 	}
-	copier.Copy(&response.User, dbUsers[0])
+	copier.Copy(&response.User, result.User)
 
 	return PostLoginJSON200Response(response)
 }
@@ -332,63 +301,31 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 // PostMobileLogin handles mobile login requests
 // (POST /mobile/login)
 func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
 	data := PostLoginJSONRequestBody{}
-	err := render.DecodeJSON(r.Body, &data)
-	if err != nil {
+	if err := render.DecodeJSON(r.Body, &data); err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "Unable to parse request body",
 		}
 	}
 
+	// Call login service
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	dbUsers, err := h.loginService.Login(r.Context(), loginParams)
-	if err != nil || len(dbUsers) == 0 {
-		slog.Error("User does not exist", "err", err)
+	result := h.loginService.Login(r.Context(), loginParams, data.Password)
+	if result.Error != nil {
+		slog.Error("Login failed", "err", result.Error)
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
 		}
 	}
 
-	if len(dbUsers) > 1 {
-		slog.Error("Multiple user records with same username", "username", loginParams.Username)
-		return &Response{
-			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
-		}
-	}
-
-	valid, err := CheckPasswordHash(data.Password, string(dbUsers[0].Password))
-	if err != nil {
-		slog.Error("Failed checking password hash", "err", err)
-		return &Response{
-			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
-		}
-	}
-	if !valid {
-		slog.Error("Passwords does not match")
-		return &Response{
-			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
-		}
-	}
-
-	// Find users related role
-	roles, err := h.loginService.FindUserRoles(r.Context(), dbUsers[0].Uuid)
-	if err != nil {
-		slog.Error("failed to find user roles", "user_uuid", dbUsers[0].Uuid, "err", err)
-		return &Response{
-			body: "Internal error",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
+	// Create JWT tokens
 	tokenUser := IdmUser{
-		UserUuid: dbUsers[0].Uuid.String(),
-		Role:     utils.GetValidStrings(roles),
+		UserUuid: result.User.Uuid.String(),
+		Role:     utils.GetValidStrings(result.Roles),
 	}
 
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
@@ -409,6 +346,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
+	// Return tokens in response
 	return PostMobileLoginJSON200Response(struct {
 		AccessToken  string `json:"accessToken"`
 		RefreshToken string `json:"refreshToken"`

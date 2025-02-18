@@ -43,9 +43,43 @@ type IdmUser struct {
 	Role     []string `json:"role,omitempty"`
 }
 
-func (s LoginService) Login(ctx context.Context, params LoginParams) ([]logindb.FindUserByUsernameRow, error) {
-	user, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(params.Username))
-	return user, err
+type LoginResult struct {
+	User  logindb.FindUserByUsernameRow
+	Roles []sql.NullString
+	Error error
+}
+
+func (s LoginService) Login(ctx context.Context, params LoginParams, password string) LoginResult {
+	// Find user by username
+	dbUsers, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(params.Username))
+	if err != nil || len(dbUsers) == 0 {
+		return LoginResult{Error: fmt.Errorf("user not found: %w", err)}
+	}
+
+	if len(dbUsers) > 1 {
+		return LoginResult{Error: fmt.Errorf("multiple users found with username %s", params.Username)}
+	}
+
+	// Verify password
+	valid, err := CheckPasswordHash(password, string(dbUsers[0].Password))
+	if err != nil {
+		return LoginResult{Error: fmt.Errorf("error checking password: %w", err)}
+	}
+	if !valid {
+		return LoginResult{Error: fmt.Errorf("invalid password")}
+	}
+
+	// Find user roles
+	roles, err := s.FindUserRoles(ctx, dbUsers[0].Uuid)
+	if err != nil {
+		return LoginResult{Error: fmt.Errorf("error finding user roles: %w", err)}
+	}
+
+	return LoginResult{
+		User:  dbUsers[0],
+		Roles: roles,
+		Error: nil,
+	}
 }
 
 type RegisterParam struct {
