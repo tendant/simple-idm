@@ -100,3 +100,32 @@ UPDATE login
 SET password = $1,
     last_modified_at = NOW()
 WHERE uuid = $2;
+
+-- name: Get2FASecret :one
+SELECT two_factor_secret
+FROM users
+WHERE uuid = $1
+AND deleted_at IS NULL;
+
+-- name: ValidateBackupCode :one
+SELECT EXISTS (
+  SELECT 1
+  FROM backup_codes
+  WHERE user_uuid = $1
+  AND code = $2
+  AND used_at IS NULL
+  AND deleted_at IS NULL
+) AS is_valid;
+
+-- name: MarkBackupCodeUsed :exec
+UPDATE backup_codes
+SET used_at = NOW()
+WHERE user_uuid = $1
+AND code = $2
+AND used_at IS NULL;
+
+-- name: GetUserByUUID :one
+SELECT *
+FROM users
+WHERE uuid = $1
+AND deleted_at IS NULL;

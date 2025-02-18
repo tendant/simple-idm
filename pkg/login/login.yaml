@@ -17,6 +17,9 @@ paths:
                   type: string
                 password:
                   type: string
+                code:
+                  type: string
+                  description: 2FA verification code if enabled
               required:
                 - username
                 - password
@@ -27,6 +30,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Login"
+        "202":
+          description: Login successful but 2FA verification required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "2fa_required"
+                  message:
+                    type: string
+                    example: "2FA verification required"
+                  temp_token:
+                    type: string
+                    description: Temporary token to use for 2FA verification
         "400":
           description: Invalid credentials
           content:

@@ -103,6 +103,40 @@ func CheckPasswordHash(password, hashedPassword string) (bool, error) {
 	return true, nil
 }
 
+func (s LoginService) Verify2FACode(ctx context.Context, userId string, code string) (bool, error) {
+	// Get user's 2FA secret
+	userUuid, err := uuid.Parse(userId)
+	if err != nil {
+		return false, fmt.Errorf("invalid user id: %w", err)
+	}
+
+	user, err := s.queries.GetUserByUUID(ctx, userUuid)
+	if err != nil {
+		return false, fmt.Errorf("error getting user: %w", err)
+	}
+
+	// Get 2FA secret from user's extra claims
+	secret, err := s.queries.Get2FASecret(ctx, userUuid)
+	if err != nil {
+		return false, fmt.Errorf("error getting 2FA secret: %w", err)
+	}
+
+	// Verify the code
+	valid := totp.Validate(code, secret)
+	if !valid {
+		// Check backup codes
+		isBackupValid, err := s.queries.ValidateBackupCode(ctx, logindb.ValidateBackupCodeParams{
+			UserUuid: userUuid,
+			Code:     code,
+		})
+		if err != nil || !isBackupValid {
+			return false, fmt.Errorf("invalid 2FA code")
+		}
+	}
+
+	return true, nil
+}
+
 func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb.User, error) {
 	slog.Debug("Registering user use params:", "params", params)
 	// registerRequest := logindb.RegisterUserParams{}

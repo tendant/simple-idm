@@ -86,9 +86,67 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Create JWT tokens for the first user
+	// Get the first user
 	tokenUser := mappedUsers[0]
 
+	// Convert mapped users to API users
+	apiUsers := make([]User, len(mappedUsers))
+	for i, mu := range mappedUsers {
+		// Extract email and name from claims
+		email, _ := mu.ExtraClaims["email"].(string)
+		name := mu.DisplayName
+
+		// Check if 2FA is enabled
+		twoFactorEnabled := false
+		if enabled, ok := mu.ExtraClaims["two_factor_enabled"].(bool); ok {
+			twoFactorEnabled = enabled
+		}
+
+		apiUsers[i] = User{
+			UUID:             mu.UserId,
+			Name:             name,
+			Email:            email,
+			TwoFactorEnabled: twoFactorEnabled,
+		}
+	}
+
+	// Check if 2FA is enabled and code is required
+	if apiUsers[0].TwoFactorEnabled {
+		// If no code provided, return 2FA required response
+		if data.Code == "" {
+			// Create a temporary token for 2FA verification
+			tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+			if err != nil {
+				slog.Error("Failed to create temp token", "user", tokenUser, "err", err)
+				return &Response{
+					body: "Failed to create temporary token",
+					Code: http.StatusInternalServerError,
+				}
+			}
+
+			return &Response{
+				body: map[string]interface{}{
+					"status":     "2fa_required",
+					"message":    "2FA verification required",
+					"temp_token": tempToken.Token,
+				},
+				Code:        http.StatusAccepted,
+				contentType: "application/json",
+			}
+		}
+
+		// Verify 2FA code
+		valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.UserId, data.Code)
+		if err != nil || !valid {
+			slog.Error("Invalid 2FA code", "err", err)
+			return &Response{
+				body: "Invalid 2FA code",
+				Code: http.StatusBadRequest,
+			}
+		}
+	}
+
+	// Create JWT tokens
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
@@ -110,21 +168,6 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Set cookies and prepare response
 	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
 	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
-
-	// Convert mapped users to API users
-	apiUsers := make([]User, len(mappedUsers))
-	for i, mu := range mappedUsers {
-		// Extract email and name from custom claims
-		email, _ := mu.ExtraClaims["email"].(string)
-		name := mu.DisplayName
-
-		apiUsers[i] = User{
-			UUID:             mu.UserId,
-			Name:             name,
-			Email:            email,
-			TwoFactorEnabled: false, // TODO: Add 2FA support
-		}
-	}
 
 	response := Login{
 		Status:  "success",

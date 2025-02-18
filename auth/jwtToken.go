@@ -226,6 +226,24 @@ func (j Jwt) CreateLogoutToken(claimData interface{}) (IdmToken, error) {
 	return IdmToken{Token: accessToken, Expiry: claims.ExpiresAt.Time}, err
 }
 
+func (j Jwt) CreateTempToken(claimData interface{}) (IdmToken, error) {
+	claims := Claims{
+		claimData,
+		jwt.RegisteredClaims{
+			// Short expiry for 2FA verification
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(5 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			NotBefore: jwt.NewNumericDate(time.Now().UTC()),
+			Issuer:    "simple-idm",
+			Subject:   "simple-idm",
+			ID:        uuid.New().String(),
+			Audience:  []string{"2fa"},
+		},
+	}
+	tempToken, err := j.CreateTokenStr(claims)
+	return IdmToken{Token: tempToken, Expiry: claims.ExpiresAt.Time}, err
+}
+
 func (j Jwt) ValidateRefreshToken(tokenString string) (jwt.MapClaims, error) {
 	// Parse the token
 	token, err := j.ParseTokenStr(tokenString)
