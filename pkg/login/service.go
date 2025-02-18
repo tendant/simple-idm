@@ -46,17 +46,16 @@ type IdmUser struct {
 
 func (s LoginService) Login(ctx context.Context, params LoginParams, password string) ([]IdmUser, error) {
 	// Find user by username
-	loginUsers, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(params.Username))
-	if err != nil || len(loginUsers) == 0 {
-		return []IdmUser{}, fmt.Errorf("user not found: %w", err)
-	}
-
-	if len(loginUsers) > 1 {
-		return []IdmUser{}, fmt.Errorf("multiple users found with username %s", params.Username)
+	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(params.Username))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return []IdmUser{}, fmt.Errorf("user not found")
+		}
+		return []IdmUser{}, fmt.Errorf("error finding user: %w", err)
 	}
 
 	// Verify password
-	valid, err := CheckPasswordHash(password, string(loginUsers[0].Password))
+	valid, err := CheckPasswordHash(password, string(loginUser.Password))
 	if err != nil {
 		return []IdmUser{}, fmt.Errorf("error checking password: %w", err)
 	}
@@ -65,7 +64,7 @@ func (s LoginService) Login(ctx context.Context, params LoginParams, password st
 	}
 
 	// Find user roles
-	roles, err := s.FindUserRoles(ctx, loginUsers[0].Uuid)
+	roles, err := s.FindUserRoles(ctx, loginUser.Uuid)
 	if err != nil {
 		return []IdmUser{}, fmt.Errorf("error finding user roles: %w", err)
 	}
@@ -75,7 +74,7 @@ func (s LoginService) Login(ctx context.Context, params LoginParams, password st
 
 	return []IdmUser{
 		{
-			UserUuid: loginUsers[0].Uuid.String(),
+			UserUuid: loginUser.Uuid.String(),
 			Role:     validRoles,
 			Custom:   make(map[string]interface{}),
 		},
@@ -219,15 +218,15 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 // InitPasswordReset generates a reset token and sends a reset email
 func (s *LoginService) InitPasswordReset(ctx context.Context, username string) error {
 	// Find user by username
-	loginUsers, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(username))
-	if err != nil || len(loginUsers) == 0 {
-		slog.Warn("User not found", "err", err)
-		return nil
+	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(username))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			slog.Warn("User not found")
+			return nil
+		}
+		slog.Error("Error finding user", "err", err)
+		return err
 	}
-	if len(loginUsers) > 1 {
-		slog.Warn("Unexpected: found multiple users")
-	}
-	loginUser := loginUsers[0]
 
 	// Get user info with roles
 	userInfo, err := s.queries.FindUserInfoWithRoles(ctx, loginUser.Uuid)
