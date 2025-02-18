@@ -85,6 +85,12 @@ UPDATE password_reset_tokens
 SET used_at = NOW()
 WHERE token = $1;
 
+-- name: GetUsersByLoginUuid :many
+SELECT uuid, username, name, email, created_at, updated_at
+FROM users
+WHERE login_uuid = $1
+AND deleted_at IS NULL;
+
 -- name: ResetPasswordByUuid :exec
 UPDATE login
 SET password = $1,
