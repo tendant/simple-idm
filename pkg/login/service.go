@@ -64,23 +64,19 @@ func (s LoginService) Login(ctx context.Context, params LoginParams, password st
 		return []IdmUser{}, fmt.Errorf("invalid password")
 	}
 
-	// Convert roles from interface{} to []string
-	roles, ok := loginUsers[0].Roles.([]interface{})
-	if !ok {
-		return []IdmUser{}, fmt.Errorf("invalid roles format")
+	// Find user roles
+	roles, err := s.FindUserRoles(ctx, loginUsers[0].Uuid)
+	if err != nil {
+		return []IdmUser{}, fmt.Errorf("error finding user roles: %w", err)
 	}
 
-	strRoles := make([]string, 0, len(roles))
-	for _, r := range roles {
-		if str, ok := r.(string); ok {
-			strRoles = append(strRoles, str)
-		}
-	}
+	// Convert roles to string array
+	validRoles := utils.GetValidStrings(roles)
 
 	return []IdmUser{
 		{
 			UserUuid: loginUsers[0].Uuid.String(),
-			Role:     strRoles,
+			Role:     validRoles,
 			Custom:   make(map[string]interface{}),
 		},
 	}, nil
@@ -233,6 +229,12 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 	loginUser := loginUsers[0]
 
+	// Get user info with roles
+	userInfo, err := s.queries.FindUserInfoWithRoles(ctx, loginUser.Uuid)
+	if err != nil {
+		return fmt.Errorf("error finding user info: %w", err)
+	}
+
 	// Generate reset token
 	resetToken := utils.GenerateRandomString(32)
 
@@ -254,11 +256,11 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	// Send reset email
-	if loginUser.Email == "" {
-		slog.Info("User has no email address", "user", loginUser)
+	if userInfo.Email == "" {
+		slog.Info("User has no email address", "user", userInfo)
 		return err
 	}
-	err = s.SendPasswordResetEmail(ctx, loginUser.Email, resetToken)
+	err = s.SendPasswordResetEmail(ctx, userInfo.Email, resetToken)
 	if err != nil {
 		return err
 	}
