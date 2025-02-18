@@ -3,9 +3,12 @@ package login
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
 	"golang.org/x/exp/slog"
@@ -329,17 +332,18 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	// Parse user UUID
-	userUuid, err := uuid.Parse(data.UserUuid)
-	if err != nil {
+	// Get bearer token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
 		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Invalid user UUID format",
+			Code: http.StatusUnauthorized,
+			body: "Missing or invalid Authorization header",
 		}
 	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
-	// Get current login UUID from access token
-	claims, err := h.jwtService.ValidateAccessToken(r)
+	// Parse and validate token
+	token, err := h.jwtService.ParseTokenStr(tokenStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -347,6 +351,16 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
+	// Get claims from token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid token claims",
+		}
+	}
+
+	// Get login UUID from claims
 	loginUuid, err := uuid.Parse(claims["sub"].(string))
 	if err != nil {
 		return &Response{
@@ -369,7 +383,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	var targetUser MappedUser
 	found := false
 	for _, user := range users {
-		if user.UserId == data.UserUuid {
+		if user.UserId == data.UserUUID {
 			targetUser = user
 			found = true
 			break
