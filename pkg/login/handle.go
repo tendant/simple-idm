@@ -115,7 +115,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	apiUsers := make([]User, len(mappedUsers))
 	for i, mu := range mappedUsers {
 		// Extract email and name from custom claims
-		email, _ := mu.CustomClaims["email"].(string)
+		email, _ := mu.ExtraClaims["email"].(string)
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
@@ -252,7 +252,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 
 	slog.Info("customClaims", "customClaims", customClaims)
 
-	userUuid, ok := customClaims["user_id"].(string)
+	userId, ok := customClaims["user_id"].(string)
 	if !ok {
 		slog.Error("missing or invalid user_id in claims")
 		return &Response{
@@ -287,11 +287,14 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Info("no roles found in claims")
 	}
 
+	// Get display name from claims, default to empty string if not present
+	displayName, _ := customClaims["name"].(string)
+
 	// Create the MappedUser object
 	mappedUser := MappedUser{
-		UserId:       userUuid,
-		DisplayName:  customClaims["name"].(string),
-		CustomClaims: customClaims,
+		UserId:      userId,
+		DisplayName: displayName,
+		// ExtraClaims: extraClaims,
 	}
 
 	accessToken, err := h.jwtService.CreateAccessToken(mappedUser)
@@ -425,7 +428,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	apiUsers := make([]User, len(users))
 	for i, mu := range users {
 		// Extract email and name from custom claims
-		email, _ := mu.CustomClaims["email"].(string)
+		email, _ := mu.ExtraClaims["email"].(string)
 		name := mu.DisplayName
 
 		apiUsers[i] = User{

@@ -10,9 +10,9 @@ import (
 )
 
 type MappedUser struct {
-	UserId       string                 `json:"user_id,omitempty"`
-	DisplayName  string                 `json:"display_name,omitempty"`
-	CustomClaims map[string]interface{} `json:"custom_claims,omitempty"`
+	UserId      string                 `json:"user_id,omitempty"`
+	DisplayName string                 `json:"display_name,omitempty"`
+	ExtraClaims map[string]interface{} `json:"extra_claims,omitempty"`
 }
 
 type UserMapper interface {
@@ -61,16 +61,16 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginUuid uuid.UUID) ([
 		}
 
 		// Create custom claims
-		customClaims := map[string]interface{}{
+		extraClaims := map[string]interface{}{
 			"email":    user.Email,
 			"username": user.Username.String,
 			"roles":    strRoles,
 		}
 
 		mappedUsers = append(mappedUsers, MappedUser{
-			UserId:       user.Uuid.String(),
-			DisplayName:  user.Name.String,
-			CustomClaims: customClaims,
+			UserId:      user.Uuid.String(),
+			DisplayName: user.Name.String,
+			ExtraClaims: extraClaims,
 		})
 	}
 

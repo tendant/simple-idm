@@ -159,7 +159,7 @@ func (j Jwt) CreateAccessToken(claimData interface{}) (IdmToken, error) {
 		claimData,
 		jwt.RegisteredClaims{
 			// A usual scenario is to set the expiration time relative to the current time
-			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(5 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(1 * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
 			NotBefore: jwt.NewNumericDate(time.Now().UTC().Add(-time.Minute * 5)),
 			Issuer:    "simple-idm",
