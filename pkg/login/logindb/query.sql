@@ -30,7 +30,7 @@ SET password = $1,
     last_modified_at = NOW()
 WHERE email = $2; 
 
--- name: FindLoginByUsername :many
+-- name: FindLoginByUsername :one
 SELECT l.uuid, l.username, l.password, l.created_at, l.updated_at
 FROM login l
 WHERE l.username = $1

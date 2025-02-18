@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const findLoginByUsername = `-- name: FindLoginByUsername :many
+const findLoginByUsername = `-- name: FindLoginByUsername :one
 SELECT l.uuid, l.username, l.password, l.created_at, l.updated_at
 FROM login l
 WHERE l.username = $1
@@ -30,30 +30,17 @@ type FindLoginByUsernameRow struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 }
 
-func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullString) ([]FindLoginByUsernameRow, error) {
-	rows, err := q.db.Query(ctx, findLoginByUsername, username)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []FindLoginByUsernameRow
-	for rows.Next() {
-		var i FindLoginByUsernameRow
-		if err := rows.Scan(
-			&i.Uuid,
-			&i.Username,
-			&i.Password,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullString) (FindLoginByUsernameRow, error) {
+	row := q.db.QueryRow(ctx, findLoginByUsername, username)
+	var i FindLoginByUsernameRow
+	err := row.Scan(
+		&i.Uuid,
+		&i.Username,
+		&i.Password,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const findUser = `-- name: FindUser :one
