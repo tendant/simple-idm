@@ -86,10 +86,14 @@ SET used_at = NOW()
 WHERE token = $1;
 
 -- name: GetUsersByLoginUuid :many
-SELECT uuid, username, name, email, created_at, updated_at
-FROM users
-WHERE login_uuid = $1
-AND deleted_at IS NULL;
+SELECT u.uuid, u.username, u.name, u.email, u.created_at, u.last_modified_at,
+       COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
+FROM users u
+LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
+LEFT JOIN roles r ON ur.role_uuid = r.uuid
+WHERE u.login_uuid = $1
+AND u.deleted_at IS NULL
+GROUP BY u.uuid, u.username, u.name, u.email, u.created_at, u.last_modified_at;
 
 -- name: ResetPasswordByUuid :exec
 UPDATE login

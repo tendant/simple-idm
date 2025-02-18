@@ -66,7 +66,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Call login service
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	idmUsers, err := h.loginService.Login(r.Context(), loginParams, data.Password)
+	mappedUsers, err := h.loginService.Login(r.Context(), loginParams, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 		return &Response{
@@ -75,7 +75,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	if len(idmUsers) == 0 {
+	if len(mappedUsers) == 0 {
 		slog.Error("No user found after login")
 		return &Response{
 			body: "Username/Password is wrong",
@@ -84,7 +84,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Create JWT tokens
-	tokenUser := idmUsers[0]
+	tokenUser := mappedUsers[0]
 
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
 	if err != nil {
@@ -269,13 +269,14 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Info("no roles found in claims")
 	}
 
-	// Create the IdmUser object
-	idmUser := IdmUser{
-		UserUuid: userUuid,
-		Role:     roles,
+	// FIXME: Create the MappedUser object
+	mappedUser := MappedUser{
+		UserId:       userUuid,
+		DisplayName:  customClaims["display_name"].(string),
+		CustomClaims: customClaims,
 	}
 
-	accessToken, err := h.jwtService.CreateAccessToken(idmUser)
+	accessToken, err := h.jwtService.CreateAccessToken(mappedUser)
 	if err != nil {
 		slog.Error("Failed to create access token", "err", err)
 		return &Response{
@@ -284,7 +285,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		}
 	}
 
-	refreshToken, err := h.jwtService.CreateRefreshToken(idmUser)
+	refreshToken, err := h.jwtService.CreateRefreshToken(mappedUser)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "err", err)
 		return &Response{

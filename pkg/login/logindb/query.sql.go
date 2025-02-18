@@ -151,6 +151,55 @@ func (q *Queries) FindUsernameByEmail(ctx context.Context, email string) (sql.Nu
 	return username, err
 }
 
+const getUsersByLoginUuid = `-- name: GetUsersByLoginUuid :many
+SELECT u.uuid, u.username, u.name, u.email, u.created_at, u.last_modified_at,
+       COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
+FROM users u
+LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
+LEFT JOIN roles r ON ur.role_uuid = r.uuid
+WHERE u.login_uuid = $1
+AND u.deleted_at IS NULL
+GROUP BY u.uuid, u.username, u.name, u.email, u.created_at, u.last_modified_at
+`
+
+type GetUsersByLoginUuidRow struct {
+	Uuid           uuid.UUID      `json:"uuid"`
+	Username       sql.NullString `json:"username"`
+	Name           sql.NullString `json:"name"`
+	Email          string         `json:"email"`
+	CreatedAt      time.Time      `json:"created_at"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	Roles          interface{}    `json:"roles"`
+}
+
+func (q *Queries) GetUsersByLoginUuid(ctx context.Context, loginUuid uuid.NullUUID) ([]GetUsersByLoginUuidRow, error) {
+	rows, err := q.db.Query(ctx, getUsersByLoginUuid, loginUuid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUsersByLoginUuidRow
+	for rows.Next() {
+		var i GetUsersByLoginUuidRow
+		if err := rows.Scan(
+			&i.Uuid,
+			&i.Username,
+			&i.Name,
+			&i.Email,
+			&i.CreatedAt,
+			&i.LastModifiedAt,
+			&i.Roles,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const initPasswordByUsername = `-- name: InitPasswordByUsername :one
 SELECT uuid
 FROM login

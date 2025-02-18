@@ -38,47 +38,31 @@ type LoginParams struct {
 	Username string
 }
 
-type IdmUser struct {
-	UserUuid string                 `json:"user_uuid,omitempty"`
-	Role     []string               `json:"role,omitempty"`
-	Custom   map[string]interface{} `json:"custom,omitempty"`
-}
-
-func (s LoginService) Login(ctx context.Context, params LoginParams, password string) ([]IdmUser, error) {
+func (s LoginService) Login(ctx context.Context, params LoginParams, password string) ([]MappedUser, error) {
 	// Find user by username
 	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(params.Username))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return []IdmUser{}, fmt.Errorf("user not found")
+			return []MappedUser{}, fmt.Errorf("user not found")
 		}
-		return []IdmUser{}, fmt.Errorf("error finding user: %w", err)
+		return []MappedUser{}, fmt.Errorf("error finding user: %w", err)
 	}
 
 	// Verify password
 	valid, err := CheckPasswordHash(password, string(loginUser.Password))
 	if err != nil {
-		return []IdmUser{}, fmt.Errorf("error checking password: %w", err)
+		return []MappedUser{}, fmt.Errorf("error checking password: %w", err)
 	}
 	if !valid {
-		return []IdmUser{}, fmt.Errorf("invalid password")
+		return []MappedUser{}, fmt.Errorf("invalid password")
 	}
 
-	// Find user roles
-	roles, err := s.FindUserRoles(ctx, loginUser.Uuid)
+	users, err := s.userMapper.GetUsers(ctx, loginUser.Uuid)
 	if err != nil {
-		return []IdmUser{}, fmt.Errorf("error finding user roles: %w", err)
+		return []MappedUser{}, fmt.Errorf("error getting user roles: %w", err)
 	}
 
-	// Convert roles to string array
-	validRoles := utils.GetValidStrings(roles)
-
-	return []IdmUser{
-		{
-			UserUuid: loginUser.Uuid.String(),
-			Role:     validRoles,
-			Custom:   make(map[string]interface{}),
-		},
-	}, nil
+	return users, nil
 }
 
 type RegisterParam struct {

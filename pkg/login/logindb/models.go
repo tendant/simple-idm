@@ -13,10 +13,10 @@ import (
 )
 
 type GooseDbVersion struct {
-	ID        int32        `json:"id"`
-	VersionID int64        `json:"version_id"`
-	IsApplied bool         `json:"is_applied"`
-	Tstamp    sql.NullTime `json:"tstamp"`
+	ID        int32     `json:"id"`
+	VersionID int64     `json:"version_id"`
+	IsApplied bool      `json:"is_applied"`
+	Tstamp    time.Time `json:"tstamp"`
 }
 
 type Login struct {
@@ -61,6 +61,7 @@ type User struct {
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
 	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
+	LoginUuid            uuid.NullUUID  `json:"login_uuid"`
 }
 
 type UserRole struct {
