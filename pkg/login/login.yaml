@@ -18,6 +18,7 @@ paths:
                 password:
                   type: string
                 code:
+                  x-go-optional-value: true
                   type: string
                   description: 2FA verification code if enabled
               required:
