@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jinzhu/copier"
+	"github.com/pquerna/otp/totp"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
@@ -110,7 +111,7 @@ func (s LoginService) Verify2FACode(ctx context.Context, userId string, code str
 		return false, fmt.Errorf("invalid user id: %w", err)
 	}
 
-	user, err := s.queries.GetUserByUUID(ctx, userUuid)
+	_, err = s.queries.GetUserByUUID(ctx, userUuid)
 	if err != nil {
 		return false, fmt.Errorf("error getting user: %w", err)
 	}
@@ -122,7 +123,7 @@ func (s LoginService) Verify2FACode(ctx context.Context, userId string, code str
 	}
 
 	// Verify the code
-	valid := totp.Validate(code, secret)
+	valid := totp.Validate(code, secret.String)
 	if !valid {
 		// Check backup codes
 		isBackupValid, err := s.queries.ValidateBackupCode(ctx, logindb.ValidateBackupCodeParams{
