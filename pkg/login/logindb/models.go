@@ -41,6 +41,18 @@ type Login struct {
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
 }
 
+type Login2fa struct {
+	Uuid                 uuid.UUID      `json:"uuid"`
+	LoginUuid            uuid.UUID      `json:"login_uuid"`
+	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
+	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
+	TwoFactorType        sql.NullString `json:"two_factor_type"`
+	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            sql.NullTime   `json:"updated_at"`
+	DeletedAt            sql.NullTime   `json:"deleted_at"`
+}
+
 type PasswordResetToken struct {
 	Uuid      uuid.UUID          `json:"uuid"`
 	UserUuid  uuid.UUID          `json:"user_uuid"`
