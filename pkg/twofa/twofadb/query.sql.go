@@ -39,9 +39,28 @@ func (q *Queries) Create2FAInit(ctx context.Context, arg Create2FAInitParams) (u
 	return uuid, err
 }
 
-const disable2FA = `-- name: Disable2FA :exec
+const delete2FA = `-- name: Delete2FA :exec
 UPDATE login_2fa
 SET deleted_at = now() AT TIME ZONE 'utc'
+WHERE login_uuid = $1
+AND two_factor_type = $2
+AND deleted_at IS NULL
+`
+
+type Delete2FAParams struct {
+	LoginUuid     uuid.UUID      `json:"login_uuid"`
+	TwoFactorType sql.NullString `json:"two_factor_type"`
+}
+
+func (q *Queries) Delete2FA(ctx context.Context, arg Delete2FAParams) error {
+	_, err := q.db.Exec(ctx, delete2FA, arg.LoginUuid, arg.TwoFactorType)
+	return err
+}
+
+const disable2FA = `-- name: Disable2FA :exec
+UPDATE login_2fa
+SET two_factor_enabled = FALSE,
+    updated_at = now() AT TIME ZONE 'utc'
 WHERE login_uuid = $1
 AND two_factor_type = $2
 AND deleted_at IS NULL
