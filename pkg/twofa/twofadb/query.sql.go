@@ -14,20 +14,26 @@ import (
 )
 
 const create2FAInit = `-- name: Create2FAInit :one
-INSERT INTO login_2fa (login_uuid, two_factor_secret, two_factor_enabled, two_factor_backup_codes)
-VALUES ($1, $2, FALSE, $3::TEXT[])
+INSERT INTO login_2fa (login_uuid, two_factor_secret, two_factor_enabled, two_factor_type, two_factor_backup_codes)
+VALUES ($1, $2, FALSE, $3, $4::TEXT[])
 RETURNING uuid
 `
 
 type Create2FAInitParams struct {
-	LoginUuid            uuid.UUID   `json:"login_uuid"`
-	TwoFactorSecret      pgtype.Text `json:"two_factor_secret"`
-	TwoFactorBackupCodes []string    `json:"two_factor_backup_codes"`
+	LoginUuid            uuid.UUID      `json:"login_uuid"`
+	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
+	TwoFactorType        sql.NullString `json:"two_factor_type"`
+	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
 }
 
 // @two_factor_backup_codes TEXT[]
 func (q *Queries) Create2FAInit(ctx context.Context, arg Create2FAInitParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, create2FAInit, arg.LoginUuid, arg.TwoFactorSecret, arg.TwoFactorBackupCodes)
+	row := q.db.QueryRow(ctx, create2FAInit,
+		arg.LoginUuid,
+		arg.TwoFactorSecret,
+		arg.TwoFactorType,
+		arg.TwoFactorBackupCodes,
+	)
 	var uuid uuid.UUID
 	err := row.Scan(&uuid)
 	return uuid, err
