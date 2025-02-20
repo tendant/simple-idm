@@ -107,6 +107,12 @@ FROM users
 WHERE uuid = $1
 AND deleted_at IS NULL;
 
+-- name: Get2FAByLoginUuid :one
+SELECT two_factor_secret
+FROM login_2fa
+WHERE login_uuid = $1
+AND deleted_at IS NULL;
+
 -- name: ValidateBackupCode :one
 SELECT EXISTS (
   SELECT 1
