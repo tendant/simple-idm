@@ -14,6 +14,14 @@ AND deleted_at IS NULL;
 
 -- name: Disable2FA :exec
 UPDATE login_2fa
+SET two_factor_enabled = FALSE,
+    updated_at = now() AT TIME ZONE 'utc'
+WHERE login_uuid = $1
+AND two_factor_type = $2
+AND deleted_at IS NULL;
+
+-- name: Delete2FA :exec
+UPDATE login_2fa
 SET deleted_at = now() AT TIME ZONE 'utc'
 WHERE login_uuid = $1
 AND two_factor_type = $2
