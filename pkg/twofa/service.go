@@ -28,6 +28,12 @@ const (
 )
 
 func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error) {
+	// Validate twoFactorType
+	err := ValidateTwoFactorType(twoFactorType)
+	if err != nil {
+		return "", fmt.Errorf("invalid 2FA type: %w", err)
+	}
+
 	// Try to get existing 2FA record
 	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
 		LoginUuid: loginUuid,
@@ -62,6 +68,12 @@ func generateFakeSecret() string {
 }
 
 func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error {
+	// Validate twoFactorType
+	err := ValidateTwoFactorType(twoFactorType)
+	if err != nil {
+		return fmt.Errorf("invalid 2FA type: %w", err)
+	}
+
 	// Check if 2FA record exists and is enabled
 	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
 		LoginUuid:     loginUuid,
@@ -93,4 +105,15 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, 
 	}
 
 	return nil
+}
+
+// ValidateTwoFactorType checks if the given type is a valid 2FA type
+func ValidateTwoFactorType(twoFactorType string) error {
+	switch twoFactorType {
+	case twoFactorTypeEmail, twoFactorTypeSms:
+		return nil
+	default:
+		return fmt.Errorf("invalid 2FA type: %s, must be one of: %s, %s",
+			twoFactorType, twoFactorTypeEmail, twoFactorTypeSms)
+	}
 }
