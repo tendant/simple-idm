@@ -107,6 +107,46 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, 
 	return nil
 }
 
+func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error {
+	// Validate twoFactorType
+	err := ValidateTwoFactorType(twoFactorType)
+	if err != nil {
+		return fmt.Errorf("invalid 2FA type: %w", err)
+	}
+
+	// Check if 2FA record exists and is enabled
+	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
+		LoginUuid:     loginUuid,
+		TwoFactorType: utils.ToNullString(twoFactorType),
+	})
+
+	// If no record exists, return error
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("no 2FA record found for user, initialize 2FA first")
+	}
+
+	// Handle other errors
+	if err != nil {
+		return fmt.Errorf("failed to get 2FA record: %w", err)
+	}
+
+	// Check if already disabled
+	if !secret.TwoFactorEnabled.Bool {
+		return fmt.Errorf("2FA is already disabled for the user")
+	}
+
+	// Disable 2FA
+	err = s.queries.Disable2FA(ctx, twofadb.Disable2FAParams{
+		LoginUuid:     loginUuid,
+		TwoFactorType: utils.ToNullString(twoFactorType),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to disable 2FA: %w", err)
+	}
+
+	return nil
+}
+
 // ValidateTwoFactorType checks if the given type is a valid 2FA type
 func ValidateTwoFactorType(twoFactorType string) error {
 	switch twoFactorType {

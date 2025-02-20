@@ -143,3 +143,21 @@ func TestEnableTwoFactor(t *testing.T) {
 	// Check the result
 	require.NoError(t, err)
 }
+
+func TestDisableTwoFactor(t *testing.T) {
+	// Setup test database
+	// pool, cleanup := setupTestDatabase(t)
+	// defer cleanup()
+	setup()
+
+	// Create queries and service
+	queries := twofadb.New(dbPool)
+	service := NewTwoFaService(queries)
+
+	// Call the DisableTwoFactor method
+	err := service.DisableTwoFactor(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email")
+
+	// Check the result
+	require.NoError(t, err)
+
+}
