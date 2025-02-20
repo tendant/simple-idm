@@ -120,9 +120,26 @@ func TestGetTwoFactorSecretByLoginUuid(t *testing.T) {
 	ctx := context.Background()
 	loginUuid := uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8")
 
-	twofaSecret, err := service.GetTwoFactorSecretByLoginUuid(ctx, loginUuid)
+	twofaSecret, err := service.GetTwoFactorSecretByLoginUuid(ctx, loginUuid, twoFactorTypeEmail)
 
 	require.NoError(t, err)
 	slog.Info("twofaSecret", "secret", twofaSecret)
 	require.NotEmpty(t, twofaSecret)
+}
+
+func TestEnableTwoFactor(t *testing.T) {
+	// Setup test database
+	// pool, cleanup := setupTestDatabase(t)
+	// defer cleanup()
+	setup()
+
+	// Create queries and service
+	queries := twofadb.New(dbPool)
+	service := NewTwoFaService(queries)
+
+	// Call the EnableTwoFactor method
+	err := service.EnableTwoFactor(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email")
+
+	// Check the result
+	require.NoError(t, err)
 }

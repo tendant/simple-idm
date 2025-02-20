@@ -27,12 +27,12 @@ const (
 	twoFactorTypeSms   = "sms"
 )
 
-func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUuid uuid.UUID) (string, error) {
+func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error) {
 	// Try to get existing 2FA record
 	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
 		LoginUuid: loginUuid,
 		// FIXME: hardcoded
-		TwoFactorType: utils.ToNullString(twoFactorTypeEmail),
+		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 
 	if err == nil && secret.TwoFactorSecret.String != "" {
@@ -46,6 +46,7 @@ func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUu
 			LoginUuid:            loginUuid,
 			TwoFactorSecret:      pgtype.Text{String: newSecret, Valid: true},
 			TwoFactorBackupCodes: []string{},
+			TwoFactorType:        utils.ToNullString(twoFactorType),
 		})
 		if err != nil {
 			return "", fmt.Errorf("failed to create 2FA record: %w", err)
@@ -58,4 +59,38 @@ func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUu
 func generateFakeSecret() string {
 	// generate a fake secret
 	return "fake-secret"
+}
+
+func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error {
+	// Check if 2FA record exists and is enabled
+	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
+		LoginUuid:     loginUuid,
+		TwoFactorType: utils.ToNullString(twoFactorType),
+	})
+
+	// If no record exists, return error
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("no 2FA record found for user, initialize 2FA first")
+	}
+
+	// Handle other errors
+	if err != nil {
+		return fmt.Errorf("failed to get 2FA record: %w", err)
+	}
+
+	// Check if already enabled
+	if secret.TwoFactorEnabled.Bool {
+		return fmt.Errorf("2FA is already enabled for the user")
+	}
+
+	// Enable 2FA
+	err = s.queries.Enable2FA(ctx, twofadb.Enable2FAParams{
+		LoginUuid:     loginUuid,
+		TwoFactorType: utils.ToNullString(twoFactorType),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enable 2FA: %w", err)
+	}
+
+	return nil
 }
