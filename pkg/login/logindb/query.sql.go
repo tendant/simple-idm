@@ -151,6 +151,20 @@ func (q *Queries) FindUsernameByEmail(ctx context.Context, email string) (sql.Nu
 	return username, err
 }
 
+const get2FAByLoginUuid = `-- name: Get2FAByLoginUuid :one
+SELECT two_factor_secret
+FROM login_2fa
+WHERE login_uuid = $1
+AND deleted_at IS NULL
+`
+
+func (q *Queries) Get2FAByLoginUuid(ctx context.Context, loginUuid uuid.UUID) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, get2FAByLoginUuid, loginUuid)
+	var two_factor_secret pgtype.Text
+	err := row.Scan(&two_factor_secret)
+	return two_factor_secret, err
+}
+
 const get2FASecret = `-- name: Get2FASecret :one
 SELECT two_factor_secret
 FROM users

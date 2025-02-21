@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.28.0
 
-package logindb
+package twofadb
 
 import (
 	"database/sql"
