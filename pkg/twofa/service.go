@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 	"github.com/tendant/simple-idm/pkg/utils"
 )
@@ -21,6 +25,12 @@ func NewTwoFaService(queries *twofadb.Queries) *TwoFaService {
 		queries: queries,
 	}
 }
+
+const (
+	TOTP_ISSUER = "simple-idm"
+	SKEW        = 1
+	PERIOD      = 300
+)
 
 const (
 	twoFactorTypeEmail = "email"
@@ -145,6 +155,34 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 	}
 
 	return nil
+}
+
+func GenerateTotpSecret(loginUuid string) (string, error) {
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      TOTP_ISSUER,
+		AccountName: loginUuid,
+	})
+	if err != nil {
+		slog.Error("Failed to generate totp secret", "loginUuid", loginUuid, "issuer", TOTP_ISSUER, "error", err)
+		return "", err
+	}
+	totpSecret := key.Secret()
+	slog.Info("Generated new totp secret", "loginUuid", loginUuid)
+	return totpSecret, nil
+}
+
+func Generate2faPasscode(totpSecret string) (string, error) {
+	code, err := totp.GenerateCodeCustom(totpSecret, time.Now().UTC(), totp.ValidateOpts{
+		Period:    PERIOD,
+		Skew:      SKEW,
+		Digits:    otp.DigitsSix,
+		Algorithm: otp.AlgorithmSHA1,
+	})
+	if err != nil {
+		slog.Error("Failed to generate 2fa passcode", "error", err)
+		return "", err
+	}
+	return code, nil
 }
 
 // ValidateTwoFactorType checks if the given type is a valid 2FA type
