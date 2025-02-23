@@ -54,7 +54,7 @@ ALTER ROLE idm WITH LOGIN;
 #### Run Migration
 
 ```bash
-make migrate-up-idm
+make migrate-up
 ```
 
 #### Fix Database Permissions
