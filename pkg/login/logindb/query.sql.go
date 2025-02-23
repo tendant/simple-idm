@@ -202,11 +202,7 @@ SELECT u.uuid, u.username, u.name, u.email, u.created_at, u.last_modified_at,
 FROM users u
 LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
 LEFT JOIN roles r ON ur.role_uuid = r.uuid
-WHERE u.uuid = (
-  SELECT l.user_uuid
-  FROM login l
-  WHERE l.uuid = $1
-)
+WHERE u.login_uuid = $1
 AND u.deleted_at IS NULL
 GROUP BY u.uuid, u.username, u.name, u.email, u.created_at, u.last_modified_at
 `
@@ -221,8 +217,8 @@ type GetUsersByLoginUuidRow struct {
 	Roles          interface{}    `json:"roles"`
 }
 
-func (q *Queries) GetUsersByLoginUuid(ctx context.Context, argUuid uuid.UUID) ([]GetUsersByLoginUuidRow, error) {
-	rows, err := q.db.Query(ctx, getUsersByLoginUuid, argUuid)
+func (q *Queries) GetUsersByLoginUuid(ctx context.Context, loginUuid uuid.NullUUID) ([]GetUsersByLoginUuidRow, error) {
+	rows, err := q.db.Query(ctx, getUsersByLoginUuid, loginUuid)
 	if err != nil {
 		return nil, err
 	}

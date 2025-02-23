@@ -40,7 +40,7 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginUuid uuid.UUID) ([
 		slog.Warn("DefaultUserMapper queries is nil")
 		return nil, nil
 	}
-	users, err := m.queries.GetUsersByLoginUuid(ctx, loginUuid)
+	users, err := m.queries.GetUsersByLoginUuid(ctx, uuid.NullUUID{UUID: loginUuid, Valid: true})
 	if err != nil {
 		return nil, fmt.Errorf("error getting users: %w", err)
 	}
