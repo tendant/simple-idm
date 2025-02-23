@@ -132,16 +132,16 @@ func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code st
 	if !valid {
 		// Check backup codes
 		isBackupValid, err := s.queries.ValidateBackupCode(ctx, logindb.ValidateBackupCodeParams{
-			ID: loginUuid,
+			ID:   loginUuid,
 			Code: code,
 		})
 		if err != nil || !isBackupValid {
 			return false, fmt.Errorf("invalid 2FA code")
 		}
-		
+
 		// Mark backup code as used by removing it from the array
 		err = s.queries.MarkBackupCodeUsed(ctx, logindb.MarkBackupCodeUsedParams{
-			ID: loginUuid,
+			ID:   loginUuid,
 			Code: code,
 		})
 		if err != nil {
@@ -266,8 +266,8 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	// Get user info with roles
-	userInfo, err := s.queries.FindUserInfoWithRoles(ctx, loginUser.ID)
-	if err != nil {
+	users, err := s.userMapper.GetUsers(ctx, loginUser.ID)
+	if err != nil || len(users) == 0 {
 		return fmt.Errorf("error finding user info: %w", err)
 	}
 
@@ -282,7 +282,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	err = s.queries.InitPasswordResetToken(ctx, logindb.InitPasswordResetTokenParams{
-		UserID: loginUser.ID,
+		UserID:   loginUser.ID,
 		Token:    resetToken,
 		ExpireAt: expireAt,
 	})
@@ -292,11 +292,11 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	// Send reset email
-	if userInfo.Email == "" {
-		slog.Info("User has no email address", "user", userInfo)
+	if users[0].Email == "" {
+		slog.Info("User has no email address", "user", users[0])
 		return err
 	}
-	err = s.SendPasswordResetEmail(ctx, userInfo.Email, resetToken)
+	err = s.SendPasswordResetEmail(ctx, users[0].Email, resetToken)
 	if err != nil {
 		return err
 	}

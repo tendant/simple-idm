@@ -12,6 +12,7 @@ import (
 type MappedUser struct {
 	UserId      string                 `json:"user_id,omitempty"`
 	LoginID     string                 `json:"login_id,omitempty"`
+	Email       string                 `json:"email,omitempty"`
 	DisplayName string                 `json:"display_name,omitempty"`
 	ExtraClaims map[string]interface{} `json:"extra_claims,omitempty"`
 }
@@ -71,6 +72,7 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]M
 		mappedUsers = append(mappedUsers, MappedUser{
 			UserId:      user.ID.String(),
 			LoginID:     loginID.String(),
+			Email:       user.Email,
 			DisplayName: user.Name.String,
 			ExtraClaims: extraClaims,
 		})
