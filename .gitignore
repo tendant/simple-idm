@@ -1,2 +1,4 @@
 dist/
 node_modules/
+
+idm_db_all.sql
