@@ -19,7 +19,7 @@ func NewIamService(queries *iamdb.Queries) *IamService {
 	}
 }
 
-func (s *IamService) CreateUser(ctx context.Context, email, username, name string, roleUuids []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
+func (s *IamService) CreateUser(ctx context.Context, email, username, name string, roleIds []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
 	// Validate email
 	if email == "" {
 		return iamdb.GetUserWithRolesRow{}, fmt.Errorf("email is required")
@@ -41,12 +41,12 @@ func (s *IamService) CreateUser(ctx context.Context, email, username, name strin
 	}
 
 	// If there are roles to assign, create the user-role associations
-	if len(roleUuids) > 0 {
+	if len(roleIds) > 0 {
 		// Insert role assignments one by one
-		for _, roleUuid := range roleUuids {
+		for _, roleId := range roleIds {
 			_, err = s.queries.CreateUserRole(ctx, iamdb.CreateUserRoleParams{
-				UserUuid: user.Uuid,
-				RoleUuid: roleUuid,
+				UserID: user.ID,
+				RoleID: roleId,
 			})
 			if err != nil {
 				return iamdb.GetUserWithRolesRow{}, fmt.Errorf("failed to assign role: %w", err)
@@ -55,7 +55,7 @@ func (s *IamService) CreateUser(ctx context.Context, email, username, name strin
 	}
 
 	// Get the user with roles
-	userWithRoles, err := s.queries.GetUserWithRoles(ctx, user.Uuid)
+	userWithRoles, err := s.queries.GetUserWithRoles(ctx, user.ID)
 	if err != nil {
 		return iamdb.GetUserWithRolesRow{}, fmt.Errorf("failed to get user with roles: %w", err)
 	}
@@ -67,15 +67,15 @@ func (s *IamService) FindUsers(ctx context.Context) ([]iamdb.FindUsersWithRolesR
 	return s.queries.FindUsersWithRoles(ctx)
 }
 
-func (s *IamService) GetUser(ctx context.Context, userUuid uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
-	return s.queries.GetUserWithRoles(ctx, userUuid)
+func (s *IamService) GetUser(ctx context.Context, userId uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
+	return s.queries.GetUserWithRoles(ctx, userId)
 }
 
-func (s *IamService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name string, roleUuids []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
+func (s *IamService) UpdateUser(ctx context.Context, userId uuid.UUID, name string, roleIds []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
 	// Update the user's name
 	nullString := sql.NullString{String: name, Valid: name != ""}
 	_, err := s.queries.UpdateUser(ctx, iamdb.UpdateUserParams{
-		Uuid: userUuid,
+		ID: userId,
 		Name: nullString,
 	})
 	if err != nil {
@@ -83,18 +83,18 @@ func (s *IamService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name st
 	}
 
 	// Delete existing roles
-	err = s.queries.DeleteUserRoles(ctx, userUuid)
+	err = s.queries.DeleteUserRoles(ctx, userId)
 	if err != nil {
 		return iamdb.GetUserWithRolesRow{}, err
 	}
 
 	// If there are new roles to assign, create the user-role associations
-	if len(roleUuids) > 0 {
+	if len(roleIds) > 0 {
 		// Insert role assignments one by one
-		for _, roleUuid := range roleUuids {
+		for _, roleId := range roleIds {
 			_, err = s.queries.CreateUserRole(ctx, iamdb.CreateUserRoleParams{
-				UserUuid: userUuid,
-				RoleUuid: roleUuid,
+				UserID: userId,
+				RoleID: roleId,
 			})
 			if err != nil {
 				return iamdb.GetUserWithRolesRow{}, err
@@ -103,12 +103,12 @@ func (s *IamService) UpdateUser(ctx context.Context, userUuid uuid.UUID, name st
 	}
 
 	// Return the updated user with roles
-	return s.queries.GetUserWithRoles(ctx, userUuid)
+	return s.queries.GetUserWithRoles(ctx, userId)
 }
 
-func (s *IamService) DeleteUser(ctx context.Context, userUuid uuid.UUID) error {
+func (s *IamService) DeleteUser(ctx context.Context, userId uuid.UUID) error {
 	// Check if user exists
-	_, err := s.queries.GetUserWithRoles(ctx, userUuid)
+	_, err := s.queries.GetUserWithRoles(ctx, userId)
 	if err != nil {
 		return fmt.Errorf("user not found: %w", err)
 	}

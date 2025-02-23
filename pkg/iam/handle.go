@@ -25,12 +25,12 @@ type CreateUserRequest struct {
 	Name      *string     `json:"name"`
 	Email     string      `json:"email"`
 	Username  string      `json:"username"`
-	RoleUuids []uuid.UUID `json:"role_uuids"`
+	RoleIds []uuid.UUID `json:"role_ids"`
 }
 
 type UpdateUserRequest struct {
 	Name      *string     `json:"name"`
-	RoleUuids []uuid.UUID `json:"role_uuids"`
+	RoleIds []uuid.UUID `json:"role_ids"`
 }
 
 // Get a list of users
@@ -51,13 +51,13 @@ func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
 		Name     *string `json:"name,omitempty"`
 		Roles    []struct {
 			Name *string `json:"name,omitempty"`
-			UUID *string `json:"uuid,omitempty"`
+			ID *string `json:"id,omitempty"`
 		} `json:"roles,omitempty"`
-		UUID *string `json:"uuid,omitempty"`
+		ID *string `json:"id,omitempty"`
 	}
 
 	for _, user := range users {
-		uuidStr := user.Uuid.String()
+		idStr := user.ID.String()
 		var namePtr *string
 		if user.Name.Valid {
 			namePtr = &user.Name.String
@@ -66,7 +66,7 @@ func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
 		// Handle roles
 		var roles []struct {
 			Name *string `json:"name,omitempty"`
-			UUID *string `json:"uuid,omitempty"`
+			ID *string `json:"id,omitempty"`
 		}
 		if len(user.Roles) > 0 {
 			err := json.Unmarshal(user.Roles, &roles)
@@ -82,15 +82,15 @@ func (h Handle) GetUsers(w http.ResponseWriter, r *http.Request) *Response {
 			Name     *string `json:"name,omitempty"`
 			Roles    []struct {
 				Name *string `json:"name,omitempty"`
-				UUID *string `json:"uuid,omitempty"`
+				ID *string `json:"id,omitempty"`
 			} `json:"roles,omitempty"`
-			UUID *string `json:"uuid,omitempty"`
+			ID *string `json:"id,omitempty"`
 		}{
 			Email:    &user.Email,
 			Username: &user.Username.String,
 			Name:     namePtr,
 			Roles:    roles,
-			UUID:     &uuidStr,
+			ID:     &idStr,
 		})
 	}
 
@@ -139,7 +139,7 @@ func (h Handle) PostUsers(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	uuidStr := user.Uuid.String()
+	idStr := user.ID.String()
 	var namePtr *string
 	if user.Name.Valid {
 		namePtr = &user.Name.String
@@ -154,20 +154,20 @@ func (h Handle) PostUsers(w http.ResponseWriter, r *http.Request) *Response {
 		Name     *string `json:"name,omitempty"`
 		Roles    []struct {
 			Name *string `json:"name,omitempty"`
-			UUID *string `json:"uuid,omitempty"`
+			ID *string `json:"id,omitempty"`
 		} `json:"roles,omitempty"`
-		UUID *string `json:"uuid,omitempty"`
+		ID *string `json:"id,omitempty"`
 	}{
 		Email:    &user.Email,
 		Username: usernamePtr,
 		Name:     namePtr,
-		UUID:     &uuidStr,
+		ID:     &idStr,
 	}
 
 	// Unmarshal roles from []byte
 	var roles []struct {
 		Name *string `json:"name,omitempty"`
-		UUID *string `json:"uuid,omitempty"`
+		ID *string `json:"id,omitempty"`
 	}
 	if err := json.Unmarshal(user.Roles, &roles); err != nil {
 		return &Response{
@@ -218,9 +218,9 @@ func (h Handle) GetUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 		Name     *string `json:"name,omitempty"`
 		Roles    []struct {
 			Name *string `json:"name,omitempty"`
-			UUID *string `json:"uuid,omitempty"`
+			ID *string `json:"id,omitempty"`
 		} `json:"roles,omitempty"`
-		UUID *string `json:"uuid,omitempty"`
+		ID *string `json:"id,omitempty"`
 	}{
 		Email:    &user.Email,
 		Username: usernamePtr,
@@ -231,7 +231,7 @@ func (h Handle) GetUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 	// Unmarshal roles from []byte
 	var roles []struct {
 		Name *string `json:"name,omitempty"`
-		UUID *string `json:"uuid,omitempty"`
+		ID *string `json:"id,omitempty"`
 	}
 	if err := json.Unmarshal(user.Roles, &roles); err != nil {
 		return &Response{
@@ -295,9 +295,9 @@ func (h Handle) PutUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 		Name     *string `json:"name,omitempty"`
 		Roles    []struct {
 			Name *string `json:"name,omitempty"`
-			UUID *string `json:"uuid,omitempty"`
+			ID *string `json:"id,omitempty"`
 		} `json:"roles,omitempty"`
-		UUID *string `json:"uuid,omitempty"`
+		ID *string `json:"id,omitempty"`
 	}{
 		Email:    &user.Email,
 		Username: usernamePtr,
@@ -308,7 +308,7 @@ func (h Handle) PutUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 	// Unmarshal roles from []byte
 	var roles []struct {
 		Name *string `json:"name,omitempty"`
-		UUID *string `json:"uuid,omitempty"`
+		ID *string `json:"id,omitempty"`
 	}
 	if err := json.Unmarshal(user.Roles, &roles); err != nil {
 		return &Response{
