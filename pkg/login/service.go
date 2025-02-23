@@ -39,8 +39,8 @@ type LoginParams struct {
 	Username string
 }
 
-func (s LoginService) GetUsersByLoginUuid(ctx context.Context, loginUuid uuid.UUID) ([]MappedUser, error) {
-	return s.userMapper.GetUsers(ctx, loginUuid)
+func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error) {
+	return s.userMapper.GetUsers(ctx, loginID)
 }
 
 func (s LoginService) Login(ctx context.Context, params LoginParams, password string) ([]MappedUser, error) {
@@ -62,7 +62,7 @@ func (s LoginService) Login(ctx context.Context, params LoginParams, password st
 		return []MappedUser{}, fmt.Errorf("invalid password")
 	}
 
-	users, err := s.userMapper.GetUsers(ctx, loginUser.Uuid)
+	users, err := s.userMapper.GetUsers(ctx, loginUser.ID)
 	if err != nil {
 		return []MappedUser{}, fmt.Errorf("error getting user roles: %w", err)
 	}
@@ -111,7 +111,7 @@ func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code st
 		return false, fmt.Errorf("invalid login id: %w", err)
 	}
 
-	login, err := s.queries.GetLoginByUUID(ctx, loginUuid)
+	login, err := s.queries.GetLoginById(ctx, loginUuid)
 	if err != nil {
 		return false, fmt.Errorf("error getting login: %w", err)
 	}
@@ -132,7 +132,7 @@ func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code st
 	if !valid {
 		// Check backup codes
 		isBackupValid, err := s.queries.ValidateBackupCode(ctx, logindb.ValidateBackupCodeParams{
-			Uuid: loginUuid,
+			ID: loginUuid,
 			Code: code,
 		})
 		if err != nil || !isBackupValid {
@@ -141,7 +141,7 @@ func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code st
 		
 		// Mark backup code as used by removing it from the array
 		err = s.queries.MarkBackupCodeUsed(ctx, logindb.MarkBackupCodeUsedParams{
-			Uuid: loginUuid,
+			ID: loginUuid,
 			Code: code,
 		})
 		if err != nil {
@@ -184,7 +184,7 @@ func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordRes
 
 func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.NullString, error) {
 	slog.Debug("FindUserRoles", "params", uuid)
-	roles, err := s.queries.FindUserRolesByUserUuid(ctx, uuid)
+	roles, err := s.queries.FindUserRolesByUserId(ctx, uuid)
 	return roles, err
 }
 
@@ -234,9 +234,9 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 	}
 
 	// Update password
-	err = s.queries.ResetPasswordByUuid(ctx, logindb.ResetPasswordByUuidParams{
+	err = s.queries.ResetPasswordById(ctx, logindb.ResetPasswordByIdParams{
 		Password: hashedPassword,
-		Uuid:     tokenInfo.UserUuid,
+		ID:       tokenInfo.UserID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
@@ -266,7 +266,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	// Get user info with roles
-	userInfo, err := s.queries.FindUserInfoWithRoles(ctx, loginUser.Uuid)
+	userInfo, err := s.queries.FindUserInfoWithRoles(ctx, loginUser.ID)
 	if err != nil {
 		return fmt.Errorf("error finding user info: %w", err)
 	}
@@ -282,7 +282,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	err = s.queries.InitPasswordResetToken(ctx, logindb.InitPasswordResetTokenParams{
-		UserUuid: loginUser.Uuid,
+		UserID: loginUser.ID,
 		Token:    resetToken,
 		ExpireAt: expireAt,
 	})

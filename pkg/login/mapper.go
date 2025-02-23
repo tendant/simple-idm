@@ -11,13 +11,13 @@ import (
 
 type MappedUser struct {
 	UserId      string                 `json:"user_id,omitempty"`
-	LoginUuid   string                 `json:"login_uuid,omitempty"`
+	LoginID     string                 `json:"login_id,omitempty"`
 	DisplayName string                 `json:"display_name,omitempty"`
 	ExtraClaims map[string]interface{} `json:"extra_claims,omitempty"`
 }
 
 type UserMapper interface {
-	GetUsers(ctx context.Context, loginUuid uuid.UUID) ([]MappedUser, error)
+	GetUsers(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error)
 }
 
 type DefaultUserMapper struct {
@@ -34,13 +34,13 @@ func NewDefaultUserMapper(queries *logindb.Queries) *DefaultUserMapper {
 	}
 }
 
-func (m DefaultUserMapper) GetUsers(ctx context.Context, loginUuid uuid.UUID) ([]MappedUser, error) {
-	// Get users by login UUID
+func (m DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error) {
+	// Get users by login ID
 	if m.queries == nil {
 		slog.Warn("DefaultUserMapper queries is nil")
 		return nil, nil
 	}
-	users, err := m.queries.GetUsersByLoginUuid(ctx, uuid.NullUUID{UUID: loginUuid, Valid: true})
+	users, err := m.queries.GetUsersByLoginId(ctx, uuid.NullUUID{UUID: loginID, Valid: true})
 	if err != nil {
 		return nil, fmt.Errorf("error getting users: %w", err)
 	}
@@ -69,8 +69,8 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginUuid uuid.UUID) ([
 		}
 
 		mappedUsers = append(mappedUsers, MappedUser{
-			UserId:      user.Uuid.String(),
-			LoginUuid:   loginUuid.String(),
+			UserId:      user.ID.String(),
+			LoginID:     loginID.String(),
 			DisplayName: user.Name.String,
 			ExtraClaims: extraClaims,
 		})
@@ -80,11 +80,11 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginUuid uuid.UUID) ([
 }
 
 type DelegatedUserMapper interface {
-	GetDelegatedUsers(ctx context.Context, loginUuid uuid.UUID) ([]MappedUser, error)
+	GetDelegatedUsers(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error)
 }
 
 type DefaultDelegatedUserMapper struct{}
 
-func (m DefaultDelegatedUserMapper) GetDelegatedUsers(ctx context.Context, loginUuid uuid.UUID) ([]MappedUser, error) {
+func (m DefaultDelegatedUserMapper) GetDelegatedUsers(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error) {
 	return []MappedUser{}, nil
 }

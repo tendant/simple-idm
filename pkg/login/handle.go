@@ -136,7 +136,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 
 		// Verify 2FA code
-		valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.LoginUuid, data.Code)
+		valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.LoginID, data.Code)
 		if err != nil || !valid {
 			slog.Error("Invalid 2FA code", "err", err)
 			return &Response{
@@ -417,7 +417,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Get all users for the current login
-	users, err := h.loginService.GetUsersByLoginUuid(r.Context(), loginUuid)
+	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginUuid)
 	if err != nil {
 		slog.Error("Failed to get users", "err", err)
 		return &Response{
