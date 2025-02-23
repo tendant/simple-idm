@@ -29,8 +29,8 @@ func (r *iteratorForCreateUserRoleBatch) Next() bool {
 
 func (r iteratorForCreateUserRoleBatch) Values() ([]interface{}, error) {
 	return []interface{}{
-		r.rows[0].UserUuid,
-		r.rows[0].RoleUuid,
+		r.rows[0].UserID,
+		r.rows[0].RoleID,
 	}, nil
 }
 
@@ -39,5 +39,5 @@ func (r iteratorForCreateUserRoleBatch) Err() error {
 }
 
 func (q *Queries) CreateUserRoleBatch(ctx context.Context, arg []CreateUserRoleBatchParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"user_roles"}, []string{"user_uuid", "role_uuid"}, &iteratorForCreateUserRoleBatch{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"user_roles"}, []string{"user_id", "role_id"}, &iteratorForCreateUserRoleBatch{rows: arg})
 }

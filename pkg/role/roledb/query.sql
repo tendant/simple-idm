@@ -1,34 +1,34 @@
 -- name: FindRoles :many
-SELECT uuid, name
+SELECT id, name
 FROM roles
 ORDER BY name ASC;
 
 -- name: CreateRole :one
-INSERT INTO roles (name) VALUES ($1) RETURNING uuid;
+INSERT INTO roles (name) VALUES ($1) RETURNING id;
 
 -- name: UpdateRole :exec
-UPDATE roles SET name = $2 WHERE uuid = $1;
+UPDATE roles SET name = $2 WHERE id = $1;
 
 -- name: DeleteRole :exec
-DELETE FROM roles WHERE uuid = $1;
+DELETE FROM roles WHERE id = $1;
 
--- name: GetRoleUUID :one
-SELECT uuid, name
+-- name: GetRoleById :one
+SELECT id, name
 FROM roles
-WHERE uuid = $1;
+WHERE id = $1;
 
 -- name: HasUsers :one
 SELECT EXISTS (
-    SELECT 1 FROM user_roles WHERE role_uuid = $1
+    SELECT 1 FROM user_roles WHERE role_id = $1
 ) as has_users;
 
 -- name: GetRoleUsers :many
-SELECT u.uuid, u.email, u.name, u.username
+SELECT u.id, u.email, u.name, u.username
 FROM users u
-JOIN user_roles ur ON ur.user_uuid = u.uuid
-WHERE ur.role_uuid = $1
+JOIN user_roles ur ON ur.user_id = u.id
+WHERE ur.role_id = $1
 ORDER BY u.email;
 
 -- name: RemoveUserFromRole :exec
 DELETE FROM user_roles 
-WHERE user_uuid = $1 AND role_uuid = $2;
+WHERE user_id = $1 AND role_id = $2;

@@ -14,27 +14,20 @@ import (
 )
 
 const createRole = `-- name: CreateRole :one
-INSERT INTO roles (uuid, name)
-VALUES ($1, $2)
-RETURNING uuid, name, description
+INSERT INTO roles (name) VALUES ($1) RETURNING id
 `
 
-type CreateRoleParams struct {
-	Uuid uuid.UUID `json:"uuid"`
-	Name string    `json:"name"`
-}
-
-func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
-	row := q.db.QueryRow(ctx, createRole, arg.Uuid, arg.Name)
-	var i Role
-	err := row.Scan(&i.Uuid, &i.Name, &i.Description)
-	return i, err
+func (q *Queries) CreateRole(ctx context.Context, name string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, createRole, name)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, username, name)
 VALUES ($1, $2, $3)
-RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes
+RETURNING id, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, login_id
 `
 
 type CreateUserParams struct {
@@ -47,7 +40,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.Username, arg.Name)
 	var i User
 	err := row.Scan(
-		&i.Uuid,
+		&i.ID,
 		&i.CreatedAt,
 		&i.LastModifiedAt,
 		&i.DeletedAt,
@@ -60,56 +53,99 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.TwoFactorSecret,
 		&i.TwoFactorEnabled,
 		&i.TwoFactorBackupCodes,
+		&i.LoginID,
 	)
 	return i, err
 }
 
 const createUserRole = `-- name: CreateUserRole :one
-INSERT INTO user_roles (user_uuid, role_uuid)
+INSERT INTO user_roles (user_id, role_id)
 VALUES ($1, $2)
-RETURNING user_uuid, role_uuid
+RETURNING user_id, role_id
 `
 
 type CreateUserRoleParams struct {
-	UserUuid uuid.UUID `json:"user_uuid"`
-	RoleUuid uuid.UUID `json:"role_uuid"`
+	UserID uuid.UUID `json:"user_id"`
+	RoleID uuid.UUID `json:"role_id"`
 }
 
 func (q *Queries) CreateUserRole(ctx context.Context, arg CreateUserRoleParams) (UserRole, error) {
-	row := q.db.QueryRow(ctx, createUserRole, arg.UserUuid, arg.RoleUuid)
+	row := q.db.QueryRow(ctx, createUserRole, arg.UserID, arg.RoleID)
 	var i UserRole
-	err := row.Scan(&i.UserUuid, &i.RoleUuid)
+	err := row.Scan(&i.UserID, &i.RoleID)
 	return i, err
 }
 
 type CreateUserRoleBatchParams struct {
-	UserUuid uuid.UUID `json:"user_uuid"`
-	RoleUuid uuid.UUID `json:"role_uuid"`
+	UserID uuid.UUID `json:"user_id"`
+	RoleID uuid.UUID `json:"role_id"`
+}
+
+const deleteRole = `-- name: DeleteRole :exec
+DELETE FROM roles WHERE id = $1
+`
+
+func (q *Queries) DeleteRole(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRole, id)
+	return err
 }
 
 const deleteUser = `-- name: DeleteUser :exec
 UPDATE users
 SET deleted_at = CURRENT_TIMESTAMP
-WHERE uuid = $1
+WHERE id = $1
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, argUuid uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteUser, argUuid)
+func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
 	return err
 }
 
 const deleteUserRoles = `-- name: DeleteUserRoles :exec
 DELETE FROM user_roles
-WHERE user_uuid = $1
+WHERE user_id = $1
 `
 
-func (q *Queries) DeleteUserRoles(ctx context.Context, userUuid uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteUserRoles, userUuid)
+func (q *Queries) DeleteUserRoles(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserRoles, userID)
 	return err
 }
 
+const findRoles = `-- name: FindRoles :many
+
+SELECT id, name
+FROM roles
+ORDER BY name ASC
+`
+
+type FindRolesRow struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+// Role queries
+func (q *Queries) FindRoles(ctx context.Context) ([]FindRolesRow, error) {
+	rows, err := q.db.Query(ctx, findRoles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindRolesRow
+	for rows.Next() {
+		var i FindRolesRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const findUsers = `-- name: FindUsers :many
-SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, username, name
+SELECT id, created_at, last_modified_at, deleted_at, created_by, email, username, name
 FROM users
 WHERE deleted_at IS NULL
 ORDER BY created_at ASC
@@ -117,7 +153,7 @@ limit 20
 `
 
 type FindUsersRow struct {
-	Uuid           uuid.UUID      `json:"uuid"`
+	ID             uuid.UUID      `json:"id"`
 	CreatedAt      time.Time      `json:"created_at"`
 	LastModifiedAt time.Time      `json:"last_modified_at"`
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
@@ -137,7 +173,7 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 	for rows.Next() {
 		var i FindUsersRow
 		if err := rows.Scan(
-			&i.Uuid,
+			&i.ID,
 			&i.CreatedAt,
 			&i.LastModifiedAt,
 			&i.DeletedAt,
@@ -157,22 +193,22 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 }
 
 const findUsersWithRoles = `-- name: FindUsersWithRoles :many
-SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
+SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
        json_agg(json_build_object(
-           'uuid', r.uuid,
+           'id', r.id,
            'name', r.name
        )) as roles
 FROM users u
-LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
-LEFT JOIN roles r ON ur.role_uuid = r.uuid
+LEFT JOIN user_roles ur ON u.id = ur.user_id
+LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.deleted_at IS NULL
-GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
 ORDER BY u.created_at ASC
 LIMIT 20
 `
 
 type FindUsersWithRolesRow struct {
-	Uuid           uuid.UUID      `json:"uuid"`
+	ID             uuid.UUID      `json:"id"`
 	CreatedAt      time.Time      `json:"created_at"`
 	LastModifiedAt time.Time      `json:"last_modified_at"`
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
@@ -193,7 +229,7 @@ func (q *Queries) FindUsersWithRoles(ctx context.Context) ([]FindUsersWithRolesR
 	for rows.Next() {
 		var i FindUsersWithRolesRow
 		if err := rows.Scan(
-			&i.Uuid,
+			&i.ID,
 			&i.CreatedAt,
 			&i.LastModifiedAt,
 			&i.DeletedAt,
@@ -213,14 +249,72 @@ func (q *Queries) FindUsersWithRoles(ctx context.Context) ([]FindUsersWithRolesR
 	return items, nil
 }
 
-const getUserUUID = `-- name: GetUserUUID :one
-SELECT uuid, created_at, last_modified_at, deleted_at, created_by, email, username, name
-FROM users
-WHERE uuid = $1
+const getRoleById = `-- name: GetRoleById :one
+SELECT id, name
+FROM roles
+WHERE id = $1
 `
 
-type GetUserUUIDRow struct {
-	Uuid           uuid.UUID      `json:"uuid"`
+type GetRoleByIdRow struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+func (q *Queries) GetRoleById(ctx context.Context, id uuid.UUID) (GetRoleByIdRow, error) {
+	row := q.db.QueryRow(ctx, getRoleById, id)
+	var i GetRoleByIdRow
+	err := row.Scan(&i.ID, &i.Name)
+	return i, err
+}
+
+const getRoleUsers = `-- name: GetRoleUsers :many
+SELECT u.id, u.email, u.name, u.username
+FROM users u
+JOIN user_roles ur ON ur.user_id = u.id
+WHERE ur.role_id = $1
+ORDER BY u.email
+`
+
+type GetRoleUsersRow struct {
+	ID       uuid.UUID      `json:"id"`
+	Email    string         `json:"email"`
+	Name     sql.NullString `json:"name"`
+	Username sql.NullString `json:"username"`
+}
+
+func (q *Queries) GetRoleUsers(ctx context.Context, roleID uuid.UUID) ([]GetRoleUsersRow, error) {
+	rows, err := q.db.Query(ctx, getRoleUsers, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRoleUsersRow
+	for rows.Next() {
+		var i GetRoleUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserById = `-- name: GetUserById :one
+SELECT id, created_at, last_modified_at, deleted_at, created_by, email, username, name
+FROM users
+WHERE id = $1
+`
+
+type GetUserByIdRow struct {
+	ID             uuid.UUID      `json:"id"`
 	CreatedAt      time.Time      `json:"created_at"`
 	LastModifiedAt time.Time      `json:"last_modified_at"`
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
@@ -230,11 +324,11 @@ type GetUserUUIDRow struct {
 	Name           sql.NullString `json:"name"`
 }
 
-func (q *Queries) GetUserUUID(ctx context.Context, argUuid uuid.UUID) (GetUserUUIDRow, error) {
-	row := q.db.QueryRow(ctx, getUserUUID, argUuid)
-	var i GetUserUUIDRow
+func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow, error) {
+	row := q.db.QueryRow(ctx, getUserById, id)
+	var i GetUserByIdRow
 	err := row.Scan(
-		&i.Uuid,
+		&i.ID,
 		&i.CreatedAt,
 		&i.LastModifiedAt,
 		&i.DeletedAt,
@@ -247,20 +341,20 @@ func (q *Queries) GetUserUUID(ctx context.Context, argUuid uuid.UUID) (GetUserUU
 }
 
 const getUserWithRoles = `-- name: GetUserWithRoles :one
-SELECT u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
+SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
        json_agg(json_build_object(
-           'uuid', r.uuid,
+           'id', r.id,
            'name', r.name
        )) as roles
 FROM users u
-LEFT JOIN user_roles ur ON u.uuid = ur.user_uuid
-LEFT JOIN roles r ON ur.role_uuid = r.uuid
-WHERE u.uuid = $1
-GROUP BY u.uuid, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
+LEFT JOIN user_roles ur ON u.id = ur.user_id
+LEFT JOIN roles r ON ur.role_id = r.id
+WHERE u.id = $1
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
 `
 
 type GetUserWithRolesRow struct {
-	Uuid           uuid.UUID      `json:"uuid"`
+	ID             uuid.UUID      `json:"id"`
 	CreatedAt      time.Time      `json:"created_at"`
 	LastModifiedAt time.Time      `json:"last_modified_at"`
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
@@ -271,11 +365,11 @@ type GetUserWithRolesRow struct {
 	Roles          []byte         `json:"roles"`
 }
 
-func (q *Queries) GetUserWithRoles(ctx context.Context, argUuid uuid.UUID) (GetUserWithRolesRow, error) {
-	row := q.db.QueryRow(ctx, getUserWithRoles, argUuid)
+func (q *Queries) GetUserWithRoles(ctx context.Context, id uuid.UUID) (GetUserWithRolesRow, error) {
+	row := q.db.QueryRow(ctx, getUserWithRoles, id)
 	var i GetUserWithRolesRow
 	err := row.Scan(
-		&i.Uuid,
+		&i.ID,
 		&i.CreatedAt,
 		&i.LastModifiedAt,
 		&i.DeletedAt,
@@ -288,21 +382,63 @@ func (q *Queries) GetUserWithRoles(ctx context.Context, argUuid uuid.UUID) (GetU
 	return i, err
 }
 
+const hasUsers = `-- name: HasUsers :one
+SELECT EXISTS (
+    SELECT 1 FROM user_roles WHERE role_id = $1
+) as has_users
+`
+
+func (q *Queries) HasUsers(ctx context.Context, roleID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, hasUsers, roleID)
+	var has_users bool
+	err := row.Scan(&has_users)
+	return has_users, err
+}
+
+const removeUserFromRole = `-- name: RemoveUserFromRole :exec
+DELETE FROM user_roles 
+WHERE user_id = $1 AND role_id = $2
+`
+
+type RemoveUserFromRoleParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	RoleID uuid.UUID `json:"role_id"`
+}
+
+func (q *Queries) RemoveUserFromRole(ctx context.Context, arg RemoveUserFromRoleParams) error {
+	_, err := q.db.Exec(ctx, removeUserFromRole, arg.UserID, arg.RoleID)
+	return err
+}
+
+const updateRole = `-- name: UpdateRole :exec
+UPDATE roles SET name = $2 WHERE id = $1
+`
+
+type UpdateRoleParams struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) error {
+	_, err := q.db.Exec(ctx, updateRole, arg.ID, arg.Name)
+	return err
+}
+
 const updateUser = `-- name: UpdateUser :one
-UPDATE users SET name = $2 WHERE uuid = $1
-RETURNING uuid, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes
+UPDATE users SET name = $2 WHERE id = $1
+RETURNING id, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, login_id
 `
 
 type UpdateUserParams struct {
-	Uuid uuid.UUID      `json:"uuid"`
+	ID   uuid.UUID      `json:"id"`
 	Name sql.NullString `json:"name"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUser, arg.Uuid, arg.Name)
+	row := q.db.QueryRow(ctx, updateUser, arg.ID, arg.Name)
 	var i User
 	err := row.Scan(
-		&i.Uuid,
+		&i.ID,
 		&i.CreatedAt,
 		&i.LastModifiedAt,
 		&i.DeletedAt,
@@ -315,6 +451,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.TwoFactorSecret,
 		&i.TwoFactorEnabled,
 		&i.TwoFactorBackupCodes,
+		&i.LoginID,
 	)
 	return i, err
 }
