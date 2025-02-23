@@ -136,7 +136,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 
 		// Verify 2FA code
-		valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.UserId, data.Code)
+		valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.LoginUuid, data.Code)
 		if err != nil || !valid {
 			slog.Error("Invalid 2FA code", "err", err)
 			return &Response{

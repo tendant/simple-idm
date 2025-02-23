@@ -11,6 +11,7 @@ import (
 
 type MappedUser struct {
 	UserId      string                 `json:"user_id,omitempty"`
+	LoginUuid   string                 `json:"login_uuid,omitempty"`
 	DisplayName string                 `json:"display_name,omitempty"`
 	ExtraClaims map[string]interface{} `json:"extra_claims,omitempty"`
 }
@@ -39,7 +40,7 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginUuid uuid.UUID) ([
 		slog.Warn("DefaultUserMapper queries is nil")
 		return nil, nil
 	}
-	users, err := m.queries.GetUsersByLoginUuid(ctx, uuid.NullUUID{UUID: loginUuid, Valid: true})
+	users, err := m.queries.GetUsersByLoginUuid(ctx, loginUuid)
 	if err != nil {
 		return nil, fmt.Errorf("error getting users: %w", err)
 	}
@@ -69,6 +70,7 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginUuid uuid.UUID) ([
 
 		mappedUsers = append(mappedUsers, MappedUser{
 			UserId:      user.Uuid.String(),
+			LoginUuid:   loginUuid.String(),
 			DisplayName: user.Name.String,
 			ExtraClaims: extraClaims,
 		})

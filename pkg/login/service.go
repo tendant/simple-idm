@@ -104,22 +104,27 @@ func CheckPasswordHash(password, hashedPassword string) (bool, error) {
 	return true, nil
 }
 
-func (s LoginService) Verify2FACode(ctx context.Context, userId string, code string) (bool, error) {
-	// Get user's 2FA secret
-	userUuid, err := uuid.Parse(userId)
+func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code string) (bool, error) {
+	// Get login's 2FA secret
+	loginUuid, err := uuid.Parse(loginId)
 	if err != nil {
-		return false, fmt.Errorf("invalid user id: %w", err)
+		return false, fmt.Errorf("invalid login id: %w", err)
 	}
 
-	_, err = s.queries.GetUserByUUID(ctx, userUuid)
+	login, err := s.queries.GetLoginByUUID(ctx, loginUuid)
 	if err != nil {
-		return false, fmt.Errorf("error getting user: %w", err)
+		return false, fmt.Errorf("error getting login: %w", err)
 	}
 
-	// Get 2FA secret from user's extra claims
-	secret, err := s.queries.Get2FASecret(ctx, userUuid)
-	if err != nil {
-		return false, fmt.Errorf("error getting 2FA secret: %w", err)
+	// Check if 2FA is enabled
+	if !login.TwoFactorEnabled.Bool {
+		return false, fmt.Errorf("2FA is not enabled for this login")
+	}
+
+	// Get 2FA secret
+	secret := login.TwoFactorSecret
+	if !secret.Valid {
+		return false, fmt.Errorf("2FA secret not found")
 	}
 
 	// Verify the code
@@ -127,11 +132,20 @@ func (s LoginService) Verify2FACode(ctx context.Context, userId string, code str
 	if !valid {
 		// Check backup codes
 		isBackupValid, err := s.queries.ValidateBackupCode(ctx, logindb.ValidateBackupCodeParams{
-			UserUuid: userUuid,
-			Code:     code,
+			Uuid: loginUuid,
+			Code: code,
 		})
 		if err != nil || !isBackupValid {
 			return false, fmt.Errorf("invalid 2FA code")
+		}
+		
+		// Mark backup code as used by removing it from the array
+		err = s.queries.MarkBackupCodeUsed(ctx, logindb.MarkBackupCodeUsedParams{
+			Uuid: loginUuid,
+			Code: code,
+		})
+		if err != nil {
+			slog.Error("Failed to mark backup code as used", "error", err)
 		}
 	}
 
