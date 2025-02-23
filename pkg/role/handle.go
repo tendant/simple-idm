@@ -35,8 +35,8 @@ func (h *Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 	}, len(roles))
 
 	for i, role := range roles {
-		name := role.Name             // Create a new variable to get the address
-		uuidStr := role.Uuid.String() // Convert UUID to string
+		name := role.Name           // Create a new variable to get the address
+		uuidStr := role.ID.String() // Convert UUID to string
 		apiRoles[i] = struct {
 			Name *string `json:"name,omitempty"`
 			UUID *string `json:"uuid,omitempty"`
@@ -73,15 +73,15 @@ func (h *Handle) GetUUID(w http.ResponseWriter, r *http.Request, uuidStr string)
 		}
 	}
 
-	name := role.Name             // Create a new variable to get the address
-	uuid := role.Uuid.String() // Convert UUID to string
+	name := role.Name          // Create a new variable to get the address
+	uuidStr = role.ID.String() // Convert UUID to string
 
 	return GetUUIDJSON200Response(struct {
 		Name *string `json:"name,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	}{
 		Name: &name,
-		UUID: &uuid,
+		UUID: &uuidStr,
 	})
 }
 
@@ -118,7 +118,7 @@ func (h *Handle) GetUUIDUsers(w http.ResponseWriter, r *http.Request, uuidStr st
 	}, len(users))
 
 	for i, user := range users {
-		uuid := user.Uuid.String()
+		uuid := user.ID.String()
 		email := user.Email
 		name := user.Name.String
 		username := user.Username.String

@@ -130,7 +130,7 @@ func (h Handle) PostUsers(w http.ResponseWriter, r *http.Request) *Response {
 		name = *request.Name
 	}
 
-	user, err := h.iamService.CreateUser(r.Context(), request.Email, request.Username, name, request.RoleUuids)
+	user, err := h.iamService.CreateUser(r.Context(), request.Email, request.Username, name, request.RoleIds)
 	if err != nil {
 		slog.Error("Failed creating user", "error", err)
 		return &Response{
@@ -203,7 +203,7 @@ func (h Handle) GetUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 		}
 	}
 
-	uuidStrPtr := user.Uuid.String()
+	idStrPtr := user.ID.String()
 	var namePtr *string
 	if user.Name.Valid {
 		namePtr = &user.Name.String
@@ -225,7 +225,7 @@ func (h Handle) GetUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 		Email:    &user.Email,
 		Username: usernamePtr,
 		Name:     namePtr,
-		UUID:     &uuidStrPtr,
+		ID:     &idStrPtr,
 	}
 
 	// Unmarshal roles from []byte
@@ -271,7 +271,7 @@ func (h Handle) PutUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 		name = *request.Name
 	}
 
-	user, err := h.iamService.UpdateUser(r.Context(), userUuid, name, request.RoleUuids)
+	user, err := h.iamService.UpdateUser(r.Context(), userUuid, name, request.RoleIds)
 	if err != nil {
 		slog.Error("Failed updating user", "error", err)
 		return &Response{
@@ -280,7 +280,7 @@ func (h Handle) PutUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 		}
 	}
 
-	uuidStrPtr := user.Uuid.String()
+	idStrPtr := user.ID.String()
 	var namePtr *string
 	if user.Name.Valid {
 		namePtr = &user.Name.String
@@ -302,7 +302,7 @@ func (h Handle) PutUsersUUID(w http.ResponseWriter, r *http.Request, uuidStr str
 		Email:    &user.Email,
 		Username: usernamePtr,
 		Name:     namePtr,
-		UUID:     &uuidStrPtr,
+		ID:     &idStrPtr,
 	}
 
 	// Unmarshal roles from []byte

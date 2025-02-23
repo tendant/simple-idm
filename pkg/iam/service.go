@@ -113,5 +113,5 @@ func (s *IamService) DeleteUser(ctx context.Context, userId uuid.UUID) error {
 		return fmt.Errorf("user not found: %w", err)
 	}
 
-	return s.queries.DeleteUser(ctx, userUuid)
+	return s.queries.DeleteUser(ctx, userId)
 }

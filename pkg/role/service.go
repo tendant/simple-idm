@@ -46,7 +46,7 @@ func (s *RoleService) UpdateRole(ctx context.Context, id uuid.UUID, name string)
 	}
 
 	// Check if role exists
-	_, err := s.queries.GetRoleUUID(ctx, id)
+	_, err := s.queries.GetRoleById(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrRoleNotFound
@@ -54,13 +54,13 @@ func (s *RoleService) UpdateRole(ctx context.Context, id uuid.UUID, name string)
 		return err
 	}
 
-	return s.queries.UpdateRole(ctx, roledb.UpdateRoleParams{Uuid: id, Name: name})
+	return s.queries.UpdateRole(ctx, roledb.UpdateRoleParams{ID: id, Name: name})
 }
 
 // DeleteRole removes a role
 func (s *RoleService) DeleteRole(ctx context.Context, id uuid.UUID) error {
 	// Check if role exists
-	_, err := s.queries.GetRoleUUID(ctx, id)
+	_, err := s.queries.GetRoleById(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrRoleNotFound
@@ -87,8 +87,8 @@ func (s *RoleService) DeleteRole(ctx context.Context, id uuid.UUID) error {
 }
 
 // GetRole retrieves a role by UUID
-func (s *RoleService) GetRole(ctx context.Context, id uuid.UUID) (roledb.GetRoleUUIDRow, error) {
-	role, err := s.queries.GetRoleUUID(ctx, id)
+func (s *RoleService) GetRole(ctx context.Context, id uuid.UUID) (roledb.GetRoleByIdRow, error) {
+	role, err := s.queries.GetRoleById(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return role, ErrRoleNotFound
@@ -101,7 +101,7 @@ func (s *RoleService) GetRole(ctx context.Context, id uuid.UUID) (roledb.GetRole
 // GetRoleUsers retrieves all users assigned to a role
 func (s *RoleService) GetRoleUsers(ctx context.Context, id uuid.UUID) ([]roledb.GetRoleUsersRow, error) {
 	// Check if role exists
-	_, err := s.queries.GetRoleUUID(ctx, id)
+	_, err := s.queries.GetRoleById(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrRoleNotFound
@@ -120,7 +120,7 @@ func (s *RoleService) GetRoleUsers(ctx context.Context, id uuid.UUID) ([]roledb.
 // RemoveUserFromRole removes a user from a role
 func (s *RoleService) RemoveUserFromRole(ctx context.Context, roleID, userID uuid.UUID) error {
 	// Check if role exists
-	_, err := s.queries.GetRoleUUID(ctx, roleID)
+	_, err := s.queries.GetRoleById(ctx, roleID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrRoleNotFound
@@ -130,8 +130,8 @@ func (s *RoleService) RemoveUserFromRole(ctx context.Context, roleID, userID uui
 
 	// Remove user from role
 	err = s.queries.RemoveUserFromRole(ctx, roledb.RemoveUserFromRoleParams{
-		UserUuid: userID,
-		RoleUuid: roleID,
+		UserID: userID,
+		RoleID: roleID,
 	})
 	if err != nil {
 		return fmt.Errorf("error removing user from role: %w", err)
