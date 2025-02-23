@@ -104,7 +104,7 @@ const App: Component = () => {
       <Route path="/users/:id/edit" component={EditUserPage} />
       <Route path="/roles" component={RolesPage} />
       <Route path="/roles/create" component={CreateRolePage} />
-      <Route path="/roles/:uuid/edit" component={EditRolePage} />
+      <Route path="/roles/:id/edit" component={EditRolePage} />
       <Route path="/password-reset-init" component={PasswordResetInit} />
       <Route path="/password-reset/:code" component={PasswordReset} />
       <Route path="/find-username" component={FindUsername} />

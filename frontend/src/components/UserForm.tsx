@@ -9,7 +9,7 @@ interface Props {
     email?: string;
     password?: string;
     name?: string;
-    role_uuids?: string[];
+    role_ids?: string[];
   }) => Promise<void>;
   submitLabel: string;
 }
@@ -20,7 +20,7 @@ const UserForm: Component<Props> = (props) => {
   const [password, setPassword] = createSignal('');
   const [name, setName] = createSignal(props.initialData?.name || '');
   const [selectedRoles, setSelectedRoles] = createSignal<string[]>(
-    props.initialData?.roles?.map(r => r.uuid || '').filter(uuid => uuid !== '') || []
+    props.initialData?.roles?.map(r => r.id || '').filter(id => id !== '') || []
   );
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
@@ -46,7 +46,7 @@ const UserForm: Component<Props> = (props) => {
         email: email(),
         password: password() || undefined,
         name: name() || undefined,
-        role_uuids: selectedRoles().filter(uuid => uuid !== ''),
+        role_ids: selectedRoles().filter(id => id !== ''),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save user');

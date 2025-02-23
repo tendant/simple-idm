@@ -8,13 +8,13 @@ const EditRole: Component = () => {
   const navigate = useNavigate();
   
   const [role] = createResource<Role>(() => {
-    if (!params.uuid) throw new Error('No role UUID provided');
-    return roleApi.getRole(params.uuid);
+    if (!params.id) throw new Error('No role ID provided');
+    return roleApi.getRole(params.id);
   });
 
   const handleSubmit = async (data: { name: string }) => {
-    if (!params.uuid) throw new Error('No role UUID provided');
-    await roleApi.updateRole(params.uuid, data);
+    if (!params.id) throw new Error('No role ID provided');
+    await roleApi.updateRole(params.id, data);
     navigate('/roles');
   };
 

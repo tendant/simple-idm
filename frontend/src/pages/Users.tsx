@@ -97,7 +97,7 @@ const Users: Component = () => {
                 <tbody class="divide-y divide-gray-6">
                   <Show when={!loading()} fallback={<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>}>
                     {users().map((user) => (
-                      <tr key={user.uuid}>
+                      <tr key={user.id}>
                         <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
                           {user.name || '-'}
                         </td>
@@ -111,7 +111,7 @@ const Users: Component = () => {
                           <div class="flex flex-wrap gap-1">
                             {user.roles?.map((role) => (
                               <span
-                                key={role.uuid}
+                                key={role.id}
                                 class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20"
                               >
                                 {role.name}
@@ -121,13 +121,13 @@ const Users: Component = () => {
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                           <button
-                            onClick={() => navigate(`/users/${user.uuid}/edit`)}
+                            onClick={() => navigate(`/users/${user.id}/edit`)}
                             class="text-blue-600 hover:text-blue-900 mr-4"
                           >
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDelete(user.uuid!)}
+                            onClick={() => handleDelete(user.id!)}
                             class="text-red-600 hover:text-red-900"
                           >
                             Delete

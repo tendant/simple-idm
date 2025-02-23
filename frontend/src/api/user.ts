@@ -9,14 +9,14 @@ interface CreateUserRequest {
   email: string;
   username: string;
   name?: string | null;
-  role_uuids?: string[];
+  role_ids?: string[];
 }
 
 interface UpdateUserRequest {
   name?: string | null;
   username?: string;
   password?: string;
-  role_uuids?: string[];
+  role_ids?: string[];
 }
 
 interface FindUsernameRequest {
@@ -24,7 +24,7 @@ interface FindUsernameRequest {
 }
 
 interface User {
-  uuid?: string;
+  id?: string;
   email?: string;
   username?: string;
   name?: string | null;
@@ -33,7 +33,7 @@ interface User {
   deleted_at?: string | null;
   created_by?: string | null;
   roles?: Array<{
-    uuid?: string;
+    id?: string;
     name?: string;
   }> | null;
 }
@@ -66,8 +66,8 @@ export const userApi = {
     return response.json();
   },
 
-  getUser: async (uuid: string): Promise<User> => {
-    const response = await apiClient(`/idm/users/${uuid}`);
+  getUser: async (id: string): Promise<User> => {
+    const response = await apiClient(`/idm/users/${id}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch user');
@@ -98,8 +98,8 @@ export const userApi = {
     return response.json();
   },
 
-  updateUser: async (uuid: string, user: UpdateUserRequest): Promise<User> => {
-    const response = await apiClient(`/idm/users/${uuid}`, {
+  updateUser: async (id: string, user: UpdateUserRequest): Promise<User> => {
+    const response = await apiClient(`/idm/users/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -114,8 +114,8 @@ export const userApi = {
     return response.json();
   },
 
-  deleteUser: async (uuid: string): Promise<void> => {
-    const response = await apiClient(`/idm/users/${uuid}`, {
+  deleteUser: async (id: string): Promise<void> => {
+    const response = await apiClient(`/idm/users/${id}`, {
       method: 'DELETE',
     });
 

@@ -23,9 +23,9 @@ const RoleForm: Component<Props> = (props) => {
   });
 
   const loadUsers = async () => {
-    if (props.initialData?.uuid) {
+    if (props.initialData?.id) {
       try {
-        const roleUsers = await roleApi.getRoleUsers(props.initialData.uuid);
+        const roleUsers = await roleApi.getRoleUsers(props.initialData.id);
         setUsers(roleUsers);
       } catch (error) {
         console.error('Failed to fetch role users:', error);

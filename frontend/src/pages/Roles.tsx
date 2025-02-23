@@ -19,12 +19,12 @@ const Roles: Component = () => {
     }
   };
 
-  const handleDelete = async (uuid: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this role?')) return;
     
     try {
-      await roleApi.deleteRole(uuid);
-      setRoles(roles().filter(role => role.uuid !== uuid));
+      await roleApi.deleteRole(id);
+      setRoles(roles().filter(role => role.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete role');
     }
@@ -97,19 +97,19 @@ const Roles: Component = () => {
                     </tr>
                   ) : (
                     roles().map((role) => (
-                      <tr key={role.uuid}>
+                      <tr key={role.id}>
                         <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-12 sm:pl-6">
                           {role.name}
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                           <button
-                            onClick={() => role.uuid && navigate(`/roles/${role.uuid}/edit`)}
+                            onClick={() => role.id && navigate(`/roles/${role.id}/edit`)}
                             class="text-blue-600 hover:text-blue-900 mr-4"
                           >
                             Edit
                           </button>
                           <button
-                            onClick={() => role.uuid && handleDelete(role.uuid)}
+                            onClick={() => role.id && handleDelete(role.id)}
                             class="text-red-600 hover:text-red-900"
                           >
                             Delete
