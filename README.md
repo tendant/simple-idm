@@ -18,6 +18,7 @@ The application will start on port 4000 by default.
 
 The following features are planned for implementation:
 
+- [X] Migrate to login 
 - [ ] Initial password reset functionality
 - [ ] Email-based password reset flow
 - [ ] Password reset page and API endpoints
@@ -79,16 +80,16 @@ WITH new_login AS (
         '$2a$10$CFUjSFcMhCoBvnNrpllwuObUkO2TlJ5jnLzdg0tZ0voB1LLujT9c6',  -- hashed value of 'pwd'
         NOW()
     )
-    RETURNING uuid
+    RETURNING id
 )
--- Create admin user with the login UUID
-INSERT INTO users (username, name, email, created_by, login_uuid)
+-- Create admin user with the login ID
+INSERT INTO users (username, name, email, created_by, login_id)
 VALUES (
     'admin',
     'admin',
     'admin@example.com',
     'system',
-    (SELECT uuid FROM login where username = 'admin')
+    (SELECT id FROM login where username = 'admin')
 );
 
 -- Create test user
@@ -112,11 +113,12 @@ VALUES ('admin', 'Administrator with full access');
 #### Link Users to Roles
 
 ```sql
-select * from users;
-select * from roles;
+-- Check available users and roles
+SELECT * FROM users;
+SELECT * FROM roles;
 
-INSERT INTO user_roles (user_uuid, role_uuid)
-VALUES ((SELECT uuid FROM users WHERE username = 'admin'), (SELECT uuid FROM roles WHERE name = 'admin'));
+INSERT INTO user_roles (user_id, role_id)
+VALUES ((SELECT id FROM users WHERE username = 'admin'), (SELECT id FROM roles WHERE name = 'admin'));
 ```
 
 ## API Testing Guide
