@@ -19,7 +19,7 @@ paths:
                 items:
                   type: object
                   properties:
-                    uuid:
+                    id:
                       type: string
                       format: uuid
                     name:
@@ -40,11 +40,11 @@ paths:
       responses:
         "201":
           description: Role created
-  /{uuid}:
+  /{id}:
     get:
       summary: Get a role by UUID
       parameters:
-        - name: uuid
+        - name: id
           in: path
           required: true
           schema:
@@ -69,7 +69,7 @@ paths:
     put:
       summary: Update an existing role
       parameters:
-        - name: uuid
+        - name: id
           in: path
           required: true
           schema:
@@ -102,7 +102,7 @@ paths:
     delete:
       summary: Delete a role
       parameters:
-        - name: uuid
+        - name: id
           in: path
           required: true
           schema:
@@ -113,11 +113,11 @@ paths:
           description: Role deleted
         "404":
           description: Role not found
-  /{uuid}/users:
+  /{id}/users:
     get:
       summary: Get users assigned to a role
       parameters:
-        - name: uuid
+        - name: id
           in: path
           required: true
           schema:
@@ -133,7 +133,7 @@ paths:
                 items:
                   type: object
                   properties:
-                    uuid:
+                    id:
                       type: string
                       format: uuid
                     email:
@@ -144,11 +144,11 @@ paths:
                       type: string
         "404":
           description: Role not found
-  /{uuid}/users/{userUuid}:
+  /{id}/users/{userId}:
     delete:
       summary: Remove a user from a role
       parameters:
-        - name: uuid
+        - name: id
           in: path
           required: true
           schema:

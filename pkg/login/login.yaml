@@ -223,11 +223,11 @@ paths:
             schema:
               type: object
               properties:
-                user_uuid:
+                user_id:
                   type: string
-                  description: UUID of the user to switch to
+                  description: ID of the user to switch to
               required:
-                - user_uuid
+                - user_id
       responses:
         "200":
           description: Successfully switched to the specified user
@@ -331,7 +331,7 @@ components:
     User:
       type: object
       properties:
-        uuid:
+        id:
           type: string
         name:
           type: string
@@ -341,7 +341,7 @@ components:
           type: boolean
           description: Whether 2FA is enabled for this user
       required:
-        - uuid
+        - id
         - name
         - email
         - twoFactorEnabled
