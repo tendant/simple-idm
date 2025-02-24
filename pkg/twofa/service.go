@@ -37,7 +37,7 @@ const (
 	twoFactorTypeSms   = "sms"
 )
 
-func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error) {
+func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error) {
 	// Validate twoFactorType
 	err := ValidateTwoFactorType(twoFactorType)
 	if err != nil {
