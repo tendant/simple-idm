@@ -14,13 +14,13 @@ import (
 )
 
 const create2FAInit = `-- name: Create2FAInit :one
-INSERT INTO login_2fa (login_uuid, two_factor_secret, two_factor_enabled, two_factor_type, two_factor_backup_codes)
+INSERT INTO login_2fa (login_id, two_factor_secret, two_factor_enabled, two_factor_type, two_factor_backup_codes)
 VALUES ($1, $2, FALSE, $3, $4::TEXT[])
-RETURNING uuid
+RETURNING id
 `
 
 type Create2FAInitParams struct {
-	LoginUuid            uuid.UUID      `json:"login_uuid"`
+	LoginID              uuid.UUID      `json:"login_id"`
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
 	TwoFactorType        sql.NullString `json:"two_factor_type"`
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
@@ -29,31 +29,31 @@ type Create2FAInitParams struct {
 // @two_factor_backup_codes TEXT[]
 func (q *Queries) Create2FAInit(ctx context.Context, arg Create2FAInitParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, create2FAInit,
-		arg.LoginUuid,
+		arg.LoginID,
 		arg.TwoFactorSecret,
 		arg.TwoFactorType,
 		arg.TwoFactorBackupCodes,
 	)
-	var uuid uuid.UUID
-	err := row.Scan(&uuid)
-	return uuid, err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const delete2FA = `-- name: Delete2FA :exec
 UPDATE login_2fa
 SET deleted_at = now() AT TIME ZONE 'utc'
-WHERE login_uuid = $1
+WHERE login_id = $1
 AND two_factor_type = $2
 AND deleted_at IS NULL
 `
 
 type Delete2FAParams struct {
-	LoginUuid     uuid.UUID      `json:"login_uuid"`
+	LoginID       uuid.UUID      `json:"login_id"`
 	TwoFactorType sql.NullString `json:"two_factor_type"`
 }
 
 func (q *Queries) Delete2FA(ctx context.Context, arg Delete2FAParams) error {
-	_, err := q.db.Exec(ctx, delete2FA, arg.LoginUuid, arg.TwoFactorType)
+	_, err := q.db.Exec(ctx, delete2FA, arg.LoginID, arg.TwoFactorType)
 	return err
 }
 
@@ -61,18 +61,18 @@ const disable2FA = `-- name: Disable2FA :exec
 UPDATE login_2fa
 SET two_factor_enabled = FALSE,
     updated_at = now() AT TIME ZONE 'utc'
-WHERE login_uuid = $1
+WHERE login_id = $1
 AND two_factor_type = $2
 AND deleted_at IS NULL
 `
 
 type Disable2FAParams struct {
-	LoginUuid     uuid.UUID      `json:"login_uuid"`
+	LoginID       uuid.UUID      `json:"login_id"`
 	TwoFactorType sql.NullString `json:"two_factor_type"`
 }
 
 func (q *Queries) Disable2FA(ctx context.Context, arg Disable2FAParams) error {
-	_, err := q.db.Exec(ctx, disable2FA, arg.LoginUuid, arg.TwoFactorType)
+	_, err := q.db.Exec(ctx, disable2FA, arg.LoginID, arg.TwoFactorType)
 	return err
 }
 
@@ -80,47 +80,47 @@ const enable2FA = `-- name: Enable2FA :exec
 UPDATE login_2fa
 SET two_factor_enabled = TRUE,
     updated_at = now() AT TIME ZONE 'utc'
-WHERE login_uuid = $1
+WHERE login_id = $1
 AND two_factor_type = $2
 AND deleted_at IS NULL
 `
 
 type Enable2FAParams struct {
-	LoginUuid     uuid.UUID      `json:"login_uuid"`
+	LoginID       uuid.UUID      `json:"login_id"`
 	TwoFactorType sql.NullString `json:"two_factor_type"`
 }
 
 func (q *Queries) Enable2FA(ctx context.Context, arg Enable2FAParams) error {
-	_, err := q.db.Exec(ctx, enable2FA, arg.LoginUuid, arg.TwoFactorType)
+	_, err := q.db.Exec(ctx, enable2FA, arg.LoginID, arg.TwoFactorType)
 	return err
 }
 
-const get2FAByLoginUuid = `-- name: Get2FAByLoginUuid :one
-SELECT uuid, login_uuid, two_factor_secret, two_factor_enabled
+const get2FAByLoginId = `-- name: Get2FAByLoginId :one
+SELECT id, login_id, two_factor_secret, two_factor_enabled
 FROM login_2fa
-WHERE login_uuid = $1
+WHERE login_id = $1
 AND two_factor_type = $2
 AND deleted_at IS NULL
 `
 
-type Get2FAByLoginUuidParams struct {
-	LoginUuid     uuid.UUID      `json:"login_uuid"`
+type Get2FAByLoginIdParams struct {
+	LoginID       uuid.UUID      `json:"login_id"`
 	TwoFactorType sql.NullString `json:"two_factor_type"`
 }
 
-type Get2FAByLoginUuidRow struct {
-	Uuid             uuid.UUID   `json:"uuid"`
-	LoginUuid        uuid.UUID   `json:"login_uuid"`
+type Get2FAByLoginIdRow struct {
+	ID               uuid.UUID   `json:"id"`
+	LoginID          uuid.UUID   `json:"login_id"`
 	TwoFactorSecret  pgtype.Text `json:"two_factor_secret"`
 	TwoFactorEnabled pgtype.Bool `json:"two_factor_enabled"`
 }
 
-func (q *Queries) Get2FAByLoginUuid(ctx context.Context, arg Get2FAByLoginUuidParams) (Get2FAByLoginUuidRow, error) {
-	row := q.db.QueryRow(ctx, get2FAByLoginUuid, arg.LoginUuid, arg.TwoFactorType)
-	var i Get2FAByLoginUuidRow
+func (q *Queries) Get2FAByLoginId(ctx context.Context, arg Get2FAByLoginIdParams) (Get2FAByLoginIdRow, error) {
+	row := q.db.QueryRow(ctx, get2FAByLoginId, arg.LoginID, arg.TwoFactorType)
+	var i Get2FAByLoginIdRow
 	err := row.Scan(
-		&i.Uuid,
-		&i.LoginUuid,
+		&i.ID,
+		&i.LoginID,
 		&i.TwoFactorSecret,
 		&i.TwoFactorEnabled,
 	)

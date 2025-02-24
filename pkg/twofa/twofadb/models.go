@@ -13,8 +13,8 @@ import (
 )
 
 type BackupCode struct {
-	Uuid      uuid.UUID          `json:"uuid"`
-	UserUuid  uuid.UUID          `json:"user_uuid"`
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
 	Code      string             `json:"code"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
@@ -22,14 +22,14 @@ type BackupCode struct {
 }
 
 type GooseDbVersion struct {
-	ID        int32        `json:"id"`
-	VersionID int64        `json:"version_id"`
-	IsApplied bool         `json:"is_applied"`
-	Tstamp    sql.NullTime `json:"tstamp"`
+	ID        int32     `json:"id"`
+	VersionID int64     `json:"version_id"`
+	IsApplied bool      `json:"is_applied"`
+	Tstamp    time.Time `json:"tstamp"`
 }
 
 type Login struct {
-	Uuid                 uuid.UUID      `json:"uuid"`
+	ID                   uuid.UUID      `json:"id"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
@@ -42,8 +42,8 @@ type Login struct {
 }
 
 type Login2fa struct {
-	Uuid                 uuid.UUID      `json:"uuid"`
-	LoginUuid            uuid.UUID      `json:"login_uuid"`
+	ID                   uuid.UUID      `json:"id"`
+	LoginID              uuid.UUID      `json:"login_id"`
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
 	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
 	TwoFactorType        sql.NullString `json:"two_factor_type"`
@@ -54,8 +54,8 @@ type Login2fa struct {
 }
 
 type PasswordResetToken struct {
-	Uuid      uuid.UUID          `json:"uuid"`
-	UserUuid  uuid.UUID          `json:"user_uuid"`
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
 	Token     string             `json:"token"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	ExpireAt  pgtype.Timestamptz `json:"expire_at"`
@@ -63,13 +63,13 @@ type PasswordResetToken struct {
 }
 
 type Role struct {
-	Uuid        uuid.UUID   `json:"uuid"`
+	ID          uuid.UUID   `json:"id"`
 	Name        string      `json:"name"`
 	Description pgtype.Text `json:"description"`
 }
 
 type User struct {
-	Uuid                 uuid.UUID      `json:"uuid"`
+	ID                   uuid.UUID      `json:"id"`
 	CreatedAt            time.Time      `json:"created_at"`
 	LastModifiedAt       time.Time      `json:"last_modified_at"`
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
@@ -82,10 +82,10 @@ type User struct {
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
 	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
-	LoginUuid            uuid.NullUUID  `json:"login_uuid"`
+	LoginID              uuid.NullUUID  `json:"login_id"`
 }
 
 type UserRole struct {
-	UserUuid uuid.UUID `json:"user_uuid"`
-	RoleUuid uuid.UUID `json:"role_uuid"`
+	UserID uuid.UUID `json:"user_id"`
+	RoleID uuid.UUID `json:"role_id"`
 }
