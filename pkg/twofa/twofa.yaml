@@ -1,0 +1,42 @@
+openapi: 3.0.0
+info:
+  title: Impersonate Management API
+  version: 1.0.0
+paths:
+  /2fa:init:
+    post:
+      summary: Initiate sending 2fa code
+      operationId: post_2fa_init
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                login_id:
+                  type: string
+                  format: uuid
+                twofa_type:
+                  type: string
+              required:
+                - email
+                - twofa_type
+                - login_id
+      responses:
+        "200":
+          description: 2fa initiated Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+components:
+  schemas:
+    SuccessResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        result:
+          type: string
