@@ -1,7 +1,6 @@
 package twofa
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -40,26 +39,13 @@ func (h Handle) Post2faInit(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// get or create the 2fa secret for the login
-	secret, err := h.twoFaService.GetTwoFactorSecretByLoginId(r.Context(), loginId, data.TwofaType)
+	err = h.twoFaService.InitTwoFa(r.Context(), loginId, data.TwofaType, data.Email)
 	if err != nil {
 		return &Response{
-			Code: http.StatusBadRequest,
-			body: "failed to get or create 2fa secret: " + err.Error(),
+			Code: http.StatusInternalServerError,
+			body: "failed to init 2fa: " + err.Error(),
 		}
 	}
-
-	// generate 2fa passcode
-	passcode, err := Generate2faPasscode(secret)
-	if err != nil {
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "failed to generate 2fa passcode: " + err.Error(),
-		}
-	}
-	slog.Info("Generated 2fa passcode", "passcode", passcode)
-
-	// TODO: send 2fa passcode to user via email
 
 	return Post2faInitJSON200Response(resp)
 }
