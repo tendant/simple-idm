@@ -31,6 +31,7 @@ func loadTemplate(filename string) string {
 const (
 	UsernameReminder  notification.NoticeType = "username_reminder"
 	PasswordResetInit notification.NoticeType = "password_reset_init"
+	TwofaCodeNotice   notification.NoticeType = "twofa_code_notice"
 )
 
 // NewService creates a new email service instance
@@ -55,6 +56,14 @@ func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig) 
 	err = notificationManager.RegisterNotification(PasswordResetInit, notification.EmailSystem, notification.NoticeTemplate{
 		Subject: "Password Reset Request",
 		Html:    loadTemplate("templates/email/password_reset.html"),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = notificationManager.RegisterNotification(TwofaCodeNotice, notification.EmailSystem, notification.NoticeTemplate{
+		Subject: "2FA Code Init",
+		Html:    loadTemplate("templates/email/2fa_code_init.html"),
 	})
 	if err != nil {
 		return nil, err
