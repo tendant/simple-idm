@@ -45,8 +45,8 @@ func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUu
 	}
 
 	// Try to get existing 2FA record
-	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
-		LoginUuid: loginUuid,
+	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
+		LoginID: loginUuid,
 		// FIXME: hardcoded
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
@@ -57,9 +57,13 @@ func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUu
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Generate and store new secret
-		newSecret := generateFakeSecret()
+		newSecret, err := GenerateTotpSecret(loginUuid.String())
+		if err != nil {
+			return "", fmt.Errorf("failed to generate totp secret: %w", err)
+		}
+		// slog.Info("Generated new totp secret", "loginUuid", loginUuid)
 		_, err = s.queries.Create2FAInit(ctx, twofadb.Create2FAInitParams{
-			LoginUuid:            loginUuid,
+			LoginID:              loginUuid,
 			TwoFactorSecret:      pgtype.Text{String: newSecret, Valid: true},
 			TwoFactorBackupCodes: []string{},
 			TwoFactorType:        utils.ToNullString(twoFactorType),
@@ -72,11 +76,6 @@ func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUu
 	return "", fmt.Errorf("failed to get 2FA record: %w", err)
 }
 
-func generateFakeSecret() string {
-	// generate a fake secret
-	return "fake-secret"
-}
-
 func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error {
 	// Validate twoFactorType
 	err := ValidateTwoFactorType(twoFactorType)
@@ -85,8 +84,9 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, 
 	}
 
 	// Check if 2FA record exists and is enabled
-	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
-		LoginUuid:     loginUuid,
+	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
+		LoginID: loginUuid,
+		// FIXME: hardcoded
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 
@@ -107,7 +107,7 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, 
 
 	// Enable 2FA
 	err = s.queries.Enable2FA(ctx, twofadb.Enable2FAParams{
-		LoginUuid:     loginUuid,
+		LoginID:       loginUuid,
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 	if err != nil {
@@ -125,8 +125,9 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 	}
 
 	// Check if 2FA record exists and is enabled
-	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
-		LoginUuid:     loginUuid,
+	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
+		LoginID: loginUuid,
+		// FIXME: hardcoded
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 
@@ -147,7 +148,7 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 
 	// Disable 2FA
 	err = s.queries.Disable2FA(ctx, twofadb.Disable2FAParams{
-		LoginUuid:     loginUuid,
+		LoginID:       loginUuid,
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 	if err != nil {
