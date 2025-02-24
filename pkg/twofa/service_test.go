@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
+	"github.com/tendant/simple-idm/pkg/notice"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 )
 
@@ -114,17 +116,40 @@ func TestGetTwoFactorSecretByLoginUuid(t *testing.T) {
 
 	// Create queries and service
 	queries := twofadb.New(dbPool)
-	service := NewTwoFaService(queries)
+	service := NewTwoFaService(queries, nil)
 
 	// Create a test user with a known password
 	ctx := context.Background()
 	loginUuid := uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8")
 
-	twofaSecret, err := service.GetTwoFactorSecretByLoginUuid(ctx, loginUuid, twoFactorTypeEmail)
+	twofaSecret, err := service.GetTwoFactorSecretByLoginId(ctx, loginUuid, twoFactorTypeEmail)
 
 	require.NoError(t, err)
 	slog.Info("twofaSecret", "secret", twofaSecret)
 	require.NotEmpty(t, twofaSecret)
+}
+
+func TestInitTwoFa(t *testing.T) {
+	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
+		Host:     "localhost",
+		Port:     1025,
+		Username: "noreply@example.com",
+		Password: "pwd",
+		From:     "noreply@example.com",
+		NoTLS:    true,
+	})
+	if err != nil {
+		slog.Error("Failed initialize notification manager", "err", err)
+	}
+
+	setup()
+
+	// Create queries and service
+	queries := twofadb.New(dbPool)
+	service := NewTwoFaService(queries, notificationManager)
+
+	err = service.InitTwoFa(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email", "admin@example.com")
+	require.NoError(t, err)
 }
 
 func TestEnableTwoFactor(t *testing.T) {
@@ -135,7 +160,7 @@ func TestEnableTwoFactor(t *testing.T) {
 
 	// Create queries and service
 	queries := twofadb.New(dbPool)
-	service := NewTwoFaService(queries)
+	service := NewTwoFaService(queries, nil)
 
 	// Call the EnableTwoFactor method
 	err := service.EnableTwoFactor(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email")
@@ -152,7 +177,7 @@ func TestDisableTwoFactor(t *testing.T) {
 
 	// Create queries and service
 	queries := twofadb.New(dbPool)
-	service := NewTwoFaService(queries)
+	service := NewTwoFaService(queries, nil)
 
 	// Call the DisableTwoFactor method
 	err := service.DisableTwoFactor(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email")

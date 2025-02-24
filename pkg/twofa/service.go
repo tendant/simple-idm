@@ -4,30 +4,44 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+	"github.com/tendant/simple-idm/pkg/notice"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 type TwoFaService struct {
-	queries *twofadb.Queries
+	queries             *twofadb.Queries
+	notificationManager *notification.NotificationManager
 }
 
-func NewTwoFaService(queries *twofadb.Queries) *TwoFaService {
+func NewTwoFaService(queries *twofadb.Queries, notificationManager *notification.NotificationManager) *TwoFaService {
 	return &TwoFaService{
-		queries: queries,
+		queries:             queries,
+		notificationManager: notificationManager,
 	}
 }
+
+const (
+	TOTP_ISSUER = "simple-idm"
+	SKEW        = 1
+	PERIOD      = 300
+)
 
 const (
 	twoFactorTypeEmail = "email"
 	twoFactorTypeSms   = "sms"
 )
 
-func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error) {
+func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error) {
 	// Validate twoFactorType
 	err := ValidateTwoFactorType(twoFactorType)
 	if err != nil {
@@ -35,8 +49,8 @@ func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUu
 	}
 
 	// Try to get existing 2FA record
-	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
-		LoginUuid: loginUuid,
+	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
+		LoginID: loginUuid,
 		// FIXME: hardcoded
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
@@ -47,9 +61,13 @@ func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUu
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Generate and store new secret
-		newSecret := generateFakeSecret()
+		newSecret, err := GenerateTotpSecret(loginUuid.String())
+		if err != nil {
+			return "", fmt.Errorf("failed to generate totp secret: %w", err)
+		}
+		// slog.Info("Generated new totp secret", "loginUuid", loginUuid)
 		_, err = s.queries.Create2FAInit(ctx, twofadb.Create2FAInitParams{
-			LoginUuid:            loginUuid,
+			LoginID:              loginUuid,
 			TwoFactorSecret:      pgtype.Text{String: newSecret, Valid: true},
 			TwoFactorBackupCodes: []string{},
 			TwoFactorType:        utils.ToNullString(twoFactorType),
@@ -62,12 +80,30 @@ func (s TwoFaService) GetTwoFactorSecretByLoginUuid(ctx context.Context, loginUu
 	return "", fmt.Errorf("failed to get 2FA record: %w", err)
 }
 
-func generateFakeSecret() string {
-	// generate a fake secret
-	return "fake-secret"
+// InitTwoFa generate a two factor passcode and send a notification email
+func (s TwoFaService) InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFactorType, email string) error {
+	// get or create the 2fa secret for the login
+	secret, err := s.GetTwoFactorSecretByLoginId(ctx, loginId, twoFactorType)
+	if err != nil {
+		return err
+	}
+
+	// generate and send the passcode
+	passcode, err := Generate2faPasscode(secret)
+	if err != nil {
+		return fmt.Errorf("failed to generate and send 2FA passcode: %w", err)
+	}
+
+	// send the passcode by email
+	err = s.SendTwofaPasscodeEmail(ctx, email, passcode)
+	if err != nil {
+		return fmt.Errorf("failed to send 2FA passcode: %w", err)
+	}
+
+	return nil
 }
 
-func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error {
+func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error {
 	// Validate twoFactorType
 	err := ValidateTwoFactorType(twoFactorType)
 	if err != nil {
@@ -75,8 +111,9 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, 
 	}
 
 	// Check if 2FA record exists and is enabled
-	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
-		LoginUuid:     loginUuid,
+	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
+		LoginID: loginId,
+		// FIXME: hardcoded
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 
@@ -97,7 +134,7 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, 
 
 	// Enable 2FA
 	err = s.queries.Enable2FA(ctx, twofadb.Enable2FAParams{
-		LoginUuid:     loginUuid,
+		LoginID:       loginId,
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 	if err != nil {
@@ -115,8 +152,9 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 	}
 
 	// Check if 2FA record exists and is enabled
-	secret, err := s.queries.Get2FAByLoginUuid(ctx, twofadb.Get2FAByLoginUuidParams{
-		LoginUuid:     loginUuid,
+	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
+		LoginID: loginUuid,
+		// FIXME: hardcoded
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 
@@ -137,7 +175,7 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 
 	// Disable 2FA
 	err = s.queries.Disable2FA(ctx, twofadb.Disable2FAParams{
-		LoginUuid:     loginUuid,
+		LoginID:       loginUuid,
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 	if err != nil {
@@ -145,6 +183,44 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 	}
 
 	return nil
+}
+
+func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcode string) error {
+	data := map[string]string{
+		"TwofaPasscode": passcode,
+	}
+	return s.notificationManager.Send(notice.TwofaCodeNotice, notification.NotificationData{
+		To:   email,
+		Data: data,
+	})
+}
+
+func GenerateTotpSecret(loginUuid string) (string, error) {
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      TOTP_ISSUER,
+		AccountName: loginUuid,
+	})
+	if err != nil {
+		slog.Error("Failed to generate totp secret", "loginUuid", loginUuid, "issuer", TOTP_ISSUER, "error", err)
+		return "", err
+	}
+	totpSecret := key.Secret()
+	slog.Info("Generated new totp secret", "loginUuid", loginUuid)
+	return totpSecret, nil
+}
+
+func Generate2faPasscode(totpSecret string) (string, error) {
+	code, err := totp.GenerateCodeCustom(totpSecret, time.Now().UTC(), totp.ValidateOpts{
+		Period:    PERIOD,
+		Skew:      SKEW,
+		Digits:    otp.DigitsSix,
+		Algorithm: otp.AlgorithmSHA1,
+	})
+	if err != nil {
+		slog.Error("Failed to generate 2fa passcode", "error", err)
+		return "", err
+	}
+	return code, nil
 }
 
 // ValidateTwoFactorType checks if the given type is a valid 2FA type

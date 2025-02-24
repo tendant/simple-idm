@@ -27,6 +27,8 @@ import (
 	"github.com/tendant/simple-idm/pkg/profile/profiledb"
 	"github.com/tendant/simple-idm/pkg/role"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
+	"github.com/tendant/simple-idm/pkg/twofa"
+	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 )
 
 type IdmDbConfig struct {
@@ -108,6 +110,7 @@ func main() {
 	iamQueries := iamdb.New(pool)
 	loginQueries := logindb.New(pool)
 	impersonateQueries := impersonatedb.New(pool)
+	twofaQueries := twofadb.New(pool)
 
 	// Initialize NotificationManager and register email notifier
 	notificationManager, err := notice.NewNotificationManager(config.BaseUrl, notification.SMTPConfig{
@@ -197,6 +200,11 @@ func main() {
 		impersonateService := impersonate.NewImpersonateService(impersonateQueries)
 		impersonateHandle := impersonate.NewHandle(impersonateService, *jwtService)
 		r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
+
+		// Initialize two factor authentication service and routes
+		twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager)
+		twoFaHandle := twofa.NewHandle(twoFaService)
+		r.Mount("/idm/twofa", twofa.Handler(twoFaHandle))
 	})
 
 	app.RoutesHealthzReady(server.R)
