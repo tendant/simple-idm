@@ -282,7 +282,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	err = s.queries.InitPasswordResetToken(ctx, logindb.InitPasswordResetTokenParams{
-		UserID:   loginUser.ID,
+		LoginID:  loginUser.ID,
 		Token:    resetToken,
 		ExpireAt: expireAt,
 	})
