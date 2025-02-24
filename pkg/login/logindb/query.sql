@@ -49,20 +49,20 @@ AND u.deleted_at IS NULL
 GROUP BY u.email, u.username, u.name;
 
 -- name: InitPasswordResetToken :exec
-INSERT INTO password_reset_tokens (user_id, token, expire_at)
+INSERT INTO login_password_reset_tokens (login_id, token, expire_at)
 VALUES ($1, $2, $3);
 
 -- name: ValidatePasswordResetToken :one
-SELECT prt.id as id, prt.user_id as user_id
-FROM password_reset_tokens prt
-JOIN users u ON u.id = prt.user_id 
+SELECT prt.id as id, prt.login_id as login_id
+FROM login_password_reset_tokens prt
+JOIN login l ON l.id = prt.login_id 
 WHERE prt.token = $1
   AND prt.expire_at > NOW()
   AND prt.used_at IS NULL
 LIMIT 1;
 
 -- name: MarkPasswordResetTokenUsed :exec
-UPDATE password_reset_tokens
+UPDATE login_password_reset_tokens
 SET used_at = NOW()
 WHERE token = $1;
 

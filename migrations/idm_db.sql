@@ -118,20 +118,20 @@ CREATE TABLE public.login_2fa (
 ALTER TABLE public.login_2fa OWNER TO idm;
 
 --
--- Name: password_reset_tokens; Type: TABLE; Schema: public; Owner: idm
+-- Name: login_password_reset_tokens; Type: TABLE; Schema: public; Owner: idm
 --
 
-CREATE TABLE public.password_reset_tokens (
+CREATE TABLE public.login_password_reset_tokens (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    user_id uuid NOT NULL,
     token character varying(255) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     expire_at timestamp with time zone NOT NULL,
-    used_at timestamp with time zone
+    used_at timestamp with time zone,
+    login_id uuid NOT NULL
 );
 
 
-ALTER TABLE public.password_reset_tokens OWNER TO idm;
+ALTER TABLE public.login_password_reset_tokens OWNER TO idm;
 
 --
 -- Name: roles; Type: TABLE; Schema: public; Owner: idm
@@ -231,10 +231,10 @@ ALTER TABLE ONLY public.login
 
 
 --
--- Name: password_reset_tokens password_reset_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+-- Name: login_password_reset_tokens password_reset_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
-ALTER TABLE ONLY public.password_reset_tokens
+ALTER TABLE ONLY public.login_password_reset_tokens
     ADD CONSTRAINT password_reset_tokens_pkey PRIMARY KEY (id);
 
 
@@ -293,17 +293,17 @@ CREATE INDEX idx_backup_codes_user_uuid ON public.backup_codes USING btree (user
 
 
 --
--- Name: idx_password_reset_tokens_token; Type: INDEX; Schema: public; Owner: idm
+-- Name: idx_login_password_reset_tokens_login_id; Type: INDEX; Schema: public; Owner: idm
 --
 
-CREATE INDEX idx_password_reset_tokens_token ON public.password_reset_tokens USING btree (token);
+CREATE INDEX idx_login_password_reset_tokens_login_id ON public.login_password_reset_tokens USING btree (login_id);
 
 
 --
--- Name: idx_password_reset_tokens_user_uuid; Type: INDEX; Schema: public; Owner: idm
+-- Name: idx_login_password_reset_tokens_token; Type: INDEX; Schema: public; Owner: idm
 --
 
-CREATE INDEX idx_password_reset_tokens_user_uuid ON public.password_reset_tokens USING btree (user_id);
+CREATE INDEX idx_login_password_reset_tokens_token ON public.login_password_reset_tokens USING btree (token);
 
 
 --
@@ -323,11 +323,11 @@ ALTER TABLE ONLY public.login_2fa
 
 
 --
--- Name: password_reset_tokens password_reset_tokens_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+-- Name: login_password_reset_tokens login_password_reset_tokens_login_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
 --
 
-ALTER TABLE ONLY public.password_reset_tokens
-    ADD CONSTRAINT password_reset_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+ALTER TABLE ONLY public.login_password_reset_tokens
+    ADD CONSTRAINT login_password_reset_tokens_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
 
 
 --

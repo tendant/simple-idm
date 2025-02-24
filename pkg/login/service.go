@@ -236,7 +236,7 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 	// Update password
 	err = s.queries.ResetPasswordById(ctx, logindb.ResetPasswordByIdParams{
 		Password: hashedPassword,
-		ID:       tokenInfo.UserID,
+		ID:       tokenInfo.LoginID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
