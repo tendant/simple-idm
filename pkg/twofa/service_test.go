@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
+	"github.com/tendant/simple-idm/pkg/notice"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 )
 
@@ -125,6 +127,29 @@ func TestGetTwoFactorSecretByLoginUuid(t *testing.T) {
 	require.NoError(t, err)
 	slog.Info("twofaSecret", "secret", twofaSecret)
 	require.NotEmpty(t, twofaSecret)
+}
+
+func TestInitTwoFa(t *testing.T) {
+	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
+		Host:     "localhost",
+		Port:     1025,
+		Username: "noreply@example.com",
+		Password: "pwd",
+		From:     "noreply@example.com",
+		NoTLS:    true,
+	})
+	if err != nil {
+		slog.Error("Failed initialize notification manager", "err", err)
+	}
+
+	setup()
+
+	// Create queries and service
+	queries := twofadb.New(dbPool)
+	service := NewTwoFaService(queries, notificationManager)
+
+	err = service.InitTwoFa(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email", "admin@example.com")
+	require.NoError(t, err)
 }
 
 func TestEnableTwoFactor(t *testing.T) {
