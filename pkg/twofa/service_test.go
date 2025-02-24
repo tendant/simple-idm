@@ -114,7 +114,7 @@ func TestGetTwoFactorSecretByLoginUuid(t *testing.T) {
 
 	// Create queries and service
 	queries := twofadb.New(dbPool)
-	service := NewTwoFaService(queries)
+	service := NewTwoFaService(queries, nil)
 
 	// Create a test user with a known password
 	ctx := context.Background()
@@ -135,7 +135,7 @@ func TestEnableTwoFactor(t *testing.T) {
 
 	// Create queries and service
 	queries := twofadb.New(dbPool)
-	service := NewTwoFaService(queries)
+	service := NewTwoFaService(queries, nil)
 
 	// Call the EnableTwoFactor method
 	err := service.EnableTwoFactor(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email")
@@ -152,7 +152,7 @@ func TestDisableTwoFactor(t *testing.T) {
 
 	// Create queries and service
 	queries := twofadb.New(dbPool)
-	service := NewTwoFaService(queries)
+	service := NewTwoFaService(queries, nil)
 
 	// Call the DisableTwoFactor method
 	err := service.DisableTwoFactor(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email")

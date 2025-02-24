@@ -12,17 +12,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+	"github.com/tendant/simple-idm/pkg/notice"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 type TwoFaService struct {
-	queries *twofadb.Queries
+	queries             *twofadb.Queries
+	notificationManager *notification.NotificationManager
 }
 
-func NewTwoFaService(queries *twofadb.Queries) *TwoFaService {
+func NewTwoFaService(queries *twofadb.Queries, notificationManager *notification.NotificationManager) *TwoFaService {
 	return &TwoFaService{
-		queries: queries,
+		queries:             queries,
+		notificationManager: notificationManager,
 	}
 }
 
@@ -76,7 +80,30 @@ func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid
 	return "", fmt.Errorf("failed to get 2FA record: %w", err)
 }
 
-func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error {
+// InitTwoFa generate a two factor passcode and send a notification email
+func (s TwoFaService) InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFactorType, email string) error {
+	// get or create the 2fa secret for the login
+	secret, err := s.GetTwoFactorSecretByLoginId(ctx, loginId, twoFactorType)
+	if err != nil {
+		return err
+	}
+
+	// generate and send the passcode
+	passcode, err := Generate2faPasscode(secret)
+	if err != nil {
+		return fmt.Errorf("failed to generate and send 2FA passcode: %w", err)
+	}
+
+	// send the passcode by email
+	err = s.SendTwofaPasscodeEmail(ctx, email, passcode)
+	if err != nil {
+		return fmt.Errorf("failed to send 2FA passcode: %w", err)
+	}
+
+	return nil
+}
+
+func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error {
 	// Validate twoFactorType
 	err := ValidateTwoFactorType(twoFactorType)
 	if err != nil {
@@ -85,7 +112,7 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, 
 
 	// Check if 2FA record exists and is enabled
 	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
-		LoginID: loginUuid,
+		LoginID: loginId,
 		// FIXME: hardcoded
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
@@ -107,7 +134,7 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginUuid uuid.UUID, 
 
 	// Enable 2FA
 	err = s.queries.Enable2FA(ctx, twofadb.Enable2FAParams{
-		LoginID:       loginUuid,
+		LoginID:       loginId,
 		TwoFactorType: utils.ToNullString(twoFactorType),
 	})
 	if err != nil {
@@ -156,6 +183,16 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 	}
 
 	return nil
+}
+
+func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcode string) error {
+	data := map[string]string{
+		"TwofaPasscode": passcode,
+	}
+	return s.notificationManager.Send(notice.TwofaCodeNotice, notification.NotificationData{
+		To:   email,
+		Data: data,
+	})
 }
 
 func GenerateTotpSecret(loginUuid string) (string, error) {
