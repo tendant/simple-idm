@@ -63,7 +63,7 @@ func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig) 
 
 	err = notificationManager.RegisterNotification(TwofaCodeNotice, notification.EmailSystem, notification.NoticeTemplate{
 		Subject: "2FA Code Init",
-		Html:    loadTemplate("templates/email/2fa_code_init.html"),
+		Html:    loadTemplate("templates/email/2fa_code_notice.html"),
 	})
 	if err != nil {
 		return nil, err
