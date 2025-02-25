@@ -195,6 +195,29 @@ func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcod
 	})
 }
 
+func (s TwoFaService) Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error) {
+	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
+		LoginID: loginId,
+		// FIXME: hardcoded
+		TwoFactorType: utils.ToNullString(twoFactorType),
+	})
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Warn("No 2FA record found for user", "loginUuid", loginId, "twoFactorType", twoFactorType)
+			return false, fmt.Errorf("no 2FA record found for user")
+		}
+		return false, fmt.Errorf("failed to get 2FA record: %w", err)
+	}
+
+	res, err := ValidateTotpPasscode(secret.TwoFactorSecret.String, passcode)
+	if err != nil {
+		return false, fmt.Errorf("failed to validate 2FA passcode: %w", err)
+	}
+
+	return res, nil
+}
+
 func GenerateTotpSecret(loginUuid string) (string, error) {
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      TOTP_ISSUER,
@@ -221,6 +244,20 @@ func Generate2faPasscode(totpSecret string) (string, error) {
 		return "", err
 	}
 	return code, nil
+}
+
+func ValidateTotpPasscode(totpSecret, passcode string) (bool, error) {
+	valid, err := totp.ValidateCustom(passcode, totpSecret, time.Now().UTC(), totp.ValidateOpts{
+		Period:    PERIOD,
+		Skew:      SKEW,
+		Digits:    otp.DigitsSix,
+		Algorithm: otp.AlgorithmSHA1,
+	})
+	if err != nil {
+		slog.Error("Failed to validate totp passcode", "error", err)
+		return false, err
+	}
+	return valid, nil
 }
 
 // ValidateTwoFactorType checks if the given type is a valid 2FA type
