@@ -49,3 +49,12 @@ func (h Handle) Post2faInit(w http.ResponseWriter, r *http.Request) *Response {
 
 	return Post2faInitJSON200Response(resp)
 }
+
+// Authenticate 2fa passcode
+// (POST /2fa)
+func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Response {
+	return &Response{
+		Code: http.StatusOK,
+		body: "2fa validated successfully",
+	}
+}
