@@ -25,11 +25,26 @@ type SuccessResponse struct {
 	Result string `json:"result,omitempty"`
 }
 
+// Post2faValidateJSONBody defines parameters for Post2faValidate.
+type Post2faValidateJSONBody struct {
+	LoginID   string `json:"login_id"`
+	Passcode  string `json:"passcode"`
+	TwofaType string `json:"twofa_type"`
+}
+
 // Post2faInitJSONBody defines parameters for Post2faInit.
 type Post2faInitJSONBody struct {
 	Email     string `json:"email"`
 	LoginID   string `json:"login_id"`
 	TwofaType string `json:"twofa_type"`
+}
+
+// Post2faValidateJSONRequestBody defines body for Post2faValidate for application/json ContentType.
+type Post2faValidateJSONRequestBody Post2faValidateJSONBody
+
+// Bind implements render.Binder.
+func (Post2faValidateJSONRequestBody) Bind(*http.Request) error {
+	return nil
 }
 
 // Post2faInitJSONRequestBody defines body for Post2faInit for application/json ContentType.
@@ -81,6 +96,16 @@ func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Encode(resp.body)
 }
 
+// Post2faValidateJSON200Response is a constructor method for a Post2faValidate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faValidateJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // Post2faInitJSON200Response is a constructor method for a Post2faInit response.
 // A *Response is returned with the configured status code and content type from the spec.
 func Post2faInitJSON200Response(body SuccessResponse) *Response {
@@ -93,6 +118,9 @@ func Post2faInitJSON200Response(body SuccessResponse) *Response {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Authenticate 2fa passcode
+	// (POST /2fa)
+	Post2faValidate(w http.ResponseWriter, r *http.Request) *Response
 	// Initiate sending 2fa code
 	// (POST /2fa:init)
 	Post2faInit(w http.ResponseWriter, r *http.Request) *Response
@@ -102,6 +130,24 @@ type ServerInterface interface {
 type ServerInterfaceWrapper struct {
 	Handler          ServerInterface
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// Post2faValidate operation middleware
+func (siw *ServerInterfaceWrapper) Post2faValidate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faValidate(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
 }
 
 // Post2faInit operation middleware
@@ -237,6 +283,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
+		r.Post("/2fa", wrapper.Post2faValidate)
 		r.Post("/2fa:init", wrapper.Post2faInit)
 	})
 	return r
@@ -263,13 +310,14 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/5RSwW7UMBD9lWjgmG2W5eYb3PaAVMERoWqIJ+lUyYzxjAurKv+O7G4FbffSU6yX9+w3",
-	"b94DjLomFRI3CA9g4y2t2I7fyjiS2VeypGJUoZQ1UXamRshkZfF68lMiCGCeWWbYtv4J0Z93NDr08Gc3",
-	"606Tswouu3tcCkHwXGirbJZJ2z3sS5Ud10TZVNCp+4KCM60k3n26PkIP95SNVSDAh6v91R62HjSRYGII",
-	"8LFBPST022ZyOEwYWLj5TGrtW6fA6uUYIcC1mh8mPFZSD5l+FTL/rPFUqaOKkzQVprTw2HTDnVUHT3m9",
-	"zoZW5OVCND0sOrPccKw/J80rOgQohSP0r8n+Wye8eYQvxVzNcqYI4fv5yWea/1778XIn23N920UFHrfd",
-	"hjjs92+K4H2mCQK8G/51ajgXanjZpvZ8JBszt1ZAgMOEXd0Uo1PszoKpLG1SK+uK+VTLcaZ0RhJZ5q7q",
-	"Ro3tzu1vAAAA//+e5T4K0QIAAA==",
+	"H4sIAAAAAAAC/9SSQY/TMBCF/0o0cEw3pdx8W245IK1A4oLQysSTdFaJx3jGhWqV/47sppSWClSJy96s",
+	"0bzxm/fNM3Q8BfboVcA8g3RbnGx5fkxdhyIfUAJ7wVwKkQNGJSwNESWNml+6DwgGRCP5Aea5Plb46xN2",
+	"CjX8WA284qDE3o6rnR0TgtGYcM7d5Hsuc0jHLGungFHYW8XqvfV2wAm9VvcPLdSwwyjEHgy8uVvfrWGu",
+	"gQN6GwgMvC2lGoLVbTHZbHpbrLMUq3kBm220Dgw8sOimt5/sSM4qQg0RvyUUfcdun9s79oq+KG0II3VF",
+	"2zxJNnCM689oRh7IP5LL757jZBUMpEQO6suwsleRjh1eSbIG/c69fTyUrwWd/VJEB+bzaVB9MnA24csl",
+	"mPl8RAGSCwfkZZXNen1TEK8j9mDgVXM6rGa5qubypMr3DqWLVE4DDGx6W+0WHK5aBH0ay7KSpsnGPRi4",
+	"T7pFr9kGVlnza/fcl6Eb8qT/JN/mpv9FHSdL41WKN93DLcgPX55pfvvthfDOpOjvvNulpRL0jvxQmC+8",
+	"5/lnAAAA//83ZIOaxgQAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
