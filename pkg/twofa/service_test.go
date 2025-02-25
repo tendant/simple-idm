@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
@@ -184,5 +185,35 @@ func TestDisableTwoFactor(t *testing.T) {
 
 	// Check the result
 	require.NoError(t, err)
+
+}
+
+func TestValidate2faPasscode(t *testing.T) {
+	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
+		Host:     "localhost",
+		Port:     1025,
+		Username: "noreply@example.com",
+		Password: "pwd",
+		From:     "noreply@example.com",
+		NoTLS:    true,
+	})
+	if err != nil {
+		slog.Error("Failed initialize notification manager", "err", err)
+	}
+
+	setup()
+
+	// Create queries and service
+	queries := twofadb.New(dbPool)
+	service := NewTwoFaService(queries, notificationManager)
+
+	res, err := service.Validate2faPasscode(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email", "123456")
+
+	assert.NoError(t, err)
+	assert.False(t, res)
+
+	res, err = service.Validate2faPasscode(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email", "538684")
+	assert.NoError(t, err)
+	assert.True(t, res)
 
 }
