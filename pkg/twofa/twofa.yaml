@@ -32,6 +32,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+  /2fa:
+    post:
+      summary: Authenticate 2fa passcode
+      operationId: post_2fa_validate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login_id:
+                  type: string
+                  format: uuid
+                twofa_type:
+                  type: string
+                passcode:
+                  type: string
+              required:
+                - passcode
+                - login_id
+                - twofa_type
+      responses:
+        "200":
+          description: 2fa validated Successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 components:
   schemas:
     SuccessResponse:
