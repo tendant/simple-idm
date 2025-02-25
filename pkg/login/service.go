@@ -155,14 +155,31 @@ func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code st
 
 func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb.User, error) {
 	slog.Debug("Registering user use params:", "params", params)
-	// registerRequest := logindb.RegisterUserParams{}
-	// copier.Copy(&registerRequest, params)
-	// user, err := s.queries.RegisterUser(ctx, registerRequest)
-	// if err != nil {
-	// 	slog.Error("Failed to register user", "params", params, "err", err)
-	// 	return logindb.User{}, err
-	// }
-	return logindb.User{}, nil
+
+	// Hash the password before storing
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(params.Password), bcrypt.DefaultCost)
+	if err != nil {
+		slog.Error("Failed to hash password", "err", err)
+		return logindb.User{}, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	registerRequest := logindb.RegisterUserParams{
+		Username: utils.ToNullString(params.Email),
+		Password: hashedPassword,
+		Email:    params.Email,
+		Name:     utils.ToNullString(params.Name),
+	}
+
+	user, err := s.queries.RegisterUser(ctx, registerRequest)
+	if err != nil {
+		slog.Error("Failed to register user", "params", params, "err", err)
+		return logindb.User{}, fmt.Errorf("failed to register user: %w", err)
+	}
+
+	result := logindb.User{}
+	copier.Copy(&result, user)
+
+	return result, nil
 }
 
 func (s LoginService) EmailVerify(ctx context.Context, param string) error {
