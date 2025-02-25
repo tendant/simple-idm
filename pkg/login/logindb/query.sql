@@ -116,3 +116,14 @@ SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at,
 FROM login l
 WHERE l.id = $1
 AND l.deleted_at IS NULL;
+
+-- name: RegisterUser :one
+WITH new_login AS (
+  INSERT INTO login (username, password)
+  VALUES (@username, @password)
+  RETURNING id
+)
+INSERT INTO users (login_id, username, email, name)
+SELECT nl.id, @username, @email, @name
+FROM new_login nl
+RETURNING id, username, email, name, created_at, last_modified_at, deleted_at;
