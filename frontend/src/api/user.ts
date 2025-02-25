@@ -5,6 +5,12 @@ interface LoginRequest {
   password: string;
 }
 
+interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+}
+
 interface CreateUserRequest {
   email: string;
   username: string;
@@ -86,7 +92,7 @@ export const userApi = {
         email: user.email,
         username: user.username,
         name: user.name || null,
-        role_uuids: user.role_uuids || []
+        role_ids: user.role_ids || []
       }),
     });
 
@@ -136,6 +142,22 @@ export const userApi = {
 
     if (!response.ok) {
       throw new Error('Failed to find username');
+    }
+  },
+
+  register: async (data: RegisterRequest): Promise<void> => {
+    const response = await apiClient('/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+      skipAuth: true,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Registration failed');
     }
   },
 };
