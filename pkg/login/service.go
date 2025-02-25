@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jinzhu/copier"
 	"github.com/pquerna/otp/totp"
@@ -257,7 +258,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	// Find user by username
 	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(username))
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			slog.Warn("User not found")
 			return nil
 		}
