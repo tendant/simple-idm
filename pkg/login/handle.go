@@ -103,7 +103,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 
 		apiUsers[i] = User{
-			UUID:             mu.UserId,
+			ID:               mu.UserId,
 			Name:             name,
 			Email:            email,
 			TwoFactorEnabled: twoFactorEnabled,
@@ -430,7 +430,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	var targetUser MappedUser
 	found := false
 	for _, user := range users {
-		if user.UserId == data.UserUUID {
+		if user.UserId == data.UserID {
 			targetUser = user
 			found = true
 			break
@@ -475,7 +475,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
-			UUID:             mu.UserId,
+			ID:               mu.UserId,
 			Name:             name,
 			Email:            email,
 			TwoFactorEnabled: false, // TODO: Add 2FA support
@@ -705,7 +705,7 @@ func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response 
 				Email:            "user@example.com",
 				Name:             "User Name",
 				TwoFactorEnabled: true,
-				UUID:             "user-uuid",
+				ID:               "user-uuid",
 			},
 		},
 		Code: http.StatusOK,
