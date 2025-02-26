@@ -2,9 +2,11 @@ package login
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
@@ -236,6 +238,14 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 			},
 			Code:        400,
 			contentType: "application/json",
+		}
+	}
+
+	// Validate password complexity
+	if err := validatePassword(body.NewPassword); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: err.Error(),
 		}
 	}
 
@@ -554,6 +564,52 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 
 // Register a new user
 // (POST /register)
+func validatePassword(password string) error {
+	if len(password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters long")
+	}
+
+	var (
+		hasUpper   bool
+		hasLower   bool
+		hasNumber  bool
+		hasSpecial bool
+	)
+
+	for _, char := range password {
+		switch {
+		case unicode.IsUpper(char):
+			hasUpper = true
+		case unicode.IsLower(char):
+			hasLower = true
+		case unicode.IsNumber(char):
+			hasNumber = true
+		case unicode.IsPunct(char) || unicode.IsSymbol(char):
+			hasSpecial = true
+		}
+	}
+
+	var missing []string
+	if !hasUpper {
+		missing = append(missing, "an uppercase letter")
+	}
+	if !hasLower {
+		missing = append(missing, "a lowercase letter")
+	}
+	if !hasNumber {
+		missing = append(missing, "a number")
+	}
+	if !hasSpecial {
+		missing = append(missing, "a special character")
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("password must contain %s", strings.Join(missing, ", "))
+	}
+
+	return nil
+}
+
 func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 	data := PostRegisterJSONRequestBody{}
 	err := render.DecodeJSON(r.Body, &data)
@@ -564,7 +620,14 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// FIXME:hash/encode data.password, then write to database
+	// Validate password complexity
+	if err := validatePassword(data.Password); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: err.Error(),
+		}
+	}
+
 	registerParam := RegisterParam{}
 	copier.Copy(&registerParam, data)
 
