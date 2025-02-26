@@ -53,13 +53,13 @@ type Login2fa struct {
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
 }
 
-type PasswordResetToken struct {
+type LoginPasswordResetToken struct {
 	ID        uuid.UUID          `json:"id"`
-	UserID    uuid.UUID          `json:"user_id"`
 	Token     string             `json:"token"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	ExpireAt  pgtype.Timestamptz `json:"expire_at"`
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	LoginID   uuid.UUID          `json:"login_id"`
 }
 
 type Role struct {

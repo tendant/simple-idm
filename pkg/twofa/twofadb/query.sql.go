@@ -8,6 +8,7 @@ package twofadb
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -93,6 +94,48 @@ type Enable2FAParams struct {
 func (q *Queries) Enable2FA(ctx context.Context, arg Enable2FAParams) error {
 	_, err := q.db.Exec(ctx, enable2FA, arg.LoginID, arg.TwoFactorType)
 	return err
+}
+
+const findEnabledTwoFAs = `-- name: FindEnabledTwoFAs :many
+SELECT id, login_id, two_factor_type, two_factor_enabled, created_at
+FROM login_2fa
+WHERE login_id = $1
+AND two_factor_enabled = TRUE
+AND deleted_at IS NULL
+`
+
+type FindEnabledTwoFAsRow struct {
+	ID               uuid.UUID      `json:"id"`
+	LoginID          uuid.UUID      `json:"login_id"`
+	TwoFactorType    sql.NullString `json:"two_factor_type"`
+	TwoFactorEnabled pgtype.Bool    `json:"two_factor_enabled"`
+	CreatedAt        time.Time      `json:"created_at"`
+}
+
+func (q *Queries) FindEnabledTwoFAs(ctx context.Context, loginID uuid.UUID) ([]FindEnabledTwoFAsRow, error) {
+	rows, err := q.db.Query(ctx, findEnabledTwoFAs, loginID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindEnabledTwoFAsRow
+	for rows.Next() {
+		var i FindEnabledTwoFAsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LoginID,
+			&i.TwoFactorType,
+			&i.TwoFactorEnabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const get2FAByLoginId = `-- name: Get2FAByLoginId :one
