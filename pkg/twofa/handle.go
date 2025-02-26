@@ -49,3 +49,43 @@ func (h Handle) Post2faInit(w http.ResponseWriter, r *http.Request) *Response {
 
 	return Post2faInitJSON200Response(resp)
 }
+
+// Authenticate 2fa passcode
+// (POST /2fa)
+func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Response {
+	var resp SuccessResponse
+
+	data := &Post2faValidateJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	loginId, err := uuid.Parse(data.LoginID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid login id",
+		}
+	}
+
+	valid, err := h.twoFaService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to validate 2fa: " + err.Error(),
+		}
+	}
+
+	if !valid {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "2fa validation failed",
+		}
+	}
+
+	return Post2faValidateJSON200Response(resp)
+}
