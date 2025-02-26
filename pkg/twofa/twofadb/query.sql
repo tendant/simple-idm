@@ -34,3 +34,10 @@ WHERE login_id = $1
 AND two_factor_type = $2
 AND deleted_at IS NULL;
 
+-- name: FindEnabledTwoFAs :many
+SELECT id, login_id, two_factor_type, two_factor_enabled, created_at
+FROM login_2fa
+WHERE login_id = $1
+AND two_factor_enabled = TRUE
+AND deleted_at IS NULL;
+

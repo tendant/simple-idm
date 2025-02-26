@@ -30,6 +30,15 @@ func NewTwoFaService(queries *twofadb.Queries, notificationManager *notification
 	}
 }
 
+type (
+	TwoFA struct {
+		LoginId          uuid.UUID `json:"login_id"`
+		TwoFactorType    string    `json:"two_factor_type"`
+		TwoFactorEnabled bool      `json:"two_factor_enabled"`
+		CreatedAt        time.Time `json:"created_at"`
+	}
+)
+
 const (
 	TOTP_ISSUER = "simple-idm"
 	SKEW        = 1
@@ -101,6 +110,25 @@ func (s TwoFaService) InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFacto
 	}
 
 	return nil
+}
+
+func (s TwoFaService) FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error) {
+	enabled2fas, err := s.queries.FindEnabledTwoFAs(ctx, loginId)
+	if err != nil {
+		slog.Error("Failed to find enabled 2FA", "loginUuid", loginId, "error", err)
+		return nil, fmt.Errorf("failed to find enabled 2FA: %w", err)
+	}
+
+	res := []TwoFA{}
+	for _, e := range enabled2fas {
+		res = append(res, TwoFA{
+			LoginId:          e.LoginID,
+			TwoFactorType:    e.TwoFactorType.String,
+			TwoFactorEnabled: e.TwoFactorEnabled.Bool,
+			CreatedAt:        e.CreatedAt,
+		})
+	}
+	return res, nil
 }
 
 func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error {

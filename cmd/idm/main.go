@@ -74,7 +74,7 @@ func main() {
 
 	// Initialize login service with email
 	loginQueries := logindb.New(pool)
-	loginService := login.NewLoginService(loginQueries)
+	loginService := login.NewLoginService(loginQueries, nil, nil, nil)
 	loginHandler := login.NewHandle(loginService, *jwtService)
 	myApp.R.Mount("/auth", login.Handler(loginHandler))
 
