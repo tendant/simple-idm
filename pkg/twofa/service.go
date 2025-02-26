@@ -18,6 +18,16 @@ import (
 	"github.com/tendant/simple-idm/pkg/utils"
 )
 
+type TwoFAInfo interface {
+	GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error)
+	InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFactorType, email string) error
+	FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error)
+	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
+	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
+	SendTwofaPasscodeEmail(ctx context.Context, email, passcode string) error
+	Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error)
+}
+
 type TwoFaService struct {
 	queries             *twofadb.Queries
 	notificationManager *notification.NotificationManager
