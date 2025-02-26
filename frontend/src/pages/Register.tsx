@@ -34,7 +34,7 @@ const Register: Component = () => {
       alert('Registration successful! You will now be redirected to the login page.');
 
       // Redirect to login page
-      navigate('/login');
+      navigate('/login?registered=true');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {

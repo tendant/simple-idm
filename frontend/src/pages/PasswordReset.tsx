@@ -36,12 +36,11 @@ const PasswordReset: Component = () => {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to reset password');
+        const text = await response.text();
+        throw new Error(text || 'Failed to reset password');
       }
 
-      const data = await response.json();
-      setSuccess(data.message || 'Password has been reset successfully');
+      setSuccess('Password has been reset successfully. Redirecting to login page...');
       
       // Redirect to login page after 2 seconds
       setTimeout(() => {
