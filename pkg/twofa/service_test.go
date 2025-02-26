@@ -217,3 +217,31 @@ func TestValidate2faPasscode(t *testing.T) {
 	assert.True(t, res)
 
 }
+
+func TestFindEnabledTwoFAs(t *testing.T) {
+	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
+		Host:     "localhost",
+		Port:     1025,
+		Username: "noreply@example.com",
+		Password: "pwd",
+		From:     "noreply@example.com",
+		NoTLS:    true,
+	})
+	if err != nil {
+		slog.Error("Failed initialize notification manager", "err", err)
+	}
+
+	setup()
+
+	// Create queries and service
+	queries := twofadb.New(dbPool)
+	service := NewTwoFaService(queries, notificationManager)
+
+	res, err := service.FindEnabledTwoFAs(context.Background(), uuid.MustParse("98d38598-9e56-415a-aab3-7c8c72a2a1a0"))
+
+	require.NoError(t, err)
+	require.NotEmpty(t, res)
+
+	require.Equal(t, "email", res[0].TwoFactorType)
+	slog.Info("res", "res", res[0])
+}
