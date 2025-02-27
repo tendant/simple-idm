@@ -134,11 +134,13 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		if err != nil {
 			slog.Error("Failed to create temp token", "loginUuid", loginResponse.LoginId, "error", err)
 		}
+
 		return &Response{
 			body: map[string]interface{}{
-				"status":     "2fa_required",
-				"message":    "2FA verification required",
-				"temp_token": tempToken.Token,
+				"status":      "2fa_required",
+				"message":     "2FA verification required",
+				"temp_token":  tempToken.Token,
+				"2fa_methods": enabledTwoFAs,
 			},
 			Code:        http.StatusAccepted,
 			contentType: "application/json",
