@@ -3,7 +3,7 @@ info:
   title: User Management API
   version: 1.0.0
 paths:
-  /users:
+  /:
     post:
       summary: Create a new user
       requestBody:
@@ -90,7 +90,7 @@ paths:
                           name:
                             type: string
                       description: List of assigned roles with their details
-  /users/{id}:
+  /{id}:
     get:
       summary: Get user details by UUID
       parameters:
