@@ -72,6 +72,16 @@ type Tokens struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
+// TwoFactorRequiredResponse defines model for TwoFactorRequiredResponse.
+type TwoFactorRequiredResponse struct {
+	Message string `json:"message,omitempty"`
+	Status  string `json:"status,omitempty"`
+
+	// Temporary token to use for 2FA verification
+	TempToken        string   `json:"temp_token,omitempty"`
+	TwoFactorMethods []string `json:"two_factor_methods,omitempty"`
+}
+
 // TwoFactorVerify defines model for TwoFactorVerify.
 type TwoFactorVerify struct {
 	// TOTP code
@@ -276,14 +286,7 @@ func PostLoginJSON200Response(body Login) *Response {
 
 // PostLoginJSON202Response is a constructor method for a PostLogin response.
 // A *Response is returned with the configured status code and content type from the spec.
-func PostLoginJSON202Response(body struct {
-	N2faMethods []string `json:"2fa_methods,omitempty"`
-	Message     *string  `json:"message,omitempty"`
-	Status      *string  `json:"status,omitempty"`
-
-	// Temporary token to use for 2FA verification
-	TempToken *string `json:"temp_token,omitempty"`
-}) *Response {
+func PostLoginJSON202Response(body TwoFactorRequiredResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        202,
@@ -816,33 +819,33 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
