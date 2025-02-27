@@ -280,6 +280,16 @@ components:
         two_factor_methods:
           type: array
           items:
+            $ref: "#/components/schemas/TwoFAMethod"
+    TwoFAMethod:
+      x-go-optional-value: true
+      type: object
+      properties:
+        method:
+          type: string
+        available_contact_info:
+          type: array
+          items:
             type: string
     User:
       type: object
