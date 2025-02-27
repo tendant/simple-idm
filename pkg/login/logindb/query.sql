@@ -1,5 +1,5 @@
 -- name: FindUser :one
-SELECT id, username, password
+SELECT id, username, password, password_version
 FROM login
 WHERE username = $1
 AND deleted_at IS NULL;
@@ -11,7 +11,7 @@ SET password = $1,
 WHERE username = $2; 
 
 -- name: FindLoginByUsername :one
-SELECT l.id, l.username, l.password, l.created_at, l.updated_at
+SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at
 FROM login l
 WHERE l.username = $1
 AND l.deleted_at IS NULL;
@@ -116,3 +116,27 @@ SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at,
 FROM login l
 WHERE l.id = $1
 AND l.deleted_at IS NULL;
+
+-- name: UpdateUserPasswordAndVersion :exec
+UPDATE login
+SET password = $1,
+    password_version = $3,
+    updated_at = NOW()
+WHERE id = $2;
+
+-- name: AddPasswordToHistory :exec
+INSERT INTO password_history (login_id, password_hash, password_version)
+VALUES ($1, $2, $3);
+
+-- name: GetPasswordHistory :many
+SELECT id, login_id, password_hash, password_version, created_at
+FROM password_history
+WHERE login_id = $1
+ORDER BY created_at DESC
+LIMIT $2;
+
+-- name: GetUserPasswordVersion :one
+SELECT password_version
+FROM login
+WHERE id = $1
+AND deleted_at IS NULL;
