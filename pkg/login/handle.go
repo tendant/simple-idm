@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/pkg/twofa"
 	"golang.org/x/exp/slog"
 )
 
@@ -29,15 +30,20 @@ type PasswordResetJSONRequestBody struct {
 }
 
 type Handle struct {
-	loginService *LoginService
-	jwtService   auth.Jwt
+	loginService     *LoginService
+	jwtService       auth.Jwt
+	twoFactorService twofa.TwoFactorService
 }
 
-func NewHandle(loginService *LoginService, jwtService auth.Jwt) Handle {
-	return Handle{
+func NewHandle(loginService *LoginService, jwtService auth.Jwt, opts ...Option) Handle {
+	h := Handle{
 		loginService: loginService,
 		jwtService:   jwtService,
 	}
+	for _, opt := range opts {
+		opt(&h)
+	}
+	return h
 }
 
 func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue string, expire time.Time) {
