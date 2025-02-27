@@ -120,13 +120,7 @@ func Post2faInitJSON200Response(body SuccessResponse) *Response {
 // Get2faEnabledJSON200Response is a constructor method for a Get2faEnabled response.
 // A *Response is returned with the configured status code and content type from the spec.
 func Get2faEnabledJSON200Response(body struct {
-	N2faMethods []struct {
-		// The type of 2FA method
-		Type string `json:"type"`
-	} `json:"2fa_methods"`
-
-	// Number of enabled 2FA methods
-	Count int `json:"count"`
+	N2faMethods []string `json:"2fa_methods,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
@@ -359,17 +353,16 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9RUT2/TThD9Ktb8fke3CeG2tyJBlQOoAsSlqqqpPXa22j9mdzYQRf7uaDZJHScGFMGF",
-	"mzN5M/PmvWdvofK2844cR1BbiNWKLObHT6mqKMaPFDvvIkmpC76jwJoyIFBMhuWJNx2BgshBuxb6vjxU",
-	"/NMzVQwlfL9q/ZXvWHuH5mqNJhEoDol6QWvX+DxHs5G2pe0oRO+QqXiPDluy5Li4uVtCCWsKUXsHCl5d",
-	"z6/n0JfgO3LYaVDwOpdK6JBXmeRs0WCm7mOmKgeg0FjWoODOR140+AWNrpEJSgj0NVHkN77eCLzyjsnl",
-	"Tuw6o6vcO3uOQuAg17k0xrfaPepanhsfLDIoSEnXUJ6KJVxjrHxNE0qWwN98g4+78pTQwlcHqkHdD4PK",
-	"gcBowsOpMf14RDZECjvL8ymL+fwiIf4P1ICC/2ZDsGb7VM1OI5XX1xSroHM0QMGiwWK9t6Mu9g1NMvnY",
-	"mKzFsAEFN4lX5FhoUCE9L7cLTkxX2mn+rfNLAf0t18miNpMuXpSHSyzfrRz1HG37R/wWp/Sv/V7uIUUk",
-	"V2vXZs8Hv7eHk3uxfkYOnwxltVuaMP+WxPu3e5S8gQEtMYUI6n4LWojJFwRKcGhFv6P3aSxfeSTFqVUP",
-	"fyjtOF2LBh8t8crX+admsvEcdYjNWOXPKyrkn8I3xeLdTbGbcx6+k3T95KPxUsAQcCO/K592B43Xfkj2",
-	"iYIs3TtytDwO27Vjaimcrd9NLUeXT0d6vHZIkdkUgThoWlM9yWGcslviAo0ZkA0KpO9/BAAA//8oDJKG",
-	"JwcAAA==",
+	"H4sIAAAAAAAC/9SUT4/TMBDFv0o0cMxuS7n5tkiw6gFpBRKX1Wo1G09ar/wPe1Koqnx3NG5KNiUCVXDh",
+	"5oze2M/vN/EBmuBi8OQ5gzpAbrbksCw/d01DOX+iHIPPJKWYQqTEhoogUe4sy4r3kUBB5mT8Bvq+PlXC",
+	"0zM1DDV8v9qEqxDZBI/2aoe2I1CcOupFbXwbyj6GrbStXaSUg0em6iN63JAjz9XN3Rpq2FHKJnhQ8OZ6",
+	"eb2EvoYQyWM0oOBtKdUQkbfF5GLVYrEecrEqF0Cxsdag4C5kXrX4Ba3RyAQ1JPraUeZ3Qe9F3gTP5Esn",
+	"xmhNU3oXz1kMnOL6NRobNsY/Gi3rNiSHDAq6zmioz8MSrzk3QdNMkjXwt9Di47E8F7T4NYk0qPtxo3o0",
+	"MNnh4RxMP92iAJHCEXm5ymq5vCiI14laUPBqMQ7WYpiqxflIleM15SaZMhqgYNVitRtw6GpoaDtbLps7",
+	"5zDtQcFNx1vyLDaokp6fdxedQFfGG/4j+bWI/hV1cmjsLMWL5uES5McjJz0vTvtPeAsp83ve60FSZfLa",
+	"+E1hPvI+nK7cC/oFeXyyVNLe0Az8WxL27weV/IEJHTGlDOr+AEaMyQsCNXh0kt+L/2kaX/0iinNUD38Z",
+	"7XS6Vi0+OuJt0OXTMLk8/2QcC5gS7mce4xkIY+x2XyXiZGhHuhpirFYfbqrTyVMst8QVWjsqWxRJ3/8I",
+	"AAD//6T2X/hYBgAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

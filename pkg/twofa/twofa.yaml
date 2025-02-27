@@ -79,22 +79,10 @@ paths:
               schema:
                 type: object
                 properties:
-                  count:
-                    type: integer
-                    description: Number of enabled 2FA methods
                   2fa_methods:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        type:
-                          type: string
-                          description: The type of 2FA method
-                      required:
-                        - type
-                required:
-                  - count
-                  - 2fa_methods
+                      type: string
 components:
   schemas:
     SuccessResponse:
