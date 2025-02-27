@@ -35,6 +35,7 @@ type Login struct {
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
 	CreatedBy            sql.NullString `json:"created_by"`
 	Password             []byte         `json:"password"`
+	PasswordVersion      int32          `json:"password_version"`
 	Username             sql.NullString `json:"username"`
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
 	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
@@ -51,6 +52,14 @@ type Login2fa struct {
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            sql.NullTime   `json:"updated_at"`
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
+}
+
+type PasswordHistory struct {
+	ID              uuid.UUID `json:"id"`
+	LoginID         uuid.UUID `json:"login_id"`
+	PasswordHash    string    `json:"password_hash"`
+	PasswordVersion int32     `json:"password_version"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 type PasswordResetToken struct {
@@ -77,6 +86,7 @@ type User struct {
 	Email                string         `json:"email"`
 	Name                 sql.NullString `json:"name"`
 	Password             []byte         `json:"password"`
+	PasswordVersion      int32          `json:"password_version"`
 	VerifiedAt           sql.NullTime   `json:"verified_at"`
 	Username             sql.NullString `json:"username"`
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`

@@ -64,8 +64,22 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 		return res, fmt.Errorf("error finding user: %w", err)
 	}
 
+	// Get the password version
+	passwordVersion, err := s.queries.GetUserPasswordVersion(ctx, loginUser.ID)
+	if err != nil {
+		// If there's an error getting the version, assume version 1
+		slog.Warn("Could not get password version, assuming version 1", "error", err)
+		passwordVersion = 1
+	}
+
 	// Verify password and upgrade if needed
-	valid, err := s.passwordManager.AuthenticateAndUpgrade(ctx, loginUser.ID.String(), password, string(loginUser.Password))
+	valid, err := s.passwordManager.AuthenticateAndUpgrade(
+		ctx, 
+		loginUser.ID.String(), 
+		password, 
+		string(loginUser.Password), 
+		PasswordVersion(passwordVersion),
+	)
 	if err != nil {
 		return res, fmt.Errorf("error checking password: %w", err)
 	}
