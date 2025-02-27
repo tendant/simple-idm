@@ -123,7 +123,7 @@ func TestGetTwoFactorSecretByLoginUuid(t *testing.T) {
 	ctx := context.Background()
 	loginUuid := uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8")
 
-	twofaSecret, err := service.GetTwoFactorSecretByLoginId(ctx, loginUuid, twoFactorTypeEmail)
+	twofaSecret, err := service.GetTwoFactorSecretByLoginId(ctx, loginUuid, TWO_FACTOR_TYPE_EMAIL)
 
 	require.NoError(t, err)
 	slog.Info("twofaSecret", "secret", twofaSecret)
