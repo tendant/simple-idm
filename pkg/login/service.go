@@ -24,14 +24,19 @@ type LoginService struct {
 	notificationManager *notification.NotificationManager
 	userMapper          UserMapper
 	delegatedUserMapper DelegatedUserMapper
+	passwordManager     *PasswordManager
 }
 
 func NewLoginService(queries *logindb.Queries, notificationManager *notification.NotificationManager, userMapper UserMapper, delegatedUserMapper DelegatedUserMapper) *LoginService {
+	// Create a password manager with default policy
+	passwordManager := NewPasswordManager(queries, nil)
+	
 	return &LoginService{
 		queries:             queries,
 		notificationManager: notificationManager,
 		userMapper:          userMapper,
 		delegatedUserMapper: delegatedUserMapper,
+		passwordManager:     passwordManager,
 	}
 }
 
@@ -44,25 +49,27 @@ func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) 
 	return s.userMapper.GetUsers(ctx, loginID)
 }
 
-func (s LoginService) Login(ctx context.Context, params LoginParams, password string) ([]MappedUser, error) {
+func (s *LoginService) Login(ctx context.Context, username, password string) ([]MappedUser, error) {
 	// Find user by username
-	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(params.Username))
+	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(username))
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return []MappedUser{}, fmt.Errorf("user not found")
+		if err == pgx.ErrNoRows {
+			return []MappedUser{}, fmt.Errorf("invalid username or password")
 		}
 		return []MappedUser{}, fmt.Errorf("error finding user: %w", err)
 	}
 
-	// Verify password
-	valid, err := CheckPasswordHash(password, string(loginUser.Password))
+	// Verify password and upgrade if needed
+	valid, err := s.passwordManager.AuthenticateAndUpgrade(ctx, loginUser.ID.String(), password, string(loginUser.Password))
 	if err != nil {
 		return []MappedUser{}, fmt.Errorf("error checking password: %w", err)
 	}
+
 	if !valid {
-		return []MappedUser{}, fmt.Errorf("invalid password")
+		return []MappedUser{}, fmt.Errorf("invalid username or password")
 	}
 
+	// Get user info with roles
 	users, err := s.userMapper.GetUsers(ctx, loginUser.ID)
 	if err != nil {
 		return []MappedUser{}, fmt.Errorf("error getting user roles: %w", err)
@@ -78,31 +85,13 @@ type RegisterParam struct {
 }
 
 // HashPassword hashes the plain-text password using bcrypt.
-func HashPassword(password string) (string, error) {
-	if password == "" { // Null or empty password check
-		return "", fmt.Errorf("password cannot be empty")
-	}
-
-	// Generate the bcrypt hash
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
-	return string(hashedPassword), nil
+func (s LoginService) HashPassword(password string) (string, error) {
+	return s.passwordManager.HashPassword(password)
 }
 
 // CheckPasswordHash compares the plain-text password with the stored hashed password.
-func CheckPasswordHash(password, hashedPassword string) (bool, error) {
-	if password == "" || hashedPassword == "" { // Null or empty checks
-		return false, fmt.Errorf("password and hashed password cannot be empty")
-	}
-
-	// Compare the password with the hashed password
-	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+func (s LoginService) CheckPasswordHash(password, hashedPassword string) (bool, error) {
+	return s.passwordManager.CheckPasswordHash(password, hashedPassword)
 }
 
 func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code string) (bool, error) {
@@ -154,14 +143,32 @@ func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code st
 }
 
 func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb.User, error) {
-	slog.Debug("Registering user use params:", "params", params)
-	// registerRequest := logindb.RegisterUserParams{}
-	// copier.Copy(&registerRequest, params)
+	slog.Debug("Registering user with params:", "params", params)
+	
+	// Validate password complexity
+	if err := s.passwordManager.CheckPasswordComplexity(params.Password); err != nil {
+		return logindb.User{}, fmt.Errorf("password does not meet complexity requirements: %w", err)
+	}
+	
+	// Hash the password
+	hashedPassword, err := s.passwordManager.HashPassword(params.Password)
+	if err != nil {
+		return logindb.User{}, fmt.Errorf("failed to hash password: %w", err)
+	}
+	
+	// Here you would create the user with the hashed password
+	// This is commented out as it appears to be in the original code
+	// registerRequest := logindb.RegisterUserParams{
+	//    Name: params.Name,
+	//    Email: params.Email,
+	//    Password: []byte(hashedPassword),
+	// }
 	// user, err := s.queries.RegisterUser(ctx, registerRequest)
 	// if err != nil {
-	// 	slog.Error("Failed to register user", "params", params, "err", err)
-	// 	return logindb.User{}, err
+	//    slog.Error("Failed to register user", "params", params, "err", err)
+	//    return logindb.User{}, err
 	// }
+	
 	return logindb.User{}, nil
 }
 
@@ -176,11 +183,30 @@ func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 }
 
 func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) error {
-	resetPasswordParams := logindb.ResetPasswordParams{}
-	slog.Debug("resetPasswordParams", "params", params)
-	copier.Copy(&resetPasswordParams, params)
-	err := s.queries.ResetPassword(ctx, resetPasswordParams)
-	return err
+	// Validate password complexity
+	if err := s.passwordManager.CheckPasswordComplexity(params.Password); err != nil {
+		return fmt.Errorf("password does not meet complexity requirements: %w", err)
+	}
+	
+	// Hash the password
+	hashedPassword, err := s.passwordManager.HashPassword(params.Password)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+	
+	// Create reset password parameters
+	resetPasswordParams := logindb.ResetPasswordParams{
+		Code:     params.Code,
+		Password: []byte(hashedPassword),
+	}
+	
+	slog.Debug("Resetting password", "params", params.Code)
+	err = s.queries.ResetPassword(ctx, resetPasswordParams)
+	if err != nil {
+		return fmt.Errorf("failed to reset password: %w", err)
+	}
+	
+	return nil
 }
 
 func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.NullString, error) {
@@ -222,35 +248,8 @@ func (s *LoginService) SendPasswordResetEmail(ctx context.Context, email string,
 
 // ResetPassword validates the reset token and updates the user's password
 func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword string) error {
-	// Validate token and get user info
-	tokenInfo, err := s.queries.ValidatePasswordResetToken(ctx, token)
-	if err != nil {
-		return fmt.Errorf("invalid or expired reset token")
-	}
-
-	// Hash the new password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	// Update password
-	err = s.queries.ResetPasswordById(ctx, logindb.ResetPasswordByIdParams{
-		Password: hashedPassword,
-		ID:       tokenInfo.LoginID,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update password: %w", err)
-	}
-
-	// Mark token as used
-	err = s.queries.MarkPasswordResetTokenUsed(ctx, token)
-	if err != nil {
-		slog.Error("Failed to mark token as used", "err", err)
-		// Don't return error as password was successfully reset
-	}
-
-	return nil
+	// Use the password manager to handle the reset
+	return s.passwordManager.ResetPassword(ctx, token, newPassword)
 }
 
 // InitPasswordReset generates a reset token and sends a reset email
@@ -272,31 +271,18 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 		return fmt.Errorf("error finding user info: %w", err)
 	}
 
-	// Generate reset token
-	resetToken := utils.GenerateRandomString(32)
-
-	// Save token
-	expireAt := pgtype.Timestamptz{}
-	err = expireAt.Scan(time.Now().Add(24 * time.Hour))
+	// Generate reset token using password manager
+	resetToken, err := s.passwordManager.InitPasswordReset(ctx, loginUser.ID.String())
 	if err != nil {
-		return fmt.Errorf("failed to create expiry time: %w", err)
-	}
-
-	err = s.queries.InitPasswordResetToken(ctx, logindb.InitPasswordResetTokenParams{
-		LoginID:  loginUser.ID,
-		Token:    resetToken,
-		ExpireAt: expireAt,
-	})
-	if err != nil {
-		slog.Error("Failed to save reset token", "err", err)
 		return err
 	}
 
 	// Send reset email
 	if users[0].Email == "" {
 		slog.Info("User has no email address", "user", users[0])
-		return err
+		return fmt.Errorf("user has no email address")
 	}
+	
 	err = s.SendPasswordResetEmail(ctx, users[0].Email, resetToken)
 	if err != nil {
 		return err
