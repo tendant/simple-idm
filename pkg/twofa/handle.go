@@ -31,6 +31,7 @@ func (h Handle) Post2faInit(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// FIXME: read the login id from session cookies
 	loginId, err := uuid.Parse(data.LoginID)
 	if err != nil {
 		return &Response{
@@ -88,4 +89,44 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	return Post2faValidateJSON200Response(resp)
+}
+
+// Get all enabled 2fas
+// (GET /2fa/enabled)
+func (h Handle) Get2faEnabled(w http.ResponseWriter, r *http.Request, loginID string) *Response {
+	// Get login ID from path parameter
+	loginId, err := uuid.Parse(loginID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid login id",
+		}
+	}
+
+	// Find enabled 2FA methods
+	twoFAs, err := h.twoFaService.FindEnabledTwoFAs(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to validate 2fa: " + err.Error(),
+		}
+	}
+
+	// Transform to response format
+	methods := make([]struct {
+		Type string `json:"type"`
+	}, len(twoFAs))
+	for i, twoFA := range twoFAs {
+		methods[i].Type = twoFA.TwoFactorType
+	}
+
+	return Get2faEnabledJSON200Response(struct {
+		N2faMethods []struct {
+			Type string `json:"type"`
+		} `json:"2fa_methods"`
+		Count int `json:"count"`
+	}{
+		N2faMethods: methods,
+		Count:       len(methods),
+	})
 }
