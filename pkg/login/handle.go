@@ -132,7 +132,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	var twoFactorMethods []TwoFactorMethod
+	var twoFactorMethods []TwoFAMethod
 	if len(enabledTwoFAs) > 0 {
 		// TODO: set cookies only with login id
 		slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginResponse.LoginId)
@@ -140,15 +140,15 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		// If email 2FA is enabled, get unique emails from mapped users
 		var emails []string
 		for _, method := range enabledTwoFAs {
-			curMethod := TwoFactorMethod{
+			curMethod := TwoFAMethod{
 				Method: method,
 			}
 			switch method {
 			case twofa.TWO_FACTOR_TYPE_EMAIL:
 				emails = getUniqueEmailsFromUsers(mappedUsers)
-				curMethod.ContactInfo = emails
+				curMethod.AvailableContactInfo = emails
 			default:
-				curMethod.ContactInfo = []string{}
+				curMethod.AvailableContactInfo = []string{}
 			}
 			twoFactorMethods = append(twoFactorMethods, curMethod)
 		}
@@ -160,7 +160,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 		twoFARequiredResp := TwoFactorRequiredResponse{
 			TempToken:        tempToken.Token,
-			TwoFactorMethods: enabledTwoFAs,
+			TwoFactorMethods: twoFactorMethods,
 			Status:           "2fa_required",
 			Message:          "2FA verification required",
 		}
