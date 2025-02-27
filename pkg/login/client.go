@@ -60,59 +60,71 @@ func LoadFromMap[T any](m map[string]interface{}, c *T) error {
 
 func AuthUserMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract token and claims from context
 		_, claims, err := jwtauth.FromContext(r.Context())
-		slog.Info("claims", "claims", claims)
 		if err != nil {
-			em := fmt.Errorf("missing jwt: %w", err)
-			http.Error(w, em.Error(), http.StatusUnauthorized)
+			http.Error(w, fmt.Sprintf("missing or invalid JWT: %v", err), http.StatusUnauthorized)
 			return
 		}
+
+		// Initialize auth user
 		authUser := new(AuthUser)
 
-		customClaims, ok := claims["custom_claims"].(map[string]interface{})
-		slog.Info("customClaims", "custom", customClaims)
-		if !ok {
-			em := fmt.Errorf("missing claims: %w", err)
-			http.Error(w, em.Error(), http.StatusUnauthorized)
-			return
+		// Process custom claims if they exist
+		if customClaimsRaw, exists := claims["custom_claims"]; exists {
+			customClaims, ok := customClaimsRaw.(map[string]interface{})
+			if !ok {
+				http.Error(w, "invalid custom claims format", http.StatusUnauthorized)
+				return
+			}
+
+			// Extract data from custom claims
+			if err := LoadFromMap(customClaims, authUser); err != nil {
+				slog.Error("failed to parse custom claims", "error", err)
+				http.Error(w, "invalid custom claims data", http.StatusUnauthorized)
+				return
+			}
+
+			// Process extra claims if they exist within custom claims
+			if extraClaimsRaw, exists := customClaims["extra_claims"]; exists {
+				extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+				if ok {
+					if err := LoadFromMap(extraClaims, &authUser.ExtraClaims); err != nil {
+						slog.Warn("failed to parse extra claims", "error", err)
+						// Continue processing as extra claims are optional
+					}
+				}
+			}
 		}
-		err = LoadFromMap(customClaims, authUser)
-		if err != nil {
-			em := fmt.Errorf("invalid claims: %w", err)
-			http.Error(w, em.Error(), http.StatusUnauthorized)
+
+		// Also load standard claims directly from the token
+		if err := LoadFromMap(claims, authUser); err != nil {
+			slog.Error("failed to parse standard claims", "error", err)
+			http.Error(w, "invalid token claims", http.StatusUnauthorized)
 			return
 		}
 
-		slog.Info("load claims", "claims", claims)
-
-		err = LoadFromMap(claims, authUser)
-		slog.Info("authUser", "user", authUser)
-		if err != nil {
-			em := fmt.Errorf("invalid claims: %w", err)
-			http.Error(w, em.Error(), http.StatusUnauthorized)
-			return
-		}
+		// Validate user ID
 		if authUser.UserId == "" {
-			http.Error(w, "missing user id", http.StatusUnauthorized)
+			http.Error(w, "missing user ID in token", http.StatusUnauthorized)
 			return
 		}
-		authUser.UserUuid, err = uuid.Parse(authUser.UserId)
+
+		// Parse user UUID
+		userUUID, err := uuid.Parse(authUser.UserId)
 		if err != nil {
-			slog.Warn("failed to parse user id", "err", err)
-			//http.Error(w, "invalid user id", http.StatusUnauthorized)
+			slog.Warn("failed to parse user ID as UUID", "userId", authUser.UserId, "error", err)
+			// Continue processing as we have the string version
+		} else {
+			authUser.UserUuid = userUUID
 		}
 
-		slog.Info("AdminUserMiddleware", "userId", authUser.UserId, "extra_claims", authUser.ExtraClaims)
-		// create new context from `r` request context, and assign key `"user"`
-		// to value of `"123"`
+		slog.Debug("authenticated user", "userId", authUser.UserId, "roles", authUser.ExtraClaims.Roles)
+
+		// Add auth user to context
 		ctx := context.WithValue(r.Context(), AuthUserKey, authUser)
 
-		// call the next handler in the chain, passing the response writer and
-		// the updated request object with the new context value.
-		//
-		// note: context.Context values are nested, so any previously set
-		// values will be accessible as well, and the new `"user"` key
-		// will be accessible from this point forward.
+		// Call the next handler with the updated context
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
