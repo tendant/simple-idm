@@ -112,21 +112,9 @@ func (h Handle) Get2faEnabled(w http.ResponseWriter, r *http.Request, loginID st
 		}
 	}
 
-	// Transform to response format
-	methods := make([]struct {
-		Type string `json:"type"`
-	}, len(twoFAs))
-	for i, twoFA := range twoFAs {
-		methods[i].Type = twoFA.TwoFactorType
-	}
-
 	return Get2faEnabledJSON200Response(struct {
-		N2faMethods []struct {
-			Type string `json:"type"`
-		} `json:"2fa_methods"`
-		Count int `json:"count"`
+		N2faMethods []string `json:"2fa_methods,omitempty"`
 	}{
-		N2faMethods: methods,
-		Count:       len(methods),
+		N2faMethods: twoFAs,
 	})
 }

@@ -21,7 +21,7 @@ import (
 type TwoFactorService interface {
 	GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error)
 	InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFactorType, email string) error
-	FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error)
+	FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]string, error)
 	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
 	SendTwofaPasscodeEmail(ctx context.Context, email, passcode string) error
@@ -122,21 +122,16 @@ func (s TwoFaService) InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFacto
 	return nil
 }
 
-func (s TwoFaService) FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error) {
+func (s TwoFaService) FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]string, error) {
 	enabled2fas, err := s.queries.FindEnabledTwoFAs(ctx, loginId)
 	if err != nil {
 		slog.Error("Failed to find enabled 2FA", "loginUuid", loginId, "error", err)
 		return nil, fmt.Errorf("failed to find enabled 2FA: %w", err)
 	}
 
-	res := []TwoFA{}
+	res := []string{}
 	for _, e := range enabled2fas {
-		res = append(res, TwoFA{
-			LoginId:          e.LoginID,
-			TwoFactorType:    e.TwoFactorType.String,
-			TwoFactorEnabled: e.TwoFactorEnabled.Bool,
-			CreatedAt:        e.CreatedAt,
-		})
+		res = append(res, e.TwoFactorType.String)
 	}
 	return res, nil
 }

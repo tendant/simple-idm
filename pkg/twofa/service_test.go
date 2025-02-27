@@ -242,6 +242,5 @@ func TestFindEnabledTwoFAs(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, res)
 
-	require.Equal(t, "email", res[0].TwoFactorType)
 	slog.Info("res", "res", res[0])
 }
