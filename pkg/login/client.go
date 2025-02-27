@@ -11,17 +11,23 @@ import (
 	"github.com/google/uuid"
 )
 
+type ExtraClaims struct {
+	Username string   `json:"usernmae,omitempty"`
+	Email    string   `json:"email,omitempty"`
+	Roles    []string `json:"roles,omitempty"`
+}
+
 type AuthUser struct {
-	UserId string   `json:"user_id,omitempty"`
-	Roles  []string `json:"role,omitempty"`
+	UserId string `json:"user_id,omitempty"`
 	// For backward compatibility, we still need to support UserUuid, also it is convenient to have it as a uuid.UUID
-	UserUuid uuid.UUID
+	UserUuid    uuid.UUID
+	ExtraClaims ExtraClaims `json:"extra_claims,omitempty"`
 }
 
 func (i AuthUser) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.String("user", i.UserId),
-		slog.Any("role", i.Roles),
+		slog.Any("extra_claims", i.ExtraClaims),
 	)
 }
 
@@ -96,7 +102,7 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 			//http.Error(w, "invalid user id", http.StatusUnauthorized)
 		}
 
-		slog.Info("AdminUserMiddleware", "userId", authUser.UserId, "roles", authUser.Roles)
+		slog.Info("AdminUserMiddleware", "userId", authUser.UserId, "extra_claims", authUser.ExtraClaims)
 		// create new context from `r` request context, and assign key `"user"`
 		// to value of `"123"`
 		ctx := context.WithValue(r.Context(), AuthUserKey, authUser)
