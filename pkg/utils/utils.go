@@ -1,6 +1,13 @@
 package utils
 
-import "database/sql"
+import (
+	"crypto/rand"
+	"database/sql"
+	"encoding/base64"
+	"math/big"
+
+	"github.com/google/uuid"
+)
 
 // StringPtr returns a pointer to the string value passed in
 func StringPtr(s string) *string {
@@ -30,4 +37,52 @@ func GetValidStrings(nullStrings []sql.NullString) []string {
 	}
 
 	return validStrings
+}
+
+// GenerateRandomString generates a secure random string of the specified length
+func GenerateRandomString(length int) string {
+	b := make([]byte, length)
+	_, err := rand.Read(b)
+	if err != nil {
+		// In case of error, fall back to a less secure but functional method
+		for i := range b {
+			b[i] = byte(RandomInt(256))
+		}
+	}
+	
+	return base64.URLEncoding.EncodeToString(b)[:length]
+}
+
+// RandomInt returns a random integer between 0 and max-1
+func RandomInt(max int) int {
+	if max <= 0 {
+		return 0
+	}
+	
+	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		// Fallback in case of error
+		return 0
+	}
+	
+	return int(nBig.Int64())
+}
+
+// ParseUUID converts a string to a UUID
+func ParseUUID(id string) uuid.UUID {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		// Return a nil UUID in case of error
+		return uuid.Nil
+	}
+	return parsed
+}
+
+// ShuffleRunes randomly shuffles the order of runes in a slice
+func ShuffleRunes(runes []rune) {
+	n := len(runes)
+	for i := n - 1; i > 0; i-- {
+		j := RandomInt(i + 1)
+		runes[i], runes[j] = runes[j], runes[i]
+	}
 }
