@@ -118,42 +118,70 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// TODO: Check if 2FA is enabled for current login
-
-	// Check if 2FA is enabled and code is required
-	if apiUsers[0].TwoFactorEnabled {
-		// If no code provided, return 2FA required response
-		if data.Code == "" {
-			// Create a temporary token for 2FA verification
-			tempToken, err := h.jwtService.CreateTempToken(tokenUser)
-			if err != nil {
-				slog.Error("Failed to create temp token", "user", tokenUser, "err", err)
-				return &Response{
-					body: "Failed to create temporary token",
-					Code: http.StatusInternalServerError,
-				}
-			}
-
-			return &Response{
-				body: map[string]interface{}{
-					"status":     "2fa_required",
-					"message":    "2FA verification required",
-					"temp_token": tempToken.Token,
-				},
-				Code:        http.StatusAccepted,
-				contentType: "application/json",
-			}
-		}
-
-		// Verify 2FA code
-		valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.LoginID, data.Code)
-		if err != nil || !valid {
-			slog.Error("Invalid 2FA code", "err", err)
-			return &Response{
-				body: "Invalid 2FA code",
-				Code: http.StatusBadRequest,
-			}
+	enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(r.Context(), loginResponse.LoginId)
+	if err != nil {
+		slog.Error("Failed to find enabled 2FA", "loginUuid", loginResponse.LoginId, "error", err)
+		return &Response{
+			body: "Failed to find enabled 2FA",
+			Code: http.StatusInternalServerError,
 		}
 	}
+
+	if len(enabledTwoFAs) > 0 {
+		// TODO: set cookies only with login id
+		slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginResponse.LoginId)
+		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+		if err != nil {
+			slog.Error("Failed to create temp token", "loginUuid", loginResponse.LoginId, "error", err)
+		}
+		return &Response{
+			body: map[string]interface{}{
+				"status":     "2fa_required",
+				"message":    "2FA verification required",
+				"temp_token": tempToken.Token,
+			},
+			Code:        http.StatusAccepted,
+			contentType: "application/json",
+		}
+	} else {
+		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginResponse.LoginId)
+	}
+
+	// // Check if 2FA is enabled and code is required
+	// if apiUsers[0].TwoFactorEnabled {
+	// 	// If no code provided, return 2FA required response
+	// 	if data.Code == "" {
+	// 		// Create a temporary token for 2FA verification
+	// 		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+	// 		if err != nil {
+	// 			slog.Error("Failed to create temp token", "user", tokenUser, "err", err)
+	// 			return &Response{
+	// 				body: "Failed to create temporary token",
+	// 				Code: http.StatusInternalServerError,
+	// 			}
+	// 		}
+
+	// 		return &Response{
+	// 			body: map[string]interface{}{
+	// 				"status":     "2fa_required",
+	// 				"message":    "2FA verification required",
+	// 				"temp_token": tempToken.Token,
+	// 			},
+	// 			Code:        http.StatusAccepted,
+	// 			contentType: "application/json",
+	// 		}
+	// 	}
+
+	// 	// Verify 2FA code
+	// 	valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.LoginID, data.Code)
+	// 	if err != nil || !valid {
+	// 		slog.Error("Invalid 2FA code", "err", err)
+	// 		return &Response{
+	// 			body: "Invalid 2FA code",
+	// 			Code: http.StatusBadRequest,
+	// 		}
+	// 	}
+	// }
 
 	// Create JWT tokens
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
