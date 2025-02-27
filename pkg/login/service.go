@@ -312,3 +312,23 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 
 	return nil
 }
+
+func getUniqueEmailsFromUsers(mappedUsers []MappedUser) []string {
+	// Use a map to track unique emails
+	emailMap := make(map[string]struct{})
+
+	// Collect emails from mapped users
+	for _, mu := range mappedUsers {
+		if email, ok := mu.ExtraClaims["email"].(string); ok && email != "" {
+			emailMap[email] = struct{}{}
+		}
+	}
+
+	// Convert map keys to slice
+	emails := make([]string, 0, len(emailMap))
+	for email := range emailMap {
+		emails = append(emails, email)
+	}
+
+	return emails
+}
