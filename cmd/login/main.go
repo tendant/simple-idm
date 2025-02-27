@@ -189,7 +189,7 @@ func main() {
 		// Initialize user service and handle
 		iamService := iam.NewIamService(iamQueries)
 		userHandle := iam.NewHandle(iamService)
-		r.Mount("/idm", iam.Handler(userHandle))
+		r.Mount("/idm/users", iam.Handler(userHandle))
 
 		// Initialize role service and routes
 		roleService := role.NewRoleService(roleQueries)
