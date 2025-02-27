@@ -69,7 +69,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Call login service
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	mappedUsers, err := h.loginService.Login(r.Context(), loginParams, data.Password)
+	loginResponse, err := h.loginService.Login(r.Context(), loginParams, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 		return &Response{
@@ -77,6 +77,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			Code: http.StatusBadRequest,
 		}
 	}
+	mappedUsers := loginResponse.Users
 
 	if len(mappedUsers) == 0 {
 		slog.Error("No user found after login")
@@ -109,6 +110,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			TwoFactorEnabled: twoFactorEnabled,
 		}
 	}
+
+	// TODO: Check if 2FA is enabled for current login
 
 	// Check if 2FA is enabled and code is required
 	if apiUsers[0].TwoFactorEnabled {
@@ -504,7 +507,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	// Call login service
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	idmUsers, err := h.loginService.Login(r.Context(), loginParams, data.Password)
+	loginResponse, err := h.loginService.Login(r.Context(), loginParams, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 		return &Response{
@@ -512,6 +515,8 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 			Code: http.StatusBadRequest,
 		}
 	}
+
+	idmUsers := loginResponse.Users
 
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after login")
