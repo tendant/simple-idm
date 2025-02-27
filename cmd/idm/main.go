@@ -8,8 +8,6 @@ import (
 	"github.com/tendant/chi-demo/app"
 	utils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
-	"github.com/tendant/simple-idm/pkg/iam"
-	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"golang.org/x/exp/slog"
@@ -60,10 +58,10 @@ func main() {
 		os.Exit(-1)
 	}
 
-	iamQueries := iamdb.New(pool)
-	iamService := iam.NewIamService(iamQueries)
-	iamHandler := iam.NewHandle(iamService)
-	iam.Routes(myApp.R, iamHandler)
+	// iamQueries := iamdb.New(pool)
+	// iamService := iam.NewIamService(iamQueries)
+	// iamHandler := iam.NewHandle(iamService)
+	// iam.Routes(myApp.R, iamHandler)
 
 	// jwt service
 	jwtService := auth.NewJwtServiceOptions(
