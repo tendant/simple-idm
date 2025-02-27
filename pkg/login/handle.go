@@ -29,6 +29,11 @@ type PasswordResetJSONRequestBody struct {
 	NewPassword string `json:"new_password"`
 }
 
+type TwoFactorMethod struct {
+	Method      string   `json:"method"`
+	ContactInfo []string `json:"contact_info"`
+}
+
 type Handle struct {
 	loginService     *LoginService
 	jwtService       auth.Jwt
@@ -127,24 +132,40 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	var twoFactorMethods []TwoFactorMethod
 	if len(enabledTwoFAs) > 0 {
 		// TODO: set cookies only with login id
 		slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginResponse.LoginId)
+
+		// If email 2FA is enabled, get unique emails from mapped users
+		var emails []string
+		for _, method := range enabledTwoFAs {
+			curMethod := TwoFactorMethod{
+				Method: method,
+			}
+			switch method {
+			case twofa.TWO_FACTOR_TYPE_EMAIL:
+				emails = getUniqueEmailsFromUsers(mappedUsers)
+				curMethod.ContactInfo = emails
+			default:
+				curMethod.ContactInfo = []string{}
+			}
+			twoFactorMethods = append(twoFactorMethods, curMethod)
+		}
+
 		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
 		if err != nil {
 			slog.Error("Failed to create temp token", "loginUuid", loginResponse.LoginId, "error", err)
 		}
 
-		return &Response{
-			body: map[string]interface{}{
-				"status":      "2fa_required",
-				"message":     "2FA verification required",
-				"temp_token":  tempToken.Token,
-				"2fa_methods": enabledTwoFAs,
-			},
-			Code:        http.StatusAccepted,
-			contentType: "application/json",
+		twoFARequiredResp := TwoFactorRequiredResponse{
+			TempToken:        tempToken.Token,
+			TwoFactorMethods: enabledTwoFAs,
+			Status:           "2fa_required",
+			Message:          "2FA verification required",
 		}
+
+		return PostLoginJSON202Response(twoFARequiredResp)
 	} else {
 		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginResponse.LoginId)
 	}
