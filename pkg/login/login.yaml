@@ -47,6 +47,10 @@ paths:
                   temp_token:
                     type: string
                     description: Temporary token to use for 2FA verification
+                  2fa_methods:
+                    type: array
+                    items:
+                      type: string
         "400":
           description: Invalid credentials
           content:
