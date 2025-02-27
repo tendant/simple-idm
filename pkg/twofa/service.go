@@ -56,8 +56,8 @@ const (
 )
 
 const (
-	twoFactorTypeEmail = "email"
-	twoFactorTypeSms   = "sms"
+	TWO_FACTOR_TYPE_EMAIL = "email"
+	TWO_FACTOR_TYPE_SMS   = "sms"
 )
 
 func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error) {
@@ -296,10 +296,10 @@ func ValidateTotpPasscode(totpSecret, passcode string) (bool, error) {
 // ValidateTwoFactorType checks if the given type is a valid 2FA type
 func ValidateTwoFactorType(twoFactorType string) error {
 	switch twoFactorType {
-	case twoFactorTypeEmail, twoFactorTypeSms:
+	case TWO_FACTOR_TYPE_EMAIL, TWO_FACTOR_TYPE_SMS:
 		return nil
 	default:
 		return fmt.Errorf("invalid 2FA type: %s, must be one of: %s, %s",
-			twoFactorType, twoFactorTypeEmail, twoFactorTypeSms)
+			twoFactorType, TWO_FACTOR_TYPE_EMAIL, TWO_FACTOR_TYPE_SMS)
 	}
 }
