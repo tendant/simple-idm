@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 -- Add unique constraint to login.username
-ALTER TABLE login ADD CONSTRAINT IF NOT EXISTS login_username_key UNIQUE (username);
+ALTER TABLE login ADD CONSTRAINT login_username_key UNIQUE (username);
 -- +goose StatementEnd
 
 -- +goose Down
