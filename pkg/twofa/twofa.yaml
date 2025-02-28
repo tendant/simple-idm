@@ -8,19 +8,20 @@ paths:
       summary: Initiate sending 2fa code
       operationId: post_2fa_send
       requestBody:
+        x-go-optional-value: true
         required: true
         content:
           application/json:
             schema:
               type: object
               properties:
-                email:
-                  type: string
                 twofa_type:
                   type: string
+                delivery_option:
+                  type: string
               required:
-                - email
                 - twofa_type
+                - delivery_option
       responses:
         "200":
           description: 2fa initiated Successful
