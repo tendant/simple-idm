@@ -28,7 +28,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
-  /2fa:
+  /2fa/validate:
     post:
       summary: Authenticate 2fa passcode
       operationId: post_2fa_validate
