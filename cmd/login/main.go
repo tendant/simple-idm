@@ -190,12 +190,19 @@ func main() {
 		// Initialize user service and handle
 		iamService := iam.NewIamService(iamQueries)
 		userHandle := iam.NewHandle(iamService)
-		r.Mount("/idm/users", iam.Handler(userHandle))
+		r.Mount("/idm/users", iam.SecureHandler(userHandle))
 
 		// Initialize role service and routes
 		roleService := role.NewRoleService(roleQueries)
 		roleHandle := role.NewHandle(roleService)
-		r.Mount("/idm/roles", role.Handler(roleHandle))
+		
+		// Create a secure handler for roles that uses the IAM admin middleware
+		roleRouter := chi.NewRouter()
+		roleRouter.Group(func(r chi.Router) {
+			r.Use(iam.AdminRoleMiddleware)
+			r.Mount("/", role.Handler(roleHandle))
+		})
+		r.Mount("/idm/roles", roleRouter)
 
 		// Initialize impersonate service and routes
 		impersonateService := impersonate.NewImpersonateService(impersonateQueries)
