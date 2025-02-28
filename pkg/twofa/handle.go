@@ -18,11 +18,11 @@ func NewHandle(twoFaService *TwoFaService) Handle {
 }
 
 // Initiate sending 2fa code
-// (POST /2fa:init)
-func (h Handle) Post2faInit(w http.ResponseWriter, r *http.Request) *Response {
+// (POST /2fa/send)
+func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
 
-	data := &Post2faInitJSONRequestBody{}
+	data := &Post2faSendJSONRequestBody{}
 	err := render.DecodeJSON(r.Body, &data)
 	if err != nil {
 		return &Response{
@@ -48,7 +48,7 @@ func (h Handle) Post2faInit(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	return Post2faInitJSON200Response(resp)
+	return Post2faSendJSON200Response(resp)
 }
 
 // Authenticate 2fa passcode
