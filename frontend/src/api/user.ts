@@ -5,6 +5,31 @@ interface LoginRequest {
   password: string;
 }
 
+interface TwoFactorMethod {
+  type: string;
+  delivery_options: string[];
+}
+
+interface LoginResponse {
+  id?: string;
+  email?: string;
+  username?: string;
+  name?: string | null;
+  created_at?: string;
+  last_modified_at?: string;
+  deleted_at?: string | null;
+  created_by?: string | null;
+  roles?: Array<{
+    id?: string;
+    name?: string;
+  }> | null;
+  // 2FA fields
+  status?: string;
+  message?: string;
+  temp_token?: string;
+  two_factor_methods?: TwoFactorMethod[];
+}
+
 interface CreateUserRequest {
   email: string;
   username: string;
@@ -39,7 +64,7 @@ interface User {
 }
 
 export const userApi = {
-  login: async (credentials: LoginRequest): Promise<User> => {
+  login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     const response = await apiClient('/auth/login', {
       method: 'POST',
       headers: {
@@ -50,7 +75,8 @@ export const userApi = {
     });
 
     if (!response.ok) {
-      throw new Error('Login failed');
+      const errorText = await response.text();
+      throw new Error(errorText || 'Login failed');
     }
 
     return response.json();
