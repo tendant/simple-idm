@@ -5,6 +5,7 @@ let refreshPromise: Promise<Response> | null = null;
 
 interface ApiError extends Error {
   status?: number;
+  code?: string;
 }
 
 export async function refreshToken(): Promise<boolean> {
@@ -61,6 +62,21 @@ export async function fetchWithAuth(
   if (!response.ok) {
     const error: ApiError = new Error(response.statusText);
     error.status = response.status;
+    
+    // Try to extract the error message from the response body
+    try {
+      const errorData = await response.clone().json();
+      if (errorData && errorData.message) {
+        error.message = errorData.message;
+      }
+      if (errorData && errorData.code) {
+        error.code = errorData.code;
+      }
+    } catch (e) {
+      // If we can't parse the JSON, just use the status text
+      console.error('Failed to parse error response:', e);
+    }
+    
     throw error;
   }
 
@@ -78,5 +94,33 @@ export function useApiErrorHandler() {
     }
     // Handle other errors as needed
     throw error;
+  };
+}
+
+// Helper function to extract error details from API responses
+export function extractErrorDetails(error: unknown): { 
+  message: string; 
+  code?: string; 
+  status?: number 
+} {
+  if (error instanceof Error) {
+    // If it's an ApiError with additional properties
+    if ('code' in error) {
+      return {
+        message: error.message || 'An error occurred',
+        code: (error as any).code,
+        status: (error as any).status
+      };
+    }
+    
+    // Regular Error object
+    return {
+      message: error.message || 'An error occurred'
+    };
+  }
+  
+  // Unknown error type
+  return {
+    message: error instanceof Object ? JSON.stringify(error) : 'An unknown error occurred'
   };
 }

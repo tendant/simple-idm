@@ -1,12 +1,13 @@
 import { Component, createSignal, Show } from 'solid-js';
-import { useApi } from '@/lib/hooks/useApi';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import Navigation from '@/components/Navigation';
+import { useApi } from '../lib/hooks/useApi';
+import { extractErrorDetails } from '../lib/api';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import Navigation from '../components/Navigation';
 
 const Settings: Component = () => {
   const [currentPassword, setCurrentPassword] = createSignal('');
@@ -48,7 +49,18 @@ const Settings: Component = () => {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to change password');
+      const errorDetails = extractErrorDetails(err);
+      
+      // Handle specific error codes
+      if (errorDetails.code === 'invalid_password') {
+        setError('Current password is incorrect');
+      } else if (errorDetails.code === 'invalid_password_complexity') {
+        // Display the specific password complexity error message
+        setError(errorDetails.message);
+      } else {
+        // For any other error, display the message
+        setError(errorDetails.message);
+      }
     }
   };
 
