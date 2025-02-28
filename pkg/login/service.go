@@ -81,13 +81,13 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 		if err == pgx.ErrNoRows {
 			return []MappedUser{}, fmt.Errorf("invalid username or password")
 		}
-		return res, fmt.Errorf("error finding user: %w", err)
+		return []MappedUser{}, fmt.Errorf("error finding user: %w", err)
 	}
 
 	// Verify password
 	valid, err := s.CheckPasswordByLoginId(ctx, loginUser.ID.String(), password, string(loginUser.Password))
 	if err != nil {
-		return res, fmt.Errorf("error checking password: %w", err)
+		return []MappedUser{}, fmt.Errorf("error checking password: %w", err)
 	}
 
 	if !valid {
@@ -97,12 +97,14 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 	// Get user info with roles
 	users, err := s.userMapper.GetUsers(ctx, loginUser.ID)
 	if err != nil {
-		return res, fmt.Errorf("error getting user roles: %w", err)
+		return []MappedUser{}, fmt.Errorf("error getting user roles: %w", err)
 	}
-	res.LoginId = loginUser.ID
-	res.Users = users
+	res := LoginResponse{
+		Users:   users,
+		LoginId: loginUser.ID,
+	}
 
-	return res, nil
+	return res.Users, nil
 }
 
 type RegisterParam struct {

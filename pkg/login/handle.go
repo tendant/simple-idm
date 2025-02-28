@@ -89,7 +89,6 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			Code: http.StatusBadRequest,
 		}
 	}
-	mappedUsers := loginResponse.Users
 
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after login")
@@ -124,9 +123,18 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// TODO: Check if 2FA is enabled for current login
-	enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(r.Context(), loginResponse.LoginId)
+	loginID, err := uuid.Parse(idmUsers[0].LoginID)
 	if err != nil {
-		slog.Error("Failed to find enabled 2FA", "loginUuid", loginResponse.LoginId, "error", err)
+		slog.Error("Failed to parse login ID", "loginID", idmUsers[0].LoginID, "error", err)
+		return &Response{
+			body: "Invalid login ID",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	
+	enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(r.Context(), loginID)
+	if err != nil {
+		slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
 		return &Response{
 			body: "Failed to find enabled 2FA",
 			Code: http.StatusInternalServerError,
@@ -136,9 +144,9 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	var twoFactorMethods []TwoFAMethod
 	if len(enabledTwoFAs) > 0 {
 		// TODO: set cookies only with login id
-		slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginResponse.LoginId)
+		slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
 
-		// If email 2FA is enabled, get unique emails from mapped users
+		// If email 2FA is enabled, get unique emails from users
 		var emails []string
 		for _, method := range enabledTwoFAs {
 			curMethod := TwoFAMethod{
@@ -146,7 +154,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			}
 			switch method {
 			case twofa.TWO_FACTOR_TYPE_EMAIL:
-				emails = getUniqueEmailsFromUsers(mappedUsers)
+				emails = getUniqueEmailsFromUsers(idmUsers)
 				curMethod.DeliveryOptions = emails
 			default:
 				curMethod.DeliveryOptions = []string{}
@@ -156,7 +164,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
 		if err != nil {
-			slog.Error("Failed to create temp token", "loginUuid", loginResponse.LoginId, "error", err)
+			slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
 		}
 
 		twoFARequiredResp := TwoFactorRequiredResponse{
@@ -168,44 +176,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 		return PostLoginJSON202Response(twoFARequiredResp)
 	} else {
-		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginResponse.LoginId)
+		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginID)
 	}
-
-	// // Check if 2FA is enabled and code is required
-	// if apiUsers[0].TwoFactorEnabled {
-	// 	// If no code provided, return 2FA required response
-	// 	if data.Code == "" {
-	// 		// Create a temporary token for 2FA verification
-	// 		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
-	// 		if err != nil {
-	// 			slog.Error("Failed to create temp token", "user", tokenUser, "err", err)
-	// 			return &Response{
-	// 				body: "Failed to create temporary token",
-	// 				Code: http.StatusInternalServerError,
-	// 			}
-	// 		}
-
-	// 		return &Response{
-	// 			body: map[string]interface{}{
-	// 				"status":     "2fa_required",
-	// 				"message":    "2FA verification required",
-	// 				"temp_token": tempToken.Token,
-	// 			},
-	// 			Code:        http.StatusAccepted,
-	// 			contentType: "application/json",
-	// 		}
-	// 	}
-
-	// 	// Verify 2FA code
-	// 	valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.LoginID, data.Code)
-	// 	if err != nil || !valid {
-	// 		slog.Error("Invalid 2FA code", "err", err)
-	// 		return &Response{
-	// 			body: "Invalid 2FA code",
-	// 			Code: http.StatusBadRequest,
-	// 		}
-	// 	}
-	// }
 
 	// Create JWT tokens
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
@@ -574,8 +546,6 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 			Code: http.StatusBadRequest,
 		}
 	}
-
-	idmUsers := loginResponse.Users
 
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after login")
