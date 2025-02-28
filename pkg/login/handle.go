@@ -131,7 +131,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			Code: http.StatusInternalServerError,
 		}
 	}
-	
+
 	enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(r.Context(), loginID)
 	if err != nil {
 		slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
@@ -277,7 +277,7 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 		slog.Error("Failed to reset password", "err", err)
 		return &Response{
 			body: map[string]string{
-				"message": "Invalid or expired reset token",
+				"message": err.Error(),
 			},
 			Code:        400,
 			contentType: "application/json",
