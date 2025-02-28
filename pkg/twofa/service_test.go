@@ -121,12 +121,12 @@ func TestGetTwoFactorSecretByLoginUuid(t *testing.T) {
 
 	// Create a test user with a known password
 	ctx := context.Background()
-	loginUuid := uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8")
+	loginUuid := uuid.MustParse("d315f240-ccd1-4afd-b6e6-b5fba6084f74")
 
 	twofaSecret, err := service.GetTwoFactorSecretByLoginId(ctx, loginUuid, TWO_FACTOR_TYPE_EMAIL)
 
 	require.NoError(t, err)
-	slog.Info("twofaSecret", "secret", twofaSecret)
+	// slog.Info("twofaSecret", "secret", twofaSecret)
 	require.NotEmpty(t, twofaSecret)
 }
 
@@ -164,7 +164,7 @@ func TestEnableTwoFactor(t *testing.T) {
 	service := NewTwoFaService(queries, nil)
 
 	// Call the EnableTwoFactor method
-	err := service.EnableTwoFactor(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email")
+	err := service.EnableTwoFactor(context.Background(), uuid.MustParse("d315f240-ccd1-4afd-b6e6-b5fba6084f74"), "email")
 
 	// Check the result
 	require.NoError(t, err)

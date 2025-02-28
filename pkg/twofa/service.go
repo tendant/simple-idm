@@ -100,7 +100,7 @@ func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid
 }
 
 // InitTwoFa generate a two factor passcode and send a notification email
-func (s TwoFaService) InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFactorType, email string) error {
+func (s TwoFaService) InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFactorType, deliveryOption string) error {
 	// get or create the 2fa secret for the login
 	secret, err := s.GetTwoFactorSecretByLoginId(ctx, loginId, twoFactorType)
 	if err != nil {
@@ -113,8 +113,14 @@ func (s TwoFaService) InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFacto
 		return fmt.Errorf("failed to generate and send 2FA passcode: %w", err)
 	}
 
+	// If delivery_option is provided and the type is email, use it instead of the email parameter
+	emailToUse := deliveryOption
+	if twoFactorType == TWO_FACTOR_TYPE_EMAIL && deliveryOption != "" {
+		emailToUse = deliveryOption
+	}
+
 	// send the passcode by email
-	err = s.SendTwofaPasscodeEmail(ctx, email, passcode)
+	err = s.SendTwofaPasscodeEmail(ctx, emailToUse, passcode)
 	if err != nil {
 		return fmt.Errorf("failed to send 2FA passcode: %w", err)
 	}
