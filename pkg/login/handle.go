@@ -141,14 +141,14 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		var emails []string
 		for _, method := range enabledTwoFAs {
 			curMethod := TwoFAMethod{
-				Method: method,
+				Type: method,
 			}
 			switch method {
 			case twofa.TWO_FACTOR_TYPE_EMAIL:
 				emails = getUniqueEmailsFromUsers(mappedUsers)
-				curMethod.AvailableContactInfo = emails
+				curMethod.DeliveryOptions = emails
 			default:
-				curMethod.AvailableContactInfo = []string{}
+				curMethod.DeliveryOptions = []string{}
 			}
 			twoFactorMethods = append(twoFactorMethods, curMethod)
 		}
