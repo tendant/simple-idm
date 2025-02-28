@@ -17,12 +17,14 @@ import (
 )
 
 type ProfileService struct {
-	queries *profiledb.Queries
+	queries       *profiledb.Queries
+	loginService  *login.LoginService
 }
 
-func NewProfileService(queries *profiledb.Queries) *ProfileService {
+func NewProfileService(queries *profiledb.Queries, loginService *login.LoginService) *ProfileService {
 	return &ProfileService{
-		queries: queries,
+		queries:      queries,
+		loginService: loginService,
 	}
 }
 
@@ -42,7 +44,7 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	}
 
 	// Verify the current password
-	match, err := login.CheckPasswordHash(params.CurrentPassword, string(user.Password))
+	match, err := s.loginService.CheckPasswordHash(params.CurrentPassword, string(user.Password), login.PasswordV1)
 	if err != nil || !match {
 		slog.Error("Invalid current password", "uuid", params.UserUuid)
 		return fmt.Errorf("invalid current password")
@@ -87,14 +89,14 @@ func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswo
 	}
 
 	// Verify the current password
-	match, err := login.CheckPasswordHash(params.CurrentPassword, string(user.Password))
+	match, err := s.loginService.CheckPasswordHash(params.CurrentPassword, string(user.Password), login.PasswordV1)
 	if err != nil || !match {
 		slog.Error("Invalid current password", "uuid", params.UserUuid)
 		return fmt.Errorf("invalid current password")
 	}
 
 	// Hash the new password
-	hashedPassword, err := login.HashPassword(params.NewPassword)
+	hashedPassword, err := s.loginService.HashPassword(params.NewPassword)
 	if err != nil {
 		slog.Error("Failed to hash new password", "err", err)
 		return fmt.Errorf("failed to process new password")

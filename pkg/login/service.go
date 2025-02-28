@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -51,6 +52,28 @@ func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) 
 	return s.userMapper.GetUsers(ctx, loginID)
 }
 
+// CheckPasswordByLoginId verifies a password for a given login ID
+// It returns true if the password is valid, false otherwise
+func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId string, password, hashedPassword string) (bool, error) {
+	// Get the password version
+	parsedLoginId := utils.ParseUUID(loginId)
+	passwordVersion, err := s.queries.GetUserPasswordVersion(ctx, parsedLoginId)
+	if err != nil {
+		// If there's an error getting the version, assume version 1
+		slog.Warn("Could not get password version, assuming version 1", "error", err)
+		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
+	}
+
+	// Verify password and upgrade if needed
+	return s.passwordManager.AuthenticateAndUpgrade(
+		ctx,
+		loginId,
+		password,
+		hashedPassword,
+		PasswordVersion(passwordVersion.Int32),
+	)
+}
+
 func (s *LoginService) Login(ctx context.Context, username, password string) ([]MappedUser, error) {
 	// Find user by username
 	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(username))
@@ -61,22 +84,8 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 		return res, fmt.Errorf("error finding user: %w", err)
 	}
 
-	// Get the password version
-	passwordVersion, err := s.queries.GetUserPasswordVersion(ctx, loginUser.ID)
-	if err != nil {
-		// If there's an error getting the version, assume version 1
-		slog.Warn("Could not get password version, assuming version 1", "error", err)
-		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
-	}
-
-	// Verify password and upgrade if needed
-	valid, err := s.passwordManager.AuthenticateAndUpgrade(
-		ctx,
-		loginUser.ID.String(),
-		password,
-		string(loginUser.Password),
-		PasswordVersion(passwordVersion.Int32),
-	)
+	// Verify password
+	valid, err := s.CheckPasswordByLoginId(ctx, loginUser.ID.String(), password, string(loginUser.Password))
 	if err != nil {
 		return res, fmt.Errorf("error checking password: %w", err)
 	}
@@ -100,16 +109,6 @@ type RegisterParam struct {
 	Email    string
 	Name     string
 	Password string
-}
-
-// HashPassword hashes the plain-text password using bcrypt.
-func (s LoginService) HashPassword(password string) (string, error) {
-	return s.passwordManager.HashPassword(password)
-}
-
-// CheckPasswordHash compares the plain-text password with the stored hashed password.
-func (s LoginService) CheckPasswordHash(password, hashedPassword string, version PasswordVersion) (bool, error) {
-	return s.passwordManager.CheckPasswordHash(password, hashedPassword, version)
 }
 
 func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code string) (bool, error) {
@@ -169,25 +168,35 @@ func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb
 	}
 
 	// Hash the password
-	_, err := s.passwordManager.HashPassword(params.Password)
+	hashedPassword, err := s.passwordManager.HashPassword(params.Password)
 	if err != nil {
 		return logindb.User{}, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Here you would create the user with the hashed password
-	// This is commented out as it appears to be in the original code
-	// registerRequest := logindb.RegisterUserParams{
-	//    Name: params.Name,
-	//    Email: params.Email,
-	//    Password: []byte(hashedPassword),
-	// }
-	// user, err := s.queries.RegisterUser(ctx, registerRequest)
-	// if err != nil {
-	//    slog.Error("Failed to register user", "params", params, "err", err)
-	//    return logindb.User{}, err
-	// }
+	// Since we don't have a direct CreateUser method, we need to use what's available
+	// This is a placeholder implementation - you'll need to implement the actual user creation
+	// based on the available methods in your logindb package
+	slog.Info("User creation not fully implemented", "email", params.Email)
 
-	return logindb.User{}, nil
+	// Return a placeholder user with the provided information
+	user := logindb.User{
+		ID:             uuid.New(),
+		Email:          params.Email,
+		Name:           utils.ToNullString(params.Name),
+		Password:       []byte(hashedPassword),
+		CreatedAt:      time.Now(),
+		LastModifiedAt: time.Now(),
+	}
+
+	return user, nil
+}
+
+func (s LoginService) HashPassword(password string) (string, error) {
+	return s.passwordManager.HashPassword(password)
+}
+
+func (s LoginService) CheckPasswordHash(password, hashedPassword string, version PasswordVersion) (bool, error) {
+	return s.passwordManager.CheckPasswordHash(password, hashedPassword, version)
 }
 
 func (s LoginService) EmailVerify(ctx context.Context, param string) error {

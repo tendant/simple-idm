@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/tendant/simple-idm/pkg/auth/db"
 	"github.com/tendant/simple-idm/pkg/login"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type (
@@ -39,30 +38,26 @@ type (
 	PasswordComplexity struct {
 		RequiredDigit           bool
 		RequiredLowercase       bool
-		RequiredNonAlphanumeric bool
 		RequiredUppercase       bool
+		RequiredNonAlphanumeric bool
 		RequiredLength          int
 	}
-
-	AuthLoginService struct {
-		queries    *db.Queries
-		pwdComplex PasswordComplexity
-	}
-
-	Option func(*AuthLoginService)
 )
 
-func NewAuthLoginService(queries *db.Queries, ops ...Option) *AuthLoginService {
-	autSvc := &AuthLoginService{
-		queries: queries,
-	}
-	for _, opt := range ops {
-		opt(autSvc)
-	}
-	return autSvc
+type AuthLoginService struct {
+	queries      *db.Queries
+	loginService *login.LoginService
+	pwdComplex   PasswordComplexity
 }
 
-func WithPwdComplex(pwdComplex PasswordComplexity) Option {
+func NewAuthLoginService(queries *db.Queries, loginService *login.LoginService) *AuthLoginService {
+	return &AuthLoginService{
+		queries:      queries,
+		loginService: loginService,
+	}
+}
+
+func WithPwdComplex(pwdComplex PasswordComplexity) func(*AuthLoginService) {
 	return func(svc *AuthLoginService) {
 		svc.pwdComplex = pwdComplex
 	}
@@ -100,29 +95,31 @@ func (authSvc AuthLoginService) VerifyPasswordComplexity(ctx context.Context, pa
 
 func (authSvc AuthLoginService) MatchPasswordByUuids(ctx context.Context, param MatchPassParam) (bool, error) {
 	loginRecord, err := authSvc.queries.FindUserByUserUuid(ctx, param.UserUuid)
-	if err == pgx.ErrNoRows {
-		slog.Error("No user record found", "user uuid", param.UserUuid, "err", err)
-		return false, nil
+	if errors.Is(err, pgx.ErrNoRows) {
+		slog.Error("User not found", "user uuid", param.UserUuid)
+		return false, errors.New("user not found")
 	} else if err != nil {
 		slog.Error("Failed to find user record", "user uuid", param.UserUuid, "err", err)
 		return false, err
 	}
-	return login.CheckPasswordHash(param.Password, loginRecord.Password.String)
+	return authSvc.loginService.CheckPasswordHash(param.Password, loginRecord.Password.String, login.PasswordV1)
 }
 
 func (authSvc AuthLoginService) UpdatePassword(ctx context.Context, param UpdatePassParam) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(param.NewPassword), bcrypt.DefaultCost)
+	// Hash the password using the login service
+	hashedPassword, err := authSvc.loginService.HashPassword(param.NewPassword)
 	if err != nil {
 		slog.Error("Failed to generate password hash", "err", err)
 		return err
 	}
+
 	err = authSvc.queries.UpdatePassowrd(ctx, db.UpdatePassowrdParams{
-		Password:       sql.NullString{Valid: true, String: string(hash)},
+		Password:       sql.NullString{Valid: true, String: hashedPassword},
 		LastModifiedAt: time.Now().UTC(),
 		Uuid:           param.UserUuid,
 	})
 	if err != nil {
-		slog.Error("Failed to update password", "user uuid", param.UserUuid, "err", err)
+		slog.Error("Failed to update password", "err", err)
 		return err
 	}
 	return nil
