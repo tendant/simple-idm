@@ -77,17 +77,13 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
     setLoading(true);
 
     try {
-      const userData = await twoFactorApi.verifyCode(tempToken(), {
+      await twoFactorApi.verifyCode(tempToken(), {
         twofa_type: selectedMethod()?.type,
         passcode: verificationCode()
       });
       
-      // Store the user info in localStorage
-      localStorage.setItem('user', JSON.stringify(userData));
-
-      // Redirect to the original page or default to /users
-      const redirectPath = searchParams.redirect || '/users';
-      navigate(redirectPath);
+      // Redirect to the users list page
+      navigate('/users');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Verification failed');
     } finally {

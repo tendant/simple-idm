@@ -52,7 +52,7 @@ export const twoFactorApi = {
     }
   },
   
-  verifyCode: async (token: string, request: TwoFactorVerifyRequest): Promise<UserData> => {
+  verifyCode: async (token: string, request: TwoFactorVerifyRequest): Promise<any> => {
     const response = await apiClient.post('/idm/twofa/2fa/validate', request, {
       headers: {
         Authorization: `Bearer ${token}`
@@ -64,6 +64,10 @@ export const twoFactorApi = {
       throw new Error(error.message || 'Verification failed');
     }
     
-    return await response.json();
+    try {
+      return await response.json();
+    } catch (e) {
+      return { success: true };
+    }
   }
 };
