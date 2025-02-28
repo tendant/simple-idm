@@ -15,6 +15,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/discord-gophers/goapi-gen/runtime"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -116,6 +117,18 @@ func Post2faInitJSON200Response(body SuccessResponse) *Response {
 	}
 }
 
+// Get2faEnabledJSON200Response is a constructor method for a Get2faEnabled response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Get2faEnabledJSON200Response(body struct {
+	N2faMethods []string `json:"2fa_methods,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Authenticate 2fa passcode
@@ -124,6 +137,9 @@ type ServerInterface interface {
 	// Initiate sending 2fa code
 	// (POST /2fa:init)
 	Post2faInit(w http.ResponseWriter, r *http.Request) *Response
+	// Get all enabled 2fas
+	// (GET /{login_id}/2fa/enabled)
+	Get2faEnabled(w http.ResponseWriter, r *http.Request, loginID string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -156,6 +172,32 @@ func (siw *ServerInterfaceWrapper) Post2faInit(w http.ResponseWriter, r *http.Re
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Post2faInit(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Get2faEnabled operation middleware
+func (siw *ServerInterfaceWrapper) Get2faEnabled(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "login_id" -------------
+	var loginID string
+
+	if err := runtime.BindStyledParameter("simple", false, "login_id", chi.URLParam(r, "login_id"), &loginID); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "login_id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Get2faEnabled(w, r, loginID)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -285,6 +327,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Post("/2fa", wrapper.Post2faValidate)
 		r.Post("/2fa:init", wrapper.Post2faInit)
+		r.Get("/{login_id}/2fa/enabled", wrapper.Get2faEnabled)
 	})
 	return r
 }
@@ -310,14 +353,16 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9SSQY/TMBCF/0o0cEw3pdx8W245IK1A4oLQysSTdFaJx3jGhWqV/47sppSWClSJy96s",
-	"0bzxm/fNM3Q8BfboVcA8g3RbnGx5fkxdhyIfUAJ7wVwKkQNGJSwNESWNml+6DwgGRCP5Aea5Plb46xN2",
-	"CjX8WA284qDE3o6rnR0TgtGYcM7d5Hsuc0jHLGungFHYW8XqvfV2wAm9VvcPLdSwwyjEHgy8uVvfrWGu",
-	"gQN6GwgMvC2lGoLVbTHZbHpbrLMUq3kBm220Dgw8sOimt5/sSM4qQg0RvyUUfcdun9s79oq+KG0II3VF",
-	"2zxJNnCM689oRh7IP5LL757jZBUMpEQO6suwsleRjh1eSbIG/c69fTyUrwWd/VJEB+bzaVB9MnA24csl",
-	"mPl8RAGSCwfkZZXNen1TEK8j9mDgVXM6rGa5qubypMr3DqWLVE4DDGx6W+0WHK5aBH0ay7KSpsnGPRi4",
-	"T7pFr9kGVlnza/fcl6Eb8qT/JN/mpv9FHSdL41WKN93DLcgPX55pfvvthfDOpOjvvNulpRL0jvxQmC+8",
-	"5/lnAAAA//83ZIOaxgQAAA==",
+	"H4sIAAAAAAAC/9SUT4/TMBDFv0o0cMxuS7n5tkiw6gFpBRKX1Wo1G09ar/wPe1Koqnx3NG5KNiUCVXDh",
+	"5oze2M/vN/EBmuBi8OQ5gzpAbrbksCw/d01DOX+iHIPPJKWYQqTEhoogUe4sy4r3kUBB5mT8Bvq+PlXC",
+	"0zM1DDV8v9qEqxDZBI/2aoe2I1CcOupFbXwbyj6GrbStXaSUg0em6iN63JAjz9XN3Rpq2FHKJnhQ8OZ6",
+	"eb2EvoYQyWM0oOBtKdUQkbfF5GLVYrEecrEqF0Cxsdag4C5kXrX4Ba3RyAQ1JPraUeZ3Qe9F3gTP5Esn",
+	"xmhNU3oXz1kMnOL6NRobNsY/Gi3rNiSHDAq6zmioz8MSrzk3QdNMkjXwt9Di47E8F7T4NYk0qPtxo3o0",
+	"MNnh4RxMP92iAJHCEXm5ymq5vCiI14laUPBqMQ7WYpiqxflIleM15SaZMhqgYNVitRtw6GpoaDtbLps7",
+	"5zDtQcFNx1vyLDaokp6fdxedQFfGG/4j+bWI/hV1cmjsLMWL5uES5McjJz0vTvtPeAsp83ve60FSZfLa",
+	"+E1hPvI+nK7cC/oFeXyyVNLe0Az8WxL27weV/IEJHTGlDOr+AEaMyQsCNXh0kt+L/2kaX/0iinNUD38Z",
+	"7XS6Vi0+OuJt0OXTMLk8/2QcC5gS7mce4xkIY+x2XyXiZGhHuhpirFYfbqrTyVMst8QVWjsqWxRJ3/8I",
+	"AAD//6T2X/hYBgAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

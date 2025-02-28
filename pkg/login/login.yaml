@@ -36,17 +36,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: "2fa_required"
-                  message:
-                    type: string
-                    example: "2FA verification required"
-                  temp_token:
-                    type: string
-                    description: Temporary token to use for 2FA verification
+                $ref: "#/components/schemas/TwoFactorRequiredResponse"
         "400":
           description: Invalid credentials
           content:
@@ -274,6 +264,33 @@ paths:
                 $ref: "#/components/schemas/Login"
 components:
   schemas:
+    TwoFactorRequiredResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "2fa_required"
+        message:
+          type: string
+          example: "2FA verification required"
+        temp_token:
+          type: string
+          description: Temporary token to use for 2FA verification
+        two_factor_methods:
+          type: array
+          items:
+            $ref: "#/components/schemas/TwoFAMethod"
+    TwoFAMethod:
+      x-go-optional-value: true
+      type: object
+      properties:
+        type:
+          type: string
+        delivery_options:
+          type: array
+          items:
+            type: string
     User:
       type: object
       properties:

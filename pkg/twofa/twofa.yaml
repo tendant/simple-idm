@@ -61,6 +61,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+  /{login_id}/2fa/enabled:
+    get:
+      summary: Get all enabled 2fas
+      operationId: get_2fa_enabled
+      parameters:
+        - name: login_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successfully retrieved enabled 2FA methods
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  2fa_methods:
+                    type: array
+                    items:
+                      type: string
 components:
   schemas:
     SuccessResponse:

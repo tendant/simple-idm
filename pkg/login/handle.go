@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/pkg/twofa"
 	"golang.org/x/exp/slog"
 )
 
@@ -28,16 +29,26 @@ type PasswordResetJSONRequestBody struct {
 	NewPassword string `json:"new_password"`
 }
 
-type Handle struct {
-	loginService *LoginService
-	jwtService   auth.Jwt
+type TwoFactorMethod struct {
+	Method      string   `json:"method"`
+	ContactInfo []string `json:"contact_info"`
 }
 
-func NewHandle(loginService *LoginService, jwtService auth.Jwt) Handle {
-	return Handle{
+type Handle struct {
+	loginService     *LoginService
+	jwtService       auth.Jwt
+	twoFactorService twofa.TwoFactorService
+}
+
+func NewHandle(loginService *LoginService, jwtService auth.Jwt, opts ...Option) Handle {
+	h := Handle{
 		loginService: loginService,
 		jwtService:   jwtService,
 	}
+	for _, opt := range opts {
+		opt(&h)
+	}
+	return h
 }
 
 func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue string, expire time.Time) {
@@ -69,7 +80,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Call login service
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	mappedUsers, err := h.loginService.Login(r.Context(), loginParams, data.Password)
+	loginResponse, err := h.loginService.Login(r.Context(), loginParams, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 		return &Response{
@@ -77,6 +88,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			Code: http.StatusBadRequest,
 		}
 	}
+	mappedUsers := loginResponse.Users
 
 	if len(mappedUsers) == 0 {
 		slog.Error("No user found after login")
@@ -110,41 +122,89 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Check if 2FA is enabled and code is required
-	if apiUsers[0].TwoFactorEnabled {
-		// If no code provided, return 2FA required response
-		if data.Code == "" {
-			// Create a temporary token for 2FA verification
-			tempToken, err := h.jwtService.CreateTempToken(tokenUser)
-			if err != nil {
-				slog.Error("Failed to create temp token", "user", tokenUser, "err", err)
-				return &Response{
-					body: "Failed to create temporary token",
-					Code: http.StatusInternalServerError,
-				}
-			}
-
-			return &Response{
-				body: map[string]interface{}{
-					"status":     "2fa_required",
-					"message":    "2FA verification required",
-					"temp_token": tempToken.Token,
-				},
-				Code:        http.StatusAccepted,
-				contentType: "application/json",
-			}
-		}
-
-		// Verify 2FA code
-		valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.LoginID, data.Code)
-		if err != nil || !valid {
-			slog.Error("Invalid 2FA code", "err", err)
-			return &Response{
-				body: "Invalid 2FA code",
-				Code: http.StatusBadRequest,
-			}
+	// TODO: Check if 2FA is enabled for current login
+	enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(r.Context(), loginResponse.LoginId)
+	if err != nil {
+		slog.Error("Failed to find enabled 2FA", "loginUuid", loginResponse.LoginId, "error", err)
+		return &Response{
+			body: "Failed to find enabled 2FA",
+			Code: http.StatusInternalServerError,
 		}
 	}
+
+	var twoFactorMethods []TwoFAMethod
+	if len(enabledTwoFAs) > 0 {
+		// TODO: set cookies only with login id
+		slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginResponse.LoginId)
+
+		// If email 2FA is enabled, get unique emails from mapped users
+		var emails []string
+		for _, method := range enabledTwoFAs {
+			curMethod := TwoFAMethod{
+				Type: method,
+			}
+			switch method {
+			case twofa.TWO_FACTOR_TYPE_EMAIL:
+				emails = getUniqueEmailsFromUsers(mappedUsers)
+				curMethod.DeliveryOptions = emails
+			default:
+				curMethod.DeliveryOptions = []string{}
+			}
+			twoFactorMethods = append(twoFactorMethods, curMethod)
+		}
+
+		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+		if err != nil {
+			slog.Error("Failed to create temp token", "loginUuid", loginResponse.LoginId, "error", err)
+		}
+
+		twoFARequiredResp := TwoFactorRequiredResponse{
+			TempToken:        tempToken.Token,
+			TwoFactorMethods: twoFactorMethods,
+			Status:           "2fa_required",
+			Message:          "2FA verification required",
+		}
+
+		return PostLoginJSON202Response(twoFARequiredResp)
+	} else {
+		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginResponse.LoginId)
+	}
+
+	// // Check if 2FA is enabled and code is required
+	// if apiUsers[0].TwoFactorEnabled {
+	// 	// If no code provided, return 2FA required response
+	// 	if data.Code == "" {
+	// 		// Create a temporary token for 2FA verification
+	// 		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+	// 		if err != nil {
+	// 			slog.Error("Failed to create temp token", "user", tokenUser, "err", err)
+	// 			return &Response{
+	// 				body: "Failed to create temporary token",
+	// 				Code: http.StatusInternalServerError,
+	// 			}
+	// 		}
+
+	// 		return &Response{
+	// 			body: map[string]interface{}{
+	// 				"status":     "2fa_required",
+	// 				"message":    "2FA verification required",
+	// 				"temp_token": tempToken.Token,
+	// 			},
+	// 			Code:        http.StatusAccepted,
+	// 			contentType: "application/json",
+	// 		}
+	// 	}
+
+	// 	// Verify 2FA code
+	// 	valid, err := h.loginService.Verify2FACode(r.Context(), tokenUser.LoginID, data.Code)
+	// 	if err != nil || !valid {
+	// 		slog.Error("Invalid 2FA code", "err", err)
+	// 		return &Response{
+	// 			body: "Invalid 2FA code",
+	// 			Code: http.StatusBadRequest,
+	// 		}
+	// 	}
+	// }
 
 	// Create JWT tokens
 	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
@@ -504,7 +564,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	// Call login service
 	loginParams := LoginParams{}
 	copier.Copy(&loginParams, data)
-	idmUsers, err := h.loginService.Login(r.Context(), loginParams, data.Password)
+	loginResponse, err := h.loginService.Login(r.Context(), loginParams, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 		return &Response{
@@ -512,6 +572,8 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 			Code: http.StatusBadRequest,
 		}
 	}
+
+	idmUsers := loginResponse.Users
 
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after login")

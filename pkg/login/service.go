@@ -40,35 +40,43 @@ type LoginParams struct {
 	Username string
 }
 
+type LoginResponse struct {
+	Users   []MappedUser
+	LoginId uuid.UUID
+}
+
 func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error) {
 	return s.userMapper.GetUsers(ctx, loginID)
 }
 
-func (s LoginService) Login(ctx context.Context, params LoginParams, password string) ([]MappedUser, error) {
+func (s LoginService) Login(ctx context.Context, params LoginParams, password string) (LoginResponse, error) {
+	var res LoginResponse
 	// Find user by username
 	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(params.Username))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return []MappedUser{}, fmt.Errorf("user not found")
+			return res, fmt.Errorf("user not found")
 		}
-		return []MappedUser{}, fmt.Errorf("error finding user: %w", err)
+		return res, fmt.Errorf("error finding user: %w", err)
 	}
 
 	// Verify password
 	valid, err := CheckPasswordHash(password, string(loginUser.Password))
 	if err != nil {
-		return []MappedUser{}, fmt.Errorf("error checking password: %w", err)
+		return res, fmt.Errorf("error checking password: %w", err)
 	}
 	if !valid {
-		return []MappedUser{}, fmt.Errorf("invalid password")
+		return res, fmt.Errorf("invalid password")
 	}
 
 	users, err := s.userMapper.GetUsers(ctx, loginUser.ID)
 	if err != nil {
-		return []MappedUser{}, fmt.Errorf("error getting user roles: %w", err)
+		return res, fmt.Errorf("error getting user roles: %w", err)
 	}
+	res.LoginId = loginUser.ID
+	res.Users = users
 
-	return users, nil
+	return res, nil
 }
 
 type RegisterParam struct {
@@ -303,4 +311,24 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	return nil
+}
+
+func getUniqueEmailsFromUsers(mappedUsers []MappedUser) []string {
+	// Use a map to track unique emails
+	emailMap := make(map[string]struct{})
+
+	// Collect emails from mapped users
+	for _, mu := range mappedUsers {
+		if email, ok := mu.ExtraClaims["email"].(string); ok && email != "" {
+			emailMap[email] = struct{}{}
+		}
+	}
+
+	// Convert map keys to slice
+	emails := make([]string, 0, len(emailMap))
+	for email := range emailMap {
+		emails = append(emails, email)
+	}
+
+	return emails
 }

@@ -147,7 +147,8 @@ func main() {
 	// 	authpkg.WithPwdComplex(pwdComplex),
 	// )
 
-	loginHandle := login.NewHandle(loginService, *jwtService)
+	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager)
+	loginHandle := login.NewHandle(loginService, *jwtService, login.WithTwoFactorService(twoFaService))
 
 	// authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
@@ -202,7 +203,6 @@ func main() {
 		r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
 
 		// Initialize two factor authentication service and routes
-		twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager)
 		twoFaHandle := twofa.NewHandle(twoFaService)
 		r.Mount("/idm/twofa", twofa.Handler(twoFaHandle))
 	})
