@@ -105,7 +105,7 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 }
 
 // Authenticate 2fa passcode
-// (POST /2fa)
+// (POST /2fa/validate)
 func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
 
