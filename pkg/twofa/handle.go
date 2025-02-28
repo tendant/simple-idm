@@ -2,18 +2,26 @@ package twofa
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
-type Handle struct {
-	twoFaService *TwoFaService
+type JwtService interface {
+	ParseTokenStr(tokenStr string) (*jwt.Token, error)
 }
 
-func NewHandle(twoFaService *TwoFaService) Handle {
+type Handle struct {
+	twoFaService *TwoFaService
+	jwtService   JwtService
+}
+
+func NewHandle(twoFaService *TwoFaService, jwtService JwtService) Handle {
 	return Handle{
 		twoFaService: twoFaService,
+		jwtService:   jwtService,
 	}
 }
 
@@ -32,11 +40,56 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// FIXME: read the login id from session cookies
-	loginId, err := uuid.Parse(data.LoginID)
+	// Get bearer token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Missing or invalid Authorization header",
+		}
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// Parse and validate token
+	token, err := h.jwtService.ParseTokenStr(tokenStr)
 	if err != nil {
 		return &Response{
-			Code: http.StatusBadRequest,
-			body: "invalid login id",
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
+		}
+	}
+
+	// Get claims from token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid token claims",
+		}
+	}
+
+	// Extract login_id from custom_claims
+	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid custom claims format",
+		}
+	}
+
+	loginIdStr, ok := customClaims["login_id"].(string)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Missing or invalid login_id in token",
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid login_id format in token",
 		}
 	}
 
@@ -56,20 +109,65 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
 
+	// Get bearer token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Missing or invalid Authorization header",
+		}
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// Parse and validate token
+	token, err := h.jwtService.ParseTokenStr(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
+		}
+	}
+
+	// Get claims from token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid token claims",
+		}
+	}
+
+	// Extract login_id from custom_claims
+	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid custom claims format",
+		}
+	}
+
+	loginIdStr, ok := customClaims["login_id"].(string)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Missing or invalid login_id in token",
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid login_id format in token",
+		}
+	}
+
 	data := &Post2faValidateJSONRequestBody{}
-	err := render.DecodeJSON(r.Body, &data)
+	err = render.DecodeJSON(r.Body, &data)
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "unable to parse body",
-		}
-	}
-
-	loginId, err := uuid.Parse(data.LoginID)
-	if err != nil {
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "invalid login id",
 		}
 	}
 
