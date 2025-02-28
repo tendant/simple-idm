@@ -1,8 +1,9 @@
 import { apiClient } from './client';
 
 export interface TwoFactorSendRequest {
-  email: string;
+  email?: string;
   twofa_type: string;
+  delivery_option?: string;
 }
 
 export interface TwoFactorVerifyRequest {
