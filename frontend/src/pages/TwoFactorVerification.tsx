@@ -1,11 +1,6 @@
 import { Component, createSignal, createEffect, For } from 'solid-js';
 import { useNavigate, useSearchParams, A } from '@solidjs/router';
-import { twoFactorApi } from '../api/twoFactor';
-
-interface TwoFactorMethod {
-  type: string;
-  delivery_options: string[];
-}
+import { twoFactorApi, TwoFactorMethod } from '../api/twoFactor';
 
 interface TwoFactorVerificationProps {
   tempToken?: string;
@@ -19,6 +14,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
   const [tempToken, setTempToken] = createSignal(props.tempToken || searchParams.token || '');
   const [methods, setMethods] = createSignal<TwoFactorMethod[]>(props.methods || []);
   const [selectedMethod, setSelectedMethod] = createSignal<TwoFactorMethod | null>(null);
+  const [selectedDeliveryOption, setSelectedDeliveryOption] = createSignal<string>('');
   const [verificationCode, setVerificationCode] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
@@ -33,9 +29,23 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
         setMethods(parsedMethods);
         if (parsedMethods.length > 0) {
           setSelectedMethod(parsedMethods[0]);
+          if (parsedMethods[0].delivery_options.length > 0) {
+            setSelectedDeliveryOption(parsedMethods[0].delivery_options[0]);
+          }
         }
       } catch (err) {
         console.error('Failed to parse 2FA methods from URL', err);
+      }
+    }
+  });
+
+  // Update selected delivery option when method changes
+  createEffect(() => {
+    const method = selectedMethod();
+    if (method && method.delivery_options.length > 0) {
+      // If current selection is not in the new method's options, reset it
+      if (!method.delivery_options.includes(selectedDeliveryOption())) {
+        setSelectedDeliveryOption(method.delivery_options[0]);
       }
     }
   });
@@ -47,9 +57,10 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
     setError(null);
     
     try {
+      // Always use the fixed email for now as per requirements
       await twoFactorApi.sendCode(tempToken(), {
-        method_type: selectedMethod()?.type,
-        delivery_option: selectedMethod()?.delivery_options[0]
+        twofa_type: selectedMethod()?.type,
+        email: "aadmin225@example.com"
       });
 
       setCodeSent(true);
@@ -133,7 +144,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                     <For each={methods()}>
                       {(method) => (
                         <option value={method.type}>
-                          {method.type.charAt(0).toUpperCase() + method.type.slice(1)} ({method.delivery_options[0]})
+                          {method.type.charAt(0).toUpperCase() + method.type.slice(1)}
                         </option>
                       )}
                     </For>
@@ -141,19 +152,35 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                 </div>
               </div>
 
-              {selectedMethod() && (
-                <div class="flex justify-between items-center">
-                  <span class="text-sm text-gray-10">
-                    Code will be sent to: {selectedMethod()?.delivery_options[0]}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={sendVerificationCode}
-                    disabled={sendingCode() || !selectedMethod()}
-                    class="text-sm font-medium text-blue-600 hover:text-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              {selectedMethod() && selectedMethod()?.delivery_options.length > 0 && (
+                <div>
+                  <label
+                    for="delivery-option"
+                    class="block text-sm font-medium text-gray-11"
                   >
-                    {sendingCode() ? 'Sending...' : codeSent() ? 'Resend Code' : 'Send Code'}
-                  </button>
+                    Delivery Option
+                  </label>
+                  <div class="mt-1">
+                    <select
+                      id="delivery-option"
+                      name="delivery-option"
+                      value={selectedDeliveryOption()}
+                      onChange={(e) => {
+                        setSelectedDeliveryOption(e.currentTarget.value);
+                        setCodeSent(false);
+                      }}
+                      class="appearance-none block w-full px-3 py-2 border border-gray-7 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-7 focus:border-primary-7"
+                    >
+                      <For each={selectedMethod()?.delivery_options}>
+                        {(option) => (
+                          <option value={option}>{option}</option>
+                        )}
+                      </For>
+                    </select>
+                  </div>
+                  <div class="mt-1 text-sm text-gray-10">
+                    Note: For this demo, verification code will be sent to aadmin225@example.com
+                  </div>
                 </div>
               )}
 
@@ -191,8 +218,8 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                 </div>
               )}
 
-              {codeSent() && (
-                <div>
+              <div class="flex flex-col space-y-4">
+                {codeSent() && (
                   <button
                     type="submit"
                     disabled={loading() || !verificationCode()}
@@ -200,8 +227,17 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                   >
                     {loading() ? 'Verifying...' : 'Verify'}
                   </button>
-                </div>
-              )}
+                )}
+                
+                <button
+                  type="button"
+                  onClick={sendVerificationCode}
+                  disabled={sendingCode() || !selectedMethod()}
+                  class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sendingCode() ? 'Sending...' : codeSent() ? 'Resend Code' : 'Send Verification Code'}
+                </button>
+              </div>
 
               <div class="text-center">
                 <A

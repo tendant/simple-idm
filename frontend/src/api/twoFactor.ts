@@ -1,21 +1,29 @@
 import { apiClient } from './client';
 
-interface SendCodeRequest {
-  method_type: string;
-  delivery_option: string;
+export interface TwoFactorSendRequest {
+  email: string;
+  twofa_type: string;
 }
 
-interface VerifyCodeRequest {
+export interface TwoFactorVerifyRequest {
   twofa_type: string;
   passcode: string;
 }
 
-interface TwoFactorMethod {
+export interface UserData {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  token: string;
+}
+
+export interface TwoFactorMethod {
   type: string;
   delivery_options: string[];
 }
 
-interface User {
+export interface User {
   id?: string;
   email?: string;
   username?: string;
@@ -31,39 +39,31 @@ interface User {
 }
 
 export const twoFactorApi = {
-  sendCode: async (tempToken: string, request: SendCodeRequest): Promise<void> => {
-    const response = await apiClient('/auth/2fa/send-code', {
-      method: 'POST',
+  sendCode: async (token: string, request: TwoFactorSendRequest): Promise<void> => {
+    const response = await apiClient.post('/idm/twofa/2fa/send', request, {
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${tempToken}`
-      },
-      body: JSON.stringify(request),
-      skipAuth: true,
+        Authorization: `Bearer ${token}`
+      }
     });
-
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.message || 'Failed to send verification code');
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to send verification code');
     }
   },
-
-  verifyCode: async (tempToken: string, request: VerifyCodeRequest): Promise<User> => {
-    const response = await apiClient('/auth/2fa/verify', {
-      method: 'POST',
+  
+  verifyCode: async (token: string, request: TwoFactorVerifyRequest): Promise<UserData> => {
+    const response = await apiClient.post('/idm/twofa/2fa/validate', request, {
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${tempToken}`
-      },
-      body: JSON.stringify(request),
-      skipAuth: true,
+        Authorization: `Bearer ${token}`
+      }
     });
-
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      throw new Error(errorData?.message || 'Verification failed');
+      const error = await response.json();
+      throw new Error(error.message || 'Verification failed');
     }
-
-    return response.json();
+    
+    return await response.json();
   }
 };

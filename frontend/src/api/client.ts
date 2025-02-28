@@ -41,7 +41,12 @@ async function refreshToken() {
   return refreshPromise;
 }
 
-export async function apiClient(url: string, config: RequestConfig = {}): Promise<Response> {
+export interface ApiClientOptions {
+  headers?: Record<string, string>;
+  skipAuth?: boolean;
+}
+
+async function fetchWithAuth(url: string, config: RequestConfig = {}): Promise<Response> {
   // Skip auth for login-related endpoints
   if (config.skipAuth) {
     return fetch(url, {
@@ -77,4 +82,62 @@ export async function apiClient(url: string, config: RequestConfig = {}): Promis
     redirectToLogin();
     throw error;
   }
+}
+
+export const apiClient = {
+  get: async (url: string, options: ApiClientOptions = {}): Promise<Response> => {
+    return fetchWithAuth(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      skipAuth: options.skipAuth,
+    });
+  },
+  
+  post: async (url: string, body: any, options: ApiClientOptions = {}): Promise<Response> => {
+    return fetchWithAuth(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      body: JSON.stringify(body),
+      skipAuth: options.skipAuth,
+    });
+  },
+  
+  put: async (url: string, body: any, options: ApiClientOptions = {}): Promise<Response> => {
+    return fetchWithAuth(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      body: JSON.stringify(body),
+      skipAuth: options.skipAuth,
+    });
+  },
+  
+  delete: async (url: string, options: ApiClientOptions = {}): Promise<Response> => {
+    return fetchWithAuth(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+      skipAuth: options.skipAuth,
+    });
+  },
+  
+  // Legacy support for the old apiClient function
+  call: async (url: string, config: RequestConfig = {}): Promise<Response> => {
+    return fetchWithAuth(url, config);
+  }
+};
+
+// For backward compatibility
+export async function apiClientLegacy(url: string, config: RequestConfig = {}): Promise<Response> {
+  return apiClient.call(url, config);
 }
