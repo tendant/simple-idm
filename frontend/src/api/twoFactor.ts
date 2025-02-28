@@ -6,8 +6,8 @@ interface SendCodeRequest {
 }
 
 interface VerifyCodeRequest {
-  method_type: string;
-  code: string;
+  twofa_type: string;
+  passcode: string;
 }
 
 interface TwoFactorMethod {

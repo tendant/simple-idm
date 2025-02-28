@@ -67,8 +67,8 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
 
     try {
       const userData = await twoFactorApi.verifyCode(tempToken(), {
-        method_type: selectedMethod()?.type,
-        code: verificationCode()
+        twofa_type: selectedMethod()?.type,
+        passcode: verificationCode()
       });
       
       // Store the user info in localStorage
