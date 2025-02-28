@@ -42,8 +42,8 @@ func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue stri
 		Path:     "/",
 		Value:    tokenValue,
 		Expires:  expire,
-		HttpOnly: true, // Make the cookie HttpOnly
-		Secure:   true, // Ensure it's sent over HTTPS
+		HttpOnly: true,                 // Make the cookie HttpOnly
+		Secure:   true,                 // Ensure it's sent over HTTPS
 		SameSite: http.SameSiteLaxMode, // Prevent CSRF
 	}
 
@@ -118,7 +118,7 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	err = h.twoFaService.InitTwoFa(r.Context(), loginId, data.TwofaType, data.Email)
+	err = h.twoFaService.InitTwoFa(r.Context(), loginId, data.TwofaType, data.DeliveryOption)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
