@@ -25,8 +25,8 @@ type LoginService struct {
 }
 
 func NewLoginService(queries *logindb.Queries, notificationManager *notification.NotificationManager, userMapper UserMapper, delegatedUserMapper DelegatedUserMapper) *LoginService {
-	// Create a password manager with default policy
-	passwordManager := NewPasswordManager(queries, nil)
+	// Create a password manager with default policy and current version
+	passwordManager := NewPasswordManager(queries, nil, CurrentPasswordVersion)
 
 	return &LoginService{
 		queries:             queries,
@@ -71,10 +71,10 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 
 	// Verify password and upgrade if needed
 	valid, err := s.passwordManager.AuthenticateAndUpgrade(
-		ctx, 
-		loginUser.ID.String(), 
-		password, 
-		string(loginUser.Password), 
+		ctx,
+		loginUser.ID.String(),
+		password,
+		string(loginUser.Password),
 		PasswordVersion(passwordVersion.Int32),
 	)
 	if err != nil {

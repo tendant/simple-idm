@@ -4,46 +4,42 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/utils"
+	"golang.org/x/exp/slog"
 )
 
-// PasswordVersion represents the version of the password hashing algorithm
-type PasswordVersion int
-
-const (
-	// PasswordV1 is the original bcrypt implementation
-	PasswordV1 PasswordVersion = 1
-	
-	// PasswordV2 adds a salt prefix to the password before hashing
-	PasswordV2 PasswordVersion = 2
-	
-	// PasswordV3 could use a different algorithm like Argon2id
-	PasswordV3 PasswordVersion = 3
-	
-	// CurrentPasswordVersion is the version that should be used for new passwords
-	CurrentPasswordVersion = PasswordV2
-)
+// PasswordPolicy defines the requirements for password complexity
+type PasswordPolicy struct {
+	MinLength           int
+	RequireUppercase    bool
+	RequireLowercase    bool
+	RequireDigit        bool
+	RequireSpecialChar  bool
+	DisallowCommonPwds  bool
+	MaxRepeatedChars    int
+	HistoryCheckCount   int
+	ExpirationDays      int
+	CommonPasswordsPath string
+}
 
 // PasswordManager handles password-related operations
 type PasswordManager struct {
 	queries         *logindb.Queries
 	policy          *PasswordPolicy
-	version         PasswordVersion
+	hasherFactory   PasswordHasherFactory
+	currentVersion  PasswordVersion
 	commonPasswords map[string]bool
 }
 
-// NewPasswordManager creates a new PasswordManager with the specified policy
-func NewPasswordManager(queries *logindb.Queries, policy *PasswordPolicy) *PasswordManager {
+// NewPasswordManager creates a new password manager with the specified policy
+func NewPasswordManager(queries *logindb.Queries, policy *PasswordPolicy, currentVersion PasswordVersion) *PasswordManager {
 	if policy == nil {
 		policy = DefaultPasswordPolicy()
 	}
@@ -51,23 +47,16 @@ func NewPasswordManager(queries *logindb.Queries, policy *PasswordPolicy) *Passw
 	return &PasswordManager{
 		queries:         queries,
 		policy:          policy,
-		version:         CurrentPasswordVersion,
+		hasherFactory:   NewDefaultPasswordHasherFactory(currentVersion),
+		currentVersion:  currentVersion,
 		commonPasswords: loadCommonPasswords(policy.CommonPasswordsPath),
 	}
 }
 
-// PasswordPolicy defines the requirements for password complexity
-type PasswordPolicy struct {
-	MinLength            int
-	RequireUppercase     bool
-	RequireLowercase     bool
-	RequireDigit         bool
-	RequireSpecialChar   bool
-	DisallowCommonPwds   bool
-	MaxRepeatedChars     int
-	HistoryCheckCount    int
-	ExpirationDays       int
-	CommonPasswordsPath  string
+// WithHasherFactory sets a custom password hasher factory
+func (pm *PasswordManager) WithHasherFactory(factory PasswordHasherFactory) *PasswordManager {
+	pm.hasherFactory = factory
+	return pm
 }
 
 // DefaultPasswordPolicy returns a default password policy
@@ -92,96 +81,35 @@ func (pm *PasswordManager) HashPassword(password string) (string, error) {
 		return "", errors.New("password cannot be empty")
 	}
 	
-	// Hash the password using the current version
-	return pm.hashPasswordWithVersion(password, pm.version)
+	// Get the current hasher and hash the password
+	hasher, err := pm.hasherFactory.GetHasher(pm.currentVersion)
+	if err != nil {
+		return "", err
+	}
+	return hasher.Hash(password)
 }
 
 // hashPasswordWithVersion hashes a password with a specific version
 func (pm *PasswordManager) hashPasswordWithVersion(password string, version PasswordVersion) (string, error) {
-	var hashedPassword string
-	var err error
-	
-	switch version {
-	case PasswordV1:
-		// Original bcrypt implementation
-		hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		if err != nil {
-			return "", err
-		}
-		hashedPassword = string(hashedBytes)
-		
-	case PasswordV2:
-		// Add a salt and use a higher cost
-		salt := utils.GenerateRandomString(16)
-		// Combine salt and password
-		saltedPassword := salt + password
-		hashedBytes, err := bcrypt.GenerateFromPassword([]byte(saltedPassword), bcrypt.DefaultCost+2)
-		if err != nil {
-			return "", err
-		}
-		// Store salt and hash
-		hashedPassword = fmt.Sprintf("%s:%s", salt, string(hashedBytes))
-		
-	case PasswordV3:
-		// Future implementation
-		return "", errors.New("password version 3 not implemented yet")
-		
-	default:
-		return "", fmt.Errorf("unsupported password version: %d", version)
+	hasher, err := pm.hasherFactory.GetHasher(version)
+	if err != nil {
+		return "", err
 	}
 	
-	return hashedPassword, err
+	return hasher.Hash(password)
 }
 
 // CheckPasswordHash checks if the provided password matches the stored hash
 func (pm *PasswordManager) CheckPasswordHash(password, hashedPassword string, version PasswordVersion) (bool, error) {
-	if password == "" || hashedPassword == "" {
-		return false, errors.New("password and hashed password cannot be empty")
+	hasher, err := pm.hasherFactory.GetHasher(version)
+	if err != nil {
+		return false, err
 	}
 	
-	switch version {
-	case PasswordV1:
-		// Original bcrypt implementation
-		err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-		if err != nil {
-			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-				return false, nil // Password doesn't match, but not an error
-			}
-			return false, err // Some other error occurred
-		}
-		return true, nil
-		
-	case PasswordV2:
-		// Version 2 format: salt:hash
-		parts := strings.SplitN(hashedPassword, ":", 2)
-		if len(parts) != 2 {
-			return false, errors.New("invalid password hash format")
-		}
-		
-		salt := parts[0]
-		hash := parts[1]
-		
-		// Combine salt and password for verification
-		saltedPassword := salt + password
-		err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(saltedPassword))
-		if err != nil {
-			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-				return false, nil // Password doesn't match, but not an error
-			}
-			return false, err // Some other error occurred
-		}
-		return true, nil
-		
-	case PasswordV3:
-		// Future implementation
-		return false, errors.New("password version 3 not implemented yet")
-		
-	default:
-		return false, fmt.Errorf("unsupported password version: %d", version)
-	}
+	return hasher.Verify(password, hashedPassword)
 }
 
-// VerifyPasswordWithVersion verifies a password against a hash with a known version
+// VerifyPasswordWithVersion verifies a password against a hash with a specific version
 func (pm *PasswordManager) VerifyPasswordWithVersion(password, hashedPassword string, version PasswordVersion) (bool, error) {
 	return pm.CheckPasswordHash(password, hashedPassword, version)
 }
@@ -190,9 +118,9 @@ func (pm *PasswordManager) VerifyPasswordWithVersion(password, hashedPassword st
 // and returns true if an upgrade was performed
 func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, userID string, password string, currentHash string, currentVersion PasswordVersion) (bool, error) {
 	// If the current version is less than the target version, upgrade
-	if currentVersion < pm.version {
+	if currentVersion < pm.currentVersion {
 		// Hash the password with the current version
-		newHash, err := pm.hashPasswordWithVersion(password, pm.version)
+		newHash, err := pm.hashPasswordWithVersion(password, pm.currentVersion)
 		if err != nil {
 			return false, fmt.Errorf("failed to upgrade password hash: %w", err)
 		}
@@ -201,7 +129,7 @@ func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, u
 		err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
 			ID:             utils.ParseUUID(userID),
 			Password:       []byte(newHash),
-			PasswordVersion: pgtype.Int4{Int32: int32(pm.version), Valid: true},
+			PasswordVersion: pgtype.Int4{Int32: int32(pm.currentVersion), Valid: true},
 		})
 		if err != nil {
 			return false, fmt.Errorf("failed to update password hash: %w", err)
@@ -217,7 +145,7 @@ func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, u
 		slog.Info("Upgraded password hash version", 
 			"userID", userID, 
 			"fromVersion", currentVersion, 
-			"toVersion", pm.version)
+			"toVersion", pm.currentVersion)
 		
 		return true, nil
 	}
@@ -403,7 +331,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	}
 	
 	// Hash the new password using the current version
-	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.version)
+	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -412,7 +340,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
 		ID:              tokenInfo.LoginID,
 		Password:        []byte(hashedPassword),
-		PasswordVersion: pgtype.Int4{Int32: int32(pm.version), Valid: true},
+		PasswordVersion: pgtype.Int4{Int32: int32(pm.currentVersion), Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
@@ -476,7 +404,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	}
 	
 	// Hash the new password using the current version
-	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.version)
+	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
 	if err != nil {
 		return err
 	}
@@ -485,7 +413,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
 		ID:              utils.ParseUUID(userID),
 		Password:        []byte(hashedPassword),
-		PasswordVersion: pgtype.Int4{Int32: int32(pm.version), Valid: true},
+		PasswordVersion: pgtype.Int4{Int32: int32(pm.currentVersion), Valid: true},
 	})
 	if err != nil {
 		return err
