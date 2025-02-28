@@ -29,11 +29,6 @@ type PasswordResetJSONRequestBody struct {
 	NewPassword string `json:"new_password"`
 }
 
-type TwoFactorMethod struct {
-	Method      string   `json:"method"`
-	ContactInfo []string `json:"contact_info"`
-}
-
 type Handle struct {
 	loginService     *LoginService
 	jwtService       auth.Jwt
@@ -131,7 +126,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			Code: http.StatusInternalServerError,
 		}
 	}
-	
+
 	enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(r.Context(), loginID)
 	if err != nil {
 		slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
@@ -141,7 +136,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	var twoFactorMethods []TwoFAMethod
+	var twoFactorMethods []TwoFactorMethod
 	if len(enabledTwoFAs) > 0 {
 		// TODO: set cookies only with login id
 		slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
@@ -149,7 +144,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		// If email 2FA is enabled, get unique emails from users
 		var emails []string
 		for _, method := range enabledTwoFAs {
-			curMethod := TwoFAMethod{
+			curMethod := TwoFactorMethod{
 				Type: method,
 			}
 			switch method {
