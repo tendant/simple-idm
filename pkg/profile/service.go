@@ -17,8 +17,8 @@ import (
 )
 
 type ProfileService struct {
-	queries       *profiledb.Queries
-	loginService  *login.LoginService
+	queries      *profiledb.Queries
+	loginService *login.LoginService
 }
 
 func NewProfileService(queries *profiledb.Queries, loginService *login.LoginService) *ProfileService {
@@ -29,7 +29,7 @@ func NewProfileService(queries *profiledb.Queries, loginService *login.LoginServ
 }
 
 type UpdateUsernameParams struct {
-	UserUuid        uuid.UUID
+	UserId          uuid.UUID
 	CurrentPassword string
 	NewUsername     string
 }
@@ -37,16 +37,16 @@ type UpdateUsernameParams struct {
 // UpdateUsername updates a user's username after verifying their password
 func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUsernameParams) error {
 	// Get the user to verify they exist and check password
-	user, err := s.queries.GetUserByUUID(ctx, params.UserUuid)
+	user, err := s.queries.GetUserById(ctx, params.UserId)
 	if err != nil {
-		slog.Error("Failed to find user", "uuid", params.UserUuid, "err", err)
+		slog.Error("Failed to find user", "uuid", params.UserId, "err", err)
 		return fmt.Errorf("user not found")
 	}
 
 	// Verify the current password
 	match, err := s.loginService.CheckPasswordHash(params.CurrentPassword, string(user.Password), login.PasswordV1)
 	if err != nil || !match {
-		slog.Error("Invalid current password", "uuid", params.UserUuid)
+		slog.Error("Invalid current password", "uuid", params.UserId)
 		return fmt.Errorf("invalid current password")
 	}
 
@@ -62,11 +62,11 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 
 	// Update the username
 	err = s.queries.UpdateUsername(ctx, profiledb.UpdateUsernameParams{
-		Uuid:     params.UserUuid,
+		ID:       params.UserId,
 		Username: sql.NullString{String: params.NewUsername, Valid: true},
 	})
 	if err != nil {
-		slog.Error("Failed to update username", "uuid", params.UserUuid, "err", err)
+		slog.Error("Failed to update username", "uuid", params.UserId, "err", err)
 		return fmt.Errorf("failed to update username")
 	}
 
@@ -82,17 +82,59 @@ type UpdatePasswordParams struct {
 // UpdatePassword updates a user's password after verifying their current password
 func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswordParams) error {
 	// Get the user to verify they exist
-	user, err := s.queries.GetUserByUUID(ctx, params.UserUuid)
+	user, err := s.queries.GetUserById(ctx, params.UserUuid)
 	if err != nil {
 		slog.Error("Failed to find user", "uuid", params.UserUuid, "err", err)
 		return fmt.Errorf("user not found")
 	}
+
+	slog.Info("Updating password for user", "uuid", params.UserUuid)
+
+	// Check if the user has a login entry - this function may not exist, so handle the error gracefully
+	var loginID uuid.UUID
+	var hasLoginID bool
+
+	// Try to get login ID - this is a new function that might not exist yet
+	loginID, err = s.queries.GetLoginIDByUserID(ctx, params.UserUuid)
+	if err == nil {
+		hasLoginID = true
+		slog.Info("User has login entry", "uuid", params.UserUuid, "loginID", loginID)
+	} else {
+		slog.Error("User does not have login entry", "uuid", params.UserUuid, "err", err)
+		return err
+	}
+
+	if hasLoginID {
+		// For users with login entries, use the LoginService's ChangePassword method
+		slog.Info("Using LoginService.ChangePassword for user with login entry", "uuid", params.UserUuid)
+		err = s.loginService.ChangePassword(
+			ctx,
+			loginID.String(),
+			params.CurrentPassword,
+			params.NewPassword,
+		)
+		if err != nil {
+			slog.Error("Failed to change password", "uuid", params.UserUuid, "loginID", loginID, "err", err)
+			return err
+		}
+
+		return nil
+	}
+
+	// Legacy path for users without login entries
+	slog.Info("Using legacy path for user without login entry", "uuid", params.UserUuid)
 
 	// Verify the current password
 	match, err := s.loginService.CheckPasswordHash(params.CurrentPassword, string(user.Password), login.PasswordV1)
 	if err != nil || !match {
 		slog.Error("Invalid current password", "uuid", params.UserUuid)
 		return fmt.Errorf("invalid current password")
+	}
+
+	// Check password complexity
+	if err := s.loginService.CheckPasswordComplexity(params.NewPassword); err != nil {
+		slog.Error("Password doesn't meet complexity requirements", "err", err)
+		return err
 	}
 
 	// Hash the new password
@@ -104,7 +146,7 @@ func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswo
 
 	// Update the password in the database
 	err = s.queries.UpdateUserPassword(ctx, profiledb.UpdateUserPasswordParams{
-		Uuid:     params.UserUuid,
+		ID:       params.UserUuid,
 		Password: []byte(hashedPassword),
 	})
 	if err != nil {
@@ -152,7 +194,7 @@ func (s ProfileService) Enable2FA(ctx context.Context, userUUID uuid.UUID, secre
 	params := profiledb.Enable2FAParams{
 		Column1: secret,
 		Column2: backupCodes,
-		Uuid:    userUUID,
+		ID:      userUUID,
 	}
 
 	if err := s.queries.Enable2FA(ctx, params); err != nil {
