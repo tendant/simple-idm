@@ -125,12 +125,12 @@ SET password = $1,
 WHERE id = $2;
 
 -- name: AddPasswordToHistory :exec
-INSERT INTO password_history (login_id, password_hash, password_version)
+INSERT INTO login_password_history (login_id, password_hash, password_version)
 VALUES ($1, $2, $3);
 
 -- name: GetPasswordHistory :many
 SELECT id, login_id, password_hash, password_version, created_at
-FROM password_history
+FROM login_password_history
 WHERE login_id = $1
 ORDER BY created_at DESC
 LIMIT $2;

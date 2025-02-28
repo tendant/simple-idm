@@ -119,7 +119,7 @@ func (pm *PasswordManager) hashPasswordWithVersion(password string, version Pass
 		if err != nil {
 			return "", err
 		}
-		// Store salt and hash (without version prefix since it's in a separate column)
+		// Store salt and hash
 		hashedPassword = fmt.Sprintf("%s:%s", salt, string(hashedBytes))
 		
 	case PasswordV3:
@@ -134,13 +134,24 @@ func (pm *PasswordManager) hashPasswordWithVersion(password string, version Pass
 }
 
 // CheckPasswordHash checks if the provided password matches the stored hash
-func (pm *PasswordManager) CheckPasswordHash(password, hashedPassword string) (bool, error) {
+func (pm *PasswordManager) CheckPasswordHash(password, hashedPassword string, version PasswordVersion) (bool, error) {
 	if password == "" || hashedPassword == "" {
 		return false, errors.New("password and hashed password cannot be empty")
 	}
 	
-	// Detect the version from the hash format
-	if strings.Contains(hashedPassword, ":") {
+	switch version {
+	case PasswordV1:
+		// Original bcrypt implementation
+		err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+		if err != nil {
+			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+				return false, nil // Password doesn't match, but not an error
+			}
+			return false, err // Some other error occurred
+		}
+		return true, nil
+		
+	case PasswordV2:
 		// Version 2 format: salt:hash
 		parts := strings.SplitN(hashedPassword, ":", 2)
 		if len(parts) != 2 {
@@ -159,59 +170,6 @@ func (pm *PasswordManager) CheckPasswordHash(password, hashedPassword string) (b
 			}
 			return false, err // Some other error occurred
 		}
-		
-		return true, nil
-	} else {
-		// Assume version 1 (original bcrypt) if no salt prefix
-		err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-		if err != nil {
-			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-				return false, nil // Password doesn't match, but not an error
-			}
-			return false, err // Some other error occurred
-		}
-		
-		return true, nil
-	}
-}
-
-// VerifyPasswordWithVersion verifies a password against a hash with a known version
-func (pm *PasswordManager) VerifyPasswordWithVersion(password, hashedPassword string, version PasswordVersion) (bool, error) {
-	if password == "" || hashedPassword == "" {
-		return false, errors.New("password and hashed password cannot be empty")
-	}
-	
-	switch version {
-	case PasswordV1:
-		// Original bcrypt implementation
-		err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-		if err != nil {
-			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-				return false, nil
-			}
-			return false, err
-		}
-		return true, nil
-		
-	case PasswordV2:
-		// Version 2 format: salt:hash
-		parts := strings.SplitN(hashedPassword, ":", 2)
-		if len(parts) != 2 {
-			return false, errors.New("invalid v2 password format")
-		}
-		
-		salt := parts[0]
-		hash := parts[1]
-		
-		// Combine salt and password for verification
-		saltedPassword := salt + password
-		err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(saltedPassword))
-		if err != nil {
-			if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-				return false, nil
-			}
-			return false, err
-		}
 		return true, nil
 		
 	case PasswordV3:
@@ -221,6 +179,11 @@ func (pm *PasswordManager) VerifyPasswordWithVersion(password, hashedPassword st
 	default:
 		return false, fmt.Errorf("unsupported password version: %d", version)
 	}
+}
+
+// VerifyPasswordWithVersion verifies a password against a hash with a known version
+func (pm *PasswordManager) VerifyPasswordWithVersion(password, hashedPassword string, version PasswordVersion) (bool, error) {
+	return pm.CheckPasswordHash(password, hashedPassword, version)
 }
 
 // UpgradePasswordVersionIfNeeded checks if the password hash needs to be upgraded
@@ -237,8 +200,8 @@ func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, u
 		// Update the password hash and version in the database
 		err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
 			ID:             utils.ParseUUID(userID),
-			Password:       newHash,
-			PasswordVersion: int32(pm.version),
+			Password:       []byte(newHash),
+			PasswordVersion: pgtype.Int4{Int32: int32(pm.version), Valid: true},
 		})
 		if err != nil {
 			return false, fmt.Errorf("failed to update password hash: %w", err)
@@ -267,7 +230,7 @@ func (pm *PasswordManager) addPasswordToHistory(ctx context.Context, userID, pas
 	// Add the password to the history table
 	err := pm.queries.AddPasswordToHistory(ctx, logindb.AddPasswordToHistoryParams{
 		LoginID:         utils.ParseUUID(userID),
-		PasswordHash:    passwordHash,
+		PasswordHash:    []byte(passwordHash),
 		PasswordVersion: int32(version),
 	})
 	if err != nil {
@@ -320,11 +283,11 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 	if err != nil {
 		// If there's an error getting the version, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
-		passwordVersion = 1
+		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
 	}
 	
 	// Check if the new password matches the current password
-	match, err := pm.VerifyPasswordWithVersion(newPassword, string(login.Password), PasswordVersion(passwordVersion))
+	match, err := pm.VerifyPasswordWithVersion(newPassword, string(login.Password), PasswordVersion(passwordVersion.Int32))
 	if err != nil {
 		return fmt.Errorf("error checking against current password: %w", err)
 	}
@@ -348,7 +311,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 	for _, historyItem := range passwordHistory {
 		match, err := pm.VerifyPasswordWithVersion(
 			newPassword, 
-			historyItem.PasswordHash, 
+			string(historyItem.PasswordHash), 
 			PasswordVersion(historyItem.PasswordVersion),
 		)
 		if err != nil {
@@ -431,7 +394,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 		passwordVersion, err := pm.queries.GetUserPasswordVersion(ctx, tokenInfo.LoginID)
 		if err == nil {
 			// Only add to history if we could get the version
-			err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID.String(), string(login.Password), PasswordVersion(passwordVersion))
+			err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID.String(), string(login.Password), PasswordVersion(passwordVersion.Int32))
 			if err != nil {
 				// Log but continue
 				slog.Error("Failed to add password to history", "error", err)
@@ -448,8 +411,8 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	// Update password and version
 	err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
 		ID:              tokenInfo.LoginID,
-		Password:        hashedPassword,
-		PasswordVersion: int32(pm.version),
+		Password:        []byte(hashedPassword),
+		PasswordVersion: pgtype.Int4{Int32: int32(pm.version), Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
@@ -481,11 +444,11 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	if err != nil {
 		// If there's an error getting the version, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
-		passwordVersion = 1
+		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
 	}
 	
 	// Verify the current password
-	match, err := pm.VerifyPasswordWithVersion(currentPassword, string(login.Password), PasswordVersion(passwordVersion))
+	match, err := pm.VerifyPasswordWithVersion(currentPassword, string(login.Password), PasswordVersion(passwordVersion.Int32))
 	if err != nil {
 		return err
 	}
@@ -505,7 +468,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 		}
 		
 		// Add the current password to history
-		err = pm.addPasswordToHistory(ctx, userID, string(login.Password), PasswordVersion(passwordVersion))
+		err = pm.addPasswordToHistory(ctx, userID, string(login.Password), PasswordVersion(passwordVersion.Int32))
 		if err != nil {
 			// Log but continue
 			slog.Error("Failed to add password to history", "error", err)
@@ -521,8 +484,8 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	// Update the password hash and version in the database
 	err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
 		ID:              utils.ParseUUID(userID),
-		Password:        hashedPassword,
-		PasswordVersion: int32(pm.version),
+		Password:        []byte(hashedPassword),
+		PasswordVersion: pgtype.Int4{Int32: int32(pm.version), Valid: true},
 	})
 	if err != nil {
 		return err

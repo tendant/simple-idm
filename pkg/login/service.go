@@ -4,18 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jinzhu/copier"
 	"github.com/pquerna/otp/totp"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/utils"
-	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/exp/slog"
 )
 
@@ -69,7 +66,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 	if err != nil {
 		// If there's an error getting the version, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
-		passwordVersion = 1
+		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
 	}
 
 	// Verify password and upgrade if needed
@@ -78,7 +75,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 		loginUser.ID.String(), 
 		password, 
 		string(loginUser.Password), 
-		PasswordVersion(passwordVersion),
+		PasswordVersion(passwordVersion.Int32),
 	)
 	if err != nil {
 		return res, fmt.Errorf("error checking password: %w", err)
@@ -111,8 +108,8 @@ func (s LoginService) HashPassword(password string) (string, error) {
 }
 
 // CheckPasswordHash compares the plain-text password with the stored hashed password.
-func (s LoginService) CheckPasswordHash(password, hashedPassword string) (bool, error) {
-	return s.passwordManager.CheckPasswordHash(password, hashedPassword)
+func (s LoginService) CheckPasswordHash(password, hashedPassword string, version PasswordVersion) (bool, error) {
+	return s.passwordManager.CheckPasswordHash(password, hashedPassword, version)
 }
 
 func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code string) (bool, error) {
@@ -172,7 +169,7 @@ func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb
 	}
 
 	// Hash the password
-	hashedPassword, err := s.passwordManager.HashPassword(params.Password)
+	_, err := s.passwordManager.HashPassword(params.Password)
 	if err != nil {
 		return logindb.User{}, fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -216,13 +213,13 @@ func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordRes
 	}
 
 	// Create reset password parameters
-	resetPasswordParams := logindb.ResetPasswordParams{
-		Code:     params.Code,
+	resetPasswordParams := logindb.ResetPasswordByIdParams{
 		Password: []byte(hashedPassword),
+		ID:       uuid.MustParse(params.Code), // Assuming Code is the ID of the user
 	}
 
 	slog.Debug("Resetting password", "params", params.Code)
-	err = s.queries.ResetPassword(ctx, resetPasswordParams)
+	err = s.queries.ResetPasswordById(ctx, resetPasswordParams)
 	if err != nil {
 		return fmt.Errorf("failed to reset password: %w", err)
 	}

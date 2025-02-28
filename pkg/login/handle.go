@@ -78,9 +78,10 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Call login service
-	loginParams := LoginParams{}
-	copier.Copy(&loginParams, data)
-	loginResponse, err := h.loginService.Login(r.Context(), loginParams, data.Password)
+	loginParams := LoginParams{
+		Username: data.Username,
+	}
+	idmUsers, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 		return &Response{
@@ -90,7 +91,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 	mappedUsers := loginResponse.Users
 
-	if len(mappedUsers) == 0 {
+	if len(idmUsers) == 0 {
 		slog.Error("No user found after login")
 		return &Response{
 			body: "Username/Password is wrong",
@@ -99,11 +100,11 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Get the first user
-	tokenUser := mappedUsers[0]
+	tokenUser := idmUsers[0]
 
 	// Convert mapped users to API users
-	apiUsers := make([]User, len(mappedUsers))
-	for i, mu := range mappedUsers {
+	apiUsers := make([]User, len(idmUsers))
+	for i, mu := range idmUsers {
 		// Extract email and name from claims
 		email, _ := mu.ExtraClaims["email"].(string)
 		name := mu.DisplayName
@@ -562,9 +563,10 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Call login service
-	loginParams := LoginParams{}
-	copier.Copy(&loginParams, data)
-	loginResponse, err := h.loginService.Login(r.Context(), loginParams, data.Password)
+	loginParams := LoginParams{
+		Username: data.Username,
+	}
+	idmUsers, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 		return &Response{

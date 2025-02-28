@@ -35,11 +35,11 @@ type Login struct {
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
 	CreatedBy            sql.NullString `json:"created_by"`
 	Password             []byte         `json:"password"`
-	PasswordVersion      int32          `json:"password_version"`
 	Username             sql.NullString `json:"username"`
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
 	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
+	PasswordVersion      pgtype.Int4    `json:"password_version"`
 }
 
 type Login2fa struct {
@@ -54,21 +54,23 @@ type Login2fa struct {
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
 }
 
-type PasswordHistory struct {
-	ID              uuid.UUID `json:"id"`
-	LoginID         uuid.UUID `json:"login_id"`
-	PasswordHash    string    `json:"password_hash"`
-	PasswordVersion int32     `json:"password_version"`
-	CreatedAt       time.Time `json:"created_at"`
+type LoginPasswordHistory struct {
+	ID              uuid.UUID    `json:"id"`
+	CreatedAt       time.Time    `json:"created_at"`
+	UpdatedAt       time.Time    `json:"updated_at"`
+	DeletedAt       sql.NullTime `json:"deleted_at"`
+	LoginID         uuid.UUID    `json:"login_id"`
+	PasswordHash    []byte       `json:"password_hash"`
+	PasswordVersion int32        `json:"password_version"`
 }
 
-type PasswordResetToken struct {
+type LoginPasswordResetToken struct {
 	ID        uuid.UUID          `json:"id"`
-	UserID    uuid.UUID          `json:"user_id"`
 	Token     string             `json:"token"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	ExpireAt  pgtype.Timestamptz `json:"expire_at"`
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	LoginID   uuid.UUID          `json:"login_id"`
 }
 
 type Role struct {
@@ -86,7 +88,6 @@ type User struct {
 	Email                string         `json:"email"`
 	Name                 sql.NullString `json:"name"`
 	Password             []byte         `json:"password"`
-	PasswordVersion      int32          `json:"password_version"`
 	VerifiedAt           sql.NullTime   `json:"verified_at"`
 	Username             sql.NullString `json:"username"`
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`

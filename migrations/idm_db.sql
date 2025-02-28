@@ -92,7 +92,8 @@ CREATE TABLE public.login (
     username character varying(255),
     two_factor_secret text,
     two_factor_enabled boolean DEFAULT false,
-    two_factor_backup_codes text[]
+    two_factor_backup_codes text[],
+    password_version integer DEFAULT 1
 );
 
 
@@ -116,6 +117,23 @@ CREATE TABLE public.login_2fa (
 
 
 ALTER TABLE public.login_2fa OWNER TO idm;
+
+--
+-- Name: login_password_history; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.login_password_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
+    updated_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
+    deleted_at timestamp without time zone,
+    login_id uuid NOT NULL,
+    password_hash bytea NOT NULL,
+    password_version integer DEFAULT 1 NOT NULL
+);
+
+
+ALTER TABLE public.login_password_history OWNER TO idm;
 
 --
 -- Name: login_password_reset_tokens; Type: TABLE; Schema: public; Owner: idm
@@ -223,6 +241,14 @@ ALTER TABLE ONLY public.login
 
 
 --
+-- Name: login_password_history login_password_history_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login_password_history
+    ADD CONSTRAINT login_password_history_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: login login_uuid_pk; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
@@ -307,6 +333,13 @@ CREATE INDEX idx_login_password_reset_tokens_token ON public.login_password_rese
 
 
 --
+-- Name: login_password_history_login_id_idx; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX login_password_history_login_id_idx ON public.login_password_history USING btree (login_id);
+
+
+--
 -- Name: backup_codes backup_codes_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
 --
 
@@ -320,6 +353,14 @@ ALTER TABLE ONLY public.backup_codes
 
 ALTER TABLE ONLY public.login_2fa
     ADD CONSTRAINT login_2fa_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
+
+
+--
+-- Name: login_password_history login_password_history_login_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login_password_history
+    ADD CONSTRAINT login_password_history_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
 
 
 --
