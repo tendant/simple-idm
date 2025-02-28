@@ -16,15 +16,11 @@ paths:
               properties:
                 email:
                   type: string
-                login_id:
-                  type: string
-                  format: uuid
                 twofa_type:
                   type: string
               required:
                 - email
                 - twofa_type
-                - login_id
       responses:
         "200":
           description: 2fa initiated Successful
@@ -43,16 +39,12 @@ paths:
             schema:
               type: object
               properties:
-                login_id:
-                  type: string
-                  format: uuid
                 twofa_type:
                   type: string
                 passcode:
                   type: string
               required:
                 - passcode
-                - login_id
                 - twofa_type
       responses:
         "200":
