@@ -22,6 +22,7 @@ export interface UserData {
 export interface TwoFactorMethod {
   type: string;
   delivery_options: string[];
+  display_name?: string;
 }
 
 export interface User {

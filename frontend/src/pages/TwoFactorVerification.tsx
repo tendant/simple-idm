@@ -1,9 +1,9 @@
 import { Component, createSignal, createEffect, For } from 'solid-js';
-import { useNavigate, useSearchParams, A } from '@solidjs/router';
+import { useNavigate, useSearchParams, A, RouteSectionProps } from '@solidjs/router';
 import { twoFactorApi, TwoFactorMethod, TwoFactorSendRequest } from '../api/twoFactor';
 import { userApi } from '../api/user';
 
-interface TwoFactorVerificationProps {
+interface TwoFactorVerificationProps extends RouteSectionProps {
   tempToken?: string;
   methods?: TwoFactorMethod[];
 }
@@ -12,7 +12,12 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  const [tempToken, setTempToken] = createSignal(props.tempToken || searchParams.token || '');
+  // Handle both string and string[] cases for token
+  const tokenParam = searchParams.token 
+    ? (Array.isArray(searchParams.token) ? searchParams.token[0] : searchParams.token) 
+    : '';
+  
+  const [tempToken, setTempToken] = createSignal(props.tempToken || tokenParam);
   const [methods, setMethods] = createSignal<TwoFactorMethod[]>(props.methods || []);
   const [selectedMethod, setSelectedMethod] = createSignal<TwoFactorMethod | null>(null);
   const [selectedDeliveryOption, setSelectedDeliveryOption] = createSignal<string>('');
@@ -26,7 +31,12 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
   createEffect(() => {
     if (methods().length === 0 && searchParams.methods) {
       try {
-        const parsedMethods = JSON.parse(decodeURIComponent(searchParams.methods));
+        // Handle both string and string[] cases
+        const methodsParam = Array.isArray(searchParams.methods) 
+          ? searchParams.methods[0] 
+          : searchParams.methods;
+        
+        const parsedMethods = JSON.parse(decodeURIComponent(methodsParam));
         setMethods(parsedMethods);
         if (parsedMethods.length > 0) {
           setSelectedMethod(parsedMethods[0]);
@@ -52,14 +62,15 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
   });
 
   const sendVerificationCode = async () => {
-    if (!selectedMethod()) return;
+    const method = selectedMethod();
+    if (!method) return;
     
     setSendingCode(true);
     setError(null);
     
     try {
       // If the method type is "202", use the login API
-      if (selectedMethod()?.type === "202") {
+      if (method.type === "202") {
         // For the 202 response type, we need to use the login API
         // with the delivery option as the verification method
         await userApi.login({
@@ -69,11 +80,16 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
       } else {
         // For other method types, use the twofa API
         const request: TwoFactorSendRequest = {
-          twofa_type: selectedMethod()?.type,
+          twofa_type: method.type,
           delivery_option: selectedDeliveryOption()
         };
         
-        await twoFactorApi.sendCode(tempToken(), request);
+        const token = tempToken();
+        if (!token) {
+          throw new Error("No token available");
+        }
+        
+        await twoFactorApi.sendCode(token, request);
       }
 
       setCodeSent(true);
@@ -88,9 +104,15 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
     e.preventDefault();
     setError(null);
     setLoading(true);
+    const method = selectedMethod();
+    if (!method) {
+      setError("No verification method selected");
+      setLoading(false);
+      return;
+    }
 
     try {
-      if (selectedMethod()?.type === "202") {
+      if (method.type === "202") {
         // For the 202 response type, we need to use the login API
         // with the delivery option as the verification method and passcode
         await userApi.login({
@@ -99,8 +121,13 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
         });
       } else {
         // For other method types, use the twofa API
-        await twoFactorApi.verifyCode(tempToken(), {
-          twofa_type: selectedMethod()?.type,
+        const token = tempToken();
+        if (!token) {
+          throw new Error("No token available");
+        }
+        
+        await twoFactorApi.verifyCode(token, {
+          twofa_type: method.type,
           passcode: verificationCode()
         });
       }
@@ -178,15 +205,15 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                 </div>
               </div>
 
-              {selectedMethod() && selectedMethod().delivery_options.length > 0 && (
+              {selectedMethod() && selectedMethod()!.delivery_options.length > 0 && (
                 <div class="mb-4">
                   <label
                     class="block text-sm font-medium text-gray-11 mb-2"
                   >
-                    {selectedMethod().type === 'email' ? 'Email Address' : 'Delivery Option'}
+                    {selectedMethod()!.type === 'email' ? 'Email Address' : 'Delivery Option'}
                   </label>
                   <div class="space-y-2">
-                    <For each={selectedMethod().delivery_options}>
+                    <For each={selectedMethod()!.delivery_options}>
                       {(option) => (
                         <div class="flex items-center">
                           <input
@@ -211,7 +238,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                       )}
                     </For>
                   </div>
-                  {selectedMethod().type === 'email' && (
+                  {selectedMethod()!.type === 'email' && (
                     <div class="mt-2 text-sm text-gray-10">
                       Verification code will be sent to the selected email address.
                     </div>
@@ -265,7 +292,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                   disabled={!selectedMethod() || codeSent() || sendingCode()}
                   class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {codeSent() ? "Code Sent" : selectedMethod()?.type === 'email' ? "Send Code to Email" : "Send Verification Code"}
+                  {codeSent() ? "Code Sent" : (selectedMethod() && selectedMethod()!.type === 'email') ? "Send Code to Email" : "Send Verification Code"}
                 </button>
 
                 {codeSent() && (
