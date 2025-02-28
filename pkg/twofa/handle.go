@@ -1,16 +1,26 @@
 package twofa
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/auth"
+)
+
+const (
+	ACCESS_TOKEN_NAME  = "accessToken"
+	REFRESH_TOKEN_NAME = "refreshToken"
 )
 
 type JwtService interface {
 	ParseTokenStr(tokenStr string) (*jwt.Token, error)
+	CreateAccessToken(claimData interface{}) (auth.IdmToken, error)
+	CreateRefreshToken(claimData interface{}) (auth.IdmToken, error)
 }
 
 type Handle struct {
@@ -23,6 +33,21 @@ func NewHandle(twoFaService *TwoFaService, jwtService JwtService) Handle {
 		twoFaService: twoFaService,
 		jwtService:   jwtService,
 	}
+}
+
+// setTokenCookie sets a cookie with the given token name, value, and expiration
+func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue string, expire time.Time) {
+	tokenCookie := &http.Cookie{
+		Name:     tokenName,
+		Path:     "/",
+		Value:    tokenValue,
+		Expires:  expire,
+		HttpOnly: true, // Make the cookie HttpOnly
+		Secure:   true, // Ensure it's sent over HTTPS
+		SameSite: http.SameSiteLaxMode, // Prevent CSRF
+	}
+
+	http.SetCookie(w, tokenCookie)
 }
 
 // Initiate sending 2fa code
@@ -185,6 +210,37 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 			body: "2fa validation failed",
 		}
 	}
+
+	// 2FA validation successful, create access and refresh tokens
+	// Extract user data from claims to use for token creation
+	userData := customClaims
+
+	// Create access token
+	accessToken, err := h.jwtService.CreateAccessToken(userData)
+	if err != nil {
+		slog.Error("Failed to create access token", "userData", userData, "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create access token",
+		}
+	}
+
+	// Create refresh token
+	refreshToken, err := h.jwtService.CreateRefreshToken(userData)
+	if err != nil {
+		slog.Error("Failed to create refresh token", "userData", userData, "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create refresh token",
+		}
+	}
+
+	// Set cookies
+	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
+	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
+
+	// Include tokens in response
+	resp.Result = "success"
 
 	return Post2faValidateJSON200Response(resp)
 }
