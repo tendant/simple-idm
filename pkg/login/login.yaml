@@ -285,9 +285,9 @@ components:
       x-go-optional-value: true
       type: object
       properties:
-        method:
+        type:
           type: string
-        available_contact_info:
+        delivery_options:
           type: array
           items:
             type: string
