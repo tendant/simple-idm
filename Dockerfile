@@ -26,5 +26,6 @@ FROM public.ecr.aws/docker/library/golang:1.23-alpine
 WORKDIR /app
 
 COPY --from=build --chmod=0755 /app/dist/ /app/
+COPY nginx-default.conf /etc/nginx/conf.d/default.conf
 
 # CMD ["/app/main"]
