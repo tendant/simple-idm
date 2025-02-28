@@ -33,8 +33,8 @@ type Post2faValidateJSONBody struct {
 	TwofaType string `json:"twofa_type"`
 }
 
-// Post2faInitJSONBody defines parameters for Post2faInit.
-type Post2faInitJSONBody struct {
+// Post2faSendJSONBody defines parameters for Post2faSend.
+type Post2faSendJSONBody struct {
 	Email     string `json:"email"`
 	LoginID   string `json:"login_id"`
 	TwofaType string `json:"twofa_type"`
@@ -48,11 +48,11 @@ func (Post2faValidateJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
-// Post2faInitJSONRequestBody defines body for Post2faInit for application/json ContentType.
-type Post2faInitJSONRequestBody Post2faInitJSONBody
+// Post2faSendJSONRequestBody defines body for Post2faSend for application/json ContentType.
+type Post2faSendJSONRequestBody Post2faSendJSONBody
 
 // Bind implements render.Binder.
-func (Post2faInitJSONRequestBody) Bind(*http.Request) error {
+func (Post2faSendJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -107,9 +107,9 @@ func Post2faValidateJSON200Response(body SuccessResponse) *Response {
 	}
 }
 
-// Post2faInitJSON200Response is a constructor method for a Post2faInit response.
+// Post2faSendJSON200Response is a constructor method for a Post2faSend response.
 // A *Response is returned with the configured status code and content type from the spec.
-func Post2faInitJSON200Response(body SuccessResponse) *Response {
+func Post2faSendJSON200Response(body SuccessResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        200,
@@ -135,8 +135,8 @@ type ServerInterface interface {
 	// (POST /2fa)
 	Post2faValidate(w http.ResponseWriter, r *http.Request) *Response
 	// Initiate sending 2fa code
-	// (POST /2fa:init)
-	Post2faInit(w http.ResponseWriter, r *http.Request) *Response
+	// (POST /2fa/send)
+	Post2faSend(w http.ResponseWriter, r *http.Request) *Response
 	// Get all enabled 2fas
 	// (GET /{login_id}/2fa/enabled)
 	Get2faEnabled(w http.ResponseWriter, r *http.Request, loginID string) *Response
@@ -166,12 +166,12 @@ func (siw *ServerInterfaceWrapper) Post2faValidate(w http.ResponseWriter, r *htt
 	handler(w, r.WithContext(ctx))
 }
 
-// Post2faInit operation middleware
-func (siw *ServerInterfaceWrapper) Post2faInit(w http.ResponseWriter, r *http.Request) {
+// Post2faSend operation middleware
+func (siw *ServerInterfaceWrapper) Post2faSend(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.Post2faInit(w, r)
+		resp := siw.Handler.Post2faSend(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -326,7 +326,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Post("/2fa", wrapper.Post2faValidate)
-		r.Post("/2fa:init", wrapper.Post2faInit)
+		r.Post("/2fa/send", wrapper.Post2faSend)
 		r.Get("/{login_id}/2fa/enabled", wrapper.Get2faEnabled)
 	})
 	return r
@@ -353,16 +353,16 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9SUT4/TMBDFv0o0cMxuS7n5tkiw6gFpBRKX1Wo1G09ar/wPe1Koqnx3NG5KNiUCVXDh",
-	"5oze2M/vN/EBmuBi8OQ5gzpAbrbksCw/d01DOX+iHIPPJKWYQqTEhoogUe4sy4r3kUBB5mT8Bvq+PlXC",
-	"0zM1DDV8v9qEqxDZBI/2aoe2I1CcOupFbXwbyj6GrbStXaSUg0em6iN63JAjz9XN3Rpq2FHKJnhQ8OZ6",
-	"eb2EvoYQyWM0oOBtKdUQkbfF5GLVYrEecrEqF0Cxsdag4C5kXrX4Ba3RyAQ1JPraUeZ3Qe9F3gTP5Esn",
-	"xmhNU3oXz1kMnOL6NRobNsY/Gi3rNiSHDAq6zmioz8MSrzk3QdNMkjXwt9Di47E8F7T4NYk0qPtxo3o0",
-	"MNnh4RxMP92iAJHCEXm5ymq5vCiI14laUPBqMQ7WYpiqxflIleM15SaZMhqgYNVitRtw6GpoaDtbLps7",
-	"5zDtQcFNx1vyLDaokp6fdxedQFfGG/4j+bWI/hV1cmjsLMWL5uES5McjJz0vTvtPeAsp83ve60FSZfLa",
-	"+E1hPvI+nK7cC/oFeXyyVNLe0Az8WxL27weV/IEJHTGlDOr+AEaMyQsCNXh0kt+L/2kaX/0iinNUD38Z",
-	"7XS6Vi0+OuJt0OXTMLk8/2QcC5gS7mce4xkIY+x2XyXiZGhHuhpirFYfbqrTyVMst8QVWjsqWxRJ3/8I",
-	"AAD//6T2X/hYBgAA",
+	"H4sIAAAAAAAC/9SUzW7bOhCFX0WYe5dK7Lo77lKgDbwoEDRAN0EQTMSRzYB/JUduDUPvXgwtV5ErtDDa",
+	"TXfU4Ax5eL4RD9AEF4MnzxnUAXKzJYdled81DeX8iXIMPpOUYgqREhsqgkS5sywr3kcCBZmT8Rvo+/pU",
+	"Cc8v1DDU8O1qE65CZBM82qsd2o5AceqoF7XxbSj7GLbStnaRUg4emaqP6HFDjjxXN3drqGFHKZvgQcGb",
+	"6+X1EvoaQiSP0YCCt6VUQ0TeFpOLVYvFesjFqlwAxcZag4K7kHnV4me0RiMT1JDoS0eZ3wW9F3kTPJMv",
+	"nRijNU3pXbxkMXCK6+dobNgY/2S0rNuQHDIo6DqjoT4PS7zm3ARNM0nWwF9Di0/H8lzQ4tck0qAexo3q",
+	"0cBkh8dzMP10iwJECkfk5Sqr5fKiIP5P1IKC/xbjYC2GqVqcj1Q5XlNukimjAQpWLVa7AYeuhoa2s+Wy",
+	"uXMO0x4U3HS8Jc9igyrp+XF30Qn0RSavf0v+XkR/izo5NHaW4kXzcAny45GTnlen/SO8jTdsfs17PUgq",
+	"oWr8pjAfeR9OV+4LevL4bKmkvaEZ+Lck7N8PKvkDEzpiShnUwwGMGJMXBGrw6CS/V//TNL76VRTnqB7/",
+	"MNrpdK1afHLE26DLp2Fyef7JOBYwJdzPPMYzEMbY7b5KxMnQjnQ1xFitPtxUp5OnWG6JK7R2VLYokr7/",
+	"HgAA//8OR4vmWAYAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

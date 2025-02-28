@@ -3,10 +3,10 @@ info:
   title: Impersonate Management API
   version: 1.0.0
 paths:
-  /2fa:init:
+  /2fa/send:
     post:
       summary: Initiate sending 2fa code
-      operationId: post_2fa_init
+      operationId: post_2fa_send
       requestBody:
         required: true
         content:
