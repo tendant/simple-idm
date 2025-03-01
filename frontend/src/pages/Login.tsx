@@ -16,13 +16,27 @@ const Login: Component = () => {
     setLoading(true);
 
     try {
-      const user = await userApi.login({
+      const response = await userApi.login({
         username: username(),
         password: password(),
       });
 
+      // Check if 2FA is required
+      if (response.status === '2fa_required') {
+        // Redirect to 2FA verification page with necessary params
+        const params = new URLSearchParams();
+        params.set('token', response.temp_token);
+        params.set('methods', encodeURIComponent(JSON.stringify(response.two_factor_methods)));
+        if (searchParams.redirect) {
+          params.set('redirect', searchParams.redirect);
+        }
+        navigate(`/two-factor-verification?${params.toString()}`);
+        return;
+      }
+
+      // Regular login flow (no 2FA)
       // Store the user info in localStorage
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('user', JSON.stringify(response));
 
       // Redirect to the original page or default to /users
       const redirectPath = searchParams.redirect || '/users';

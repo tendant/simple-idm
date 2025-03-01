@@ -3,28 +3,25 @@ info:
   title: Impersonate Management API
   version: 1.0.0
 paths:
-  /2fa:init:
+  /2fa/send:
     post:
       summary: Initiate sending 2fa code
-      operationId: post_2fa_init
+      operationId: post_2fa_send
       requestBody:
+        x-go-optional-value: true
         required: true
         content:
           application/json:
             schema:
               type: object
               properties:
-                email:
-                  type: string
-                login_id:
-                  type: string
-                  format: uuid
                 twofa_type:
                   type: string
+                delivery_option:
+                  type: string
               required:
-                - email
                 - twofa_type
-                - login_id
+                - delivery_option
       responses:
         "200":
           description: 2fa initiated Successful
@@ -32,7 +29,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
-  /2fa:
+  /2fa/validate:
     post:
       summary: Authenticate 2fa passcode
       operationId: post_2fa_validate
@@ -43,16 +40,12 @@ paths:
             schema:
               type: object
               properties:
-                login_id:
-                  type: string
-                  format: uuid
                 twofa_type:
                   type: string
                 passcode:
                   type: string
               required:
                 - passcode
-                - login_id
                 - twofa_type
       responses:
         "200":

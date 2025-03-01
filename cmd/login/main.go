@@ -210,7 +210,7 @@ func main() {
 		r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
 
 		// Initialize two factor authentication service and routes
-		twoFaHandle := twofa.NewHandle(twoFaService)
+		twoFaHandle := twofa.NewHandle(twoFaService, *jwtService)
 		r.Mount("/idm/twofa", twofa.Handler(twoFaHandle))
 	})
 

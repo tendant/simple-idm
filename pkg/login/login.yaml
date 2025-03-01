@@ -280,8 +280,8 @@ components:
         two_factor_methods:
           type: array
           items:
-            $ref: "#/components/schemas/TwoFAMethod"
-    TwoFAMethod:
+            $ref: "#/components/schemas/TwoFactorMethod"
+    TwoFactorMethod:
       x-go-optional-value: true
       type: object
       properties:

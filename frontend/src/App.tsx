@@ -12,6 +12,7 @@ import PasswordResetInit from './pages/PasswordResetInit';
 import PasswordReset from './pages/PasswordReset';
 import Settings from './pages/Settings';
 import FindUsername from './pages/FindUsername';
+import TwoFactorVerification from './pages/TwoFactorVerification';
 
 const UsersPage: Component = () => {
   return (
@@ -98,6 +99,7 @@ const App: Component = () => {
   return (
     <Router>
       <Route path="/login" component={Login} />
+      <Route path="/two-factor-verification" component={TwoFactorVerification} />
       <Route path="/" component={UsersPage} />
       <Route path="/users" component={UsersPage} />
       <Route path="/users/create" component={CreateUserPage} />
