@@ -3,6 +3,7 @@ package profile
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/utils"
@@ -68,11 +69,25 @@ func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 
 	if err != nil {
 		if err.Error() == "invalid current password" {
+			slog.Info("Password update failed: invalid current password")
 			return &Response{
 				Code: http.StatusForbidden,
 				body: map[string]string{
 					"code":    "invalid_password",
 					"message": "Current password is incorrect",
+				},
+			}
+		} else if strings.Contains(err.Error(), "password must") || 
+			strings.Contains(err.Error(), "password cannot") ||
+			strings.Contains(err.Error(), "password is") ||
+			strings.Contains(err.Error(), "password has been") {
+			// Handle all password complexity and history errors
+			slog.Info("Password update failed: complexity or history requirement", "error", err.Error())
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: map[string]string{
+					"code":    "invalid_password_complexity",
+					"message": err.Error(),
 				},
 			}
 		}

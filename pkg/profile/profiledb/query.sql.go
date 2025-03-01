@@ -15,22 +15,22 @@ import (
 )
 
 const create2FAInit = `-- name: Create2FAInit :one
-INSERT INTO login_2fa (login_uuid, two_factor_secret, two_factor_enabled, two_factor_backup_codes)
+INSERT INTO login_2fa (login_id, two_factor_secret, two_factor_enabled, two_factor_backup_codes)
 VALUES ($1, $2, FALSE, $3::TEXT[])
-RETURNING uuid
+RETURNING id
 `
 
 type Create2FAInitParams struct {
-	LoginUuid       uuid.UUID   `json:"login_uuid"`
+	LoginID         uuid.UUID   `json:"login_id"`
 	TwoFactorSecret pgtype.Text `json:"two_factor_secret"`
 	Column3         []string    `json:"column_3"`
 }
 
 func (q *Queries) Create2FAInit(ctx context.Context, arg Create2FAInitParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, create2FAInit, arg.LoginUuid, arg.TwoFactorSecret, arg.Column3)
-	var uuid uuid.UUID
-	err := row.Scan(&uuid)
-	return uuid, err
+	row := q.db.QueryRow(ctx, create2FAInit, arg.LoginID, arg.TwoFactorSecret, arg.Column3)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const disable2FA = `-- name: Disable2FA :exec
@@ -39,23 +39,23 @@ SET two_factor_secret = NULL,
     two_factor_enabled = FALSE,
     two_factor_backup_codes = NULL,
     last_modified_at = NOW()
-WHERE uuid = $1
+WHERE id = $1
 `
 
-func (q *Queries) Disable2FA(ctx context.Context, argUuid uuid.UUID) error {
-	_, err := q.db.Exec(ctx, disable2FA, argUuid)
+func (q *Queries) Disable2FA(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, disable2FA, id)
 	return err
 }
 
-const disable2FAByLoginUuid = `-- name: Disable2FAByLoginUuid :exec
+const disable2FAByLoginId = `-- name: Disable2FAByLoginId :exec
 UPDATE login_2fa
 SET deleted_at = now() AT TIME ZONE 'utc'
-WHERE login_uuid = $1
+WHERE login_id = $1
 AND deleted_at IS NULL
 `
 
-func (q *Queries) Disable2FAByLoginUuid(ctx context.Context, loginUuid uuid.UUID) error {
-	_, err := q.db.Exec(ctx, disable2FAByLoginUuid, loginUuid)
+func (q *Queries) Disable2FAByLoginId(ctx context.Context, loginID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, disable2FAByLoginId, loginID)
 	return err
 }
 
@@ -65,49 +65,49 @@ SET two_factor_secret = $1::text,
     two_factor_enabled = TRUE,
     two_factor_backup_codes = $2::text[],
     last_modified_at = NOW()
-WHERE uuid = $3
+WHERE id = $3
 `
 
 type Enable2FAParams struct {
 	Column1 string    `json:"column_1"`
 	Column2 []string  `json:"column_2"`
-	Uuid    uuid.UUID `json:"uuid"`
+	ID      uuid.UUID `json:"id"`
 }
 
 func (q *Queries) Enable2FA(ctx context.Context, arg Enable2FAParams) error {
-	_, err := q.db.Exec(ctx, enable2FA, arg.Column1, arg.Column2, arg.Uuid)
+	_, err := q.db.Exec(ctx, enable2FA, arg.Column1, arg.Column2, arg.ID)
 	return err
 }
 
-const enable2FAByLoginUuid = `-- name: Enable2FAByLoginUuid :exec
+const enable2FAByLoginId = `-- name: Enable2FAByLoginId :exec
 UPDATE login_2fa
 SET two_factor_secret = $1::text,
     two_factor_enabled = TRUE,
     two_factor_backup_codes = $2::text[],
     last_modified_at = NOW()
-WHERE login_uuid = $3
+WHERE login_id = $3
 AND deleted_at IS NULL
 `
 
-type Enable2FAByLoginUuidParams struct {
-	Column1   string    `json:"column_1"`
-	Column2   []string  `json:"column_2"`
-	LoginUuid uuid.UUID `json:"login_uuid"`
+type Enable2FAByLoginIdParams struct {
+	Column1 string    `json:"column_1"`
+	Column2 []string  `json:"column_2"`
+	LoginID uuid.UUID `json:"login_id"`
 }
 
-func (q *Queries) Enable2FAByLoginUuid(ctx context.Context, arg Enable2FAByLoginUuidParams) error {
-	_, err := q.db.Exec(ctx, enable2FAByLoginUuid, arg.Column1, arg.Column2, arg.LoginUuid)
+func (q *Queries) Enable2FAByLoginId(ctx context.Context, arg Enable2FAByLoginIdParams) error {
+	_, err := q.db.Exec(ctx, enable2FAByLoginId, arg.Column1, arg.Column2, arg.LoginID)
 	return err
 }
 
 const findUserByUsername = `-- name: FindUserByUsername :many
-SELECT uuid, username, email, password, two_factor_secret, two_factor_enabled, two_factor_backup_codes, created_at, last_modified_at
+SELECT id, username, email, password, two_factor_secret, two_factor_enabled, two_factor_backup_codes, created_at, last_modified_at
 FROM users
 WHERE username = $1
 `
 
 type FindUserByUsernameRow struct {
-	Uuid                 uuid.UUID      `json:"uuid"`
+	ID                   uuid.UUID      `json:"id"`
 	Username             sql.NullString `json:"username"`
 	Email                string         `json:"email"`
 	Password             []byte         `json:"password"`
@@ -128,7 +128,7 @@ func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullStrin
 	for rows.Next() {
 		var i FindUserByUsernameRow
 		if err := rows.Scan(
-			&i.Uuid,
+			&i.ID,
 			&i.Username,
 			&i.Email,
 			&i.Password,
@@ -148,15 +148,29 @@ func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullStrin
 	return items, nil
 }
 
-const getUserByUUID = `-- name: GetUserByUUID :one
-
-SELECT uuid, username, email, password, created_at, last_modified_at
-FROM users
-WHERE uuid = $1
+const getLoginIDByUserID = `-- name: GetLoginIDByUserID :one
+SELECT l.id
+FROM login l
+JOIN users u ON l.id = u.login_id
+WHERE u.id = $1
+AND l.deleted_at IS NULL
 `
 
-type GetUserByUUIDRow struct {
-	Uuid           uuid.UUID      `json:"uuid"`
+func (q *Queries) GetLoginIDByUserID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getLoginIDByUserID, id)
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getUserById = `-- name: GetUserById :one
+
+SELECT id, username, email, password, created_at, last_modified_at
+FROM users
+WHERE id = $1
+`
+
+type GetUserByIdRow struct {
+	ID             uuid.UUID      `json:"id"`
 	Username       sql.NullString `json:"username"`
 	Email          string         `json:"email"`
 	Password       []byte         `json:"password"`
@@ -165,11 +179,11 @@ type GetUserByUUIDRow struct {
 }
 
 // Verify current password
-func (q *Queries) GetUserByUUID(ctx context.Context, argUuid uuid.UUID) (GetUserByUUIDRow, error) {
-	row := q.db.QueryRow(ctx, getUserByUUID, argUuid)
-	var i GetUserByUUIDRow
+func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow, error) {
+	row := q.db.QueryRow(ctx, getUserById, id)
+	var i GetUserByIdRow
 	err := row.Scan(
-		&i.Uuid,
+		&i.ID,
 		&i.Username,
 		&i.Email,
 		&i.Password,
@@ -183,16 +197,16 @@ const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE users
 SET password = $2,
     last_modified_at = NOW()
-WHERE uuid = $1
+WHERE id = $1
 `
 
 type UpdateUserPasswordParams struct {
-	Uuid     uuid.UUID `json:"uuid"`
+	ID       uuid.UUID `json:"id"`
 	Password []byte    `json:"password"`
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
-	_, err := q.db.Exec(ctx, updateUserPassword, arg.Uuid, arg.Password)
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.Password)
 	return err
 }
 
@@ -200,15 +214,15 @@ const updateUsername = `-- name: UpdateUsername :exec
 UPDATE users
 SET username = $2,
     last_modified_at = NOW()
-WHERE uuid = $1
+WHERE id = $1
 `
 
 type UpdateUsernameParams struct {
-	Uuid     uuid.UUID      `json:"uuid"`
+	ID       uuid.UUID      `json:"id"`
 	Username sql.NullString `json:"username"`
 }
 
 func (q *Queries) UpdateUsername(ctx context.Context, arg UpdateUsernameParams) error {
-	_, err := q.db.Exec(ctx, updateUsername, arg.Uuid, arg.Username)
+	_, err := q.db.Exec(ctx, updateUsername, arg.ID, arg.Username)
 	return err
 }

@@ -197,6 +197,11 @@ func (s LoginService) HashPassword(password string) (string, error) {
 	return s.passwordManager.HashPassword(password)
 }
 
+// CheckPasswordComplexity verifies that a password meets the complexity requirements
+func (s LoginService) CheckPasswordComplexity(password string) error {
+	return s.passwordManager.CheckPasswordComplexity(password)
+}
+
 func (s LoginService) CheckPasswordHash(password, hashedPassword string, version PasswordVersion) (bool, error) {
 	return s.passwordManager.CheckPasswordHash(password, hashedPassword, version)
 }
@@ -279,6 +284,12 @@ func (s *LoginService) SendPasswordResetEmail(ctx context.Context, email string,
 func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword string) error {
 	// Use the password manager to handle the reset
 	return s.passwordManager.ResetPassword(ctx, token, newPassword)
+}
+
+// ChangePassword changes a user's password after verifying the current password
+func (s LoginService) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	// Delegate to the password manager
+	return s.passwordManager.ChangePassword(ctx, userID, currentPassword, newPassword)
 }
 
 // InitPasswordReset generates a reset token and sends a reset email
