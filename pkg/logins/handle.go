@@ -1,30 +1,33 @@
 package logins
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
 )
 
-// Handler handles HTTP requests for login management
-type Handler struct {
-	loginService *LoginService
+// LoginsHandle handles HTTP requests for login management
+type LoginsHandle struct {
+	loginService *LoginsService
 }
 
-// NewHandler creates a new login handler
-func NewHandler(db *pgxpool.Pool) *Handler {
-	return &Handler{
-		loginService: NewLoginService(db),
+// Ensure LoginsHandle implements ServerInterface
+var _ ServerInterface = (*LoginsHandle)(nil)
+
+// NewHandle creates a new login handler
+func NewHandle(loginService *LoginsService) *LoginsHandle {
+	return &LoginsHandle{
+		loginService: loginService,
 	}
 }
 
 // RegisterRoutes registers the login routes
-func (h *Handler) RegisterRoutes(r chi.Router) {
+func (h *LoginsHandle) RegisterRoutes(r chi.Router) {
 	r.Route("/logins", func(r chi.Router) {
 		r.Get("/", h.ListLogins)
 		r.Post("/", h.CreateLogin)
@@ -39,7 +42,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 }
 
 // ListLogins handles the request to list logins
-func (h *Handler) ListLogins(w http.ResponseWriter, r *http.Request) {
+func (h *LoginsHandle) ListLogins(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
@@ -96,7 +99,7 @@ func (h *Handler) ListLogins(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetLogin handles the request to get a login by ID
-func (h *Handler) GetLogin(w http.ResponseWriter, r *http.Request) {
+func (h *LoginsHandle) GetLogin(w http.ResponseWriter, r *http.Request) {
 	// Parse login ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -118,7 +121,7 @@ func (h *Handler) GetLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateLogin handles the request to create a new login
-func (h *Handler) CreateLogin(w http.ResponseWriter, r *http.Request) {
+func (h *LoginsHandle) CreateLogin(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var request struct {
 		Username string `json:"username"`
@@ -149,7 +152,7 @@ func (h *Handler) CreateLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateLogin handles the request to update a login
-func (h *Handler) UpdateLogin(w http.ResponseWriter, r *http.Request) {
+func (h *LoginsHandle) UpdateLogin(w http.ResponseWriter, r *http.Request) {
 	// Parse login ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -186,7 +189,7 @@ func (h *Handler) UpdateLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteLogin handles the request to delete a login
-func (h *Handler) DeleteLogin(w http.ResponseWriter, r *http.Request) {
+func (h *LoginsHandle) DeleteLogin(w http.ResponseWriter, r *http.Request) {
 	// Parse login ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -207,7 +210,7 @@ func (h *Handler) DeleteLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdatePassword handles the request to update a login's password
-func (h *Handler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
+func (h *LoginsHandle) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	// Parse login ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -244,7 +247,7 @@ func (h *Handler) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 // EnableTwoFactor handles the request to enable two-factor authentication
-func (h *Handler) EnableTwoFactor(w http.ResponseWriter, r *http.Request) {
+func (h *LoginsHandle) EnableTwoFactor(w http.ResponseWriter, r *http.Request) {
 	// Parse login ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -255,7 +258,7 @@ func (h *Handler) EnableTwoFactor(w http.ResponseWriter, r *http.Request) {
 
 	// Parse request body
 	var request struct {
-		Secret          string `json:"secret"`
+		Secret           string `json:"secret"`
 		VerificationCode string `json:"verification_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -285,7 +288,7 @@ func (h *Handler) EnableTwoFactor(w http.ResponseWriter, r *http.Request) {
 }
 
 // DisableTwoFactor handles the request to disable two-factor authentication
-func (h *Handler) DisableTwoFactor(w http.ResponseWriter, r *http.Request) {
+func (h *LoginsHandle) DisableTwoFactor(w http.ResponseWriter, r *http.Request) {
 	// Parse login ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -307,7 +310,7 @@ func (h *Handler) DisableTwoFactor(w http.ResponseWriter, r *http.Request) {
 }
 
 // GenerateBackupCodes handles the request to generate new backup codes
-func (h *Handler) GenerateBackupCodes(w http.ResponseWriter, r *http.Request) {
+func (h *LoginsHandle) GenerateBackupCodes(w http.ResponseWriter, r *http.Request) {
 	// Parse login ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -330,4 +333,109 @@ func (h *Handler) GenerateBackupCodes(w http.ResponseWriter, r *http.Request) {
 	}{
 		BackupCodes: backupCodes,
 	})
+}
+
+// ServerInterface implementation
+
+// Get implements ServerInterface.Get
+func (h *LoginsHandle) Get(w http.ResponseWriter, r *http.Request, params GetParams) *Response {
+	// Set query parameters
+	q := r.URL.Query()
+	if params.Limit != nil {
+		q.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Offset != nil {
+		q.Set("offset", strconv.Itoa(*params.Offset))
+	}
+	if params.Search != nil {
+		q.Set("search", *params.Search)
+	}
+	r.URL.RawQuery = q.Encode()
+
+	// Call the handler method
+	h.ListLogins(w, r)
+	return nil
+}
+
+// Post implements ServerInterface.Post
+func (h *LoginsHandle) Post(w http.ResponseWriter, r *http.Request) *Response {
+	h.CreateLogin(w, r)
+	return nil
+}
+
+// PostLoginsId2faEnable implements ServerInterface.PostLoginsId2faEnable
+func (h *LoginsHandle) PostLoginsId2faEnable(w http.ResponseWriter, r *http.Request, id string) *Response {
+	// Set the ID in the URL context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	h.EnableTwoFactor(w, r)
+	return nil
+}
+
+// DeleteID implements ServerInterface.DeleteID
+func (h *LoginsHandle) DeleteID(w http.ResponseWriter, r *http.Request, id string) *Response {
+	// Set the ID in the URL context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	h.DeleteLogin(w, r)
+	return nil
+}
+
+// GetID implements ServerInterface.GetID
+func (h *LoginsHandle) GetID(w http.ResponseWriter, r *http.Request, id string) *Response {
+	// Set the ID in the URL context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	h.GetLogin(w, r)
+	return nil
+}
+
+// PutID implements ServerInterface.PutID
+func (h *LoginsHandle) PutID(w http.ResponseWriter, r *http.Request, id string) *Response {
+	// Set the ID in the URL context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	h.UpdateLogin(w, r)
+	return nil
+}
+
+// PostId2faEnable implements ServerInterface.PostId2faEnable
+func (h *LoginsHandle) PostId2faEnable(w http.ResponseWriter, r *http.Request, id string) *Response {
+	// Set the ID in the URL context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	h.EnableTwoFactor(w, r)
+	return nil
+}
+
+// PostIDBackupCodes implements ServerInterface.PostIDBackupCodes
+func (h *LoginsHandle) PostIDBackupCodes(w http.ResponseWriter, r *http.Request, id string) *Response {
+	// Set the ID in the URL context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	h.GenerateBackupCodes(w, r)
+	return nil
+}
+
+// PutIDPassword implements ServerInterface.PutIDPassword
+func (h *LoginsHandle) PutIDPassword(w http.ResponseWriter, r *http.Request, id string) *Response {
+	// Set the ID in the URL context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	h.UpdatePassword(w, r)
+	return nil
 }

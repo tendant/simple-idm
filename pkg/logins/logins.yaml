@@ -3,7 +3,7 @@ info:
   title: Logins Management API
   version: 1.0.0
 paths:
-  /logins:
+  /:
     get:
       summary: List all logins
       parameters:
@@ -68,7 +68,7 @@ paths:
                     type: string
                     example: "Username already exists"
   
-  /logins/{id}:
+  /{id}:
     get:
       summary: Get login by ID
       parameters:
@@ -150,7 +150,7 @@ paths:
                     type: string
                     example: "Login not found"
   
-  /logins/{id}/password:
+  /{id}/password:
     put:
       summary: Update login password
       parameters:
@@ -218,9 +218,9 @@ paths:
                     type: string
                     example: "Login not found"
   
-  /logins/{id}/2fa/disable:
+  /{id}/2fa/enable:
     post:
-      summary: Disable two-factor authentication
+      summary: Enable two-factor authentication
       parameters:
         - name: id
           in: path
@@ -246,7 +246,7 @@ paths:
                     type: string
                     example: "Login not found"
   
-  /logins/{id}/backup-codes:
+  /{id}/backup-codes:
     post:
       summary: Generate new backup codes
       parameters:

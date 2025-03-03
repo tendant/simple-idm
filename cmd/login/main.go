@@ -19,6 +19,8 @@ import (
 	"github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/logins"
+	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/mapper/mapperdb"
 	"github.com/tendant/simple-idm/pkg/notice"
@@ -215,9 +217,10 @@ func main() {
 		r.Mount("/idm/roles", roleRouter)
 
 		// Initialize logins management service and routes
-		loginService := login.NewLoginService(loginQueries, nil, nil, nil)
-		loginHandle := login.NewHandle(loginService, *jwtService)
-		r.Mount("/logins", login.Handler(loginHandle))
+		loginsQueries := loginsdb.New(pool)
+		loginsService := logins.NewLoginsService(loginsQueries)
+		loginsHandle := logins.NewHandle(loginsService)
+		r.Mount("/idm/logins", logins.Handler(loginsHandle))
 
 		// Initialize impersonate service and routes
 		impersonateService := impersonate.NewImpersonateService(impersonateQueries)

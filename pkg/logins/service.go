@@ -3,33 +3,31 @@ package logins
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// LoginService provides methods for managing logins
-type LoginService struct {
-	db        *pgxpool.Pool
-	loginRepo *loginsdb.Queries
+// LoginsService provides methods for managing logins
+type LoginsService struct {
+	loginsRepo *loginsdb.Queries
 }
 
-// NewLoginService creates a new login service
-func NewLoginService(db *pgxpool.Pool) *LoginService {
-	return &LoginService{
-		db:        db,
-		loginRepo: loginsdb.New(db),
+// NewLoginsService creates a new logins service
+func NewLoginsService(loginsRepo *loginsdb.Queries) *LoginsService {
+	return &LoginsService{
+		loginsRepo: loginsRepo,
 	}
 }
 
 // GetLogin retrieves a login by ID
-func (s *LoginService) GetLogin(ctx context.Context, id uuid.UUID) (*loginsdb.Login, error) {
-	login, err := s.loginRepo.GetLogin(ctx, id)
+func (s *LoginsService) GetLogin(ctx context.Context, id uuid.UUID) (*loginsdb.Login, error) {
+	login, err := s.loginsRepo.GetLogin(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get login: %w", err)
 	}
@@ -37,8 +35,8 @@ func (s *LoginService) GetLogin(ctx context.Context, id uuid.UUID) (*loginsdb.Lo
 }
 
 // ListLogins retrieves a list of logins with pagination
-func (s *LoginService) ListLogins(ctx context.Context, limit, offset int32) ([]loginsdb.Login, int64, error) {
-	logins, err := s.loginRepo.ListLogins(ctx, loginsdb.ListLoginsParams{
+func (s *LoginsService) ListLogins(ctx context.Context, limit, offset int32) ([]loginsdb.Login, int64, error) {
+	logins, err := s.loginsRepo.ListLogins(ctx, loginsdb.ListLoginsParams{
 		Limit:  limit,
 		Offset: offset,
 	})
@@ -46,7 +44,7 @@ func (s *LoginService) ListLogins(ctx context.Context, limit, offset int32) ([]l
 		return nil, 0, fmt.Errorf("failed to list logins: %w", err)
 	}
 
-	count, err := s.loginRepo.CountLogins(ctx)
+	count, err := s.loginsRepo.CountLogins(ctx)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count logins: %w", err)
 	}
@@ -55,9 +53,14 @@ func (s *LoginService) ListLogins(ctx context.Context, limit, offset int32) ([]l
 }
 
 // SearchLogins searches for logins by username
-func (s *LoginService) SearchLogins(ctx context.Context, search string, limit, offset int32) ([]loginsdb.Login, error) {
-	logins, err := s.loginRepo.SearchLogins(ctx, loginsdb.SearchLoginsParams{
-		Column1: search,
+func (s *LoginsService) SearchLogins(ctx context.Context, search string, limit, offset int32) ([]loginsdb.Login, error) {
+	// Convert string to pgtype.Text
+	var searchText pgtype.Text
+	searchText.String = search
+	searchText.Valid = true
+
+	logins, err := s.loginsRepo.SearchLogins(ctx, loginsdb.SearchLoginsParams{
+		Column1: searchText,
 		Limit:   limit,
 		Offset:  offset,
 	})
@@ -68,9 +71,15 @@ func (s *LoginService) SearchLogins(ctx context.Context, search string, limit, o
 }
 
 // CreateLogin creates a new login
-func (s *LoginService) CreateLogin(ctx context.Context, username, password, createdBy string) (*loginsdb.Login, error) {
+func (s *LoginsService) CreateLogin(ctx context.Context, username, password, createdBy string) (*loginsdb.Login, error) {
+	// Convert username to sql.NullString
+	usernameSQL := sql.NullString{
+		String: username,
+		Valid:  true,
+	}
+
 	// Check if username already exists
-	_, err := s.loginRepo.GetLoginByUsername(ctx, username)
+	_, err := s.loginsRepo.GetLoginByUsername(ctx, usernameSQL)
 	if err == nil {
 		return nil, fmt.Errorf("username already exists")
 	}
@@ -81,10 +90,16 @@ func (s *LoginService) CreateLogin(ctx context.Context, username, password, crea
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	login, err := s.loginRepo.CreateLogin(ctx, loginsdb.CreateLoginParams{
-		Username:  username,
+	// Convert createdBy to sql.NullString
+	createdBySQL := sql.NullString{
+		String: createdBy,
+		Valid:  true,
+	}
+
+	login, err := s.loginsRepo.CreateLogin(ctx, loginsdb.CreateLoginParams{
+		Username:  usernameSQL,
 		Password:  hashedPassword,
-		CreatedBy: &createdBy,
+		CreatedBy: createdBySQL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create login: %w", err)
@@ -94,10 +109,16 @@ func (s *LoginService) CreateLogin(ctx context.Context, username, password, crea
 }
 
 // UpdateLogin updates a login's username
-func (s *LoginService) UpdateLogin(ctx context.Context, id uuid.UUID, username string) (*loginsdb.Login, error) {
-	login, err := s.loginRepo.UpdateLogin(ctx, loginsdb.UpdateLoginParams{
+func (s *LoginsService) UpdateLogin(ctx context.Context, id uuid.UUID, username string) (*loginsdb.Login, error) {
+	// Convert username to sql.NullString
+	usernameSQL := sql.NullString{
+		String: username,
+		Valid:  true,
+	}
+
+	login, err := s.loginsRepo.UpdateLogin(ctx, loginsdb.UpdateLoginParams{
 		ID:       id,
-		Username: username,
+		Username: usernameSQL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update login: %w", err)
@@ -106,8 +127,8 @@ func (s *LoginService) UpdateLogin(ctx context.Context, id uuid.UUID, username s
 }
 
 // DeleteLogin soft deletes a login
-func (s *LoginService) DeleteLogin(ctx context.Context, id uuid.UUID) error {
-	err := s.loginRepo.DeleteLogin(ctx, id)
+func (s *LoginsService) DeleteLogin(ctx context.Context, id uuid.UUID) error {
+	err := s.loginsRepo.DeleteLogin(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete login: %w", err)
 	}
@@ -115,14 +136,14 @@ func (s *LoginService) DeleteLogin(ctx context.Context, id uuid.UUID) error {
 }
 
 // UpdatePassword updates a login's password
-func (s *LoginService) UpdatePassword(ctx context.Context, id uuid.UUID, password string) (*loginsdb.Login, error) {
+func (s *LoginsService) UpdatePassword(ctx context.Context, id uuid.UUID, password string) (*loginsdb.Login, error) {
 	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	login, err := s.loginRepo.UpdateLoginPassword(ctx, loginsdb.UpdateLoginPasswordParams{
+	login, err := s.loginsRepo.UpdateLoginPassword(ctx, loginsdb.UpdateLoginPasswordParams{
 		ID:       id,
 		Password: hashedPassword,
 	})
@@ -133,10 +154,15 @@ func (s *LoginService) UpdatePassword(ctx context.Context, id uuid.UUID, passwor
 }
 
 // EnableTwoFactor enables two-factor authentication for a login
-func (s *LoginService) EnableTwoFactor(ctx context.Context, id uuid.UUID, secret string) (*loginsdb.Login, error) {
-	login, err := s.loginRepo.EnableTwoFactor(ctx, loginsdb.EnableTwoFactorParams{
+func (s *LoginsService) EnableTwoFactor(ctx context.Context, id uuid.UUID, secret string) (*loginsdb.Login, error) {
+	// Convert secret to pgtype.Text
+	var secretText pgtype.Text
+	secretText.String = secret
+	secretText.Valid = true
+
+	login, err := s.loginsRepo.EnableTwoFactor(ctx, loginsdb.EnableTwoFactorParams{
 		ID:              id,
-		TwoFactorSecret: secret,
+		TwoFactorSecret: secretText,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable two-factor authentication: %w", err)
@@ -145,8 +171,8 @@ func (s *LoginService) EnableTwoFactor(ctx context.Context, id uuid.UUID, secret
 }
 
 // DisableTwoFactor disables two-factor authentication for a login
-func (s *LoginService) DisableTwoFactor(ctx context.Context, id uuid.UUID) (*loginsdb.Login, error) {
-	login, err := s.loginRepo.DisableTwoFactor(ctx, id)
+func (s *LoginsService) DisableTwoFactor(ctx context.Context, id uuid.UUID) (*loginsdb.Login, error) {
+	login, err := s.loginsRepo.DisableTwoFactor(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to disable two-factor authentication: %w", err)
 	}
@@ -154,7 +180,7 @@ func (s *LoginService) DisableTwoFactor(ctx context.Context, id uuid.UUID) (*log
 }
 
 // GenerateBackupCodes generates new backup codes for a login
-func (s *LoginService) GenerateBackupCodes(ctx context.Context, id uuid.UUID) ([]string, error) {
+func (s *LoginsService) GenerateBackupCodes(ctx context.Context, id uuid.UUID) ([]string, error) {
 	// Generate 10 backup codes
 	backupCodes := make([]string, 10)
 	for i := 0; i < 10; i++ {
@@ -169,8 +195,8 @@ func (s *LoginService) GenerateBackupCodes(ctx context.Context, id uuid.UUID) ([
 	}
 
 	// Save backup codes to the database
-	_, err := s.loginRepo.SetTwoFactorBackupCodes(ctx, loginsdb.SetTwoFactorBackupCodesParams{
-		ID:                  id,
+	_, err := s.loginsRepo.SetTwoFactorBackupCodes(ctx, loginsdb.SetTwoFactorBackupCodesParams{
+		ID:                   id,
 		TwoFactorBackupCodes: backupCodes,
 	})
 	if err != nil {
@@ -181,8 +207,8 @@ func (s *LoginService) GenerateBackupCodes(ctx context.Context, id uuid.UUID) ([
 }
 
 // VerifyPassword verifies a login's password
-func (s *LoginService) VerifyPassword(ctx context.Context, id uuid.UUID, password string) (bool, error) {
-	login, err := s.loginRepo.GetLogin(ctx, id)
+func (s *LoginsService) VerifyPassword(ctx context.Context, id uuid.UUID, password string) (bool, error) {
+	login, err := s.loginsRepo.GetLogin(ctx, id)
 	if err != nil {
 		return false, fmt.Errorf("failed to get login: %w", err)
 	}
