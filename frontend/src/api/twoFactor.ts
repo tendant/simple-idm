@@ -19,9 +19,14 @@ export interface UserData {
   token: string;
 }
 
+export interface DeliveryOption {
+  display_value: string;
+  hashed_value: string;
+}
+
 export interface TwoFactorMethod {
   type: string;
-  delivery_options: string[];
+  delivery_options: DeliveryOption[];
   display_name?: string;
 }
 

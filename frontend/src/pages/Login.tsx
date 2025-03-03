@@ -1,6 +1,7 @@
 import { Component, createSignal } from 'solid-js';
 import { useNavigate, useSearchParams, A } from '@solidjs/router';
 import { userApi } from '../api/user';
+import { DeliveryOption } from '../api/twoFactor';
 
 const Login: Component = () => {
   const navigate = useNavigate();
@@ -26,7 +27,19 @@ const Login: Component = () => {
         // Redirect to 2FA verification page with necessary params
         const params = new URLSearchParams();
         params.set('token', response.temp_token);
-        params.set('methods', encodeURIComponent(JSON.stringify(response.two_factor_methods)));
+        
+        // Ensure two_factor_methods is properly formatted before passing it
+        if (response.two_factor_methods && Array.isArray(response.two_factor_methods)) {
+          // Properly format the methods to match our interface
+          const formattedMethods = response.two_factor_methods.map(method => ({
+            type: method.type,
+            delivery_options: method.delivery_options || [],
+            display_name: method.type === 'email' ? 'Email' : method.type
+          }));
+          
+          params.set('methods', encodeURIComponent(JSON.stringify(formattedMethods)));
+        }
+        
         if (searchParams.redirect) {
           params.set('redirect', searchParams.redirect);
         }

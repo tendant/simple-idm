@@ -5,9 +5,14 @@ interface LoginRequest {
   password: string;
 }
 
+interface DeliveryOption {
+  display_value: string;
+  hashed_value: string;
+}
+
 interface TwoFactorMethod {
   type: string;
-  delivery_options: string[];
+  delivery_options: DeliveryOption[];
 }
 
 interface LoginResponse {
