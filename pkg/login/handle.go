@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	"golang.org/x/exp/slog"
 )
@@ -362,7 +363,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	displayName, _ := customClaims["name"].(string)
 
 	// Create the MappedUser object
-	mappedUser := MappedUser{
+	mappedUser := mapper.MappedUser{
 		UserId:      userId,
 		DisplayName: displayName,
 		ExtraClaims: customClaims["extra_claims"].(map[string]interface{}),
@@ -455,7 +456,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Check if the requested user is in the list
-	var targetUser MappedUser
+	var targetUser mapper.MappedUser
 	found := false
 	for _, user := range users {
 		if user.UserId == data.UserID {
