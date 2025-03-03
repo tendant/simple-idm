@@ -100,7 +100,7 @@ func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid
 }
 
 // InitTwoFa generate a two factor passcode and send a notification email
-func (s TwoFaService) InitTwoFa(ctx context.Context, loginId uuid.UUID, twoFactorType, deliveryOption string) error {
+func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId uuid.UUID, twoFactorType, deliveryOption string) error {
 	// get or create the 2fa secret for the login
 	secret, err := s.GetTwoFactorSecretByLoginId(ctx, loginId, twoFactorType)
 	if err != nil {

@@ -118,7 +118,7 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	err = h.twoFaService.InitTwoFa(r.Context(), loginId, data.TwofaType, data.DeliveryOption)
+	err = h.twoFaService.SendTwoFaNotification(r.Context(), loginId, data.TwofaType, data.DeliveryOption)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
