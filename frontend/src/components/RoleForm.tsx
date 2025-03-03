@@ -23,9 +23,12 @@ const RoleForm: Component<Props> = (props) => {
   });
 
   const loadUsers = async () => {
-    if (props.initialData?.id) {
+    // Use initialData.id if uuid is not available
+    const roleId = props.initialData?.uuid || props.initialData?.id;
+    
+    if (roleId) {
       try {
-        const roleUsers = await roleApi.getRoleUsers(props.initialData.id);
+        const roleUsers = await roleApi.getRoleUsers(roleId);
         setUsers(roleUsers);
       } catch (error) {
         console.error('Failed to fetch role users:', error);
@@ -38,12 +41,18 @@ const RoleForm: Component<Props> = (props) => {
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
+    console.log('RoleForm: Form submitted');
+    console.log('RoleForm: Name value:', name());
+    
     setError(null);
     setLoading(true);
 
     try {
+      console.log('RoleForm: Calling onSubmit with data:', { name: name() });
       await props.onSubmit?.({ name: name() });
+      console.log('RoleForm: onSubmit completed successfully');
     } catch (err) {
+      console.error('RoleForm: Error during submission:', err);
       setError((err as Error).message);
       props.onError?.(err as Error);
     } finally {
@@ -52,7 +61,11 @@ const RoleForm: Component<Props> = (props) => {
   };
 
   const handleRemoveUser = async (user: RoleUser) => {
-    if (!props.initialData?.uuid || !user.uuid) return;
+    // Use initialData.uuid if available, otherwise fall back to initialData.id
+    const roleId = props.initialData?.uuid || props.initialData?.id;
+    const userId = user.uuid || user.id;
+    
+    if (!roleId || !userId) return;
 
     // Show confirmation dialog
     const userName = user.name || user.email || user.username;
@@ -61,7 +74,7 @@ const RoleForm: Component<Props> = (props) => {
     }
 
     try {
-      await roleApi.removeUserFromRole(props.initialData.uuid, user.uuid);
+      await roleApi.removeUserFromRole(roleId, userId);
       // Refresh the users list
       await loadUsers();
     } catch (error) {

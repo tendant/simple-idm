@@ -1,4 +1,4 @@
-import { Component, createSignal, onMount } from 'solid-js';
+import { Component, createSignal, createEffect, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { roleApi, type Role } from '../api/role';
 
@@ -103,7 +103,15 @@ const Roles: Component = () => {
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                           <button
-                            onClick={() => role.id && navigate(`/roles/${role.id}/edit`)}
+                            onClick={() => {
+                              console.log('Edit button clicked for role:', role);
+                              if (role.id) {
+                                console.log('Navigating to:', `/roles/${role.id}/edit`);
+                                navigate(`/roles/${role.id}/edit`);
+                              } else {
+                                console.error('No role ID available');
+                              }
+                            }}
                             class="text-blue-600 hover:text-blue-900 mr-4"
                           >
                             Edit

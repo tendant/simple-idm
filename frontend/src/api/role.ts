@@ -1,7 +1,8 @@
 import { apiClient } from './client';
 
 export interface Role {
-  id: string;
+  id?: string;
+  uuid?: string;
   name: string;
 }
 
@@ -15,6 +16,7 @@ export interface UpdateRoleRequest {
 
 export interface RoleUser {
   id?: string;
+  uuid?: string;
   email?: string;
   name?: string;
   username?: string;
@@ -26,7 +28,13 @@ export const roleApi = {
     if (!response.ok) {
       throw new Error('Failed to fetch roles');
     }
-    return response.json();
+    const roles = await response.json();
+    
+    // Ensure each role has an id property (use uuid if available)
+    return roles.map((role: any) => ({
+      ...role,
+      id: role.uuid || role.id
+    }));
   },
 
   getRole: async (id: string): Promise<Role> => {
@@ -42,7 +50,12 @@ export const roleApi = {
 
     const data = await response.json();
     console.log('Response data:', JSON.stringify(data, null, 2));
-    return data;
+    
+    // Ensure the role has an id property (use uuid if available)
+    return {
+      ...data,
+      id: data.uuid || data.id
+    };
   },
 
   getRoleUsers: async (id: string): Promise<RoleUser[]> => {
@@ -69,6 +82,9 @@ export const roleApi = {
   },
 
   updateRole: async (id: string, role: UpdateRoleRequest): Promise<Role> => {
+    console.log('API: Updating role with ID:', id);
+    console.log('API: Update payload:', JSON.stringify(role));
+    
     const response = await apiClient(`/idm/roles/${id}`, {
       method: 'PUT',
       headers: {
@@ -77,10 +93,22 @@ export const roleApi = {
       body: JSON.stringify(role),
     });
 
+    console.log('API: Update response status:', response.status);
+    
     if (!response.ok) {
-      throw new Error('Failed to update role');
+      const errorText = await response.text();
+      console.error('API: Failed to update role:', errorText);
+      throw new Error(`Failed to update role: ${errorText}`);
     }
-    return response.json();
+    
+    const data = await response.json();
+    console.log('API: Update response data:', JSON.stringify(data));
+    
+    // Ensure the role has an id property (use uuid if available)
+    return {
+      ...data,
+      id: data.uuid || data.id
+    };
   },
 
   deleteRole: async (id: string): Promise<void> => {

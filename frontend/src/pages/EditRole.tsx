@@ -1,4 +1,4 @@
-import { Component, createResource, Show, Suspense, ErrorBoundary } from 'solid-js';
+import { Component, createResource, ErrorBoundary, Show, Suspense } from 'solid-js';
 import { useNavigate, useParams } from '@solidjs/router';
 import RoleForm from '../components/RoleForm';
 import { roleApi, type Role } from '../api/role';
@@ -14,8 +14,18 @@ const EditRole: Component = () => {
 
   const handleSubmit = async (data: { name: string }) => {
     if (!params.id) throw new Error('No role ID provided');
-    await roleApi.updateRole(params.id, data);
-    navigate('/roles');
+    
+    console.log('Submitting role update with ID:', params.id);
+    console.log('Update data:', data);
+    
+    try {
+      const updatedRole = await roleApi.updateRole(params.id, data);
+      console.log('Role updated successfully:', updatedRole);
+      navigate('/roles');
+    } catch (error) {
+      console.error('Failed to update role:', error);
+      throw error;
+    }
   };
 
   return (
