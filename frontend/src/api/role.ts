@@ -24,7 +24,7 @@ export interface RoleUser {
 
 export const roleApi = {
   listRoles: async (): Promise<Role[]> => {
-    const response = await apiClient('/idm/roles');
+    const response = await apiClient.get('/idm/roles');
     if (!response.ok) {
       throw new Error('Failed to fetch roles');
     }
@@ -39,7 +39,7 @@ export const roleApi = {
 
   getRole: async (id: string): Promise<Role> => {
     console.log('Fetching role with ID:', id);
-    const response = await apiClient(`/idm/roles/${id}`);
+    const response = await apiClient.get(`/idm/roles/${id}`);
     console.log('Response status:', response.status);
     console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     
@@ -59,7 +59,7 @@ export const roleApi = {
   },
 
   getRoleUsers: async (id: string): Promise<RoleUser[]> => {
-    const response = await apiClient(`/idm/roles/${id}/users`);
+    const response = await apiClient.get(`/idm/roles/${id}/users`);
     if (!response.ok) {
       throw new Error('Failed to fetch role users');
     }
@@ -67,13 +67,7 @@ export const roleApi = {
   },
 
   createRole: async (role: CreateRoleRequest): Promise<Role> => {
-    const response = await apiClient('/idm/roles', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(role),
-    });
+    const response = await apiClient.post('/idm/roles', role);
 
     if (!response.ok) {
       throw new Error('Failed to create role');
@@ -85,13 +79,7 @@ export const roleApi = {
     console.log('API: Updating role with ID:', id);
     console.log('API: Update payload:', JSON.stringify(role));
     
-    const response = await apiClient(`/idm/roles/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(role),
-    });
+    const response = await apiClient.put(`/idm/roles/${id}`, role);
 
     console.log('API: Update response status:', response.status);
     
@@ -112,9 +100,7 @@ export const roleApi = {
   },
 
   deleteRole: async (id: string): Promise<void> => {
-    const response = await apiClient(`/idm/roles/${id}`, {
-      method: 'DELETE',
-    });
+    const response = await apiClient.delete(`/idm/roles/${id}`);
 
     if (!response.ok) {
       throw new Error('Failed to delete role');
@@ -122,9 +108,7 @@ export const roleApi = {
   },
 
   removeUserFromRole: async (roleId: string, userId: string): Promise<void> => {
-    const response = await apiClient(`/idm/roles/${roleId}/users/${userId}`, {
-      method: 'DELETE',
-    });
+    const response = await apiClient.delete(`/idm/roles/${roleId}/users/${userId}`);
     if (!response.ok) {
       throw new Error('Failed to remove user from role');
     }
