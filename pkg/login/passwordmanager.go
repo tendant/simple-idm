@@ -469,5 +469,11 @@ func (pm *PasswordManager) CheckPasswordComplexity(password string) error {
 	if pm.policyChecker == nil {
 		return errors.New("no password policy checker configured")
 	}
-	return pm.policyChecker.CheckPasswordComplexity(password)
+
+	validationErrors := pm.policyChecker.CheckPasswordComplexity(password)
+	if len(validationErrors) > 0 {
+		return validationErrors
+	}
+
+	return nil
 }
