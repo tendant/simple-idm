@@ -214,6 +214,11 @@ func main() {
 		})
 		r.Mount("/idm/roles", roleRouter)
 
+		// Initialize logins management service and routes
+		loginService := login.NewLoginService(loginQueries, nil, nil, nil)
+		loginHandle := login.NewHandle(loginService, *jwtService)
+		r.Mount("/logins", login.Handler(loginHandle))
+
 		// Initialize impersonate service and routes
 		impersonateService := impersonate.NewImpersonateService(impersonateQueries)
 		impersonateHandle := impersonate.NewHandle(impersonateService, *jwtService)
