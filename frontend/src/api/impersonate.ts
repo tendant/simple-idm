@@ -16,13 +16,7 @@ export interface ImpersonateResponse {
 
 export const impersonateApi = {
   createImpersonate: async (request: ImpersonateRequest): Promise<ImpersonateResponse> => {
-    const response = await apiClient('/idm/impersonate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
+    const response = await apiClient.post('/idm/impersonate', request);
 
     if (!response.ok) {
       const errorText = await response.text();
