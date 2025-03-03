@@ -19,6 +19,7 @@ type MappedUser struct {
 
 type UserMapper interface {
 	GetUsers(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error)
+	GetPlaintextEmailByHash(ctx context.Context, loginID uuid.UUID, hashedEmail string) (string, error)
 }
 
 type DefaultUserMapper struct {
@@ -79,6 +80,10 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]M
 	}
 
 	return mappedUsers, nil
+}
+
+func (m DefaultUserMapper) GetPlaintextEmailByHash(ctx context.Context, loginID uuid.UUID, hashedEmail string) (string, error) {
+	return "", nil
 }
 
 type DelegatedUserMapper interface {
