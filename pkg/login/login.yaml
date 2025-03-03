@@ -290,7 +290,21 @@ components:
         delivery_options:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/DeliveryOption"
+    DeliveryOption:
+      x-go-optional-value: true
+      type: object
+      properties:
+        hashed_value:
+          type: string
+        display_value:
+          type: string
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          type: string
     User:
       type: object
       properties:

@@ -1,6 +1,6 @@
 import { Component, createSignal, createEffect, For } from 'solid-js';
 import { useNavigate, useSearchParams, A, RouteSectionProps } from '@solidjs/router';
-import { twoFactorApi, TwoFactorMethod, TwoFactorSendRequest } from '../api/twoFactor';
+import { twoFactorApi, TwoFactorMethod, TwoFactorSendRequest, DeliveryOption } from '../api/twoFactor';
 import { userApi } from '../api/user';
 
 interface TwoFactorVerificationProps extends RouteSectionProps {
@@ -20,7 +20,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
   const [tempToken, setTempToken] = createSignal(props.tempToken || tokenParam);
   const [methods, setMethods] = createSignal<TwoFactorMethod[]>(props.methods || []);
   const [selectedMethod, setSelectedMethod] = createSignal<TwoFactorMethod | null>(null);
-  const [selectedDeliveryOption, setSelectedDeliveryOption] = createSignal<string>('');
+  const [selectedDeliveryOption, setSelectedDeliveryOption] = createSignal<DeliveryOption | null>(null);
   const [verificationCode, setVerificationCode] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
@@ -40,7 +40,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
         setMethods(parsedMethods);
         if (parsedMethods.length > 0) {
           setSelectedMethod(parsedMethods[0]);
-          if (parsedMethods[0].delivery_options.length > 0) {
+          if (parsedMethods[0].delivery_options && parsedMethods[0].delivery_options.length > 0) {
             setSelectedDeliveryOption(parsedMethods[0].delivery_options[0]);
           }
         }
@@ -53,9 +53,10 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
   // Update selected delivery option when method changes
   createEffect(() => {
     const method = selectedMethod();
-    if (method && method.delivery_options.length > 0) {
+    if (method && method.delivery_options && method.delivery_options.length > 0) {
       // If current selection is not in the new method's options, reset it
-      if (!method.delivery_options.includes(selectedDeliveryOption())) {
+      const currentOption = selectedDeliveryOption();
+      if (!currentOption || !method.delivery_options.some(option => option.hashed_value === currentOption.hashed_value)) {
         setSelectedDeliveryOption(method.delivery_options[0]);
       }
     }
@@ -79,9 +80,14 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
         });
       } else {
         // For other method types, use the twofa API
+        const option = selectedDeliveryOption();
+        if (!option) {
+          throw new Error("No delivery option selected");
+        }
+        
         const request: TwoFactorSendRequest = {
           twofa_type: method.type,
-          delivery_option: selectedDeliveryOption()
+          delivery_option: option.hashed_value
         };
         
         const token = tempToken();
@@ -218,10 +224,10 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                         <div class="flex items-center">
                           <input
                             type="radio"
-                            id={`option-${option}`}
+                            id={`option-${option.hashed_value}`}
                             name="delivery-option"
-                            value={option}
-                            checked={selectedDeliveryOption() === option}
+                            value={option.hashed_value}
+                            checked={selectedDeliveryOption()?.hashed_value === option.hashed_value}
                             onChange={() => {
                               setSelectedDeliveryOption(option);
                               setCodeSent(false);
@@ -229,10 +235,10 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                             class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
                           />
                           <label
-                            for={`option-${option}`}
+                            for={`option-${option.hashed_value}`}
                             class="ml-3 block text-sm font-medium text-gray-11"
                           >
-                            {option}
+                            {option.display_value}
                           </label>
                         </div>
                       )}

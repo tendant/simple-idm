@@ -2,9 +2,12 @@ package utils
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"math/big"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -49,7 +52,7 @@ func GenerateRandomString(length int) string {
 			b[i] = byte(RandomInt(256))
 		}
 	}
-	
+
 	return base64.URLEncoding.EncodeToString(b)[:length]
 }
 
@@ -58,13 +61,13 @@ func RandomInt(max int) int {
 	if max <= 0 {
 		return 0
 	}
-	
+
 	nBig, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
 	if err != nil {
 		// Fallback in case of error
 		return 0
 	}
-	
+
 	return int(nBig.Int64())
 }
 
@@ -85,4 +88,26 @@ func ShuffleRunes(runes []rune) {
 		j := RandomInt(i + 1)
 		runes[i], runes[j] = runes[j], runes[i]
 	}
+}
+
+// hashEmail generates a SHA-256 hash of the email.
+func HashEmail(email string) string {
+	hash := sha256.Sum256([]byte(email))
+	return hex.EncodeToString(hash[:])
+}
+
+// maskEmail masks part of the email for display.
+func MaskEmail(email string) string {
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return email // Return as is if it's not a valid email
+	}
+	localPart := parts[0]
+	domain := parts[1]
+
+	// Show first character and mask the rest, keeping the domain
+	if len(localPart) > 1 {
+		return localPart[:1] + "***@" + domain
+	}
+	return "***@" + domain
 }

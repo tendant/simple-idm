@@ -142,17 +142,16 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
 
 		// If email 2FA is enabled, get unique emails from users
-		var emails []string
 		for _, method := range enabledTwoFAs {
 			curMethod := TwoFactorMethod{
 				Type: method,
 			}
 			switch method {
 			case twofa.TWO_FACTOR_TYPE_EMAIL:
-				emails = getUniqueEmailsFromUsers(idmUsers)
-				curMethod.DeliveryOptions = emails
+				options := getUniqueEmailsFromUsers(idmUsers)
+				curMethod.DeliveryOptions = options
 			default:
-				curMethod.DeliveryOptions = []string{}
+				curMethod.DeliveryOptions = []DeliveryOption{}
 			}
 			twoFactorMethods = append(twoFactorMethods, curMethod)
 		}

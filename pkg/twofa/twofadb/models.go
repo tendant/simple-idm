@@ -39,6 +39,7 @@ type Login struct {
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
 	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
+	PasswordVersion      pgtype.Int4    `json:"password_version"`
 }
 
 type Login2fa struct {
@@ -51,6 +52,16 @@ type Login2fa struct {
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            sql.NullTime   `json:"updated_at"`
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
+}
+
+type LoginPasswordHistory struct {
+	ID              uuid.UUID    `json:"id"`
+	CreatedAt       time.Time    `json:"created_at"`
+	UpdatedAt       time.Time    `json:"updated_at"`
+	DeletedAt       sql.NullTime `json:"deleted_at"`
+	LoginID         uuid.UUID    `json:"login_id"`
+	PasswordHash    []byte       `json:"password_hash"`
+	PasswordVersion int32        `json:"password_version"`
 }
 
 type LoginPasswordResetToken struct {

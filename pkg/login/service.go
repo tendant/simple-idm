@@ -331,7 +331,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	return nil
 }
 
-func getUniqueEmailsFromUsers(mappedUsers []MappedUser) []string {
+func getUniqueEmailsFromUsers(mappedUsers []MappedUser) []DeliveryOption {
 	// Use a map to track unique emails
 	emailMap := make(map[string]struct{})
 
@@ -343,10 +343,13 @@ func getUniqueEmailsFromUsers(mappedUsers []MappedUser) []string {
 	}
 
 	// Convert map keys to slice
-	emails := make([]string, 0, len(emailMap))
+	options := make([]DeliveryOption, 0, len(emailMap))
 	for email := range emailMap {
-		emails = append(emails, email)
+		options = append(options, DeliveryOption{
+			HashedValue:  utils.HashEmail(email),
+			DisplayValue: utils.MaskEmail(email),
+		})
 	}
 
-	return emails
+	return options
 }
