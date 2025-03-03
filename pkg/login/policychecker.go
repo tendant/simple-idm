@@ -45,11 +45,11 @@ func NewDefaultPasswordPolicyChecker(policy *PasswordPolicy, commonPasswords map
 	if policy == nil {
 		policy = DefaultPasswordPolicy()
 	}
-	
+
 	if commonPasswords == nil {
 		commonPasswords = loadCommonPasswords(policy.CommonPasswordsPath)
 	}
-	
+
 	return &DefaultPasswordPolicyChecker{
 		policy:          policy,
 		commonPasswords: commonPasswords,
@@ -102,27 +102,27 @@ func (pc *DefaultPasswordPolicyChecker) CheckPasswordComplexity(password string)
 	if len(password) < pc.policy.MinLength {
 		return fmt.Errorf("password must be at least %d characters long", pc.policy.MinLength)
 	}
-	
+
 	// Check for uppercase letters if required
 	if pc.policy.RequireUppercase && !regexp.MustCompile(`[A-Z]`).MatchString(password) {
 		return errors.New("password must contain at least one uppercase letter")
 	}
-	
+
 	// Check for lowercase letters if required
 	if pc.policy.RequireLowercase && !regexp.MustCompile(`[a-z]`).MatchString(password) {
 		return errors.New("password must contain at least one lowercase letter")
 	}
-	
+
 	// Check for digits if required
 	if pc.policy.RequireDigit && !regexp.MustCompile(`[0-9]`).MatchString(password) {
 		return errors.New("password must contain at least one digit")
 	}
-	
+
 	// Check for special characters if required
 	if pc.policy.RequireSpecialChar && !regexp.MustCompile(`[^a-zA-Z0-9]`).MatchString(password) {
 		return errors.New("password must contain at least one special character")
 	}
-	
+
 	// Check for repeated characters
 	if pc.policy.MaxRepeatedChars > 0 {
 		for i := 0; i < len(password)-pc.policy.MaxRepeatedChars+1; i++ {
@@ -131,12 +131,12 @@ func (pc *DefaultPasswordPolicyChecker) CheckPasswordComplexity(password string)
 			}
 		}
 	}
-	
+
 	// Check against common passwords
 	if pc.policy.DisallowCommonPwds && pc.commonPasswords[strings.ToLower(password)] {
 		return errors.New("password is too common and easily guessable")
 	}
-	
+
 	return nil
 }
 
@@ -162,7 +162,7 @@ func loadCommonPasswords(filePath string) map[string]bool {
 		"password", "123456", "12345678", "qwerty", "admin",
 		"welcome", "login", "abc123", "letmein", "monkey",
 	}
-	
+
 	result := make(map[string]bool)
 	for _, pwd := range commonPwds {
 		result[pwd] = true

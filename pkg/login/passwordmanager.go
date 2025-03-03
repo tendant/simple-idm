@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
@@ -15,41 +14,21 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-// PasswordPolicy defines the requirements for password complexity
-type PasswordPolicy struct {
-	MinLength           int
-	RequireUppercase    bool
-	RequireLowercase    bool
-	RequireDigit        bool
-	RequireSpecialChar  bool
-	DisallowCommonPwds  bool
-	MaxRepeatedChars    int
-	HistoryCheckCount   int
-	ExpirationDays      int
-	CommonPasswordsPath string
-}
-
 // PasswordManager handles password-related operations
 type PasswordManager struct {
-	queries         *logindb.Queries
-	policy          *PasswordPolicy
-	hasherFactory   PasswordHasherFactory
-	currentVersion  PasswordVersion
-	commonPasswords map[string]bool
+	queries        *logindb.Queries
+	policyChecker  PasswordPolicyChecker
+	hasherFactory  PasswordHasherFactory
+	currentVersion PasswordVersion
 }
 
 // NewPasswordManager creates a new password manager with the specified policy
-func NewPasswordManager(queries *logindb.Queries, policy *PasswordPolicy, currentVersion PasswordVersion) *PasswordManager {
-	if policy == nil {
-		policy = DefaultPasswordPolicy()
-	}
-	
+func NewPasswordManager(queries *logindb.Queries, policyChecker PasswordPolicyChecker, currentVersion PasswordVersion) *PasswordManager {
 	return &PasswordManager{
-		queries:         queries,
-		policy:          policy,
-		hasherFactory:   NewDefaultPasswordHasherFactory(currentVersion),
-		currentVersion:  currentVersion,
-		commonPasswords: loadCommonPasswords(policy.CommonPasswordsPath),
+		queries:        queries,
+		policyChecker:  policyChecker,
+		hasherFactory:  NewDefaultPasswordHasherFactory(currentVersion),
+		currentVersion: currentVersion,
 	}
 }
 
@@ -59,20 +38,10 @@ func (pm *PasswordManager) WithHasherFactory(factory PasswordHasherFactory) *Pas
 	return pm
 }
 
-// DefaultPasswordPolicy returns a default password policy
-func DefaultPasswordPolicy() *PasswordPolicy {
-	return &PasswordPolicy{
-		MinLength:           8,
-		RequireUppercase:    true,
-		RequireLowercase:    true,
-		RequireDigit:        true,
-		RequireSpecialChar:  true,
-		DisallowCommonPwds:  true,
-		MaxRepeatedChars:    3,
-		HistoryCheckCount:   5,
-		ExpirationDays:      90,
-		CommonPasswordsPath: "",
-	}
+// WithPolicyChecker sets a custom password policy checker
+func (pm *PasswordManager) WithPolicyChecker(checker PasswordPolicyChecker) *PasswordManager {
+	pm.policyChecker = checker
+	return pm
 }
 
 // HashPassword hashes a password with the current version
@@ -80,13 +49,7 @@ func (pm *PasswordManager) HashPassword(password string) (string, error) {
 	if password == "" {
 		return "", errors.New("password cannot be empty")
 	}
-	
-	// Get the current hasher and hash the password
-	hasher, err := pm.hasherFactory.GetHasher(pm.currentVersion)
-	if err != nil {
-		return "", err
-	}
-	return hasher.Hash(password)
+	return pm.hashPasswordWithVersion(password, pm.currentVersion)
 }
 
 // hashPasswordWithVersion hashes a password with a specific version
@@ -95,7 +58,7 @@ func (pm *PasswordManager) hashPasswordWithVersion(password string, version Pass
 	if err != nil {
 		return "", err
 	}
-	
+
 	return hasher.Hash(password)
 }
 
@@ -105,7 +68,7 @@ func (pm *PasswordManager) CheckPasswordHash(password, hashedPassword string, ve
 	if err != nil {
 		return false, err
 	}
-	
+
 	return hasher.Verify(password, hashedPassword)
 }
 
@@ -124,32 +87,32 @@ func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, u
 		if err != nil {
 			return false, fmt.Errorf("failed to upgrade password hash: %w", err)
 		}
-		
+
 		// Update the password hash and version in the database
 		err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
-			ID:             utils.ParseUUID(userID),
-			Password:       []byte(newHash),
+			ID:              utils.ParseUUID(userID),
+			Password:        []byte(newHash),
 			PasswordVersion: pgtype.Int4{Int32: int32(pm.currentVersion), Valid: true},
 		})
 		if err != nil {
 			return false, fmt.Errorf("failed to update password hash: %w", err)
 		}
-		
+
 		// Add the old password to history
 		err = pm.addPasswordToHistory(ctx, userID, currentHash, currentVersion)
 		if err != nil {
 			// Log but don't fail the upgrade
 			slog.Error("Failed to add password to history", "error", err)
 		}
-		
-		slog.Info("Upgraded password hash version", 
-			"userID", userID, 
-			"fromVersion", currentVersion, 
+
+		slog.Info("Upgraded password hash version",
+			"userID", userID,
+			"fromVersion", currentVersion,
 			"toVersion", pm.currentVersion)
-		
+
 		return true, nil
 	}
-	
+
 	return false, nil
 }
 
@@ -174,29 +137,29 @@ func (pm *PasswordManager) AuthenticateAndUpgrade(ctx context.Context, userID, p
 	if err != nil {
 		return false, err
 	}
-	
+
 	if !valid {
 		return false, nil
 	}
-	
+
 	// If password is valid, check if we need to upgrade the hash version
 	_, err = pm.UpgradePasswordVersionIfNeeded(ctx, userID, password, currentHash, currentVersion)
 	if err != nil {
 		// Log the error but don't fail authentication
 		slog.Error("Failed to upgrade password hash", "error", err)
 	}
-	
+
 	return true, nil
 }
 
 // CheckPasswordHistory verifies that a new password hasn't been used recently
 // Returns an error if the password has been used before
 func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, newPassword string) error {
-	// If history checking is disabled, always pass
-	if pm.policy.HistoryCheckCount <= 0 {
+	// If history checking is disabled or no policy checker, always pass
+	if pm.policyChecker == nil || pm.policyChecker.GetHistoryCheckCount() <= 0 {
 		return nil
 	}
-	
+
 	// First check against the current password
 	login, err := pm.queries.GetLoginById(ctx, utils.ParseUUID(userID))
 	if err != nil {
@@ -205,7 +168,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 		}
 		return fmt.Errorf("failed to get user for history check: %w", err)
 	}
-	
+
 	// Get the current password version
 	passwordVersion, err := pm.queries.GetUserPasswordVersion(ctx, utils.ParseUUID(userID))
 	if err != nil {
@@ -213,33 +176,33 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
 		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
 	}
-	
+
 	// Check if the new password matches the current password
 	match, err := pm.VerifyPasswordWithVersion(newPassword, string(login.Password), PasswordVersion(passwordVersion.Int32))
 	if err != nil {
 		return fmt.Errorf("error checking against current password: %w", err)
 	}
-	
+
 	if match {
 		return errors.New("new password cannot be the same as your current password")
 	}
-	
+
 	// Now check against password history
 	passwordHistory, err := pm.queries.GetPasswordHistory(ctx, logindb.GetPasswordHistoryParams{
 		LoginID: utils.ParseUUID(userID),
-		Limit:   int32(pm.policy.HistoryCheckCount),
+		Limit:   int32(pm.policyChecker.GetHistoryCheckCount()),
 	})
 	if err != nil {
 		// If there's an error getting history, log it but continue
 		slog.Error("Failed to get password history", "error", err)
 		return nil
 	}
-	
+
 	// Check each historical password
 	for _, historyItem := range passwordHistory {
 		match, err := pm.VerifyPasswordWithVersion(
-			newPassword, 
-			string(historyItem.PasswordHash), 
+			newPassword,
+			string(historyItem.PasswordHash),
 			PasswordVersion(historyItem.PasswordVersion),
 		)
 		if err != nil {
@@ -247,12 +210,12 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 			slog.Error("Error checking password history item", "error", err)
 			continue
 		}
-		
+
 		if match {
 			return errors.New("new password cannot match any of your recent passwords")
 		}
 	}
-	
+
 	return nil
 }
 
@@ -260,14 +223,14 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 func (pm *PasswordManager) InitPasswordReset(ctx context.Context, loginID string) (string, error) {
 	// Generate a secure random token
 	resetToken := utils.GenerateRandomString(32)
-	
+
 	// Set expiration time (24 hours from now)
 	expireAt := pgtype.Timestamptz{}
 	err := expireAt.Scan(time.Now().Add(24 * time.Hour))
 	if err != nil {
 		return "", fmt.Errorf("failed to create expiry time: %w", err)
 	}
-	
+
 	// Store the token in the database
 	err = pm.queries.InitPasswordResetToken(ctx, logindb.InitPasswordResetTokenParams{
 		LoginID:  utils.ParseUUID(loginID),
@@ -278,7 +241,7 @@ func (pm *PasswordManager) InitPasswordReset(ctx context.Context, loginID string
 		slog.Error("Failed to save reset token", "err", err)
 		return "", err
 	}
-	
+
 	return resetToken, nil
 }
 
@@ -289,7 +252,7 @@ func (pm *PasswordManager) ValidateResetToken(ctx context.Context, token string)
 	if err != nil {
 		return "", fmt.Errorf("invalid or expired reset token")
 	}
-	
+
 	return tokenInfo.LoginID.String(), nil
 }
 
@@ -300,24 +263,24 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	if err != nil {
 		return errors.New("invalid or expired reset token")
 	}
-	
+
 	// Check if the new password meets complexity requirements
 	if err := pm.CheckPasswordComplexity(newPassword); err != nil {
 		return err
 	}
-	
+
 	// Get current password and version for history
 	login, err := pm.queries.GetLoginById(ctx, tokenInfo.LoginID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("failed to get current password: %w", err)
 	}
-	
+
 	// If we found the login, check password history
-	if err == nil && pm.policy.HistoryCheckCount > 0 {
+	if err == nil && pm.policyChecker.GetHistoryCheckCount() > 0 {
 		if err := pm.CheckPasswordHistory(ctx, tokenInfo.LoginID.String(), newPassword); err != nil {
 			return err
 		}
-		
+
 		// Store the old password in history
 		passwordVersion, err := pm.queries.GetUserPasswordVersion(ctx, tokenInfo.LoginID)
 		if err == nil {
@@ -329,13 +292,13 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 			}
 		}
 	}
-	
+
 	// Hash the new password using the current version
 	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
-	
+
 	// Update password and version
 	err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
 		ID:              tokenInfo.LoginID,
@@ -345,14 +308,14 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
-	
+
 	// Mark token as used
 	err = pm.queries.MarkPasswordResetTokenUsed(ctx, token)
 	if err != nil {
 		slog.Error("Failed to mark token as used", "err", err)
 		// Don't return error as password was successfully reset
 	}
-	
+
 	return nil
 }
 
@@ -366,7 +329,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 		}
 		return err
 	}
-	
+
 	// Get the password version
 	passwordVersion, err := pm.queries.GetUserPasswordVersion(ctx, utils.ParseUUID(userID))
 	if err != nil {
@@ -374,7 +337,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
 		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
 	}
-	
+
 	// Verify the current password
 	match, err := pm.VerifyPasswordWithVersion(currentPassword, string(login.Password), PasswordVersion(passwordVersion.Int32))
 	if err != nil {
@@ -383,18 +346,18 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	if !match {
 		return errors.New("current password is incorrect")
 	}
-	
+
 	// Check if the new password meets complexity requirements
 	if err := pm.CheckPasswordComplexity(newPassword); err != nil {
 		return err
 	}
-	
+
 	// Check password history if enabled
-	if pm.policy.HistoryCheckCount > 0 {
+	if pm.policyChecker.GetHistoryCheckCount() > 0 {
 		if err := pm.CheckPasswordHistory(ctx, userID, newPassword); err != nil {
 			return err
 		}
-		
+
 		// Add the current password to history
 		err = pm.addPasswordToHistory(ctx, userID, string(login.Password), PasswordVersion(passwordVersion.Int32))
 		if err != nil {
@@ -402,13 +365,13 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 			slog.Error("Failed to add password to history", "error", err)
 		}
 	}
-	
+
 	// Hash the new password using the current version
 	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
 	if err != nil {
 		return err
 	}
-	
+
 	// Update the password hash and version in the database
 	err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
 		ID:              utils.ParseUUID(userID),
@@ -418,7 +381,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -427,7 +390,7 @@ func (pm *PasswordManager) IsPasswordExpired(ctx context.Context, loginID string
 	// In a real implementation, you would:
 	// 1. Retrieve the last password change timestamp
 	// 2. Compare with the current time and password expiration policy
-	
+
 	// This is a placeholder implementation
 	return false, nil
 }
@@ -435,114 +398,77 @@ func (pm *PasswordManager) IsPasswordExpired(ctx context.Context, loginID string
 // GenerateRandomPassword creates a random password that meets complexity requirements
 func (pm *PasswordManager) GenerateRandomPassword() string {
 	// Define character sets
-	uppercase := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	lowercase := "abcdefghijklmnopqrstuvwxyz"
-	digits := "0123456789"
+	uppercase := "ABCDEFGHJKLMNPQRSTUVWXYZ"  // Excluding I and O which can be confused with 1 and 0
+	lowercase := "abcdefghijkmnopqrstuvwxyz" // Excluding l which can be confused with 1
+	digits := "23456789"                     // Excluding 0 and 1 which can be confused with O and l
 	special := "!@#$%^&*()-_=+[]{}|;:,.<>?"
-	
+
 	// Create a password with at least one character from each required set
 	var password strings.Builder
-	
-	if pm.policy.RequireUppercase {
+
+	// If no policy checker, use default requirements
+	minLength := 8
+	requireUppercase := true
+	requireLowercase := true
+	requireDigit := true
+	requireSpecialChar := true
+
+	if pm.policyChecker != nil {
+		minLength = pm.policyChecker.GetMinLength()
+		requireUppercase = pm.policyChecker.RequireUppercase()
+		requireLowercase = pm.policyChecker.RequireLowercase()
+		requireDigit = pm.policyChecker.RequireDigit()
+		requireSpecialChar = pm.policyChecker.RequireSpecialChar()
+	}
+
+	if requireUppercase {
 		password.WriteByte(uppercase[utils.RandomInt(len(uppercase))])
 	}
-	if pm.policy.RequireLowercase {
+	if requireLowercase {
 		password.WriteByte(lowercase[utils.RandomInt(len(lowercase))])
 	}
-	if pm.policy.RequireDigit {
+	if requireDigit {
 		password.WriteByte(digits[utils.RandomInt(len(digits))])
 	}
-	if pm.policy.RequireSpecialChar {
+	if requireSpecialChar {
 		password.WriteByte(special[utils.RandomInt(len(special))])
 	}
-	
+
 	// Calculate how many more characters we need
-	remainingLength := pm.policy.MinLength - password.Len()
-	
+	remainingLength := minLength - password.Len()
+
 	// Build a character set with all allowed characters
 	allChars := ""
-	if pm.policy.RequireUppercase {
+	if requireUppercase {
 		allChars += uppercase
 	}
-	if pm.policy.RequireLowercase {
+	if requireLowercase {
 		allChars += lowercase
 	}
-	if pm.policy.RequireDigit {
+	if requireDigit {
 		allChars += digits
 	}
-	if pm.policy.RequireSpecialChar {
+	if requireSpecialChar {
 		allChars += special
 	}
-	
+
 	// Add random characters until we reach the minimum length
 	for i := 0; i < remainingLength; i++ {
 		password.WriteByte(allChars[utils.RandomInt(len(allChars))])
 	}
-	
+
 	// Shuffle the password to avoid predictable patterns
 	passwordRunes := []rune(password.String())
 	utils.ShuffleRunes(passwordRunes)
-	
-	return string(passwordRunes)
-}
 
-// loadCommonPasswords loads a list of common passwords from a file or returns a default set
-func loadCommonPasswords(filePath string) map[string]bool {
-	// This is a small sample - in production, you'd load thousands from a file
-	commonPwds := []string{
-		"password", "123456", "12345678", "qwerty", "admin",
-		"welcome", "password123", "abc123", "letmein", "monkey",
-	}
-	
-	// TODO: If filePath is provided, load passwords from the file
-	
-	result := make(map[string]bool)
-	for _, pwd := range commonPwds {
-		result[pwd] = true
-	}
-	return result
+	return string(passwordRunes)
 }
 
 // CheckPasswordComplexity verifies that a password meets the complexity requirements
 func (pm *PasswordManager) CheckPasswordComplexity(password string) error {
-	// Check minimum length
-	if len(password) < pm.policy.MinLength {
-		return fmt.Errorf("password must be at least %d characters long", pm.policy.MinLength)
+	if pm.policyChecker == nil {
+		// If no policy checker is set, use a default implementation
+		return errors.New("no password policy checker configured")
 	}
-	
-	// Check for uppercase letters if required
-	if pm.policy.RequireUppercase && !regexp.MustCompile(`[A-Z]`).MatchString(password) {
-		return errors.New("password must contain at least one uppercase letter")
-	}
-	
-	// Check for lowercase letters if required
-	if pm.policy.RequireLowercase && !regexp.MustCompile(`[a-z]`).MatchString(password) {
-		return errors.New("password must contain at least one lowercase letter")
-	}
-	
-	// Check for digits if required
-	if pm.policy.RequireDigit && !regexp.MustCompile(`[0-9]`).MatchString(password) {
-		return errors.New("password must contain at least one digit")
-	}
-	
-	// Check for special characters if required
-	if pm.policy.RequireSpecialChar && !regexp.MustCompile(`[^a-zA-Z0-9]`).MatchString(password) {
-		return errors.New("password must contain at least one special character")
-	}
-	
-	// Check for repeated characters
-	if pm.policy.MaxRepeatedChars > 0 {
-		for i := 0; i < len(password)-pm.policy.MaxRepeatedChars+1; i++ {
-			if strings.Count(password[i:i+pm.policy.MaxRepeatedChars], string(password[i])) == pm.policy.MaxRepeatedChars {
-				return fmt.Errorf("password cannot contain %d or more repeated characters", pm.policy.MaxRepeatedChars)
-			}
-		}
-	}
-	
-	// Check against common passwords
-	if pm.policy.DisallowCommonPwds && pm.commonPasswords[strings.ToLower(password)] {
-		return errors.New("password is too common and easily guessable")
-	}
-	
-	return nil
+	return pm.policyChecker.CheckPasswordComplexity(password)
 }
