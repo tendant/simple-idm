@@ -20,7 +20,7 @@ import (
 
 type TwoFactorService interface {
 	GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error)
-	SendTwoFaNotification(ctx context.Context, loginId uuid.UUID, twoFactorType, email string) error
+	SendTwoFaNotification(ctx context.Context, loginId uuid.UUID, twoFactorType, hashedDeliveryOption string) error
 	FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]string, error)
 	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
@@ -100,7 +100,7 @@ func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid
 }
 
 // InitTwoFa generate a two factor passcode and send a notification email
-func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId uuid.UUID, twoFactorType, deliveryOption string) error {
+func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId uuid.UUID, twoFactorType, hashedDeliveryOption string) error {
 	// get or create the 2fa secret for the login
 	secret, err := s.GetTwoFactorSecretByLoginId(ctx, loginId, twoFactorType)
 	if err != nil {
@@ -114,9 +114,13 @@ func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId uuid.UU
 	}
 
 	// If delivery_option is provided and the type is email, use it instead of the email parameter
-	emailToUse := deliveryOption
-	if twoFactorType == TWO_FACTOR_TYPE_EMAIL && deliveryOption != "" {
-		emailToUse = deliveryOption
+	emailToUse := hashedDeliveryOption
+	if twoFactorType == TWO_FACTOR_TYPE_EMAIL && hashedDeliveryOption != "" {
+		// get the plaintext email by hash
+		emailToUse, err = s.GetPlaintextEmailByHash(ctx, loginId, hashedDeliveryOption)
+		if err != nil {
+			return fmt.Errorf("failed to get user plaintext email: %w", err)
+		}
 	}
 
 	// send the passcode by email
@@ -255,6 +259,21 @@ func (s TwoFaService) Validate2faPasscode(ctx context.Context, loginId uuid.UUID
 	}
 
 	return res, nil
+}
+
+func (s TwoFaService) GetPlaintextEmailByHash(ctx context.Context, loginID uuid.UUID, hashedEmail string) (string, error) {
+	users, err := s.queries.GetUsersByLoginId(ctx, uuid.NullUUID{UUID: loginID, Valid: true})
+	if err != nil {
+		return "", fmt.Errorf("error getting users: %w", err)
+	}
+
+	for _, user := range users {
+		if utils.HashEmail(user.Email) == hashedEmail {
+			return user.Email, nil
+		}
+	}
+
+	return "", fmt.Errorf("email not found")
 }
 
 func GenerateTotpSecret(loginUuid string) (string, error) {
