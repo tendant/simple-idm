@@ -25,13 +25,6 @@ type PasswordPolicy struct {
 type PasswordPolicyChecker interface {
 	CheckPasswordComplexity(password string) error
 	GetPolicy() *PasswordPolicy
-	GetMinLength() int
-	RequireUppercase() bool
-	RequireLowercase() bool
-	RequireDigit() bool
-	RequireSpecialChar() bool
-	GetHistoryCheckCount() int
-	GetMaxRepeatedChars() int
 }
 
 // DefaultPasswordPolicyChecker implements the PasswordPolicyChecker interface
@@ -54,46 +47,6 @@ func NewDefaultPasswordPolicyChecker(policy *PasswordPolicy, commonPasswords map
 		policy:          policy,
 		commonPasswords: commonPasswords,
 	}
-}
-
-// GetPolicy returns the password policy
-func (pc *DefaultPasswordPolicyChecker) GetPolicy() *PasswordPolicy {
-	return pc.policy
-}
-
-// GetMinLength returns the minimum password length
-func (pc *DefaultPasswordPolicyChecker) GetMinLength() int {
-	return pc.policy.MinLength
-}
-
-// RequireUppercase returns whether uppercase letters are required
-func (pc *DefaultPasswordPolicyChecker) RequireUppercase() bool {
-	return pc.policy.RequireUppercase
-}
-
-// RequireLowercase returns whether lowercase letters are required
-func (pc *DefaultPasswordPolicyChecker) RequireLowercase() bool {
-	return pc.policy.RequireLowercase
-}
-
-// RequireDigit returns whether digits are required
-func (pc *DefaultPasswordPolicyChecker) RequireDigit() bool {
-	return pc.policy.RequireDigit
-}
-
-// RequireSpecialChar returns whether special characters are required
-func (pc *DefaultPasswordPolicyChecker) RequireSpecialChar() bool {
-	return pc.policy.RequireSpecialChar
-}
-
-// GetHistoryCheckCount returns the number of previous passwords to check
-func (pc *DefaultPasswordPolicyChecker) GetHistoryCheckCount() int {
-	return pc.policy.HistoryCheckCount
-}
-
-// GetMaxRepeatedChars returns the maximum number of repeated characters allowed
-func (pc *DefaultPasswordPolicyChecker) GetMaxRepeatedChars() int {
-	return pc.policy.MaxRepeatedChars
 }
 
 // CheckPasswordComplexity verifies that a password meets the complexity requirements
@@ -123,21 +76,35 @@ func (pc *DefaultPasswordPolicyChecker) CheckPasswordComplexity(password string)
 		return errors.New("password must contain at least one special character")
 	}
 
-	// Check for repeated characters
-	if pc.policy.MaxRepeatedChars > 0 {
-		for i := 0; i < len(password)-pc.policy.MaxRepeatedChars+1; i++ {
-			if strings.Count(password[i:i+pc.policy.MaxRepeatedChars], string(password[i])) == pc.policy.MaxRepeatedChars {
-				return fmt.Errorf("password cannot contain %d or more repeated characters", pc.policy.MaxRepeatedChars)
-			}
-		}
+	// Check for common passwords
+	if pc.policy.DisallowCommonPwds && pc.isCommonPassword(password) {
+		return errors.New("password is too common, please choose a more secure password")
 	}
 
-	// Check against common passwords
-	if pc.policy.DisallowCommonPwds && pc.commonPasswords[strings.ToLower(password)] {
-		return errors.New("password is too common and easily guessable")
+	// Check for repeated characters
+	if pc.policy.MaxRepeatedChars > 0 && hasRepeatedChars(password, pc.policy.MaxRepeatedChars) {
+		return fmt.Errorf("password cannot contain more than %d consecutive repeated characters", pc.policy.MaxRepeatedChars)
 	}
 
 	return nil
+}
+
+func (pc *DefaultPasswordPolicyChecker) isCommonPassword(password string) bool {
+	return pc.commonPasswords[strings.ToLower(password)]
+}
+
+func hasRepeatedChars(password string, maxRepeated int) bool {
+	for i := 0; i < len(password)-maxRepeated+1; i++ {
+		if strings.Count(password[i:i+maxRepeated], string(password[i])) == maxRepeated {
+			return true
+		}
+	}
+	return false
+}
+
+// GetPolicy returns the password policy
+func (pc *DefaultPasswordPolicyChecker) GetPolicy() *PasswordPolicy {
+	return pc.policy
 }
 
 // DefaultPasswordPolicy returns a default password policy
