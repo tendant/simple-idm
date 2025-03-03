@@ -10,11 +10,9 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
-	"github.com/jinzhu/copier"
 	"github.com/tendant/chi-demo/app"
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
-	authpkg "github.com/tendant/simple-idm/pkg/auth"
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/impersonate"
@@ -63,21 +61,22 @@ type EmailConfig struct {
 	From     string `env:"EMAIL_FROM" env-default:"noreply@example.com"`
 }
 
-type PasswordComplexityConfig struct {
-	RequiredDigit           bool `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
-	RequiredLowercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
-	RequiredNonAlphanumeric bool `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
-	RequiredUppercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
-	RequiredLength          int  `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
-}
+// type PasswordComplexityConfig struct {
+// 	RequiredDigit           bool `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
+// 	RequiredLowercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
+// 	RequiredNonAlphanumeric bool `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
+// 	RequiredUppercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
+// 	RequiredLength          int  `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
+// }
 
 type Config struct {
-	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:3000"`
-	IdmDbConfig              IdmDbConfig
-	AppConfig                app.AppConfig
-	JwtConfig                JwtConfig
-	EmailConfig              EmailConfig
-	PasswordComplexityConfig PasswordComplexityConfig
+	BaseUrl     string `env:"BASE_URL" env-default:"http://localhost:3000"`
+	IdmDbConfig IdmDbConfig
+	AppConfig   app.AppConfig
+	JwtConfig   JwtConfig
+	EmailConfig EmailConfig
+	// PasswordComplexityConfig PasswordComplexityConfig
+	Instance string `env:"INSTANCE" env-default:"local"`
 }
 
 func main() {
@@ -127,7 +126,15 @@ func main() {
 
 	userMapper := login.NewDefaultUserMapper(loginQueries)
 	delegatedUserMapper := &login.DefaultDelegatedUserMapper{}
-	loginService := login.NewLoginService(loginQueries, notificationManager, userMapper, delegatedUserMapper)
+
+	// Create a password policy based on the environment
+	passwordPolicy := createPasswordPolicy(config.Instance)
+
+	// Create login service with the appropriate policy
+	loginServiceOptions := &login.LoginServiceOptions{
+		PasswordPolicy: passwordPolicy,
+	}
+	loginService := login.NewLoginService(loginQueries, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
 
 	// jwt service
 	jwtService := auth.NewJwtServiceOptions(
@@ -140,8 +147,8 @@ func main() {
 	// authQueries := authDb.New(pool)
 
 	// auth login service
-	var pwdComplex authpkg.PasswordComplexity
-	copier.Copy(&pwdComplex, &config.PasswordComplexityConfig)
+	// var pwdComplex authpkg.PasswordComplexity
+	// copier.Copy(&pwdComplex, &config.PasswordComplexityConfig)
 	// authLoginService := authpkg.NewAuthLoginService(
 	// 	authQueries,
 	// 	authpkg.WithPwdComplex(pwdComplex),
@@ -195,7 +202,7 @@ func main() {
 		// Initialize role service and routes
 		roleService := role.NewRoleService(roleQueries)
 		roleHandle := role.NewHandle(roleService)
-		
+
 		// Create a secure handler for roles that uses the IAM admin middleware
 		roleRouter := chi.NewRouter()
 		roleRouter.Group(func(r chi.Router) {
@@ -217,4 +224,51 @@ func main() {
 	app.RoutesHealthzReady(server.R)
 	server.Run()
 
+}
+
+func createPasswordPolicy(instanceType string) *login.PasswordPolicy {
+	switch instanceType {
+	case "local":
+		// Relaxed policy for development
+		return &login.PasswordPolicy{
+			MinLength:          6,
+			RequireUppercase:   false,
+			RequireLowercase:   true,
+			RequireDigit:       true,
+			RequireSpecialChar: false,
+			DisallowCommonPwds: true,
+			MaxRepeatedChars:   4,
+			HistoryCheckCount:  3,
+			ExpirationDays:     180,
+		}
+	case "testing":
+		// Policy for testing environments
+		return &login.PasswordPolicy{
+			MinLength:          4, // Very short for easy testing
+			RequireUppercase:   false,
+			RequireLowercase:   false,
+			RequireDigit:       false,
+			RequireSpecialChar: false,
+			DisallowCommonPwds: false,
+			MaxRepeatedChars:   0,
+			HistoryCheckCount:  1,
+			ExpirationDays:     365,
+		}
+	case "prod":
+		// Strict policy for production
+		return &login.PasswordPolicy{
+			MinLength:          10,
+			RequireUppercase:   true,
+			RequireLowercase:   true,
+			RequireDigit:       true,
+			RequireSpecialChar: true,
+			DisallowCommonPwds: true,
+			MaxRepeatedChars:   3,
+			HistoryCheckCount:  10,
+			ExpirationDays:     90,
+		}
+	default:
+		// Default policy (moderate security)
+		return login.DefaultPasswordPolicy()
+	}
 }

@@ -25,9 +25,31 @@ type LoginService struct {
 	passwordManager     *PasswordManager
 }
 
-func NewLoginService(queries *logindb.Queries, notificationManager *notification.NotificationManager, userMapper UserMapper, delegatedUserMapper DelegatedUserMapper) *LoginService {
-	// Create a password manager with default policy and current version
-	passwordManager := NewPasswordManager(queries, nil, CurrentPasswordVersion)
+// LoginServiceOptions contains optional parameters for creating a LoginService
+type LoginServiceOptions struct {
+	PasswordPolicy *PasswordPolicy
+}
+
+func NewLoginService(
+	queries *logindb.Queries,
+	notificationManager *notification.NotificationManager,
+	userMapper UserMapper,
+	delegatedUserMapper DelegatedUserMapper,
+	options *LoginServiceOptions,
+) *LoginService {
+	// Use provided policy or default
+	var policy *PasswordPolicy
+	if options != nil && options.PasswordPolicy != nil {
+		policy = options.PasswordPolicy
+	} else {
+		policy = DefaultPasswordPolicy()
+	}
+
+	// Create a password policy checker with the policy
+	policyChecker := NewDefaultPasswordPolicyChecker(policy, nil)
+
+	// Create a password manager with the policy checker and current version
+	passwordManager := NewPasswordManager(queries, policyChecker, CurrentPasswordVersion)
 
 	return &LoginService{
 		queries:             queries,
