@@ -352,8 +352,41 @@ func (h *LoginsHandle) Get(w http.ResponseWriter, r *http.Request, params GetPar
 	}
 	r.URL.RawQuery = q.Encode()
 
-	// Call the handler method
-	h.ListLogins(w, r)
+	// Get the logins
+	limit := int32(20)
+	offset := int32(0)
+	search := ""
+
+	if params.Limit != nil {
+		limit = int32(*params.Limit)
+	}
+	if params.Offset != nil {
+		offset = int32(*params.Offset)
+	}
+	if params.Search != nil {
+		search = *params.Search
+	}
+
+	var logins []loginsdb.Login
+	var err error
+
+	if search != "" {
+		logins, err = h.loginService.SearchLogins(r.Context(), search, limit, offset)
+		if err != nil {
+			http.Error(w, "Failed to search logins: "+err.Error(), http.StatusInternalServerError)
+			return nil
+		}
+	} else {
+		logins, _, err = h.loginService.ListLogins(r.Context(), limit, offset)
+		if err != nil {
+			http.Error(w, "Failed to list logins: "+err.Error(), http.StatusInternalServerError)
+			return nil
+		}
+	}
+
+	// Write response - just return the array directly
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(logins)
 	return nil
 }
 
