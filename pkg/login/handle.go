@@ -436,17 +436,33 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	// Get login UUID from claims
-	loginUuid, err := uuid.Parse(claims["sub"].(string))
+	// Extract login_id from custom_claims
+	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid custom claims format",
+		}
+	}
+
+	loginIdStr, ok := customClaims["login_id"].(string)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Missing or invalid login_id in token",
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
-			body: "Invalid login UUID in token",
+			body: "Invalid login_id format in token",
 		}
 	}
 
 	// Get all users for the current login
-	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginUuid)
+	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
 	if err != nil {
 		slog.Error("Failed to get users", "err", err)
 		return &Response{
