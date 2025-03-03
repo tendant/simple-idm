@@ -2,11 +2,8 @@ package login
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -349,32 +346,10 @@ func getUniqueEmailsFromUsers(mappedUsers []MappedUser) []DeliveryOption {
 	options := make([]DeliveryOption, 0, len(emailMap))
 	for email := range emailMap {
 		options = append(options, DeliveryOption{
-			HashedValue:  hashEmail(email),
-			DisplayValue: maskEmail(email),
+			HashedValue:  utils.HashEmail(email),
+			DisplayValue: utils.MaskEmail(email),
 		})
 	}
 
 	return options
-}
-
-// hashEmail generates a SHA-256 hash of the email.
-func hashEmail(email string) string {
-	hash := sha256.Sum256([]byte(email))
-	return hex.EncodeToString(hash[:])
-}
-
-// maskEmail masks part of the email for display.
-func maskEmail(email string) string {
-	parts := strings.Split(email, "@")
-	if len(parts) != 2 {
-		return email // Return as is if it's not a valid email
-	}
-	localPart := parts[0]
-	domain := parts[1]
-
-	// Show first character and mask the rest, keeping the domain
-	if len(localPart) > 1 {
-		return localPart[:1] + "***@" + domain
-	}
-	return "***@" + domain
 }
