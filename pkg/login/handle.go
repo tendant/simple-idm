@@ -118,7 +118,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// TODO: Check if 2FA is enabled for current login
+	// Check if 2FA is enabled for current login
 	loginID, err := uuid.Parse(idmUsers[0].LoginID)
 	if err != nil {
 		slog.Error("Failed to parse login ID", "loginID", idmUsers[0].LoginID, "error", err)
@@ -173,6 +173,39 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		return PostLoginJSON202Response(twoFARequiredResp)
 	} else {
 		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginID)
+	}
+
+	if len(idmUsers) > 1 {
+		apiUsers := make([]User, len(idmUsers))
+		for i, mu := range idmUsers {
+			email, _ := mu.ExtraClaims["email"].(string)
+			name := mu.DisplayName
+			id := mu.UserId
+
+			apiUsers[i] = User{
+				ID:    id,
+				Email: email,
+				Name:  name,
+			}
+		}
+
+		// Create temp token with the custom claims for user selection
+		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+		if err != nil {
+			slog.Error("Failed to create temp token", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to create temp token",
+			}
+		}
+
+		// Return 202 response with users to select from
+		return PostLoginJSON202Response(SelectUserRequiredResponse{
+			Status:    "select_user_required",
+			Message:   "Multiple users found, please select one",
+			TempToken: tempToken.Token,
+			Users:     apiUsers,
+		})
 	}
 
 	// Create JWT tokens
@@ -436,17 +469,33 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	// Get login UUID from claims
-	loginUuid, err := uuid.Parse(claims["sub"].(string))
+	// Extract login_id from custom_claims
+	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid custom claims format",
+		}
+	}
+
+	loginIdStr, ok := customClaims["login_id"].(string)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Missing or invalid login_id in token",
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
-			body: "Invalid login UUID in token",
+			body: "Invalid login_id format in token",
 		}
 	}
 
 	// Get all users for the current login
-	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginUuid)
+	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
 	if err != nil {
 		slog.Error("Failed to get users", "err", err)
 		return &Response{

@@ -3,7 +3,7 @@ info:
   title: Impersonate Management API
   version: 1.0.0
 paths:
-  /2fa/send:
+  /send:
     post:
       summary: Initiate sending 2fa code
       operationId: post_2fa_send
@@ -29,7 +29,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
-  /2fa/validate:
+  /validate:
     post:
       summary: Authenticate 2fa passcode
       operationId: post_2fa_validate
@@ -54,6 +54,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+        "202":
+          description: 2FA successful but select user required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelectUserRequiredResponse"
   /{login_id}/2fa/enabled:
     get:
       summary: Get all enabled 2fas
@@ -84,3 +90,67 @@ components:
       properties:
         result:
           type: string
+    SelectUserRequiredResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "select_user_required"
+        message:
+          type: string
+          example: "Select user required"
+        temp_token:
+          type: string
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+      required:
+        - id
+        - name
+        - email
+    Login:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "2FA verification successful"
+        users:
+          type: array
+          description: List of users associated with the login. Usually contains one user, but may contain multiple if same username is shared.
+          items:
+            $ref: "#/components/schemas/User"
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+        requires2FA:
+          type: boolean
+          description: Whether 2FA verification is required
+        loginToken:
+          type: string
+          description: Token for 2FA verification if required
+      required:
+        - status
+        - message
+        - user

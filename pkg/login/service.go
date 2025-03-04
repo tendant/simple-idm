@@ -174,7 +174,7 @@ func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code st
 		}
 	*/
 
-	return true, nil
+	// return true, nil
 }
 
 func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb.User, error) {
