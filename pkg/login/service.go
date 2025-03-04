@@ -45,10 +45,10 @@ func NewLoginService(
 		policy = DefaultPasswordPolicy()
 	}
 
-	// Create a password policy checker with the policy
+	// Create the policy checker
 	policyChecker := NewDefaultPasswordPolicyChecker(policy, nil)
 
-	// Create a password manager with the policy checker and current version
+	// Create password manager with the policy checker
 	passwordManager := NewPasswordManager(queries, policyChecker, CurrentPasswordVersion)
 
 	return &LoginService{

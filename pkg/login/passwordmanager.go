@@ -156,7 +156,7 @@ func (pm *PasswordManager) AuthenticateAndUpgrade(ctx context.Context, userID, p
 // Returns an error if the password has been used before
 func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, newPassword string) error {
 	// If history checking is disabled or no policy checker, always pass
-	if pm.policyChecker == nil || pm.policyChecker.GetHistoryCheckCount() <= 0 {
+	if pm.policyChecker.GetPolicy().HistoryCheckCount <= 0 {
 		return nil
 	}
 
@@ -190,7 +190,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 	// Now check against password history
 	passwordHistory, err := pm.queries.GetPasswordHistory(ctx, logindb.GetPasswordHistoryParams{
 		LoginID: utils.ParseUUID(userID),
-		Limit:   int32(pm.policyChecker.GetHistoryCheckCount()),
+		Limit:   int32(pm.policyChecker.GetPolicy().HistoryCheckCount),
 	})
 	if err != nil {
 		// If there's an error getting history, log it but continue
@@ -276,7 +276,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	}
 
 	// If we found the login, check password history
-	if err == nil && pm.policyChecker.GetHistoryCheckCount() > 0 {
+	if err == nil && pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
 		if err := pm.CheckPasswordHistory(ctx, tokenInfo.LoginID.String(), newPassword); err != nil {
 			return err
 		}
@@ -353,7 +353,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	}
 
 	// Check password history if enabled
-	if pm.policyChecker.GetHistoryCheckCount() > 0 {
+	if pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
 		if err := pm.CheckPasswordHistory(ctx, userID, newPassword); err != nil {
 			return err
 		}
@@ -406,7 +406,7 @@ func (pm *PasswordManager) GenerateRandomPassword() string {
 	// Create a password with at least one character from each required set
 	var password strings.Builder
 
-	// If no policy checker, use default requirements
+	// Use policy settings if available
 	minLength := 8
 	requireUppercase := true
 	requireLowercase := true
@@ -414,11 +414,11 @@ func (pm *PasswordManager) GenerateRandomPassword() string {
 	requireSpecialChar := true
 
 	if pm.policyChecker != nil {
-		minLength = pm.policyChecker.GetMinLength()
-		requireUppercase = pm.policyChecker.RequireUppercase()
-		requireLowercase = pm.policyChecker.RequireLowercase()
-		requireDigit = pm.policyChecker.RequireDigit()
-		requireSpecialChar = pm.policyChecker.RequireSpecialChar()
+		minLength = pm.policyChecker.GetPolicy().MinLength
+		requireUppercase = pm.policyChecker.GetPolicy().RequireUppercase
+		requireLowercase = pm.policyChecker.GetPolicy().RequireLowercase
+		requireDigit = pm.policyChecker.GetPolicy().RequireDigit
+		requireSpecialChar = pm.policyChecker.GetPolicy().RequireSpecialChar
 	}
 
 	if requireUppercase {
@@ -467,8 +467,13 @@ func (pm *PasswordManager) GenerateRandomPassword() string {
 // CheckPasswordComplexity verifies that a password meets the complexity requirements
 func (pm *PasswordManager) CheckPasswordComplexity(password string) error {
 	if pm.policyChecker == nil {
-		// If no policy checker is set, use a default implementation
 		return errors.New("no password policy checker configured")
 	}
-	return pm.policyChecker.CheckPasswordComplexity(password)
+
+	validationErrors := pm.policyChecker.CheckPasswordComplexity(password)
+	if len(validationErrors) > 0 {
+		return validationErrors
+	}
+
+	return nil
 }
