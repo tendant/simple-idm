@@ -90,9 +90,6 @@ CREATE TABLE public.login (
     created_by character varying(255),
     password bytea,
     username character varying(255),
-    two_factor_secret text,
-    two_factor_enabled boolean DEFAULT false,
-    two_factor_backup_codes text[],
     password_version integer DEFAULT 1
 );
 
@@ -188,12 +185,6 @@ CREATE TABLE public.users (
     created_by character varying(255),
     email character varying(255) NOT NULL,
     name character varying(255),
-    password bytea,
-    verified_at timestamp without time zone,
-    username character varying(255),
-    two_factor_secret text,
-    two_factor_enabled boolean DEFAULT false,
-    two_factor_backup_codes text[],
     login_id uuid
 );
 
@@ -249,6 +240,14 @@ ALTER TABLE ONLY public.login_password_history
 
 
 --
+-- Name: login login_username_key; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login
+    ADD CONSTRAINT login_username_key UNIQUE (username);
+
+
+--
 -- Name: login login_uuid_pk; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
@@ -286,14 +285,6 @@ ALTER TABLE ONLY public.roles
 
 ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_pkey PRIMARY KEY (user_id, role_id);
-
-
---
--- Name: users users_login_uuid_key; Type: CONSTRAINT; Schema: public; Owner: idm
---
-
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_login_uuid_key UNIQUE (login_id);
 
 
 --
