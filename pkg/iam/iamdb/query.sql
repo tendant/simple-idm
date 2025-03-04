@@ -1,6 +1,6 @@
 -- name: CreateUser :one
-INSERT INTO users (email, username, name)
-VALUES ($1, $2, $3)
+INSERT INTO users (email, name)
+VALUES ($1, $2)
 RETURNING *;
 
 -- name: CreateUserRole :one
@@ -13,7 +13,7 @@ INSERT INTO user_roles (user_id, role_id)
 VALUES ($1, $2);
 
 -- name: FindUsers :many
-SELECT id, created_at, last_modified_at, deleted_at, created_by, email, username, name
+SELECT id, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users
 WHERE deleted_at IS NULL
 ORDER BY created_at ASC
@@ -29,7 +29,7 @@ SET deleted_at = CURRENT_TIMESTAMP
 WHERE id = $1;
 
 -- name: GetUserById :one
-SELECT id, created_at, last_modified_at, deleted_at, created_by, email, username, name
+SELECT id, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users
 WHERE id = $1;
 
@@ -38,7 +38,7 @@ DELETE FROM user_roles
 WHERE user_id = $1;
 
 -- name: GetUserWithRoles :one
-SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
+SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name,
        json_agg(json_build_object(
            'id', r.id,
            'name', r.name
@@ -47,7 +47,7 @@ FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.id = $1
-GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name;
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name;
 
 -- Role queries
 
@@ -76,7 +76,7 @@ SELECT EXISTS (
 ) as has_users;
 
 -- name: GetRoleUsers :many
-SELECT u.id, u.email, u.name, u.username
+SELECT u.id, u.email, u.name
 FROM users u
 JOIN user_roles ur ON ur.user_id = u.id
 WHERE ur.role_id = $1
@@ -87,7 +87,7 @@ DELETE FROM user_roles
 WHERE user_id = $1 AND role_id = $2;
 
 -- name: FindUsersWithRoles :many
-SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
+SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name,
        json_agg(json_build_object(
            'id', r.id,
            'name', r.name
@@ -96,6 +96,6 @@ FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.deleted_at IS NULL
-GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name
 ORDER BY u.created_at ASC
 LIMIT 20;

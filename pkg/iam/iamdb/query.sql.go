@@ -25,19 +25,18 @@ func (q *Queries) CreateRole(ctx context.Context, name string) (uuid.UUID, error
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, username, name)
-VALUES ($1, $2, $3)
-RETURNING id, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, login_id
+INSERT INTO users (email, name)
+VALUES ($1, $2)
+RETURNING id, created_at, last_modified_at, deleted_at, created_by, email, name, login_id
 `
 
 type CreateUserParams struct {
-	Email    string         `json:"email"`
-	Username sql.NullString `json:"username"`
-	Name     sql.NullString `json:"name"`
+	Email string         `json:"email"`
+	Name  sql.NullString `json:"name"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.Username, arg.Name)
+	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.Name)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -47,12 +46,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedBy,
 		&i.Email,
 		&i.Name,
-		&i.Password,
-		&i.VerifiedAt,
-		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
 		&i.LoginID,
 	)
 	return i, err
@@ -145,7 +138,7 @@ func (q *Queries) FindRoles(ctx context.Context) ([]FindRolesRow, error) {
 }
 
 const findUsers = `-- name: FindUsers :many
-SELECT id, created_at, last_modified_at, deleted_at, created_by, email, username, name
+SELECT id, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users
 WHERE deleted_at IS NULL
 ORDER BY created_at ASC
@@ -159,7 +152,6 @@ type FindUsersRow struct {
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
-	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 }
 
@@ -179,7 +171,6 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 			&i.DeletedAt,
 			&i.CreatedBy,
 			&i.Email,
-			&i.Username,
 			&i.Name,
 		); err != nil {
 			return nil, err
@@ -193,7 +184,7 @@ func (q *Queries) FindUsers(ctx context.Context) ([]FindUsersRow, error) {
 }
 
 const findUsersWithRoles = `-- name: FindUsersWithRoles :many
-SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
+SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name,
        json_agg(json_build_object(
            'id', r.id,
            'name', r.name
@@ -202,7 +193,7 @@ FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.deleted_at IS NULL
-GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name
 ORDER BY u.created_at ASC
 LIMIT 20
 `
@@ -214,7 +205,6 @@ type FindUsersWithRolesRow struct {
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
-	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 	Roles          []byte         `json:"roles"`
 }
@@ -235,7 +225,6 @@ func (q *Queries) FindUsersWithRoles(ctx context.Context) ([]FindUsersWithRolesR
 			&i.DeletedAt,
 			&i.CreatedBy,
 			&i.Email,
-			&i.Username,
 			&i.Name,
 			&i.Roles,
 		); err != nil {
@@ -268,7 +257,7 @@ func (q *Queries) GetRoleById(ctx context.Context, id uuid.UUID) (GetRoleByIdRow
 }
 
 const getRoleUsers = `-- name: GetRoleUsers :many
-SELECT u.id, u.email, u.name, u.username
+SELECT u.id, u.email, u.name
 FROM users u
 JOIN user_roles ur ON ur.user_id = u.id
 WHERE ur.role_id = $1
@@ -276,10 +265,9 @@ ORDER BY u.email
 `
 
 type GetRoleUsersRow struct {
-	ID       uuid.UUID      `json:"id"`
-	Email    string         `json:"email"`
-	Name     sql.NullString `json:"name"`
-	Username sql.NullString `json:"username"`
+	ID    uuid.UUID      `json:"id"`
+	Email string         `json:"email"`
+	Name  sql.NullString `json:"name"`
 }
 
 func (q *Queries) GetRoleUsers(ctx context.Context, roleID uuid.UUID) ([]GetRoleUsersRow, error) {
@@ -291,12 +279,7 @@ func (q *Queries) GetRoleUsers(ctx context.Context, roleID uuid.UUID) ([]GetRole
 	var items []GetRoleUsersRow
 	for rows.Next() {
 		var i GetRoleUsersRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Name,
-			&i.Username,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Email, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -308,7 +291,7 @@ func (q *Queries) GetRoleUsers(ctx context.Context, roleID uuid.UUID) ([]GetRole
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT id, created_at, last_modified_at, deleted_at, created_by, email, username, name
+SELECT id, created_at, last_modified_at, deleted_at, created_by, email, name
 FROM users
 WHERE id = $1
 `
@@ -320,7 +303,6 @@ type GetUserByIdRow struct {
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
-	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 }
 
@@ -334,14 +316,13 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 		&i.DeletedAt,
 		&i.CreatedBy,
 		&i.Email,
-		&i.Username,
 		&i.Name,
 	)
 	return i, err
 }
 
 const getUserWithRoles = `-- name: GetUserWithRoles :one
-SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name,
+SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name,
        json_agg(json_build_object(
            'id', r.id,
            'name', r.name
@@ -350,7 +331,7 @@ FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.id = $1
-GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.username, u.name
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name
 `
 
 type GetUserWithRolesRow struct {
@@ -360,7 +341,6 @@ type GetUserWithRolesRow struct {
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
 	CreatedBy      sql.NullString `json:"created_by"`
 	Email          string         `json:"email"`
-	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 	Roles          []byte         `json:"roles"`
 }
@@ -375,7 +355,6 @@ func (q *Queries) GetUserWithRoles(ctx context.Context, id uuid.UUID) (GetUserWi
 		&i.DeletedAt,
 		&i.CreatedBy,
 		&i.Email,
-		&i.Username,
 		&i.Name,
 		&i.Roles,
 	)
@@ -426,7 +405,7 @@ func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) error {
 
 const updateUser = `-- name: UpdateUser :one
 UPDATE users SET name = $2 WHERE id = $1
-RETURNING id, created_at, last_modified_at, deleted_at, created_by, email, name, password, verified_at, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, login_id
+RETURNING id, created_at, last_modified_at, deleted_at, created_by, email, name, login_id
 `
 
 type UpdateUserParams struct {
@@ -445,12 +424,6 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.CreatedBy,
 		&i.Email,
 		&i.Name,
-		&i.Password,
-		&i.VerifiedAt,
-		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
 		&i.LoginID,
 	)
 	return i, err
