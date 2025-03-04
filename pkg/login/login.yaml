@@ -32,11 +32,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/Login"
         "202":
-          description: Login successful but 2FA verification required
+          description: Login successful but further action required (2FA or user selection)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TwoFactorRequiredResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/TwoFactorRequiredResponse"
+                  - $ref: "#/components/schemas/SelectUserRequiredResponse"
+
         "400":
           description: Invalid credentials
           content:
@@ -299,6 +302,22 @@ components:
           type: string
         display_value:
           type: string
+    SelectUserRequiredResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "select_user_required"
+        message:
+          type: string
+          example: "Select user required"
+        temp_token:
+          type: string
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
     User:
       type: object
       properties:
