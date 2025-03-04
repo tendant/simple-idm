@@ -10,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/pkg/mapper"
 )
 
 const (
@@ -25,13 +26,15 @@ type JwtService interface {
 
 type Handle struct {
 	twoFaService *TwoFaService
-	jwtService   JwtService
+	jwtService   auth.Jwt
+	userMapper   mapper.UserMapper
 }
 
-func NewHandle(twoFaService *TwoFaService, jwtService JwtService) Handle {
+func NewHandle(twoFaService *TwoFaService, jwtService auth.Jwt, userMapper mapper.UserMapper) Handle {
 	return Handle{
 		twoFaService: twoFaService,
 		jwtService:   jwtService,
+		userMapper:   userMapper,
 	}
 }
 
@@ -213,6 +216,57 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	// 2FA validation successful, create access and refresh tokens
 	// Extract user data from claims to use for token creation
+	idmUsers, err := h.userMapper.GetUsers(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to get user roles: " + err.Error(),
+		}
+	}
+
+	if len(idmUsers) == 0 {
+		slog.Error("No user found after 2fa")
+		return &Response{
+			body: "2fa validation failed",
+			Code: http.StatusNotFound,
+		}
+	}
+
+	if len(idmUsers) > 1 {
+		apiUsers := make([]User, len(idmUsers))
+		for i, mu := range idmUsers {
+			email, _ := mu.ExtraClaims["email"].(string)
+			name := mu.DisplayName
+			id := mu.UserId
+
+			apiUsers[i] = User{
+				ID:    id,
+				Email: email,
+				Name:  name,
+			}
+		}
+
+		// Create temp token with the custom claims for user selection
+		tempToken, err := h.jwtService.CreateTempToken(customClaims)
+		if err != nil {
+			slog.Error("Failed to create temp token", "loginIdStr", loginIdStr, "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to create temp token",
+			}
+		}
+
+		// Return 202 response with users to select from
+		return Post2faValidateJSON202Response(SelectUserRequiredResponse{
+			Status:    "select_user_required",
+			Message:   "Multiple users found, please select one",
+			TempToken: tempToken.Token,
+			Users:     apiUsers,
+		})
+	}
+
+	// Single user case - proceed with normal flow
+
 	userData := customClaims
 
 	// Create access token
