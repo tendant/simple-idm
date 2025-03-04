@@ -217,10 +217,10 @@ func (h Handle) GetID(w http.ResponseWriter, r *http.Request, id string) *Respon
 		} `json:"roles,omitempty"`
 		ID *string `json:"id,omitempty"`
 	}{
-		Email: &user.Email,
-		// Username field removed as it doesn't exist in the struct
-		Name: namePtr,
-		ID:   &idStr,
+		Email:    &user.Email,
+		Username: &user.Username.String,
+		Name:     namePtr,
+		ID:       &idStr,
 	}
 
 	// Unmarshal roles from []byte

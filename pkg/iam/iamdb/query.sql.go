@@ -339,12 +339,14 @@ SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.ema
        json_agg(json_build_object(
            'id', r.id,
            'name', r.name
-       )) as roles
+       )) as roles,
+       l.username
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
+LEFT JOIN login l ON u.login_id = l.id
 WHERE u.id = $1
-GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name, l.username
 `
 
 type GetUserWithRolesRow struct {
@@ -356,6 +358,7 @@ type GetUserWithRolesRow struct {
 	Email          string         `json:"email"`
 	Name           sql.NullString `json:"name"`
 	Roles          []byte         `json:"roles"`
+	Username       sql.NullString `json:"username"`
 }
 
 func (q *Queries) GetUserWithRoles(ctx context.Context, id uuid.UUID) (GetUserWithRolesRow, error) {
@@ -370,6 +373,7 @@ func (q *Queries) GetUserWithRoles(ctx context.Context, id uuid.UUID) (GetUserWi
 		&i.Email,
 		&i.Name,
 		&i.Roles,
+		&i.Username,
 	)
 	return i, err
 }

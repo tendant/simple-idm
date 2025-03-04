@@ -47,12 +47,14 @@ SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.ema
        json_agg(json_build_object(
            'id', r.id,
            'name', r.name
-       )) as roles
+       )) as roles,
+       l.username
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
+LEFT JOIN login l ON u.login_id = l.id
 WHERE u.id = $1
-GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name;
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name, l.username;
 
 -- Role queries
 
