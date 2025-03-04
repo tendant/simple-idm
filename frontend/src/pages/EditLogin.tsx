@@ -1,11 +1,14 @@
 import { Component, createSignal, onMount, Show } from 'solid-js';
-import { useNavigate, useParams } from '@solidjs/router';
+import { useNavigate, useParams, useLocation } from '@solidjs/router';
 import { loginApi, type Login } from '../api/login';
+import { userApi, type User } from '../api/user';
 
 const EditLogin: Component = () => {
   const params = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [login, setLogin] = createSignal<Login | null>(null);
+  const [user, setUser] = createSignal<User | null>(null);
   const [username, setUsername] = createSignal('');
   const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
@@ -20,6 +23,27 @@ const EditLogin: Component = () => {
   const [twoFactorQrCode, setTwoFactorQrCode] = createSignal('');
   const [verificationCode, setVerificationCode] = createSignal('');
   const [backupCodes, setBackupCodes] = createSignal<string[]>([]);
+
+  const fetchUserAndLogin = async () => {
+    try {
+      const userData = await userApi.getUser(params.id);
+      setUser(userData);
+      
+      if (userData.login_id && userData.login_id !== "00000000-0000-0000-0000-000000000000") {
+        const loginData = await loginApi.getLogin(userData.login_id);
+        setLogin(loginData);
+        setUsername(loginData.username);
+        setEmail(loginData.email || '');
+        setTwoFactorEnabled(loginData.two_factor_enabled || false);
+      } else {
+        setError('User does not have a login');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch user or login');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchLogin = async () => {
     try {
@@ -47,8 +71,15 @@ const EditLogin: Component = () => {
         email: email() || undefined,
       };
 
-      await loginApi.updateLogin(params.id, updateData);
-      navigate('/logins');
+      await loginApi.updateLogin(login()?.id || params.id, updateData);
+      
+      // Check if we're coming from the users page
+      const isFromUsersPage = location.pathname.includes('/users/');
+      if (isFromUsersPage) {
+        navigate('/users');
+      } else {
+        navigate('/logins');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update login');
       setSaving(false);
@@ -67,7 +98,7 @@ const EditLogin: Component = () => {
     setError(null);
 
     try {
-      await loginApi.resetPassword(params.id, password());
+      await loginApi.resetPassword(login()?.id || params.id, password());
       setPassword('');
       setConfirmPassword('');
       setShowPasswordSection(false);
@@ -84,7 +115,7 @@ const EditLogin: Component = () => {
     setError(null);
 
     try {
-      const result = await loginApi.enable2FA(params.id);
+      const result = await loginApi.enable2FA(login()?.id || params.id);
       setTwoFactorSecret(result.secret);
       setTwoFactorQrCode(result.qrCode);
     } catch (err) {
@@ -99,7 +130,7 @@ const EditLogin: Component = () => {
     setError(null);
 
     try {
-      const result = await loginApi.verify2FA(params.id, verificationCode());
+      const result = await loginApi.verify2FA(login()?.id || params.id, verificationCode());
       if (result) {
         setTwoFactorEnabled(true);
         setShowTwoFactorSection(false);
@@ -122,7 +153,7 @@ const EditLogin: Component = () => {
     setError(null);
 
     try {
-      await loginApi.disable2FA(params.id, verificationCode());
+      await loginApi.disable2FA(login()?.id || params.id, verificationCode());
       setTwoFactorEnabled(false);
       setShowTwoFactorSection(false);
       alert('Two-factor authentication has been disabled successfully');
@@ -139,7 +170,7 @@ const EditLogin: Component = () => {
     setError(null);
 
     try {
-      const codes = await loginApi.generateBackupCodes(params.id);
+      const codes = await loginApi.generateBackupCodes(login()?.id || params.id);
       setBackupCodes(codes);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate backup codes');
@@ -149,7 +180,14 @@ const EditLogin: Component = () => {
   };
 
   onMount(() => {
-    fetchLogin();
+    // Check if we're coming from the users page
+    const isFromUsersPage = location.pathname.includes('/users/');
+    
+    if (isFromUsersPage) {
+      fetchUserAndLogin();
+    } else {
+      fetchLogin();
+    }
   });
 
   return (
@@ -157,13 +195,13 @@ const EditLogin: Component = () => {
       <div class="md:flex md:items-center md:justify-between">
         <div class="min-w-0 flex-1">
           <h2 class="text-2xl font-bold leading-7 text-gray-12 sm:truncate sm:text-3xl sm:tracking-tight">
-            Edit Login
+            {user() ? `Edit Login for ${user()?.name || user()?.username || 'User'}` : 'Edit Login'}
           </h2>
         </div>
         <div class="mt-4 flex md:ml-4 md:mt-0">
           <button
             type="button"
-            onClick={() => navigate('/logins')}
+            onClick={() => location.pathname.includes('/users/') ? navigate('/users') : navigate('/logins')}
             class="inline-flex items-center rounded-lg bg-white px-3 py-2 text-sm font-semibold text-gray-11 shadow-sm ring-1 ring-inset ring-gray-6 hover:bg-gray-3"
           >
             Cancel

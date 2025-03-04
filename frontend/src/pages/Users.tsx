@@ -123,14 +123,28 @@ const Users: Component = () => {
                           </div>
                         </td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          {user.login_id ? (
-                            <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                              Has Login
-                            </span>
+                          {user.login_id && user.login_id !== "00000000-0000-0000-0000-000000000000" ? (
+                            <div>
+                              <div>
+                                <button
+                                  onClick={() => navigate(`/logins/${user.login_id}/edit`)}
+                                  class="text-green-600 hover:text-green-900 text-xs"
+                                >
+                                  Update Login
+                                </button>
+                              </div>
+                            </div>
                           ) : (
-                            <span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                              No Login
-                            </span>
+                            <div>
+                              <div>
+                                <button 
+                                  onClick={() => navigate(`/logins/create?userId=${user.id}`)}
+                                  class="text-indigo-600 hover:text-indigo-900 text-xs"
+                                >
+                                  Create Login
+                                </button>
+                              </div>
+                            </div>
                           )}
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">

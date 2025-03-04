@@ -40,6 +40,8 @@ interface CreateUserRequest {
   username: string;
   name?: string | null;
   role_ids?: string[];
+  login_id?: string;
+  password: string;
 }
 
 interface UpdateUserRequest {
@@ -103,7 +105,13 @@ export const userApi = {
   },
 
   createUser: async (user: CreateUserRequest): Promise<User> => {
-    const response = await apiClient.post('/idm/users', user);
+    // Convert role_ids to the format expected by the backend
+    const payload = {
+      ...user,
+      role_ids: user.role_ids?.map(id => id) || []
+    };
+    
+    const response = await apiClient.post('/idm/users', payload);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
