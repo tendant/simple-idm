@@ -18,7 +18,7 @@ FROM users u
 JOIN login l ON u.login_id = l.id
 WHERE u.deleted_at IS NULL
 ORDER BY u.created_at ASC
-limit 20;
+limit 50;
 
 -- name: UpdateUser :one
 UPDATE users SET name = $2 WHERE id = $1
@@ -108,4 +108,4 @@ LEFT JOIN login l ON u.login_id = l.id
 WHERE u.deleted_at IS NULL
 GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name, l.username, u.login_id
 ORDER BY u.created_at ASC
-LIMIT 20;
+LIMIT 50;

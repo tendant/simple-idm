@@ -44,7 +44,7 @@ func (h *LoginsHandle) ListLogins(w http.ResponseWriter, r *http.Request) {
 	offsetStr := r.URL.Query().Get("offset")
 	search := r.URL.Query().Get("search")
 
-	limit := int32(20)
+	limit := int32(50)
 	if limitStr != "" {
 		limitInt, err := strconv.Atoi(limitStr)
 		if err == nil {
@@ -232,12 +232,6 @@ func (h *LoginsHandle) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(login)
 }
 
-
-
-
-
-
-
 // ServerInterface implementation
 
 // Get implements ServerInterface.Get
@@ -256,7 +250,7 @@ func (h *LoginsHandle) Get(w http.ResponseWriter, r *http.Request, params GetPar
 	r.URL.RawQuery = q.Encode()
 
 	// Get the logins
-	limit := int32(20)
+	limit := int32(50)
 	offset := int32(0)
 	search := ""
 
@@ -299,8 +293,6 @@ func (h *LoginsHandle) Post(w http.ResponseWriter, r *http.Request) *Response {
 	return nil
 }
 
-
-
 // DeleteID implements ServerInterface.DeleteID
 func (h *LoginsHandle) DeleteID(w http.ResponseWriter, r *http.Request, id string) *Response {
 	// Set the ID in the URL context
@@ -333,10 +325,6 @@ func (h *LoginsHandle) PutID(w http.ResponseWriter, r *http.Request, id string) 
 	h.UpdateLogin(w, r)
 	return nil
 }
-
-
-
-
 
 // PutIDPassword implements ServerInterface.PutIDPassword
 func (h *LoginsHandle) PutIDPassword(w http.ResponseWriter, r *http.Request, id string) *Response {
