@@ -26,16 +26,17 @@ func NewLoginsService(loginsRepo *loginsdb.Queries) *LoginsService {
 }
 
 // GetLogin retrieves a login by ID
-func (s *LoginsService) GetLogin(ctx context.Context, id uuid.UUID) (*loginsdb.Login, error) {
+func (s *LoginsService) GetLogin(ctx context.Context, id uuid.UUID) (*LoginModel, error) {
 	login, err := s.loginsRepo.GetLogin(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get login: %w", err)
 	}
-	return &login, nil
+	result := FromDBLogin(&login)
+	return &result, nil
 }
 
 // ListLogins retrieves a list of logins with pagination
-func (s *LoginsService) ListLogins(ctx context.Context, limit, offset int32) ([]loginsdb.Login, int64, error) {
+func (s *LoginsService) ListLogins(ctx context.Context, limit, offset int32) ([]LoginModel, int64, error) {
 	logins, err := s.loginsRepo.ListLogins(ctx, loginsdb.ListLoginsParams{
 		Limit:  limit,
 		Offset: offset,
@@ -49,11 +50,12 @@ func (s *LoginsService) ListLogins(ctx context.Context, limit, offset int32) ([]
 		return nil, 0, fmt.Errorf("failed to count logins: %w", err)
 	}
 
-	return logins, count, nil
+	result := FromDBLogins(logins)
+	return result, count, nil
 }
 
 // SearchLogins searches for logins by username
-func (s *LoginsService) SearchLogins(ctx context.Context, search string, limit, offset int32) ([]loginsdb.Login, error) {
+func (s *LoginsService) SearchLogins(ctx context.Context, search string, limit, offset int32) ([]LoginModel, error) {
 	// Convert string to pgtype.Text
 	var searchText pgtype.Text
 	searchText.String = search
@@ -67,14 +69,15 @@ func (s *LoginsService) SearchLogins(ctx context.Context, search string, limit, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to search logins: %w", err)
 	}
-	return logins, nil
+	result := FromDBLogins(logins)
+	return result, nil
 }
 
 // CreateLogin creates a new login
-func (s *LoginsService) CreateLogin(ctx context.Context, username, password, createdBy string) (*loginsdb.Login, error) {
+func (s *LoginsService) CreateLogin(ctx context.Context, request LoginCreateRequest, createdBy string) (*LoginModel, error) {
 	// Convert username to sql.NullString
 	usernameSQL := sql.NullString{
-		String: username,
+		String: request.Username,
 		Valid:  true,
 	}
 
@@ -85,7 +88,7 @@ func (s *LoginsService) CreateLogin(ctx context.Context, username, password, cre
 	}
 
 	// Hash the password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -105,25 +108,51 @@ func (s *LoginsService) CreateLogin(ctx context.Context, username, password, cre
 		return nil, fmt.Errorf("failed to create login: %w", err)
 	}
 
-	return &login, nil
+	result := FromDBLogin(&login)
+	return &result, nil
 }
 
 // UpdateLogin updates a login's username
-func (s *LoginsService) UpdateLogin(ctx context.Context, id uuid.UUID, username string) (*loginsdb.Login, error) {
-	// Convert username to sql.NullString
-	usernameSQL := sql.NullString{
-		String: username,
-		Valid:  true,
+func (s *LoginsService) UpdateLogin(ctx context.Context, id uuid.UUID, request LoginUpdateRequest) (*LoginModel, error) {
+	// Prepare update parameters
+	params := loginsdb.UpdateLoginParams{
+		ID: id,
 	}
 
-	login, err := s.loginsRepo.UpdateLogin(ctx, loginsdb.UpdateLoginParams{
-		ID:       id,
-		Username: usernameSQL,
-	})
+	// Set username if provided
+	if request.Username != nil {
+		params.Username = sql.NullString{
+			String: *request.Username,
+			Valid:  true,
+		}
+	}
+
+	// Handle two-factor enabled separately if needed
+	if request.TwoFactorEnabled != nil {
+		// We need to use EnableTwoFactor or DisableTwoFactor instead
+		// as UpdateLoginParams doesn't have TwoFactorEnabled field
+		if *request.TwoFactorEnabled {
+			// For enabling, we would need a secret, so we'll skip this for now
+			// and let the dedicated endpoints handle it
+		} else {
+			// We can disable two-factor auth
+			login, err := s.loginsRepo.DisableTwoFactor(ctx, id)
+			if err != nil {
+				return nil, fmt.Errorf("failed to disable two-factor authentication: %w", err)
+			}
+			result := FromDBLogin(&login)
+			return &result, nil
+		}
+	}
+
+	// Update username
+	login, err := s.loginsRepo.UpdateLogin(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update login: %w", err)
 	}
-	return &login, nil
+
+	result := FromDBLogin(&login)
+	return &result, nil
 }
 
 // DeleteLogin soft deletes a login
@@ -136,9 +165,18 @@ func (s *LoginsService) DeleteLogin(ctx context.Context, id uuid.UUID) error {
 }
 
 // UpdatePassword updates a login's password
-func (s *LoginsService) UpdatePassword(ctx context.Context, id uuid.UUID, password string) (*loginsdb.Login, error) {
-	// Hash the password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+func (s *LoginsService) UpdatePassword(ctx context.Context, id uuid.UUID, request PasswordUpdateRequest) (*LoginModel, error) {
+	// Verify current password
+	valid, err := s.VerifyPassword(ctx, id, request.CurrentPassword)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify current password: %w", err)
+	}
+	if !valid {
+		return nil, fmt.Errorf("current password is incorrect")
+	}
+
+	// Hash the new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -150,11 +188,13 @@ func (s *LoginsService) UpdatePassword(ctx context.Context, id uuid.UUID, passwo
 	if err != nil {
 		return nil, fmt.Errorf("failed to update password: %w", err)
 	}
-	return &login, nil
+
+	result := FromDBLogin(&login)
+	return &result, nil
 }
 
 // EnableTwoFactor enables two-factor authentication for a login
-func (s *LoginsService) EnableTwoFactor(ctx context.Context, id uuid.UUID, secret string) (*loginsdb.Login, error) {
+func (s *LoginsService) EnableTwoFactor(ctx context.Context, id uuid.UUID, secret string) (*LoginModel, error) {
 	// Convert secret to pgtype.Text
 	var secretText pgtype.Text
 	secretText.String = secret
@@ -167,16 +207,20 @@ func (s *LoginsService) EnableTwoFactor(ctx context.Context, id uuid.UUID, secre
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable two-factor authentication: %w", err)
 	}
-	return &login, nil
+
+	result := FromDBLogin(&login)
+	return &result, nil
 }
 
 // DisableTwoFactor disables two-factor authentication for a login
-func (s *LoginsService) DisableTwoFactor(ctx context.Context, id uuid.UUID) (*loginsdb.Login, error) {
+func (s *LoginsService) DisableTwoFactor(ctx context.Context, id uuid.UUID) (*LoginModel, error) {
 	login, err := s.loginsRepo.DisableTwoFactor(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to disable two-factor authentication: %w", err)
 	}
-	return &login, nil
+
+	result := FromDBLogin(&login)
+	return &result, nil
 }
 
 // GenerateBackupCodes generates new backup codes for a login

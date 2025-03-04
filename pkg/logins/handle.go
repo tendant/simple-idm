@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
 )
 
 // LoginsHandle handles HTTP requests for login management
@@ -64,20 +63,20 @@ func (h *LoginsHandle) ListLogins(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var logins []loginsdb.Login
+	var loginModels []LoginModel
 	var total int64
 	var err error
 
 	if search != "" {
-		logins, err = h.loginService.SearchLogins(r.Context(), search, limit, offset)
+		loginModels, err = h.loginService.SearchLogins(r.Context(), search, limit, offset)
 		if err != nil {
 			http.Error(w, "Failed to search logins: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		// For simplicity, we're not getting the total count for search results
-		total = int64(len(logins))
+		total = int64(len(loginModels))
 	} else {
-		logins, total, err = h.loginService.ListLogins(r.Context(), limit, offset)
+		loginModels, total, err = h.loginService.ListLogins(r.Context(), limit, offset)
 		if err != nil {
 			http.Error(w, "Failed to list logins: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -85,11 +84,8 @@ func (h *LoginsHandle) ListLogins(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare response
-	response := struct {
-		Logins []loginsdb.Login `json:"logins"`
-		Total  int64            `json:"total"`
-	}{
-		Logins: logins,
+	response := LoginListResponse{
+		Logins: loginModels,
 		Total:  total,
 	}
 
@@ -123,10 +119,7 @@ func (h *LoginsHandle) GetLogin(w http.ResponseWriter, r *http.Request) {
 // CreateLogin handles the request to create a new login
 func (h *LoginsHandle) CreateLogin(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
-	var request struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
+	var request LoginCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -139,7 +132,7 @@ func (h *LoginsHandle) CreateLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create login
-	login, err := h.loginService.CreateLogin(r.Context(), request.Username, request.Password, "admin")
+	login, err := h.loginService.CreateLogin(r.Context(), request, "admin")
 	if err != nil {
 		http.Error(w, "Failed to create login: "+err.Error(), http.StatusBadRequest)
 		return
@@ -162,22 +155,20 @@ func (h *LoginsHandle) UpdateLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse request body
-	var request struct {
-		Username string `json:"username"`
-	}
+	var request LoginUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Validate request
-	if request.Username == "" {
+	if request.Username == nil || *request.Username == "" {
 		http.Error(w, "Username is required", http.StatusBadRequest)
 		return
 	}
 
 	// Update login
-	login, err := h.loginService.UpdateLogin(r.Context(), id, request.Username)
+	login, err := h.loginService.UpdateLogin(r.Context(), id, request)
 	if err != nil {
 		http.Error(w, "Failed to update login: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -220,22 +211,20 @@ func (h *LoginsHandle) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse request body
-	var request struct {
-		Password string `json:"password"`
-	}
+	var request PasswordUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Validate request
-	if request.Password == "" {
-		http.Error(w, "Password is required", http.StatusBadRequest)
+	if request.CurrentPassword == "" || request.NewPassword == "" {
+		http.Error(w, "Current password and new password are required", http.StatusBadRequest)
 		return
 	}
 
 	// Update password
-	login, err := h.loginService.UpdatePassword(r.Context(), id, request.Password)
+	login, err := h.loginService.UpdatePassword(r.Context(), id, request)
 	if err != nil {
 		http.Error(w, "Failed to update password: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -367,17 +356,17 @@ func (h *LoginsHandle) Get(w http.ResponseWriter, r *http.Request, params GetPar
 		search = *params.Search
 	}
 
-	var logins []loginsdb.Login
+	var loginModels []LoginModel
 	var err error
 
 	if search != "" {
-		logins, err = h.loginService.SearchLogins(r.Context(), search, limit, offset)
+		loginModels, err = h.loginService.SearchLogins(r.Context(), search, limit, offset)
 		if err != nil {
 			http.Error(w, "Failed to search logins: "+err.Error(), http.StatusInternalServerError)
 			return nil
 		}
 	} else {
-		logins, _, err = h.loginService.ListLogins(r.Context(), limit, offset)
+		loginModels, _, err = h.loginService.ListLogins(r.Context(), limit, offset)
 		if err != nil {
 			http.Error(w, "Failed to list logins: "+err.Error(), http.StatusInternalServerError)
 			return nil
@@ -386,7 +375,7 @@ func (h *LoginsHandle) Get(w http.ResponseWriter, r *http.Request, params GetPar
 
 	// Write response - just return the array directly
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(logins)
+	json.NewEncoder(w).Encode(loginModels)
 	return nil
 }
 
