@@ -45,7 +45,7 @@ export interface SelectUserRequiredResponse {
 
 export const twoFactorApi = {
   sendCode: async (token: string, request: TwoFactorSendRequest): Promise<void> => {
-    const response = await apiClient.post('/idm/twofa/2fa/send', request, {
+    const response = await apiClient.post('/idm/2fa/send', request, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -58,7 +58,7 @@ export const twoFactorApi = {
   },
   
   verifyCode: async (token: string, request: TwoFactorVerifyRequest): Promise<any> => {
-    const response = await apiClient.post('/idm/twofa/2fa/validate', request, {
+    const response = await apiClient.post('/idm/2fa/validate', request, {
       headers: {
         Authorization: `Bearer ${token}`
       }
