@@ -229,7 +229,7 @@ func main() {
 
 		// Initialize two factor authentication service and routes
 		twoFaHandle := twofa.NewHandle(twoFaService, *jwtService, userMapper)
-		r.Mount("/idm/twofa", twofa.Handler(twoFaHandle))
+		r.Mount("/idm/2fa", twofa.Handler(twoFaHandle))
 	})
 
 	app.RoutesHealthzReady(server.R)
