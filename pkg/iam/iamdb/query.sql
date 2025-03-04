@@ -1,6 +1,6 @@
 -- name: CreateUser :one
-INSERT INTO users (email, name)
-VALUES ($1, $2)
+INSERT INTO users (email, name, login_id)
+VALUES ($1, $2, $3)
 RETURNING *;
 
 -- name: CreateUserRole :one
@@ -13,10 +13,11 @@ INSERT INTO user_roles (user_id, role_id)
 VALUES ($1, $2);
 
 -- name: FindUsers :many
-SELECT id, created_at, last_modified_at, deleted_at, created_by, email, name
-FROM users
-WHERE deleted_at IS NULL
-ORDER BY created_at ASC
+SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name, u.login_id, l.username
+FROM users u
+JOIN login l ON u.login_id = l.id
+WHERE u.deleted_at IS NULL
+ORDER BY u.created_at ASC
 limit 20;
 
 -- name: UpdateUser :one
@@ -95,11 +96,14 @@ SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.ema
        json_agg(json_build_object(
            'id', r.id,
            'name', r.name
-       )) as roles
+       )) as roles,
+       l.username,
+       u.login_id
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
+LEFT JOIN login l ON u.login_id = l.id
 WHERE u.deleted_at IS NULL
-GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name, l.username, u.login_id
 ORDER BY u.created_at ASC
 LIMIT 20;
