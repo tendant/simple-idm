@@ -10,6 +10,7 @@ import EditRole from './pages/EditRole';
 import Logins from './pages/Logins';
 import CreateLogin from './pages/CreateLogin';
 import EditLogin from './pages/EditLogin';
+import LoginDetail from './pages/LoginDetail';
 import Navigation from './components/Navigation';
 import PasswordResetInit from './pages/PasswordResetInit';
 import PasswordReset from './pages/PasswordReset';
@@ -120,6 +121,19 @@ const EditLoginPage: Component = () => {
   );
 };
 
+const LoginDetailPage: Component = () => {
+  return (
+    <div class="min-h-screen bg-gray-1">
+      <main class="py-10 px-4 sm:px-6 lg:px-8">
+        <Navigation />
+        <Suspense>
+          <LoginDetail />
+        </Suspense>
+      </main>
+    </div>
+  );
+};
+
 const SettingsPage: Component = () => {
   return (
     <div class="min-h-screen bg-gray-1">
@@ -147,6 +161,7 @@ const App: Component = () => {
       <Route path="/roles/:id/edit" component={EditRolePage} />
       <Route path="/logins" component={LoginsPage} />
       <Route path="/logins/create" component={CreateLoginPage} />
+      <Route path="/logins/:id/detail" component={LoginDetailPage} />
       <Route path="/logins/:id/edit" component={EditLoginPage} />
       <Route path="/password-reset-init" component={PasswordResetInit} />
       <Route path="/password-reset/:code" component={PasswordReset} />

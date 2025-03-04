@@ -102,7 +102,22 @@ const Users: Component = () => {
                           {user.name || '-'}
                         </td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          {user.username}
+                          {user.username ? (
+                            <a 
+                              href="#" 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                if (user.login_id) {
+                                  navigate(`/logins/${user.login_id}/detail`);
+                                }
+                              }}
+                              class={user.login_id ? "text-blue-600 hover:text-blue-800 hover:underline" : "text-gray-11"}
+                            >
+                              {user.username}
+                            </a>
+                          ) : (
+                            '-'
+                          )}
                         </td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
                           {user.email}

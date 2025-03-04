@@ -106,7 +106,16 @@ const Logins: Component = () => {
                       logins().map((login) => (
                         <tr key={login.id}>
                           <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
-                            {login.username}
+                            <a
+                              href={`/logins/${login.id}/detail`}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                navigate(`/logins/${login.id}/detail`);
+                              }}
+                              class="text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              {login.username}
+                            </a>
                           </td>
                           <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
                             {login.email || '-'}
