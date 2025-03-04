@@ -5,7 +5,7 @@ import (
 )
 
 func TestNewNotificationManager(t *testing.T) {
-	nm := NewNotificationManager()
+	nm := NewNotificationManager("")
 	if nm == nil {
 		t.Error("NewNotificationManager returned nil")
 	}
@@ -18,7 +18,7 @@ func TestNewNotificationManager(t *testing.T) {
 }
 
 func TestRegisterNotifier(t *testing.T) {
-	nm := NewNotificationManager()
+	nm := NewNotificationManager("")
 	mockNotifier := &MockNotifier{}
 
 	// Test registering a notifier
@@ -38,7 +38,7 @@ func TestRegisterNotifier(t *testing.T) {
 }
 
 func TestRegisterNotification(t *testing.T) {
-	nm := NewNotificationManager()
+	nm := NewNotificationManager("")
 
 	tests := []struct {
 		name        string
@@ -130,7 +130,7 @@ func TestRegisterNotification(t *testing.T) {
 }
 
 func TestSend(t *testing.T) {
-	nm := NewNotificationManager()
+	nm := NewNotificationManager("")
 	mockEmailNotifier := &MockNotifier{}
 	mockSMSNotifier := &MockNotifier{}
 
@@ -182,7 +182,7 @@ func TestSend(t *testing.T) {
 }
 
 func TestSendErrors(t *testing.T) {
-	nm := NewNotificationManager()
+	nm := NewNotificationManager("")
 
 	// Test sending with unregistered notification type
 	err := nm.Send("unregistered", NotificationData{})

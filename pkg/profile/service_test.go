@@ -95,7 +95,7 @@ func TestUpdateUsername(t *testing.T) {
 
 	// Create queries and service
 	queries := profiledb.New(pool)
-	service := NewProfileService(queries)
+	service := NewProfileService(queries, nil)
 
 	// Create a test user with a known password
 	ctx := context.Background()
@@ -128,7 +128,7 @@ func TestUpdateUsername(t *testing.T) {
 		{
 			name: "successful username update",
 			params: UpdateUsernameParams{
-				UserUUID:        userUUID,
+				UserId:          userUUID,
 				CurrentPassword: password,
 				NewUsername:     "newusername",
 			},
@@ -137,7 +137,7 @@ func TestUpdateUsername(t *testing.T) {
 		{
 			name: "invalid current password",
 			params: UpdateUsernameParams{
-				UserUUID:        userUUID,
+				UserId:          userUUID,
 				CurrentPassword: "wrongpass",
 				NewUsername:     "newusername2",
 			},
@@ -146,7 +146,7 @@ func TestUpdateUsername(t *testing.T) {
 		{
 			name: "username already taken",
 			params: UpdateUsernameParams{
-				UserUUID:        userUUID,
+				UserId:          userUUID,
 				CurrentPassword: password,
 				NewUsername:     "existinguser",
 			},
@@ -155,7 +155,7 @@ func TestUpdateUsername(t *testing.T) {
 		{
 			name: "user not found",
 			params: UpdateUsernameParams{
-				UserUUID:        uuid.New(), // Different UUID
+				UserId:          uuid.New(), // Different UUID
 				CurrentPassword: password,
 				NewUsername:     "newusername3",
 			},
@@ -176,7 +176,7 @@ func TestUpdateUsername(t *testing.T) {
 
 				// Verify username was actually updated
 				var storedUsername string
-				err = pool.QueryRow(ctx, "SELECT username FROM users WHERE uuid = $1", tt.params.UserUUID).Scan(&storedUsername)
+				err = pool.QueryRow(ctx, "SELECT username FROM users WHERE uuid = $1", tt.params.UserId).Scan(&storedUsername)
 				require.NoError(t, err)
 				require.Equal(t, tt.params.NewUsername, storedUsername, "New username should be stored in database")
 			}
@@ -191,7 +191,7 @@ func TestUpdatePassword(t *testing.T) {
 
 	// Create queries and service
 	queries := profiledb.New(pool)
-	service := NewProfileService(queries)
+	service := NewProfileService(queries, nil)
 
 	// Create a test user with a known password
 	ctx := context.Background()
@@ -216,7 +216,7 @@ func TestUpdatePassword(t *testing.T) {
 		{
 			name: "successful password update",
 			params: UpdatePasswordParams{
-				UserUUID:        userUUID,
+				UserUuid:        userUUID,
 				CurrentPassword: initialPassword,
 				NewPassword:     "newpass",
 			},
@@ -225,7 +225,7 @@ func TestUpdatePassword(t *testing.T) {
 		{
 			name: "invalid current password",
 			params: UpdatePasswordParams{
-				UserUUID:        userUUID,
+				UserUuid:        userUUID,
 				CurrentPassword: "wrongpass",
 				NewPassword:     "newpass",
 			},
@@ -234,7 +234,7 @@ func TestUpdatePassword(t *testing.T) {
 		{
 			name: "user not found",
 			params: UpdatePasswordParams{
-				UserUUID:        uuid.New(), // Different UUID
+				UserUuid:        uuid.New(), // Different UUID
 				CurrentPassword: initialPassword,
 				NewPassword:     "newpass",
 			},
@@ -255,7 +255,7 @@ func TestUpdatePassword(t *testing.T) {
 
 				// Verify password was actually updated
 				var storedPassword []byte
-				err = pool.QueryRow(ctx, "SELECT password FROM users WHERE uuid = $1", tt.params.UserUUID).Scan(&storedPassword)
+				err = pool.QueryRow(ctx, "SELECT password FROM users WHERE uuid = $1", tt.params.UserUuid).Scan(&storedPassword)
 				require.NoError(t, err)
 
 				// Verify new password works

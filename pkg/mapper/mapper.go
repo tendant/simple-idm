@@ -1,4 +1,4 @@
-package login
+package mapper
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/pkg/login/logindb"
+	mapperdb "github.com/tendant/simple-idm/pkg/mapper/mapperdb"
 )
 
 type MappedUser struct {
@@ -22,14 +22,14 @@ type UserMapper interface {
 }
 
 type DefaultUserMapper struct {
-	queries *logindb.Queries
+	queries *mapperdb.Queries
 }
 
 // func NewDefaultUserMapper() *DefaultUserMapper {
 // 	return &DefaultUserMapper{}
 // }
 
-func NewDefaultUserMapper(queries *logindb.Queries) *DefaultUserMapper {
+func NewDefaultUserMapper(queries *mapperdb.Queries) *DefaultUserMapper {
 	return &DefaultUserMapper{
 		queries: queries,
 	}

@@ -19,6 +19,8 @@ import (
 	"github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/mapper"
+	"github.com/tendant/simple-idm/pkg/mapper/mapperdb"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/profile"
@@ -110,6 +112,7 @@ func main() {
 	loginQueries := logindb.New(pool)
 	impersonateQueries := impersonatedb.New(pool)
 	twofaQueries := twofadb.New(pool)
+	mapperQueries := mapperdb.New(pool)
 
 	// Initialize NotificationManager and register email notifier
 	notificationManager, err := notice.NewNotificationManager(config.BaseUrl, notification.SMTPConfig{
@@ -124,8 +127,8 @@ func main() {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
 
-	userMapper := login.NewDefaultUserMapper(loginQueries)
-	delegatedUserMapper := &login.DefaultDelegatedUserMapper{}
+	userMapper := mapper.NewDefaultUserMapper(mapperQueries)
+	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Create a password policy based on the environment
 	passwordPolicy := createPasswordPolicy(config.Instance)

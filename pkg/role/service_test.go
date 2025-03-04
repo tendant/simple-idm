@@ -101,9 +101,9 @@ func TestCreateRole(t *testing.T) {
 
 	// Test cases
 	tests := []struct {
-		name    string
+		name     string
 		roleName string
-		wantErr bool
+		wantErr  bool
 	}{
 		{
 			name:     "valid role",
@@ -188,28 +188,28 @@ func TestUpdateRole(t *testing.T) {
 
 	// Test cases
 	tests := []struct {
-		name     string
-		roleID   uuid.UUID
-		newName  string
-		wantErr  bool
+		name    string
+		roleID  uuid.UUID
+		newName string
+		wantErr bool
 	}{
 		{
-			name:     "valid update",
-			roleID:   roleID,
-			newName:  "updated-role",
-			wantErr:  false,
+			name:    "valid update",
+			roleID:  roleID,
+			newName: "updated-role",
+			wantErr: false,
 		},
 		{
-			name:     "non-existent role",
-			roleID:   uuid.New(),
-			newName:  "test",
-			wantErr:  true,
+			name:    "non-existent role",
+			roleID:  uuid.New(),
+			newName: "test",
+			wantErr: true,
 		},
 		{
-			name:     "empty name",
-			roleID:   roleID,
-			newName:  "",
-			wantErr:  true,
+			name:    "empty name",
+			roleID:  roleID,
+			newName: "",
+			wantErr: true,
 		},
 	}
 
@@ -274,7 +274,7 @@ func TestGetRole(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
-			assert.Equal(t, tt.roleID, role.Uuid)
+			assert.Equal(t, tt.roleID, role.ID)
 			assert.Equal(t, roleName, role.Name)
 		})
 	}

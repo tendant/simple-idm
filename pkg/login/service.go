@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pquerna/otp/totp"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/utils"
@@ -20,8 +21,8 @@ import (
 type LoginService struct {
 	queries             *logindb.Queries
 	notificationManager *notification.NotificationManager
-	userMapper          UserMapper
-	delegatedUserMapper DelegatedUserMapper
+	userMapper          mapper.UserMapper
+	delegatedUserMapper mapper.DelegatedUserMapper
 	passwordManager     *PasswordManager
 }
 
@@ -33,8 +34,8 @@ type LoginServiceOptions struct {
 func NewLoginService(
 	queries *logindb.Queries,
 	notificationManager *notification.NotificationManager,
-	userMapper UserMapper,
-	delegatedUserMapper DelegatedUserMapper,
+	userMapper mapper.UserMapper,
+	delegatedUserMapper mapper.DelegatedUserMapper,
 	options *LoginServiceOptions,
 ) *LoginService {
 	// Use provided policy or default
@@ -66,11 +67,11 @@ type LoginParams struct {
 }
 
 type LoginResponse struct {
-	Users   []MappedUser
+	Users   []mapper.MappedUser
 	LoginId uuid.UUID
 }
 
-func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error) {
+func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.MappedUser, error) {
 	return s.userMapper.GetUsers(ctx, loginID)
 }
 
@@ -96,30 +97,30 @@ func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId strin
 	)
 }
 
-func (s *LoginService) Login(ctx context.Context, username, password string) ([]MappedUser, error) {
+func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.MappedUser, error) {
 	// Find user by username
 	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(username))
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return []MappedUser{}, fmt.Errorf("invalid username or password")
+			return []mapper.MappedUser{}, fmt.Errorf("invalid username or password")
 		}
-		return []MappedUser{}, fmt.Errorf("error finding user: %w", err)
+		return []mapper.MappedUser{}, fmt.Errorf("error finding user: %w", err)
 	}
 
 	// Verify password
 	valid, err := s.CheckPasswordByLoginId(ctx, loginUser.ID.String(), password, string(loginUser.Password))
 	if err != nil {
-		return []MappedUser{}, fmt.Errorf("error checking password: %w", err)
+		return []mapper.MappedUser{}, fmt.Errorf("error checking password: %w", err)
 	}
 
 	if !valid {
-		return []MappedUser{}, fmt.Errorf("invalid username or password")
+		return []mapper.MappedUser{}, fmt.Errorf("invalid username or password")
 	}
 
 	// Get user info with roles
 	users, err := s.userMapper.GetUsers(ctx, loginUser.ID)
 	if err != nil {
-		return []MappedUser{}, fmt.Errorf("error getting user roles: %w", err)
+		return []mapper.MappedUser{}, fmt.Errorf("error getting user roles: %w", err)
 	}
 	res := LoginResponse{
 		Users:   users,
@@ -353,7 +354,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	return nil
 }
 
-func getUniqueEmailsFromUsers(mappedUsers []MappedUser) []DeliveryOption {
+func getUniqueEmailsFromUsers(mappedUsers []mapper.MappedUser) []DeliveryOption {
 	// Use a map to track unique emails
 	emailMap := make(map[string]struct{})
 
