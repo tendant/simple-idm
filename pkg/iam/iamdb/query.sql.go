@@ -340,13 +340,14 @@ SELECT u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.ema
            'id', r.id,
            'name', r.name
        )) as roles,
-       l.username
+       l.username,
+       u.login_id
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 LEFT JOIN login l ON u.login_id = l.id
 WHERE u.id = $1
-GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name, l.username
+GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name, l.username, u.login_id
 `
 
 type GetUserWithRolesRow struct {
@@ -359,6 +360,7 @@ type GetUserWithRolesRow struct {
 	Name           sql.NullString `json:"name"`
 	Roles          []byte         `json:"roles"`
 	Username       sql.NullString `json:"username"`
+	LoginID        uuid.NullUUID  `json:"login_id"`
 }
 
 func (q *Queries) GetUserWithRoles(ctx context.Context, id uuid.UUID) (GetUserWithRolesRow, error) {
@@ -374,6 +376,7 @@ func (q *Queries) GetUserWithRoles(ctx context.Context, id uuid.UUID) (GetUserWi
 		&i.Name,
 		&i.Roles,
 		&i.Username,
+		&i.LoginID,
 	)
 	return i, err
 }
