@@ -15,6 +15,13 @@ interface TwoFactorMethod {
   delivery_options: DeliveryOption[];
 }
 
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  twoFactorEnabled?: boolean;
+}
+
 interface LoginResponse {
   id?: string;
   email?: string;
@@ -33,6 +40,8 @@ interface LoginResponse {
   message?: string;
   temp_token?: string;
   two_factor_methods?: TwoFactorMethod[];
+  // User selection fields
+  users?: User[];
 }
 
 interface CreateUserRequest {

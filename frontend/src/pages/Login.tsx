@@ -22,11 +22,39 @@ const Login: Component = () => {
         password: password(),
       });
 
+      // Check if user selection is required
+      if (response.status === 'select_user_required') {
+        // Redirect to the TwoFactorVerification page with user selection mode
+        const params = new URLSearchParams();
+        if (response.temp_token) {
+          params.set('token', response.temp_token);
+        }
+        params.set('user_selection_required', 'true');
+        
+        // Pass the users array to the verification page
+        if (response.users && Array.isArray(response.users)) {
+          params.set('users', encodeURIComponent(JSON.stringify(response.users)));
+        }
+        
+        if (searchParams.redirect) {
+          // Handle both string and string[] cases
+          const redirectParam = Array.isArray(searchParams.redirect) 
+            ? searchParams.redirect[0] 
+            : searchParams.redirect;
+          params.set('redirect', redirectParam);
+        }
+        
+        navigate(`/two-factor-verification?${params.toString()}`);
+        return;
+      }
+      
       // Check if 2FA is required
       if (response.status === '2fa_required') {
         // Redirect to 2FA verification page with necessary params
         const params = new URLSearchParams();
-        params.set('token', response.temp_token);
+        if (response.temp_token) {
+          params.set('token', response.temp_token);
+        }
         
         // Ensure two_factor_methods is properly formatted before passing it
         if (response.two_factor_methods && Array.isArray(response.two_factor_methods)) {
@@ -41,7 +69,11 @@ const Login: Component = () => {
         }
         
         if (searchParams.redirect) {
-          params.set('redirect', searchParams.redirect);
+          // Handle both string and string[] cases
+          const redirectParam = Array.isArray(searchParams.redirect) 
+            ? searchParams.redirect[0] 
+            : searchParams.redirect;
+          params.set('redirect', redirectParam);
         }
         navigate(`/two-factor-verification?${params.toString()}`);
         return;
@@ -52,7 +84,12 @@ const Login: Component = () => {
       localStorage.setItem('user', JSON.stringify(response));
 
       // Redirect to the original page or default to /users
-      const redirectPath = searchParams.redirect || '/users';
+      let redirectPath = '/users';
+      if (searchParams.redirect) {
+        redirectPath = Array.isArray(searchParams.redirect) 
+          ? searchParams.redirect[0] 
+          : searchParams.redirect;
+      }
       navigate(redirectPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

@@ -31,6 +31,35 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
   const [selectedUserId, setSelectedUserId] = createSignal<string | null>(null);
   const [switchingUser, setSwitchingUser] = createSignal(false);
 
+  // Check if user selection is required from URL parameters
+  createEffect(() => {
+    const userSelectionRequiredParam = searchParams.user_selection_required;
+    if (userSelectionRequiredParam === 'true') {
+      setUserSelectionRequired(true);
+      
+      // Parse users from URL parameters
+      if (searchParams.users) {
+        try {
+          // Handle both string and string[] cases
+          const usersParam = Array.isArray(searchParams.users) 
+            ? searchParams.users[0] 
+            : searchParams.users;
+          
+          const parsedUsers = JSON.parse(decodeURIComponent(usersParam));
+          setAvailableUsers(parsedUsers);
+          
+          // If there's only one user, select it automatically
+          if (parsedUsers.length === 1) {
+            setSelectedUserId(parsedUsers[0].id);
+          }
+        } catch (err) {
+          console.error('Failed to parse users from URL', err);
+          setError('Failed to load user accounts');
+        }
+      }
+    }
+  });
+
   // If methods are not provided via props, try to parse from URL state
   createEffect(() => {
     if (methods().length === 0 && searchParams.methods) {
@@ -115,6 +144,37 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
     }
   };
 
+  // This function handles user selection and switching to the selected user account
+  const handleUserSelection = async () => {
+    if (!selectedUserId()) {
+      setError('Please select a user account');
+      return;
+    }
+    
+    setSwitchingUser(true);
+    setError(null);
+    
+    try {
+      // Call the switchUser API with the selected user ID and temp token
+      const response = await userApi.switchUser(selectedUserId()!, tempToken());
+      
+      // Store the user info in localStorage
+      localStorage.setItem('user', JSON.stringify(response));
+      
+      // Redirect to the original page or default to /users
+      let redirectPath = '/users';
+      if (searchParams.redirect) {
+        redirectPath = Array.isArray(searchParams.redirect) 
+          ? searchParams.redirect[0] 
+          : searchParams.redirect;
+      }
+      navigate(redirectPath);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to switch user');
+      setSwitchingUser(false);
+    }
+  };
+
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
     setError(null);
@@ -165,38 +225,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
     }
   };
 
-  const handleUserSelection = async () => {
-    const userId = selectedUserId();
-    const token = tempToken();
-    
-    if (!userId) {
-      setError("Please select a user");
-      return;
-    }
-
-    if (!token) {
-      setError("No token available");
-      return;
-    }
-
-    setSwitchingUser(true);
-    setError(null);
-
-    try {
-      // Call the user switch API with the selected user ID and temp token
-      const response = await userApi.switchUser(userId, token);
-      
-      // Store the user info in localStorage
-      localStorage.setItem('user', JSON.stringify(response));
-      
-      // Redirect to the users list page
-      navigate('/users');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to switch user');
-    } finally {
-      setSwitchingUser(false);
-    }
-  };
+  // The handleUserSelection function is already defined above
 
   return (
     <div class="min-h-screen bg-gray-1 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
