@@ -155,10 +155,10 @@ func Get2faEnabledJSON200Response(body struct {
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Initiate sending 2fa code
-	// (POST /2fa/send)
+	// (POST /send)
 	Post2faSend(w http.ResponseWriter, r *http.Request) *Response
 	// Authenticate 2fa passcode
-	// (POST /2fa/validate)
+	// (POST /validate)
 	Post2faValidate(w http.ResponseWriter, r *http.Request) *Response
 	// Get all enabled 2fas
 	// (GET /{login_id}/2fa/enabled)
@@ -348,8 +348,8 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
-		r.Post("/2fa/send", wrapper.Post2faSend)
-		r.Post("/2fa/validate", wrapper.Post2faValidate)
+		r.Post("/send", wrapper.Post2faSend)
+		r.Post("/validate", wrapper.Post2faValidate)
 		r.Get("/{login_id}/2fa/enabled", wrapper.Get2faEnabled)
 	})
 	return r
@@ -376,17 +376,17 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8xVTW/bOBD9K8TsHpXY673plgW2QQ4FggTtJQiMiTSymfKrnJEbw/B/L0jLVhUrToPk",
-	"0JtAzhu+ee+J3EDlbfCOnDCUG+BqSRbz5y0ZquQLU7yh762OVN8QB++Y0m6IPlAUTbnWEjMu8gY9oQ2G",
-	"oOwaqJYpqti1gAJkHdIuS9RuAdsCWFBaHmI5Y+cJOz+FFbJhLv4buYQ/2k743FkL2fzxd6QGSvhr0s89",
-	"6YaepFlz010bjBHXsO0X/MMjVQIFPJ0t/JkPor1Dc7ZC0xKUElvaFnDbVhUxv6xVJG6NjNB940GZ7VF3",
-	"sqjNqBa6Hl12aGmczEH38i6Bu9KiO+L+OdttwmjX+NxNS/bxygaK7B0Kqc/ocEGWnKiL6ysoYEWRtXdQ",
-	"wj/n0/NpYuMDOQwaSvg3LxUQUJZ5ssmswQmTy2MEz1nCNDomea5qKOHas8wavE1FO/7E8p+v16m08k7I",
-	"ZRSGYHSVcZNH9q5P/rGgNRm9orie72wY1VB++Abnu+XXlPyltjhqPi5qD0/Wn05F7HKXuc+m0zdNfurn",
-	"eJ7rzKwmrqLuhIFZg0o7LRqFatUBmtZkDbi1FuM6ZaIrUclM7RYq4SpfU67LNq/Q6BqFXrX6677wo+wO",
-	"yJy5vNfnQ6MB7HcM/gNc3Os/dLGA2XT2cVRefl/GWH26UHzgoh5aUTz2vgyjdtHKkpwkgpRjdnAlR21j",
-	"/EK7ua63OXXk8MFQvl8WNJK5S0qR+7+rSldTREuSn5i7DejEM11X+6uyhH1/OP6Je5Ge5+j+nf4PAz1r",
-	"cG5Jlr4ePoTH4T796o140mfDrFUkiZpWVKtORpUs2588tOWSRKExfWWDqWS7/RkAAP//Lv0i+48IAAA=",
+	"H4sIAAAAAAAC/8xVTW/bOBD9K8TsHpXI673plgW2QQ4FggTtJQiMiTSymfKrnJEbw/B/L0jLdhUrToPk",
+	"0JtAzhu+ee+JXEPtbfCOnDBUa+B6QRbz5y0ZquULU7yh752O1NwQB++Y0m6IPlAUTbnWEjPO8wY9oQ2G",
+	"oOobqI4pqti3gAJkFdIuS9RuDpsCWFA6HmI5Y2cJOzuFFbJhJv4buYQ/2k743FkL2fzxd6QWKvirPMxd",
+	"9kOXadbcdNsGY8QVbA4L/uGRaoECns7m/swH0d6hOVui6QgqiR1tCrjt6pqYX9YqEndGRui+8aDM9qg7",
+	"WdRmVAvdjC47tDROZq97dZfAfWnRH3H/nO0mYbRrfe6mJft4ZQNF9g6F1Gd0OCdLTtTF9RUUsKTI2juo",
+	"4J/zyfkksfGBHAYNFfyblwoIKIs8Wcnk8gjBc5YvjY1JmqsGKrj2LNMWb1PRljux/OebVSqtvRNyGYUh",
+	"GF1nXPnI3h1SfyxmQ0YvKa5mWwtG9ZMfvsXZdvk1FX+pLY6ajwt6gCfbTyci9pnL3KeTyZsmP/VjPM90",
+	"ZtYQ11H3wsC0RaWdFo1CjeoBbWeyBtxZi3GV8tCXqGSmdnOVcLVvKNeVSzS6QaFXbf66K/woqwMyZx7v",
+	"9XjfaAD7HXP/AAd3+g8dLGA6mX4clZfflTFWny4U77moh04Uj70rw5hddLIgJ4kg5YjtXckxWxs/126m",
+	"m005bbEkhw+G8t0yp5HMXVKK3P99VbqSIlqS/LTcrUEnnuma2l2RFez6w/EPfBDpeY7u3+n/MNDTFmeW",
+	"ZOGb4QN4HO7Tr92IJ4dsmJWKJFHTkhrVy6iSZbuTh7Zckig05lDZYirZbH4GAAD///mU+KCHCAAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
