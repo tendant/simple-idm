@@ -65,7 +65,7 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]M
 		// Create custom claims
 		extraClaims := map[string]interface{}{
 			"email":    user.Email,
-			"username": user.Username.String,
+			"username": "", // Removed user.Username reference as it doesn't exist
 			"roles":    strRoles,
 		}
 

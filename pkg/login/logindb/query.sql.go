@@ -149,6 +149,22 @@ func (q *Queries) FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) (
 	return items, nil
 }
 
+const findUsernameByEmail = `-- name: FindUsernameByEmail :one
+SELECT l.username
+FROM login l
+JOIN users u ON u.login_id = l.id
+WHERE u.email = $1
+AND u.deleted_at IS NULL
+LIMIT 1
+`
+
+func (q *Queries) FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error) {
+	row := q.db.QueryRow(ctx, findUsernameByEmail, email)
+	var username sql.NullString
+	err := row.Scan(&username)
+	return username, err
+}
+
 const get2FAByLoginId = `-- name: Get2FAByLoginId :one
 SELECT NULL::text as two_factor_secret
 FROM users u

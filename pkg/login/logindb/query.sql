@@ -139,3 +139,11 @@ SELECT password_version
 FROM login
 WHERE id = $1
 AND deleted_at IS NULL;
+
+-- name: FindUsernameByEmail :one
+SELECT l.username
+FROM login l
+JOIN users u ON u.login_id = l.id
+WHERE u.email = $1
+AND u.deleted_at IS NULL
+LIMIT 1;
