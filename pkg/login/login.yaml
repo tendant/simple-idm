@@ -304,12 +304,6 @@ components:
       properties:
         id:
           type: string
-          type: string
-    User:
-      type: object
-      properties:
-        id:
-          type: string
           description: User's unique identifier
         display_name:
           type: string
@@ -327,7 +321,6 @@ components:
               type: array
               items:
                 type: string
-
     Login:
       type: object
       properties:
