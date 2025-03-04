@@ -3,7 +3,7 @@ info:
   title: Impersonate Management API
   version: 1.0.0
 paths:
-  /2fa/send:
+  /send:
     post:
       summary: Initiate sending 2fa code
       operationId: post_2fa_send
@@ -29,7 +29,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
-  /2fa/validate:
+  /validate:
     post:
       summary: Authenticate 2fa passcode
       operationId: post_2fa_validate
