@@ -71,15 +71,35 @@ func (s *IamService) GetUser(ctx context.Context, userId uuid.UUID) (iamdb.GetUs
 	return s.queries.GetUserWithRoles(ctx, userId)
 }
 
-func (s *IamService) UpdateUser(ctx context.Context, userId uuid.UUID, name string, roleIds []uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
-	// Update the user's name
+func (s *IamService) UpdateUser(ctx context.Context, userId uuid.UUID, name string, roleIds []uuid.UUID, loginId *uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
+	// Update the user's name and login ID if provided
 	nullString := sql.NullString{String: name, Valid: name != ""}
-	_, err := s.queries.UpdateUser(ctx, iamdb.UpdateUserParams{
+	
+	// Create update params
+	updateParams := iamdb.UpdateUserParams{
 		ID: userId,
 		Name: nullString,
-	})
+	}
+	
+	// Update the user
+	_, err := s.queries.UpdateUser(ctx, updateParams)
 	if err != nil {
 		return iamdb.GetUserWithRolesRow{}, err
+	}
+	
+	// If loginId is provided, update the user's login ID
+	if loginId != nil {
+		// Create a NullUUID for the login ID
+		nullUUID := uuid.NullUUID{UUID: *loginId, Valid: true}
+		
+		// Update the user's login ID
+		_, err := s.queries.UpdateUserLoginID(ctx, iamdb.UpdateUserLoginIDParams{
+			ID: userId,
+			LoginID: nullUUID,
+		})
+		if err != nil {
+			return iamdb.GetUserWithRolesRow{}, fmt.Errorf("failed to update user login ID: %w", err)
+		}
 	}
 
 	// Delete existing roles

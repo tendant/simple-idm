@@ -89,13 +89,16 @@ const Users: Component = () => {
                     <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
                       Roles
                     </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                      Login
+                    </th>
                     <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
                       <span class="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-6">
-                  <Show when={!loading()} fallback={<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>}>
+                  <Show when={!loading()} fallback={<tr><td colspan="6" class="text-center py-4">Loading...</td></tr>}>
                     {users().map((user) => (
                       <tr key={user.id}>
                         <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
@@ -118,6 +121,17 @@ const Users: Component = () => {
                               </span>
                             )) || '-'}
                           </div>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                          {user.login_id ? (
+                            <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                              Has Login
+                            </span>
+                          ) : (
+                            <span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
+                              No Login
+                            </span>
+                          )}
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                           <button

@@ -31,12 +31,14 @@ const EditUser: Component = () => {
     password?: string; 
     name?: string;
     role_ids?: string[];
+    login_id?: string;
   }) => {
     await userApi.updateUser(params.id, {
       username: data.username,
       password: data.password,
       name: data.name,
       role_ids: data.role_ids,
+      login_id: data.login_id,
     });
     navigate('/users');
   };

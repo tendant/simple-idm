@@ -428,3 +428,29 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 	)
 	return i, err
 }
+
+const updateUserLoginID = `-- name: UpdateUserLoginID :one
+UPDATE users SET login_id = $2 WHERE id = $1
+RETURNING id, created_at, last_modified_at, deleted_at, created_by, email, name, login_id
+`
+
+type UpdateUserLoginIDParams struct {
+	ID      uuid.UUID     `json:"id"`
+	LoginID uuid.NullUUID `json:"login_id"`
+}
+
+func (q *Queries) UpdateUserLoginID(ctx context.Context, arg UpdateUserLoginIDParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserLoginID, arg.ID, arg.LoginID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.LastModifiedAt,
+		&i.DeletedAt,
+		&i.CreatedBy,
+		&i.Email,
+		&i.Name,
+		&i.LoginID,
+	)
+	return i, err
+}

@@ -47,6 +47,7 @@ interface UpdateUserRequest {
   username?: string;
   password?: string;
   role_ids?: string[];
+  login_id?: string;
 }
 
 interface FindUsernameRequest {
@@ -62,6 +63,7 @@ interface User {
   last_modified_at?: string;
   deleted_at?: string | null;
   created_by?: string | null;
+  login_id?: string | null;
   roles?: Array<{
     id?: string;
     name?: string;

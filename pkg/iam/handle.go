@@ -29,6 +29,7 @@ type CreateUserRequest struct {
 type UpdateUserRequest struct {
 	Name    *string     `json:"name"`
 	RoleIds []uuid.UUID `json:"role_ids"`
+	LoginID *string     `json:"login_id"`
 }
 
 // Get a list of users
@@ -255,7 +256,20 @@ func (h Handle) PutID(w http.ResponseWriter, r *http.Request, id string) *Respon
 		name = *request.Name
 	}
 
-	user, err := h.iamService.UpdateUser(r.Context(), userUuid, name, request.RoleIds)
+	// Parse login ID if provided
+	var loginIdPtr *uuid.UUID
+	if request.LoginID != nil && *request.LoginID != "" {
+		loginId, err := uuid.Parse(*request.LoginID)
+		if err != nil {
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: map[string]string{"error": "Invalid login ID format"},
+			}
+		}
+		loginIdPtr = &loginId
+	}
+
+	user, err := h.iamService.UpdateUser(r.Context(), userUuid, name, request.RoleIds, loginIdPtr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,

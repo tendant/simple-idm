@@ -23,6 +23,10 @@ limit 20;
 UPDATE users SET name = $2 WHERE id = $1
 RETURNING *;
 
+-- name: UpdateUserLoginID :one
+UPDATE users SET login_id = $2 WHERE id = $1
+RETURNING *;
+
 -- name: DeleteUser :exec
 UPDATE users
 SET deleted_at = CURRENT_TIMESTAMP

@@ -1,6 +1,7 @@
-import { Component, createSignal, createResource, For } from 'solid-js';
+import { Component, createSignal, createResource, For, Show } from 'solid-js';
 import type { User } from '../api/user';
 import { roleApi, type Role } from '../api/role';
+import { loginApi, type Login } from '../api/login';
 
 interface Props {
   initialData?: User;
@@ -10,6 +11,7 @@ interface Props {
     password?: string;
     name?: string;
     role_ids?: string[];
+    login_id?: string;
   }) => Promise<void>;
   submitLabel: string;
 }
@@ -22,6 +24,7 @@ const UserForm: Component<Props> = (props) => {
   const [selectedRoles, setSelectedRoles] = createSignal<string[]>(
     props.initialData?.roles?.map(r => r.id || '').filter(id => id !== '') || []
   );
+  const [selectedLogin, setSelectedLogin] = createSignal<string>(props.initialData?.login_id || '');
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
 
@@ -31,6 +34,16 @@ const UserForm: Component<Props> = (props) => {
       return await roleApi.listRoles();
     } catch (err) {
       console.error('Failed to fetch roles:', err);
+      return [];
+    }
+  });
+
+  // Fetch available logins
+  const [logins] = createResource<Login[]>(async () => {
+    try {
+      return await loginApi.listLogins();
+    } catch (err) {
+      console.error('Failed to fetch logins:', err);
       return [];
     }
   });
@@ -47,6 +60,7 @@ const UserForm: Component<Props> = (props) => {
         password: password() || undefined,
         name: name() || undefined,
         role_ids: selectedRoles().filter(id => id !== ''),
+        login_id: selectedLogin() || undefined,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save user');
@@ -179,6 +193,33 @@ const UserForm: Component<Props> = (props) => {
           </For>
         </div>
       </div>
+
+      <Show when={props.initialData}>
+        <div>
+          <label class="block text-sm font-medium text-gray-11">
+            Associated Login
+          </label>
+          <div class="mt-1">
+            <select
+              value={selectedLogin()}
+              onChange={(e) => setSelectedLogin(e.currentTarget.value)}
+              class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">None</option>
+              <For each={logins()}>
+                {(login) => (
+                  <option value={login.id}>
+                    {login.username} ({login.email || 'No email'})
+                  </option>
+                )}
+              </For>
+            </select>
+          </div>
+          <p class="mt-1 text-sm text-gray-9">
+            Select a login to associate with this user
+          </p>
+        </div>
+      </Show>
 
       <div>
         <button
