@@ -103,10 +103,7 @@ func TestCreateUser(t *testing.T) {
 	service := NewIamService(queries)
 
 	// Create a test role first
-	role, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
-		Uuid: uuid.New(),
-		Name: "test-role",
-	})
+	role, err := queries.CreateRole(ctx, "test-role")
 	require.NoError(t, err)
 
 	// Test cases
@@ -123,7 +120,7 @@ func TestCreateUser(t *testing.T) {
 			email:     "test@example.com",
 			username:  "testuser",
 			fullName:  "Test User",
-			roleUuids: []uuid.UUID{role.Uuid},
+			roleUuids: []uuid.UUID{role},
 			wantErr:   false,
 		},
 		{
@@ -203,10 +200,7 @@ func TestFindUsers(t *testing.T) {
 	service := NewIamService(queries)
 
 	// Create a test role
-	role, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
-		Uuid: uuid.New(),
-		Name: "test-role",
-	})
+	role, err := queries.CreateRole(ctx, "test-role")
 	require.NoError(t, err)
 
 	// Create test users
@@ -220,7 +214,7 @@ func TestFindUsers(t *testing.T) {
 			email:     "test1@example.com",
 			username:  "testuser1",
 			name:      "Test User 1",
-			roleUuids: []uuid.UUID{role.Uuid},
+			roleUuids: []uuid.UUID{role},
 		},
 		{
 			email:     "test2@example.com",
@@ -306,7 +300,7 @@ func TestGetUser(t *testing.T) {
 	// Test cases
 	t.Run("existing user", func(t *testing.T) {
 		// Get the user
-		fetchedUser, err := service.GetUser(ctx, user.Uuid)
+		fetchedUser, err := service.GetUser(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Equal(t, user.Email, fetchedUser.Email)
 		assert.Equal(t, user.Name, fetchedUser.Name)
@@ -331,20 +325,16 @@ func TestUpdateUser(t *testing.T) {
 	service := NewIamService(queries)
 
 	// Create test roles
-	role1, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
-		Uuid: uuid.New(),
-		Name: "role-1",
-	})
+	role1, err := queries.CreateRole(ctx, "role-1")
 	require.NoError(t, err)
 
-	role2, err := queries.CreateRole(ctx, iamdb.CreateRoleParams{
-		Uuid: uuid.New(),
-		Name: "role-2",
-	})
+	role2, err := queries.CreateRole(ctx, "role-2")
+	require.NoError(t, err)
+
 	require.NoError(t, err)
 
 	// Create initial user with role1
-	initialUser, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{role1.Uuid})
+	initialUser, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{role1})
 	require.NoError(t, err)
 
 	// Test cases
@@ -357,13 +347,13 @@ func TestUpdateUser(t *testing.T) {
 		{
 			name:      "update name and roles",
 			newName:   "Updated User",
-			roleUuids: []uuid.UUID{role2.Uuid},
+			roleUuids: []uuid.UUID{role2},
 			wantErr:   false,
 		},
 		{
 			name:      "update to multiple roles",
 			newName:   "Multi Role User",
-			roleUuids: []uuid.UUID{role1.Uuid, role2.Uuid},
+			roleUuids: []uuid.UUID{role1, role2},
 			wantErr:   false,
 		},
 		{
@@ -377,7 +367,7 @@ func TestUpdateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Update user
-			updatedUser, err := service.UpdateUser(ctx, initialUser.Uuid, tt.newName, tt.roleUuids)
+			updatedUser, err := service.UpdateUser(ctx, initialUser.ID, tt.newName, tt.roleUuids)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -418,7 +408,7 @@ func TestUpdateUser(t *testing.T) {
 				SELECT COUNT(*)
 				FROM user_roles
 				WHERE user_uuid = $1
-			`, updatedUser.Uuid).Scan(&roleCount)
+			`, updatedUser.ID).Scan(&roleCount)
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.roleUuids), roleCount)
 		})
@@ -451,7 +441,7 @@ func TestDeleteUser(t *testing.T) {
 	// Test cases
 	t.Run("existing user", func(t *testing.T) {
 		// Delete the user
-		err := service.DeleteUser(ctx, user.Uuid)
+		err := service.DeleteUser(ctx, user.ID)
 		require.NoError(t, err)
 
 		// Verify user is marked as deleted
@@ -460,7 +450,7 @@ func TestDeleteUser(t *testing.T) {
 			SELECT deleted_at
 			FROM users
 			WHERE uuid = $1
-		`, user.Uuid).Scan(&deletedAt)
+		`, user.ID).Scan(&deletedAt)
 		assert.NoError(t, err)
 		assert.True(t, deletedAt.Valid)
 	})
