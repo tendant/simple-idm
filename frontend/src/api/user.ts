@@ -141,5 +141,24 @@ export const userApi = {
       const errorData = await response.json().catch(() => null);
       throw new Error(errorData?.message || 'Failed to find username');
     }
+  },
+
+  switchUser: async (userId: string, token?: string): Promise<any> => {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await apiClient.post('/auth/user/switch', { user_id: userId }, { 
+      headers,
+      skipAuth: !!token // Skip default auth if we're providing a token
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || 'Failed to switch user');
+    }
+
+    return response.json();
   }
 };

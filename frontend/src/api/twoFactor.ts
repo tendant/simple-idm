@@ -31,18 +31,16 @@ export interface TwoFactorMethod {
 }
 
 export interface User {
-  id?: string;
-  email?: string;
-  username?: string;
-  name?: string | null;
-  created_at?: string;
-  last_modified_at?: string;
-  deleted_at?: string | null;
-  created_by?: string | null;
-  roles?: Array<{
-    id?: string;
-    name?: string;
-  }> | null;
+  id: string;
+  email: string;
+  name: string;
+}
+
+export interface SelectUserRequiredResponse {
+  status: string;
+  message: string;
+  temp_token: string;
+  users: User[];
 }
 
 export const twoFactorApi = {
@@ -65,6 +63,19 @@ export const twoFactorApi = {
         Authorization: `Bearer ${token}`
       }
     });
+    
+    // Handle 202 status code for select_user_required
+    if (response.status === 202) {
+      const data = await response.json();
+      if (data.status === 'select_user_required') {
+        return {
+          status: 'select_user_required',
+          message: data.message,
+          temp_token: data.temp_token,
+          users: data.users
+        };
+      }
+    }
     
     if (!response.ok) {
       const error = await response.json();
