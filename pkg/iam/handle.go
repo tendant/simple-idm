@@ -24,6 +24,7 @@ type CreateUserRequest struct {
 	Email    string      `json:"email"`
 	Username string      `json:"username"`
 	RoleIds  []uuid.UUID `json:"role_ids"`
+	LoginID  *string     `json:"login_id"`
 }
 
 type UpdateUserRequest struct {
@@ -52,7 +53,8 @@ func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 			Name *string `json:"name,omitempty"`
 			ID   *string `json:"id,omitempty"`
 		} `json:"roles,omitempty"`
-		ID *string `json:"id,omitempty"`
+		ID      *string `json:"id,omitempty"`
+		LoginID string  `json:"login_id,omitempty"`
 	}
 
 	for _, user := range users {
@@ -82,13 +84,15 @@ func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 				Name *string `json:"name,omitempty"`
 				ID   *string `json:"id,omitempty"`
 			} `json:"roles,omitempty"`
-			ID *string `json:"id,omitempty"`
+			ID      *string `json:"id,omitempty"`
+			LoginID string  `json:"login_id,omitempty"`
 		}{
 			Email:    &user.Email,
-			// Username field removed as it doesn't exist in the struct
+			Username: &user.Username.String,
 			Name:     namePtr,
 			Roles:    roles,
 			ID:       &idStr,
+			LoginID:  user.LoginID.UUID.String(),
 		})
 	}
 
@@ -114,8 +118,14 @@ func (h Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 		name = *req.Name
 	}
 
-	user, err := h.iamService.CreateUser(r.Context(), req.Email, req.Username, name, req.RoleIds)
+	loginID := ""
+	if req.LoginID != nil {
+		loginID = *req.LoginID
+	}
+
+	user, err := h.iamService.CreateUser(r.Context(), req.Email, req.Username, name, req.RoleIds, loginID)
 	if err != nil {
+		slog.Error("Failed to create user", "error", err, "roleIds", req.RoleIds)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: map[string]string{"error": fmt.Sprintf("Failed to create user: %v", err)},
@@ -143,10 +153,10 @@ func (h Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 		} `json:"roles,omitempty"`
 		ID *string `json:"id,omitempty"`
 	}{
-		Email:    &user.Email,
+		Email: &user.Email,
 		// Username field removed as it doesn't exist in the struct
-		Name:     namePtr,
-		ID:       &idStr,
+		Name: namePtr,
+		ID:   &idStr,
 	}
 
 	// Unmarshal roles from []byte
@@ -208,7 +218,7 @@ func (h Handle) GetID(w http.ResponseWriter, r *http.Request, id string) *Respon
 		ID *string `json:"id,omitempty"`
 	}{
 		Email:    &user.Email,
-		// Username field removed as it doesn't exist in the struct
+		Username: &user.Username.String,
 		Name:     namePtr,
 		ID:       &idStr,
 	}
@@ -297,10 +307,10 @@ func (h Handle) PutID(w http.ResponseWriter, r *http.Request, id string) *Respon
 		} `json:"roles,omitempty"`
 		ID *string `json:"id,omitempty"`
 	}{
-		Email:    &user.Email,
+		Email: &user.Email,
 		// Username field removed as it doesn't exist in the struct
-		Name:     namePtr,
-		ID:       &idStrPtr,
+		Name: namePtr,
+		ID:   &idStrPtr,
 	}
 
 	// Unmarshal roles from []byte

@@ -14,6 +14,7 @@ interface Props {
     login_id?: string;
   }) => Promise<void>;
   submitLabel: string;
+  loading?: boolean;
 }
 
 const UserForm: Component<Props> = (props) => {
@@ -22,11 +23,11 @@ const UserForm: Component<Props> = (props) => {
   const [password, setPassword] = createSignal('');
   const [name, setName] = createSignal(props.initialData?.name || '');
   const [selectedRoles, setSelectedRoles] = createSignal<string[]>(
-    props.initialData?.roles?.map(r => r.id || '').filter(id => id !== '') || []
+    props.initialData?.roles?.map(r => r.id || '').filter(id => id !== '') || props.initialData?.role_ids || []
   );
   const [selectedLogin, setSelectedLogin] = createSignal<string>(props.initialData?.login_id || '');
   const [error, setError] = createSignal<string | null>(null);
-  const [loading, setLoading] = createSignal(false);
+  const [loading, setLoading] = createSignal(props.loading || false);
 
   // Fetch available roles
   const [roles] = createResource<Role[]>(async () => {
@@ -69,13 +70,13 @@ const UserForm: Component<Props> = (props) => {
     }
   };
 
-  const toggleRole = (roleUuid: string) => {
-    if (!roleUuid) return; // Skip empty UUIDs
+  const toggleRole = (roleId: string) => {
+    if (!roleId) return; // Skip empty IDs
     const current = selectedRoles();
-    if (current.includes(roleUuid)) {
-      setSelectedRoles(current.filter(id => id !== roleUuid));
+    if (current.includes(roleId)) {
+      setSelectedRoles(current.filter(id => id !== roleId));
     } else {
-      setSelectedRoles([...current, roleUuid]);
+      setSelectedRoles([...current, roleId]);
     }
   };
 
@@ -177,13 +178,13 @@ const UserForm: Component<Props> = (props) => {
               <div class="flex items-center">
                 <input
                   type="checkbox"
-                  id={`role-${role.uuid}`}
-                  checked={selectedRoles().includes(role.uuid || '')}
-                  onChange={() => role.uuid && toggleRole(role.uuid)}
+                  id={`role-${role.id}`}
+                  checked={selectedRoles().includes(role.id || '')}
+                  onChange={() => role.id && toggleRole(role.id)}
                   class="h-4 w-4 rounded border-gray-7 text-blue-600 focus:ring-blue-500"
                 />
                 <label
-                  for={`role-${role.uuid}`}
+                  for={`role-${role.id}`}
                   class="ml-2 text-sm text-gray-11"
                 >
                   {role.name}
@@ -224,10 +225,10 @@ const UserForm: Component<Props> = (props) => {
       <div>
         <button
           type="submit"
-          disabled={loading()}
+          disabled={loading() || props.loading}
           class="w-full rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50"
         >
-          {loading() ? 'Loading...' : props.submitLabel}
+          {loading() || props.loading ? 'Loading...' : props.submitLabel}
         </button>
       </div>
     </form>

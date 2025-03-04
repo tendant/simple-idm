@@ -1,15 +1,48 @@
-import { Component, createSignal } from 'solid-js';
-import { useNavigate } from '@solidjs/router';
+import { Component, createSignal, onMount } from 'solid-js';
+import { useNavigate, useLocation } from '@solidjs/router';
 import { loginApi } from '../api/login';
+import { userApi } from '../api/user';
 
 const CreateLogin: Component = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [username, setUsername] = createSignal('');
   const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
   const [confirmPassword, setConfirmPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
+  const [userId, setUserId] = createSignal<string | null>(null);
+  const [returnToUsers, setReturnToUsers] = createSignal(false);
+  const [userData, setUserData] = createSignal<any>(null);
+
+  onMount(() => {
+    // Check if we have a userId in the query parameters
+    const params = new URLSearchParams(location.search);
+    const userIdParam = params.get('userId');
+    if (userIdParam) {
+      setUserId(userIdParam);
+      setReturnToUsers(true);
+      
+      // Fetch user data to pre-fill fields
+      fetchUserData(userIdParam);
+    }
+  });
+  
+  const fetchUserData = async (userId: string) => {
+    try {
+      const userData = await userApi.getUser(userId);
+      if (userData) {
+        // Store the user data
+        setUserData(userData);
+        // Pre-fill fields with user data
+        setUsername(userData.username || '');
+        setEmail(userData.email || '');
+      }
+    } catch (err) {
+      console.error('Failed to fetch user data:', err);
+    }
+  };
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -24,12 +57,29 @@ const CreateLogin: Component = () => {
     setLoading(true);
 
     try {
-      await loginApi.createLogin({
+      const newLogin = await loginApi.createLogin({
         username: username(),
         email: email(),
         password: password(),
       });
-      navigate('/logins');
+      
+      // If we have a userId, associate the login with the user
+      if (userId() && newLogin.id) {
+        const user = userData();
+        await userApi.updateUser(userId()!, {
+          login_id: newLogin.id,
+          name: user?.name,
+          username: user?.username,
+          role_ids: user?.roles?.map((role: any) => role.id) || []
+        });
+      }
+      
+      // Navigate back to the appropriate page
+      if (returnToUsers()) {
+        navigate('/users');
+      } else {
+        navigate('/logins');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create login');
     } finally {
@@ -42,13 +92,13 @@ const CreateLogin: Component = () => {
       <div class="md:flex md:items-center md:justify-between">
         <div class="min-w-0 flex-1">
           <h2 class="text-2xl font-bold leading-7 text-gray-12 sm:truncate sm:text-3xl sm:tracking-tight">
-            Create New Login
+            {userId() ? 'Create Login for User' : 'Create New Login'}
           </h2>
         </div>
         <div class="mt-4 flex md:ml-4 md:mt-0">
           <button
             type="button"
-            onClick={() => navigate('/logins')}
+            onClick={() => navigate(-1)}
             class="inline-flex items-center rounded-lg bg-white px-3 py-2 text-sm font-semibold text-gray-11 shadow-sm ring-1 ring-inset ring-gray-6 hover:bg-gray-3"
           >
             Cancel
@@ -146,7 +196,7 @@ const CreateLogin: Component = () => {
                 <button
                   type="submit"
                   disabled={loading()}
-                  class="inline-flex justify-center rounded-lg border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="inline-flex justify-center rounded-lg border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
                 >
                   {loading() ? 'Creating...' : 'Create Login'}
                 </button>

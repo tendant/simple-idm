@@ -111,3 +111,26 @@ func MaskEmail(email string) string {
 	}
 	return "***@" + domain
 }
+
+// NullStringToNullUUID converts a sql.NullString to uuid.NullUUID
+func NullStringToNullUUID(nullStr sql.NullString) uuid.NullUUID {
+	if !nullStr.Valid {
+		return uuid.NullUUID{
+			UUID:  uuid.UUID{},
+			Valid: false,
+		}
+	}
+
+	id, err := uuid.Parse(nullStr.String)
+	if err != nil {
+		return uuid.NullUUID{
+			UUID:  uuid.UUID{},
+			Valid: false,
+		}
+	}
+
+	return uuid.NullUUID{
+		UUID:  id,
+		Valid: true,
+	}
+}
