@@ -30,27 +30,27 @@ func (h *Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	apiRoles := make([]struct {
+		ID   *string `json:"id,omitempty"`
 		Name *string `json:"name,omitempty"`
-		UUID *string `json:"uuid,omitempty"`
 	}, len(roles))
 
 	for i, role := range roles {
 		name := role.Name           // Create a new variable to get the address
 		uuidStr := role.ID.String() // Convert UUID to string
 		apiRoles[i] = struct {
+			ID   *string `json:"id,omitempty"`
 			Name *string `json:"name,omitempty"`
-			UUID *string `json:"uuid,omitempty"`
 		}{
+			ID:   &uuidStr,
 			Name: &name,
-			UUID: &uuidStr,
 		}
 	}
 
 	return GetJSON200Response(apiRoles)
 }
 
-// GetUUID handles retrieving a role by UUID
-func (h *Handle) GetUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+// GetID handles retrieving a role by UUID
+func (h *Handle) GetID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
 	roleUUID, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
@@ -76,7 +76,7 @@ func (h *Handle) GetUUID(w http.ResponseWriter, r *http.Request, uuidStr string)
 	name := role.Name          // Create a new variable to get the address
 	uuidStr = role.ID.String() // Convert UUID to string
 
-	return GetUUIDJSON200Response(struct {
+	return GetIDJSON200Response(struct {
 		Name *string `json:"name,omitempty"`
 		UUID *string `json:"uuid,omitempty"`
 	}{
@@ -85,8 +85,8 @@ func (h *Handle) GetUUID(w http.ResponseWriter, r *http.Request, uuidStr string)
 	})
 }
 
-// GetUUIDUsers handles retrieving users assigned to a role
-func (h *Handle) GetUUIDUsers(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+// GetIDUsers handles retrieving users assigned to a role
+func (h *Handle) GetIDUsers(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
 	roleUUID, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
@@ -111,39 +111,32 @@ func (h *Handle) GetUUIDUsers(w http.ResponseWriter, r *http.Request, uuidStr st
 
 	// Convert to API format
 	apiUsers := make([]struct {
-		UUID     *string `json:"uuid,omitempty"`
-		Email    *string `json:"email,omitempty"`
-		Name     *string `json:"name,omitempty"`
-		Username *string `json:"username,omitempty"`
+		Email *string `json:"email,omitempty"`
+		ID    *string `json:"id,omitempty"`
+		Name  *string `json:"name,omitempty"`
 	}, len(users))
 
 	for i, user := range users {
-		uuid := user.ID.String()
+		id := user.ID.String()
 		email := user.Email
 		name := user.Name.String
-		username := user.Username.String
 
 		apiUsers[i] = struct {
-			UUID     *string `json:"uuid,omitempty"`
-			Email    *string `json:"email,omitempty"`
-			Name     *string `json:"name,omitempty"`
-			Username *string `json:"username,omitempty"`
+			Email *string `json:"email,omitempty"`
+			ID    *string `json:"id,omitempty"`
+			Name  *string `json:"name,omitempty"`
 		}{
-			UUID:     &uuid,
-			Email:    &email,
-			Name:     &name,
-			Username: &username,
+			Email: &email,
+			ID:    &id,
+			Name:  &name,
 		}
 	}
 
-	return &Response{
-		Code: http.StatusOK,
-		body: apiUsers,
-	}
+	return GetIDUsersJSON200Response(apiUsers)
 }
 
-// DeleteUUIDUsersUserUUID handles removing a user from a role
-func (h *Handle) DeleteUUIDUsersUserUUID(w http.ResponseWriter, r *http.Request, uuidStr string, userUuidStr string) *Response {
+// DeleteIDUsersUserID handles removing a user from a role
+func (h *Handle) DeleteIDUsersUserID(w http.ResponseWriter, r *http.Request, uuidStr string, userUuidStr string) *Response {
 	roleUUID, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{
@@ -209,17 +202,17 @@ func (h *Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 	return &Response{
 		Code: http.StatusCreated,
 		body: struct {
-			UUID *string `json:"uuid,omitempty"`
+			ID   *string `json:"id,omitempty"`
 			Name *string `json:"name,omitempty"`
 		}{
-			UUID: &uuidStr,
+			ID:   &uuidStr,
 			Name: requestBody.Name,
 		},
 	}
 }
 
-// PutUUID handles updating an existing role
-func (h *Handle) PutUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+// PutID handles updating an existing role
+func (h *Handle) PutID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
 	var requestBody struct {
 		Name *string `json:"name"`
 	}
@@ -259,20 +252,17 @@ func (h *Handle) PutUUID(w http.ResponseWriter, r *http.Request, uuidStr string)
 		}
 	}
 
-	return &Response{
-		Code: http.StatusOK,
-		body: struct {
-			UUID *string `json:"uuid,omitempty"`
-			Name *string `json:"name,omitempty"`
-		}{
-			UUID: &uuidStr,
-			Name: requestBody.Name,
-		},
-	}
+	return PutIDJSON200Response(struct {
+		Name *string `json:"name,omitempty"`
+		UUID *string `json:"uuid,omitempty"`
+	}{
+		Name: requestBody.Name,
+		UUID: &uuidStr,
+	})
 }
 
-// DeleteUUID handles deleting a role
-func (h *Handle) DeleteUUID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
+// DeleteID handles deleting a role
+func (h *Handle) DeleteID(w http.ResponseWriter, r *http.Request, uuidStr string) *Response {
 	roleUUID, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return &Response{

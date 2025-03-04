@@ -29,16 +29,14 @@ type GooseDbVersion struct {
 }
 
 type Login struct {
-	ID                   uuid.UUID      `json:"id"`
-	CreatedAt            time.Time      `json:"created_at"`
-	UpdatedAt            time.Time      `json:"updated_at"`
-	DeletedAt            sql.NullTime   `json:"deleted_at"`
-	CreatedBy            sql.NullString `json:"created_by"`
-	Password             []byte         `json:"password"`
-	Username             sql.NullString `json:"username"`
-	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
-	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
-	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
+	ID              uuid.UUID      `json:"id"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	DeletedAt       sql.NullTime   `json:"deleted_at"`
+	CreatedBy       sql.NullString `json:"created_by"`
+	Password        []byte         `json:"password"`
+	Username        sql.NullString `json:"username"`
+	PasswordVersion pgtype.Int4    `json:"password_version"`
 }
 
 type Login2fa struct {
@@ -53,13 +51,23 @@ type Login2fa struct {
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
 }
 
-type PasswordResetToken struct {
+type LoginPasswordHistory struct {
+	ID              uuid.UUID    `json:"id"`
+	CreatedAt       time.Time    `json:"created_at"`
+	UpdatedAt       time.Time    `json:"updated_at"`
+	DeletedAt       sql.NullTime `json:"deleted_at"`
+	LoginID         uuid.UUID    `json:"login_id"`
+	PasswordHash    []byte       `json:"password_hash"`
+	PasswordVersion int32        `json:"password_version"`
+}
+
+type LoginPasswordResetToken struct {
 	ID        uuid.UUID          `json:"id"`
-	UserID    uuid.UUID          `json:"user_id"`
 	Token     string             `json:"token"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	ExpireAt  pgtype.Timestamptz `json:"expire_at"`
 	UsedAt    pgtype.Timestamptz `json:"used_at"`
+	LoginID   uuid.UUID          `json:"login_id"`
 }
 
 type Role struct {
@@ -69,20 +77,14 @@ type Role struct {
 }
 
 type User struct {
-	ID                   uuid.UUID      `json:"id"`
-	CreatedAt            time.Time      `json:"created_at"`
-	LastModifiedAt       time.Time      `json:"last_modified_at"`
-	DeletedAt            sql.NullTime   `json:"deleted_at"`
-	CreatedBy            sql.NullString `json:"created_by"`
-	Email                string         `json:"email"`
-	Name                 sql.NullString `json:"name"`
-	Password             []byte         `json:"password"`
-	VerifiedAt           sql.NullTime   `json:"verified_at"`
-	Username             sql.NullString `json:"username"`
-	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
-	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
-	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
-	LoginID              uuid.NullUUID  `json:"login_id"`
+	ID             uuid.UUID      `json:"id"`
+	CreatedAt      time.Time      `json:"created_at"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	DeletedAt      sql.NullTime   `json:"deleted_at"`
+	CreatedBy      sql.NullString `json:"created_by"`
+	Email          string         `json:"email"`
+	Name           sql.NullString `json:"name"`
+	LoginID        uuid.NullUUID  `json:"login_id"`
 }
 
 type UserRole struct {

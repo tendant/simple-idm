@@ -27,8 +27,8 @@ type PostJSONBody struct {
 	Name *string `json:"name,omitempty"`
 }
 
-// PutUUIDJSONBody defines parameters for PutUUID.
-type PutUUIDJSONBody struct {
+// PutIDJSONBody defines parameters for PutID.
+type PutIDJSONBody struct {
 	// Role name
 	Name *string `json:"name,omitempty"`
 }
@@ -41,11 +41,11 @@ func (PostJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
-// PutUUIDJSONRequestBody defines body for PutUUID for application/json ContentType.
-type PutUUIDJSONRequestBody PutUUIDJSONBody
+// PutIDJSONRequestBody defines body for PutID for application/json ContentType.
+type PutIDJSONRequestBody PutIDJSONBody
 
 // Bind implements render.Binder.
-func (PutUUIDJSONRequestBody) Bind(*http.Request) error {
+func (PutIDJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -93,6 +93,21 @@ func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 // GetJSON200Response is a constructor method for a Get response.
 // A *Response is returned with the configured status code and content type from the spec.
 func GetJSON200Response(body []struct {
+	ID *string `json:"id,omitempty"`
+
+	// Role name
+	Name *string `json:"name,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// GetIDJSON200Response is a constructor method for a GetID response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetIDJSON200Response(body struct {
 	// Role name
 	Name *string `json:"name,omitempty"`
 	UUID *string `json:"uuid,omitempty"`
@@ -104,9 +119,9 @@ func GetJSON200Response(body []struct {
 	}
 }
 
-// GetUUIDJSON200Response is a constructor method for a GetUUID response.
+// PutIDJSON200Response is a constructor method for a PutID response.
 // A *Response is returned with the configured status code and content type from the spec.
-func GetUUIDJSON200Response(body struct {
+func PutIDJSON200Response(body struct {
 	// Role name
 	Name *string `json:"name,omitempty"`
 	UUID *string `json:"uuid,omitempty"`
@@ -118,27 +133,12 @@ func GetUUIDJSON200Response(body struct {
 	}
 }
 
-// PutUUIDJSON200Response is a constructor method for a PutUUID response.
+// GetIDUsersJSON200Response is a constructor method for a GetIDUsers response.
 // A *Response is returned with the configured status code and content type from the spec.
-func PutUUIDJSON200Response(body struct {
-	// Role name
-	Name *string `json:"name,omitempty"`
-	UUID *string `json:"uuid,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// GetUUIDUsersJSON200Response is a constructor method for a GetUUIDUsers response.
-// A *Response is returned with the configured status code and content type from the spec.
-func GetUUIDUsersJSON200Response(body []struct {
-	Email    *string `json:"email,omitempty"`
-	Name     *string `json:"name,omitempty"`
-	Username *string `json:"username,omitempty"`
-	UUID     *string `json:"uuid,omitempty"`
+func GetIDUsersJSON200Response(body []struct {
+	Email *string `json:"email,omitempty"`
+	ID    *string `json:"id,omitempty"`
+	Name  *string `json:"name,omitempty"`
 }) *Response {
 	return &Response{
 		body:        body,
@@ -156,20 +156,20 @@ type ServerInterface interface {
 	// (POST /)
 	Post(w http.ResponseWriter, r *http.Request) *Response
 	// Delete a role
-	// (DELETE /{uuid})
-	DeleteUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response
+	// (DELETE /{id})
+	DeleteID(w http.ResponseWriter, r *http.Request, id string) *Response
 	// Get a role by UUID
-	// (GET /{uuid})
-	GetUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response
+	// (GET /{id})
+	GetID(w http.ResponseWriter, r *http.Request, id string) *Response
 	// Update an existing role
-	// (PUT /{uuid})
-	PutUUID(w http.ResponseWriter, r *http.Request, uuid string) *Response
+	// (PUT /{id})
+	PutID(w http.ResponseWriter, r *http.Request, id string) *Response
 	// Get users assigned to a role
-	// (GET /{uuid}/users)
-	GetUUIDUsers(w http.ResponseWriter, r *http.Request, uuid string) *Response
+	// (GET /{id}/users)
+	GetIDUsers(w http.ResponseWriter, r *http.Request, id string) *Response
 	// Remove a user from a role
-	// (DELETE /{uuid}/users/{userUuid})
-	DeleteUUIDUsersUserUUID(w http.ResponseWriter, r *http.Request, uuid string, userUUID string) *Response
+	// (DELETE /{id}/users/{userId})
+	DeleteIDUsersUserID(w http.ResponseWriter, r *http.Request, id string, userID string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -214,20 +214,20 @@ func (siw *ServerInterfaceWrapper) Post(w http.ResponseWriter, r *http.Request) 
 	handler(w, r.WithContext(ctx))
 }
 
-// DeleteUUID operation middleware
-func (siw *ServerInterfaceWrapper) DeleteUUID(w http.ResponseWriter, r *http.Request) {
+// DeleteID operation middleware
+func (siw *ServerInterfaceWrapper) DeleteID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// ------------- Path parameter "uuid" -------------
-	var uuid string
+	// ------------- Path parameter "id" -------------
+	var id string
 
-	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
 		return
 	}
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.DeleteUUID(w, r, uuid)
+		resp := siw.Handler.DeleteID(w, r, id)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -240,20 +240,20 @@ func (siw *ServerInterfaceWrapper) DeleteUUID(w http.ResponseWriter, r *http.Req
 	handler(w, r.WithContext(ctx))
 }
 
-// GetUUID operation middleware
-func (siw *ServerInterfaceWrapper) GetUUID(w http.ResponseWriter, r *http.Request) {
+// GetID operation middleware
+func (siw *ServerInterfaceWrapper) GetID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// ------------- Path parameter "uuid" -------------
-	var uuid string
+	// ------------- Path parameter "id" -------------
+	var id string
 
-	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
 		return
 	}
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.GetUUID(w, r, uuid)
+		resp := siw.Handler.GetID(w, r, id)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -266,20 +266,20 @@ func (siw *ServerInterfaceWrapper) GetUUID(w http.ResponseWriter, r *http.Reques
 	handler(w, r.WithContext(ctx))
 }
 
-// PutUUID operation middleware
-func (siw *ServerInterfaceWrapper) PutUUID(w http.ResponseWriter, r *http.Request) {
+// PutID operation middleware
+func (siw *ServerInterfaceWrapper) PutID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// ------------- Path parameter "uuid" -------------
-	var uuid string
+	// ------------- Path parameter "id" -------------
+	var id string
 
-	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
 		return
 	}
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.PutUUID(w, r, uuid)
+		resp := siw.Handler.PutID(w, r, id)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -292,20 +292,20 @@ func (siw *ServerInterfaceWrapper) PutUUID(w http.ResponseWriter, r *http.Reques
 	handler(w, r.WithContext(ctx))
 }
 
-// GetUUIDUsers operation middleware
-func (siw *ServerInterfaceWrapper) GetUUIDUsers(w http.ResponseWriter, r *http.Request) {
+// GetIDUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetIDUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// ------------- Path parameter "uuid" -------------
-	var uuid string
+	// ------------- Path parameter "id" -------------
+	var id string
 
-	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
 		return
 	}
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.GetUUIDUsers(w, r, uuid)
+		resp := siw.Handler.GetIDUsers(w, r, id)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -318,28 +318,28 @@ func (siw *ServerInterfaceWrapper) GetUUIDUsers(w http.ResponseWriter, r *http.R
 	handler(w, r.WithContext(ctx))
 }
 
-// DeleteUUIDUsersUserUUID operation middleware
-func (siw *ServerInterfaceWrapper) DeleteUUIDUsersUserUUID(w http.ResponseWriter, r *http.Request) {
+// DeleteIDUsersUserID operation middleware
+func (siw *ServerInterfaceWrapper) DeleteIDUsersUserID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// ------------- Path parameter "uuid" -------------
-	var uuid string
+	// ------------- Path parameter "id" -------------
+	var id string
 
-	if err := runtime.BindStyledParameter("simple", false, "uuid", chi.URLParam(r, "uuid"), &uuid); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "uuid"})
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
 		return
 	}
 
-	// ------------- Path parameter "userUuid" -------------
-	var userUUID string
+	// ------------- Path parameter "userId" -------------
+	var userID string
 
-	if err := runtime.BindStyledParameter("simple", false, "userUuid", chi.URLParam(r, "userUuid"), &userUUID); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "userUuid"})
+	if err := runtime.BindStyledParameter("simple", false, "userId", chi.URLParam(r, "userId"), &userID); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "userId"})
 		return
 	}
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.DeleteUUIDUsersUserUUID(w, r, uuid, userUUID)
+		resp := siw.Handler.DeleteIDUsersUserID(w, r, id, userID)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -469,11 +469,11 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Get("/", wrapper.Get)
 		r.Post("/", wrapper.Post)
-		r.Delete("/{uuid}", wrapper.DeleteUUID)
-		r.Get("/{uuid}", wrapper.GetUUID)
-		r.Put("/{uuid}", wrapper.PutUUID)
-		r.Get("/{uuid}/users", wrapper.GetUUIDUsers)
-		r.Delete("/{uuid}/users/{userUuid}", wrapper.DeleteUUIDUsersUserUUID)
+		r.Delete("/{id}", wrapper.DeleteID)
+		r.Get("/{id}", wrapper.GetID)
+		r.Put("/{id}", wrapper.PutID)
+		r.Get("/{id}/users", wrapper.GetIDUsers)
+		r.Delete("/{id}/users/{userId}", wrapper.DeleteIDUsersUserID)
 	})
 	return r
 }
@@ -499,17 +499,17 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9RWTU/cTAz+KyOfI7K8L6fcSpEqpFZCSHuqOJjEuwzKfHTG2XYV5b9XdhZaNhtKQVBx",
-	"yUQejz+ex/ZMD3VwMXjynKHqhwKsXwWoemDLLUEFl6El8wU9rsmRZ/Ph4hwK2FDKNnio4PhocbSAoYAQ",
-	"yWO0UMH/KiogIt+IVSjlsyaWJURKyDb48wYq+EQMBSTKMfhMqvzfYiFLHTyT1yMYY2trPVTeZvHaQ65v",
-	"yKH8WSanB2MS22xHMx4dydpQrpONPEar2ehWAbyNkmDmZP1aMug628iRVUgOGapRMFEc7iXh+pZqhl8C",
-	"TAm3MIjKQ7+fbWYTViaFlrKayJ1zmLYjBgZN+1CjgBjyAcAuRCqIfeso82lotn8F1gsxmqYuIgnGJmqg",
-	"4tTRMOHzeMZHnQiZmj04PqrUoPH0XdHQ/bIXMobRUktMU2jOVL5cnp9p7SV0xJQyVF97sOJU6hGKXdZ3",
-	"5D4MvvgNqz+VwdUk0ZOZRMeIG2H1ZFbJBzar0Pl9PMa0DO6wKGYb6V9mvnjLKnxBp047c0cQo23z8wga",
-	"+1fYMddboyxI+3aHurd7a5be0Zh45zXUxebANFuq1KA39MNmtn49mWlll7UM+kc7e6lK76K9Z25kcmhb",
-	"fVrsU3HH3pSjTGl+8/Wva2XGYM527akxHAzf0P0gft6omNrEmZIoe1mWT7/3tEbkc3jIHAh0p/gaVVTs",
-	"O5TAHnO4y/X172QNJJELG2rMKgX3BEZDUuJmmb1UcwZHLTV6T6soUtocpuEUM8mj2uzQ6FILFZQYbbk5",
-	"huFq+BkAAP//8FvIYKMLAAA=",
+	"H4sIAAAAAAAC/9RWTU/bTBD+K6s5Wzi8LyffSpGqSK2EkHKqOAz2JCzyfnR3nDay/N+rGVPaJA4FBFS5",
+	"7EaT2fl4nvlwD3VwMXjynKHqhwKsXwaoemDLLUEFV6El8wU9rsiRZ/Phcg4FrCllGzxUcHoyO5nBUECI",
+	"5DFaqOB/FRUQkW/FKpRyrIjlCpESsg1+3kAFn4ihgEQ5Bp9Jlf+bzeSqg2fy+gRjbG2tj8q7LF57yPUt",
+	"OZRflsnpw5jENtvRjG3kXIbkkKGCrrMNFMCbKEllTtavJGqPjkSxoVwnG3lMSpPWv/aeDA+ScHNHNcNv",
+	"AaaEGxhEZdvcZ5vZhKVJoaWsJnLnHKbNiIBB025rFBBDnoDrUqSC17eOMp+HZvMsqLYReoXURSTB2EQN",
+	"VJw6GvbYPD3go06ETM0OHB9VatB4+q5o6P9lb5thtNMS0z4wFyqfX2jVJXTElDJUX3uw4lAqEX6RDVoJ",
+	"22EXf6D0l5oZrvdSPDuQ4hhtI3yeHVTygc0ydH4XiTElg/coFAcb6F9lPXvP2ivGuJ4Q6GSRTpLDaNv8",
+	"MnLGrhVmzM3GLBbzC23abqpnu/dk6IgGw5HXTxebifm1UKlBb+iHzWz9ameKlV3WEugf6eeFqhxBUx/Y",
+	"veTQtvoRsUvCM7fyK+5ehd1gznblqTEcDN/Sw2x92QTYt4mTbJe9XPOnrTAlX46pqTERoA6f4g2Ko9h1",
+	"J0E94m7M8e1Xq4aRyIU1NWaZgnsCiyEpWQfZvFJzBkctNfpApShSWk9TcI6Z5JvY3GPRpRYqKDHacn0K",
+	"w/XwMwAA//93X8aZYgsAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

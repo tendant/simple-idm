@@ -23,7 +23,7 @@ SELECT EXISTS (
 ) as has_users;
 
 -- name: GetRoleUsers :many
-SELECT u.id, u.email, u.name, u.username
+SELECT u.id, u.email, u.name
 FROM users u
 JOIN user_roles ur ON ur.user_id = u.id
 WHERE ur.role_id = $1

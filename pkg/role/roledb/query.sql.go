@@ -82,7 +82,7 @@ func (q *Queries) GetRoleById(ctx context.Context, id uuid.UUID) (GetRoleByIdRow
 }
 
 const getRoleUsers = `-- name: GetRoleUsers :many
-SELECT u.id, u.email, u.name, u.username
+SELECT u.id, u.email, u.name
 FROM users u
 JOIN user_roles ur ON ur.user_id = u.id
 WHERE ur.role_id = $1
@@ -90,10 +90,9 @@ ORDER BY u.email
 `
 
 type GetRoleUsersRow struct {
-	ID       uuid.UUID      `json:"id"`
-	Email    string         `json:"email"`
-	Name     sql.NullString `json:"name"`
-	Username sql.NullString `json:"username"`
+	ID    uuid.UUID      `json:"id"`
+	Email string         `json:"email"`
+	Name  sql.NullString `json:"name"`
 }
 
 func (q *Queries) GetRoleUsers(ctx context.Context, roleID uuid.UUID) ([]GetRoleUsersRow, error) {
@@ -105,12 +104,7 @@ func (q *Queries) GetRoleUsers(ctx context.Context, roleID uuid.UUID) ([]GetRole
 	var items []GetRoleUsersRow
 	for rows.Next() {
 		var i GetRoleUsersRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Name,
-			&i.Username,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Email, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
