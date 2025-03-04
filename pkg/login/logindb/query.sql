@@ -21,8 +21,8 @@ SELECT id
 FROM login
 WHERE username = $1;
 
--- name: FindUsernameByEmail :one
-SELECT u.username
+-- name: FindEmailByEmail :one
+SELECT u.email
 FROM users u
 WHERE u.email = $1
 AND u.deleted_at IS NULL;
@@ -40,13 +40,13 @@ LEFT JOIN roles r ON ur.role_id = r.id
 WHERE ur.user_id = $1;
 
 -- name: FindUserInfoWithRoles :one
-SELECT u.email, u.username, u.name, COALESCE(array_agg(r.name), '{}') AS roles
+SELECT u.email, u.name, COALESCE(array_agg(r.name), '{}') AS roles
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.id = $1
 AND u.deleted_at IS NULL
-GROUP BY u.email, u.username, u.name;
+GROUP BY u.email, u.name;
 
 -- name: InitPasswordResetToken :exec
 INSERT INTO login_password_reset_tokens (login_id, token, expire_at)
@@ -67,14 +67,14 @@ SET used_at = NOW()
 WHERE token = $1;
 
 -- name: GetUsersByLoginId :many
-SELECT u.id, u.username, u.name, u.email, u.created_at, u.last_modified_at,
+SELECT u.id, u.name, u.email, u.created_at, u.last_modified_at,
        COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.login_id = $1
 AND u.deleted_at IS NULL
-GROUP BY u.id, u.username, u.name, u.email, u.created_at, u.last_modified_at;
+GROUP BY u.id, u.name, u.email, u.created_at, u.last_modified_at;
 
 -- name: ResetPasswordById :exec
 UPDATE login
@@ -83,36 +83,35 @@ SET password = $1,
 WHERE login.id = $2;
 
 -- name: Get2FASecret :one
-SELECT two_factor_secret
+-- This query is no longer valid as two_factor_secret has been removed
+-- Keeping the query name for compatibility but returning NULL
+SELECT NULL::text as two_factor_secret
 FROM users
 WHERE users.id = $1
 AND deleted_at IS NULL;
 
 -- name: Get2FAByLoginId :one
-SELECT u.two_factor_secret
+-- This query is no longer valid as two_factor_secret has been removed
+-- Keeping the query name for compatibility but returning NULL
+SELECT NULL::text as two_factor_secret
 FROM users u
-JOIN login l ON l.user_id = u.id
+JOIN login l ON l.id = l.id -- Self-join as a placeholder
 WHERE l.id = $1
-AND u.deleted_at IS NULL;
+AND u.deleted_at IS NULL
+LIMIT 1;
 
 -- name: ValidateBackupCode :one
-SELECT EXISTS (
-  SELECT 1
-  FROM login l
-  WHERE l.id = @id
-  AND @code::text = ANY(l.two_factor_backup_codes)
-  AND l.deleted_at IS NULL
-) AS is_valid;
+-- This query is no longer valid as two_factor_backup_codes has been removed
+-- Keeping the query name for compatibility but returning false
+SELECT false AS is_valid;
 
 -- name: MarkBackupCodeUsed :exec
-UPDATE login l
-SET two_factor_backup_codes = array_remove(two_factor_backup_codes, @code::text)
-WHERE l.id = @id
-AND l.deleted_at IS NULL;
+-- This query is no longer valid as two_factor_backup_codes has been removed
+-- Keeping the query name for compatibility but doing nothing
+SELECT 1;
 
 -- name: GetLoginById :one
-SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at,
-       l.two_factor_enabled, l.two_factor_secret, l.two_factor_backup_codes
+SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at
 FROM login l
 WHERE l.id = $1
 AND l.deleted_at IS NULL;

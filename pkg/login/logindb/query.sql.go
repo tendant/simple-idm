@@ -30,6 +30,19 @@ func (q *Queries) AddPasswordToHistory(ctx context.Context, arg AddPasswordToHis
 	return err
 }
 
+const findEmailByEmail = `-- name: FindEmailByEmail :one
+SELECT u.email
+FROM users u
+WHERE u.email = $1
+AND u.deleted_at IS NULL
+`
+
+func (q *Queries) FindEmailByEmail(ctx context.Context, email string) (string, error) {
+	row := q.db.QueryRow(ctx, findEmailByEmail, email)
+	err := row.Scan(&email)
+	return email, err
+}
+
 const findLoginByUsername = `-- name: FindLoginByUsername :one
 SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at
 FROM login l
@@ -87,31 +100,25 @@ func (q *Queries) FindUser(ctx context.Context, username sql.NullString) (FindUs
 }
 
 const findUserInfoWithRoles = `-- name: FindUserInfoWithRoles :one
-SELECT u.email, u.username, u.name, COALESCE(array_agg(r.name), '{}') AS roles
+SELECT u.email, u.name, COALESCE(array_agg(r.name), '{}') AS roles
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.id = $1
 AND u.deleted_at IS NULL
-GROUP BY u.email, u.username, u.name
+GROUP BY u.email, u.name
 `
 
 type FindUserInfoWithRolesRow struct {
-	Email    string         `json:"email"`
-	Username sql.NullString `json:"username"`
-	Name     sql.NullString `json:"name"`
-	Roles    interface{}    `json:"roles"`
+	Email string         `json:"email"`
+	Name  sql.NullString `json:"name"`
+	Roles interface{}    `json:"roles"`
 }
 
 func (q *Queries) FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (FindUserInfoWithRolesRow, error) {
 	row := q.db.QueryRow(ctx, findUserInfoWithRoles, id)
 	var i FindUserInfoWithRolesRow
-	err := row.Scan(
-		&i.Email,
-		&i.Username,
-		&i.Name,
-		&i.Roles,
-	)
+	err := row.Scan(&i.Email, &i.Name, &i.Roles)
 	return i, err
 }
 
@@ -142,28 +149,17 @@ func (q *Queries) FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) (
 	return items, nil
 }
 
-const findUsernameByEmail = `-- name: FindUsernameByEmail :one
-SELECT u.username
-FROM users u
-WHERE u.email = $1
-AND u.deleted_at IS NULL
-`
-
-func (q *Queries) FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error) {
-	row := q.db.QueryRow(ctx, findUsernameByEmail, email)
-	var username sql.NullString
-	err := row.Scan(&username)
-	return username, err
-}
-
 const get2FAByLoginId = `-- name: Get2FAByLoginId :one
-SELECT u.two_factor_secret
+SELECT NULL::text as two_factor_secret
 FROM users u
-JOIN login l ON l.user_id = u.id
+JOIN login l ON l.id = l.id -- Self-join as a placeholder
 WHERE l.id = $1
 AND u.deleted_at IS NULL
+LIMIT 1
 `
 
+// This query is no longer valid as two_factor_secret has been removed
+// Keeping the query name for compatibility but returning NULL
 func (q *Queries) Get2FAByLoginId(ctx context.Context, id uuid.UUID) (pgtype.Text, error) {
 	row := q.db.QueryRow(ctx, get2FAByLoginId, id)
 	var two_factor_secret pgtype.Text
@@ -172,12 +168,14 @@ func (q *Queries) Get2FAByLoginId(ctx context.Context, id uuid.UUID) (pgtype.Tex
 }
 
 const get2FASecret = `-- name: Get2FASecret :one
-SELECT two_factor_secret
+SELECT NULL::text as two_factor_secret
 FROM users
 WHERE users.id = $1
 AND deleted_at IS NULL
 `
 
+// This query is no longer valid as two_factor_secret has been removed
+// Keeping the query name for compatibility but returning NULL
 func (q *Queries) Get2FASecret(ctx context.Context, id uuid.UUID) (pgtype.Text, error) {
 	row := q.db.QueryRow(ctx, get2FASecret, id)
 	var two_factor_secret pgtype.Text
@@ -186,22 +184,18 @@ func (q *Queries) Get2FASecret(ctx context.Context, id uuid.UUID) (pgtype.Text, 
 }
 
 const getLoginById = `-- name: GetLoginById :one
-SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at,
-       l.two_factor_enabled, l.two_factor_secret, l.two_factor_backup_codes
+SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at
 FROM login l
 WHERE l.id = $1
 AND l.deleted_at IS NULL
 `
 
 type GetLoginByIdRow struct {
-	LoginID              uuid.UUID      `json:"login_id"`
-	Username             sql.NullString `json:"username"`
-	Password             []byte         `json:"password"`
-	CreatedAt            time.Time      `json:"created_at"`
-	UpdatedAt            time.Time      `json:"updated_at"`
-	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
-	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
-	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
+	LoginID   uuid.UUID      `json:"login_id"`
+	Username  sql.NullString `json:"username"`
+	Password  []byte         `json:"password"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 }
 
 func (q *Queries) GetLoginById(ctx context.Context, id uuid.UUID) (GetLoginByIdRow, error) {
@@ -213,9 +207,6 @@ func (q *Queries) GetLoginById(ctx context.Context, id uuid.UUID) (GetLoginByIdR
 		&i.Password,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorSecret,
-		&i.TwoFactorBackupCodes,
 	)
 	return i, err
 }
@@ -282,19 +273,18 @@ func (q *Queries) GetUserPasswordVersion(ctx context.Context, id uuid.UUID) (pgt
 }
 
 const getUsersByLoginId = `-- name: GetUsersByLoginId :many
-SELECT u.id, u.username, u.name, u.email, u.created_at, u.last_modified_at,
+SELECT u.id, u.name, u.email, u.created_at, u.last_modified_at,
        COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.login_id = $1
 AND u.deleted_at IS NULL
-GROUP BY u.id, u.username, u.name, u.email, u.created_at, u.last_modified_at
+GROUP BY u.id, u.name, u.email, u.created_at, u.last_modified_at
 `
 
 type GetUsersByLoginIdRow struct {
 	ID             uuid.UUID      `json:"id"`
-	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 	Email          string         `json:"email"`
 	CreatedAt      time.Time      `json:"created_at"`
@@ -313,7 +303,6 @@ func (q *Queries) GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) 
 		var i GetUsersByLoginIdRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.Username,
 			&i.Name,
 			&i.Email,
 			&i.CreatedAt,
@@ -360,19 +349,13 @@ func (q *Queries) InitPasswordResetToken(ctx context.Context, arg InitPasswordRe
 }
 
 const markBackupCodeUsed = `-- name: MarkBackupCodeUsed :exec
-UPDATE login l
-SET two_factor_backup_codes = array_remove(two_factor_backup_codes, $1::text)
-WHERE l.id = $2
-AND l.deleted_at IS NULL
+SELECT 1
 `
 
-type MarkBackupCodeUsedParams struct {
-	Code string    `json:"code"`
-	ID   uuid.UUID `json:"id"`
-}
-
-func (q *Queries) MarkBackupCodeUsed(ctx context.Context, arg MarkBackupCodeUsedParams) error {
-	_, err := q.db.Exec(ctx, markBackupCodeUsed, arg.Code, arg.ID)
+// This query is no longer valid as two_factor_backup_codes has been removed
+// Keeping the query name for compatibility but doing nothing
+func (q *Queries) MarkBackupCodeUsed(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, markBackupCodeUsed)
 	return err
 }
 
@@ -458,22 +441,13 @@ func (q *Queries) UpdateUserPasswordAndVersion(ctx context.Context, arg UpdateUs
 }
 
 const validateBackupCode = `-- name: ValidateBackupCode :one
-SELECT EXISTS (
-  SELECT 1
-  FROM login l
-  WHERE l.id = $1
-  AND $2::text = ANY(l.two_factor_backup_codes)
-  AND l.deleted_at IS NULL
-) AS is_valid
+SELECT false AS is_valid
 `
 
-type ValidateBackupCodeParams struct {
-	ID   uuid.UUID `json:"id"`
-	Code string    `json:"code"`
-}
-
-func (q *Queries) ValidateBackupCode(ctx context.Context, arg ValidateBackupCodeParams) (bool, error) {
-	row := q.db.QueryRow(ctx, validateBackupCode, arg.ID, arg.Code)
+// This query is no longer valid as two_factor_backup_codes has been removed
+// Keeping the query name for compatibility but returning false
+func (q *Queries) ValidateBackupCode(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, validateBackupCode)
 	var is_valid bool
 	err := row.Scan(&is_valid)
 	return is_valid, err
