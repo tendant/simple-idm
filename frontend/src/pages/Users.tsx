@@ -89,16 +89,13 @@ const Users: Component = () => {
                     <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
                       Roles
                     </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
-                      Login
-                    </th>
                     <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
                       <span class="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-6">
-                  <Show when={!loading()} fallback={<tr><td colspan="6" class="text-center py-4">Loading...</td></tr>}>
+                  <Show when={!loading()} fallback={<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>}>
                     {users().map((user) => (
                       <tr key={user.id}>
                         <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
@@ -121,31 +118,6 @@ const Users: Component = () => {
                               </span>
                             )) || '-'}
                           </div>
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          {user.login_id && user.login_id !== "00000000-0000-0000-0000-000000000000" ? (
-                            <div>
-                              <div>
-                                <button
-                                  onClick={() => navigate(`/logins/${user.login_id}/edit`)}
-                                  class="text-green-600 hover:text-green-900 text-xs"
-                                >
-                                  Update Login
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div>
-                              <div>
-                                <button 
-                                  onClick={() => navigate(`/logins/create?userId=${user.id}`)}
-                                  class="text-indigo-600 hover:text-indigo-900 text-xs"
-                                >
-                                  Create Login
-                                </button>
-                              </div>
-                            </div>
-                          )}
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                           <button
