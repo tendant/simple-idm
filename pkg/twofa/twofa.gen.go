@@ -21,9 +21,24 @@ import (
 	"github.com/go-chi/render"
 )
 
+// SelectUserRequiredResponse defines model for SelectUserRequiredResponse.
+type SelectUserRequiredResponse struct {
+	Message   string `json:"message,omitempty"`
+	Status    string `json:"status,omitempty"`
+	TempToken string `json:"temp_token,omitempty"`
+	Users     []User `json:"users,omitempty"`
+}
+
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
 	Result string `json:"result,omitempty"`
+}
+
+// User defines model for User.
+type User struct {
+	Email string `json:"email"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
 }
 
 // Post2faSendJSONBody defines parameters for Post2faSend.
@@ -111,6 +126,16 @@ func Post2faValidateJSON200Response(body SuccessResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// Post2faValidateJSON202Response is a constructor method for a Post2faValidate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faValidateJSON202Response(body SelectUserRequiredResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        202,
 		contentType: "application/json",
 	}
 }
@@ -351,15 +376,17 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8yUQW/bMAyF/4rB7ejWmXfzrQO2oocBxQrsUhQBa9GOClnSJDqbEfi/D1TsZkmMbkN3",
-	"2M0hHpXH91HaQe067yxZjlDtINYb6jB93vV1TTF+oeidjSQlH5ynwJqSIFDsDcsXD56ggshB2xbGMZ8r",
-	"7vGJaoYcfly07sJ51s6iudii6QkqDj2Nota2cekczUbabjpPITqLTNlntNhSR5azq9sbyGFLIWpnoYJ3",
-	"l6vLFYw5OE8WvYYK3qdSDh55k0wWZYNFJKuSfxeTX5kCxcuNggpuXeSywTsR5RDoW0+RPzg1iLR2lsmm",
-	"LvTe6Dr1FU9RHMx5nWejyOgthWG9n3khpBz4u2twvS8vZShOdCAF1f2v2vzs8IfTvMfjdsn5JQSi3UNO",
-	"3svV6q8mfxuogQreFIdVKqY9Kk6XKDlTFOugp2CgbDDTVrNGJpVNDU1vUgax7zoMg+zEJMkEprZtJn21",
-	"U5R0CfMWjVbI9FvUX2fhv8LtMcbk5bWcnw86avsTwP8BxTn/Fyhe9bwhy2KDEsHngRPFnXGttmutxgSU",
-	"LD4aSle3pQWc1yQ0P04qufUBO2IKEar7HWgxJi8B5GCxk/zm8+H8fhyiOEX08Mpoj3elbHDdEW+cSj81",
-	"UxeX92ZfwBBwWHhUFyAcYjdDFoiDpi2pbIoxKz9dZfM/H2O5Js7QmIOyQZGM488AAAD//8zX7kEgBgAA",
+	"H4sIAAAAAAAC/8xVTW/bOBD9K8TsHpXY673plgW2QQ4FggTtJQiMiTSymfKrnJEbw/B/L0jLVhUrToPk",
+	"0JtAzhu+ee+J3EDlbfCOnDCUG+BqSRbz5y0ZquQLU7yh762OVN8QB++Y0m6IPlAUTbnWEjMu8gY9oQ2G",
+	"oOwaqJYpqti1gAJkHdIuS9RuAdsCWFBaHmI5Y+cJOz+FFbJhLv4buYQ/2k743FkL2fzxd6QGSvhr0s89",
+	"6YaepFlz010bjBHXsO0X/MMjVQIFPJ0t/JkPor1Dc7ZC0xKUElvaFnDbVhUxv6xVJG6NjNB940GZ7VF3",
+	"sqjNqBa6Hl12aGmczEH38i6Bu9KiO+L+OdttwmjX+NxNS/bxygaK7B0Kqc/ocEGWnKiL6ysoYEWRtXdQ",
+	"wj/n0/NpYuMDOQwaSvg3LxUQUJZ5ssmswQmTy2MEz1nCNDomea5qKOHas8wavE1FO/7E8p+v16m08k7I",
+	"ZRSGYHSVcZNH9q5P/rGgNRm9orie72wY1VB++Abnu+XXlPyltjhqPi5qD0/Wn05F7HKXuc+m0zdNfurn",
+	"eJ7rzKwmrqLuhIFZg0o7LRqFatUBmtZkDbi1FuM6ZaIrUclM7RYq4SpfU67LNq/Q6BqFXrX6677wo+wO",
+	"yJy5vNfnQ6MB7HcM/gNc3Os/dLGA2XT2cVRefl/GWH26UHzgoh5aUTz2vgyjdtHKkpwkgpRjdnAlR21j",
+	"/EK7ua63OXXk8MFQvl8WNJK5S0qR+7+rSldTREuSn5i7DejEM11X+6uyhH1/OP6Je5Ge5+j+nf4PAz1r",
+	"cG5Jlr4ePoTH4T796o140mfDrFUkiZpWVKtORpUs2588tOWSRKExfWWDqWS7/RkAAP//Lv0i+48IAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
