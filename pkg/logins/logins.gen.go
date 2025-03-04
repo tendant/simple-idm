@@ -28,12 +28,6 @@ type CreateLoginRequest struct {
 	Username string `json:"username"`
 }
 
-// EnableTwoFactorRequest defines model for EnableTwoFactorRequest.
-type EnableTwoFactorRequest struct {
-	Secret           string `json:"secret"`
-	VerificationCode string `json:"verification_code"`
-}
-
 // Login defines model for Login.
 type Login struct {
 	CreatedAt        *time.Time `json:"created_at,omitempty"`
@@ -69,9 +63,6 @@ type GetParams struct {
 // PostJSONBody defines parameters for Post.
 type PostJSONBody CreateLoginRequest
 
-// PostLoginsID2faEnableJSONBody defines parameters for PostLoginsId2faEnable.
-type PostLoginsID2faEnableJSONBody EnableTwoFactorRequest
-
 // PutIDJSONBody defines parameters for PutID.
 type PutIDJSONBody UpdateLoginRequest
 
@@ -83,14 +74,6 @@ type PostJSONRequestBody PostJSONBody
 
 // Bind implements render.Binder.
 func (PostJSONRequestBody) Bind(*http.Request) error {
-	return nil
-}
-
-// PostLoginsId2faEnableJSONRequestBody defines body for PostLoginsId2faEnable for application/json ContentType.
-type PostLoginsId2faEnableJSONRequestBody PostLoginsID2faEnableJSONBody
-
-// Bind implements render.Binder.
-func (PostLoginsId2faEnableJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -188,28 +171,6 @@ func PostJSON400Response(body struct {
 	}
 }
 
-// PostLoginsId2faEnableJSON200Response is a constructor method for a PostLoginsId2faEnable response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PostLoginsId2faEnableJSON200Response(body Login) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// PostLoginsId2faEnableJSON404Response is a constructor method for a PostLoginsId2faEnable response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PostLoginsId2faEnableJSON404Response(body struct {
-	Message *string `json:"message,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        404,
-		contentType: "application/json",
-	}
-}
-
 // DeleteIDJSON404Response is a constructor method for a DeleteID response.
 // A *Response is returned with the configured status code and content type from the spec.
 func DeleteIDJSON404Response(body struct {
@@ -266,52 +227,6 @@ func PutIDJSON404Response(body struct {
 	}
 }
 
-// PostId2faEnableJSON200Response is a constructor method for a PostId2faEnable response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PostId2faEnableJSON200Response(body Login) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// PostId2faEnableJSON404Response is a constructor method for a PostId2faEnable response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PostId2faEnableJSON404Response(body struct {
-	Message *string `json:"message,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        404,
-		contentType: "application/json",
-	}
-}
-
-// PostIDBackupCodesJSON200Response is a constructor method for a PostIDBackupCodes response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PostIDBackupCodesJSON200Response(body struct {
-	BackupCodes []string `json:"backup_codes,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// PostIDBackupCodesJSON404Response is a constructor method for a PostIDBackupCodes response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PostIDBackupCodesJSON404Response(body struct {
-	Message *string `json:"message,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        404,
-		contentType: "application/json",
-	}
-}
-
 // PutIDPasswordJSON200Response is a constructor method for a PutIDPassword response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PutIDPasswordJSON200Response(body Login) *Response {
@@ -342,9 +257,6 @@ type ServerInterface interface {
 	// Create a new login
 	// (POST /)
 	Post(w http.ResponseWriter, r *http.Request) *Response
-	// Enable two-factor authentication
-	// (POST /logins/{id}/2fa/enable)
-	PostLoginsId2faEnable(w http.ResponseWriter, r *http.Request, id string) *Response
 	// Delete login
 	// (DELETE /{id})
 	DeleteID(w http.ResponseWriter, r *http.Request, id string) *Response
@@ -354,12 +266,6 @@ type ServerInterface interface {
 	// Update login
 	// (PUT /{id})
 	PutID(w http.ResponseWriter, r *http.Request, id string) *Response
-	// Enable two-factor authentication
-	// (POST /{id}/2fa/enable)
-	PostId2faEnable(w http.ResponseWriter, r *http.Request, id string) *Response
-	// Generate new backup codes
-	// (POST /{id}/backup-codes)
-	PostIDBackupCodes(w http.ResponseWriter, r *http.Request, id string) *Response
 	// Update login password
 	// (PUT /{id}/password)
 	PutIDPassword(w http.ResponseWriter, r *http.Request, id string) *Response
@@ -422,32 +328,6 @@ func (siw *ServerInterfaceWrapper) Post(w http.ResponseWriter, r *http.Request) 
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Post(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
-// PostLoginsId2faEnable operation middleware
-func (siw *ServerInterfaceWrapper) PostLoginsId2faEnable(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
-		return
-	}
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.PostLoginsId2faEnable(w, r, id)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -526,58 +406,6 @@ func (siw *ServerInterfaceWrapper) PutID(w http.ResponseWriter, r *http.Request)
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PutID(w, r, id)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
-// PostId2faEnable operation middleware
-func (siw *ServerInterfaceWrapper) PostId2faEnable(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
-		return
-	}
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.PostId2faEnable(w, r, id)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
-// PostIDBackupCodes operation middleware
-func (siw *ServerInterfaceWrapper) PostIDBackupCodes(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
-		return
-	}
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.PostIDBackupCodes(w, r, id)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -733,12 +561,9 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Get("/", wrapper.Get)
 		r.Post("/", wrapper.Post)
-		r.Post("/logins/{id}/2fa/enable", wrapper.PostLoginsId2faEnable)
 		r.Delete("/{id}", wrapper.DeleteID)
 		r.Get("/{id}", wrapper.GetID)
 		r.Put("/{id}", wrapper.PutID)
-		r.Post("/{id}/2fa/enable", wrapper.PostId2faEnable)
-		r.Post("/{id}/backup-codes", wrapper.PostIDBackupCodes)
 		r.Put("/{id}/password", wrapper.PutIDPassword)
 	})
 	return r
@@ -765,23 +590,20 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

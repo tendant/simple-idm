@@ -34,9 +34,6 @@ func (h *LoginsHandle) RegisterRoutes(r chi.Router) {
 		r.Put("/{id}", h.UpdateLogin)
 		r.Delete("/{id}", h.DeleteLogin)
 		r.Put("/{id}/password", h.UpdatePassword)
-		r.Post("/{id}/2fa/enable", h.EnableTwoFactor)
-		r.Post("/{id}/2fa/disable", h.DisableTwoFactor)
-		r.Post("/{id}/backup-codes", h.GenerateBackupCodes)
 	})
 }
 
@@ -235,94 +232,11 @@ func (h *LoginsHandle) UpdatePassword(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(login)
 }
 
-// EnableTwoFactor handles the request to enable two-factor authentication
-func (h *LoginsHandle) EnableTwoFactor(w http.ResponseWriter, r *http.Request) {
-	// Parse login ID from URL
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid login ID", http.StatusBadRequest)
-		return
-	}
 
-	// Parse request body
-	var request struct {
-		Secret           string `json:"secret"`
-		VerificationCode string `json:"verification_code"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
 
-	// Validate request
-	if request.Secret == "" || request.VerificationCode == "" {
-		http.Error(w, "Secret and verification code are required", http.StatusBadRequest)
-		return
-	}
 
-	// TODO: Verify the verification code against the secret
-	// For now, we'll just enable 2FA without verification
 
-	// Enable 2FA
-	login, err := h.loginService.EnableTwoFactor(r.Context(), id, request.Secret)
-	if err != nil {
-		http.Error(w, "Failed to enable two-factor authentication: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
 
-	// Write response
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(login)
-}
-
-// DisableTwoFactor handles the request to disable two-factor authentication
-func (h *LoginsHandle) DisableTwoFactor(w http.ResponseWriter, r *http.Request) {
-	// Parse login ID from URL
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid login ID", http.StatusBadRequest)
-		return
-	}
-
-	// Disable 2FA
-	login, err := h.loginService.DisableTwoFactor(r.Context(), id)
-	if err != nil {
-		http.Error(w, "Failed to disable two-factor authentication: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Write response
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(login)
-}
-
-// GenerateBackupCodes handles the request to generate new backup codes
-func (h *LoginsHandle) GenerateBackupCodes(w http.ResponseWriter, r *http.Request) {
-	// Parse login ID from URL
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid login ID", http.StatusBadRequest)
-		return
-	}
-
-	// Generate backup codes
-	backupCodes, err := h.loginService.GenerateBackupCodes(r.Context(), id)
-	if err != nil {
-		http.Error(w, "Failed to generate backup codes: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Write response
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct {
-		BackupCodes []string `json:"backup_codes"`
-	}{
-		BackupCodes: backupCodes,
-	})
-}
 
 // ServerInterface implementation
 
@@ -385,16 +299,7 @@ func (h *LoginsHandle) Post(w http.ResponseWriter, r *http.Request) *Response {
 	return nil
 }
 
-// PostLoginsId2faEnable implements ServerInterface.PostLoginsId2faEnable
-func (h *LoginsHandle) PostLoginsId2faEnable(w http.ResponseWriter, r *http.Request, id string) *Response {
-	// Set the ID in the URL context
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", id)
-	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 
-	h.EnableTwoFactor(w, r)
-	return nil
-}
 
 // DeleteID implements ServerInterface.DeleteID
 func (h *LoginsHandle) DeleteID(w http.ResponseWriter, r *http.Request, id string) *Response {
@@ -429,27 +334,9 @@ func (h *LoginsHandle) PutID(w http.ResponseWriter, r *http.Request, id string) 
 	return nil
 }
 
-// PostId2faEnable implements ServerInterface.PostId2faEnable
-func (h *LoginsHandle) PostId2faEnable(w http.ResponseWriter, r *http.Request, id string) *Response {
-	// Set the ID in the URL context
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", id)
-	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 
-	h.EnableTwoFactor(w, r)
-	return nil
-}
 
-// PostIDBackupCodes implements ServerInterface.PostIDBackupCodes
-func (h *LoginsHandle) PostIDBackupCodes(w http.ResponseWriter, r *http.Request, id string) *Response {
-	// Set the ID in the URL context
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", id)
-	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 
-	h.GenerateBackupCodes(w, r)
-	return nil
-}
 
 // PutIDPassword implements ServerInterface.PutIDPassword
 func (h *LoginsHandle) PutIDPassword(w http.ResponseWriter, r *http.Request, id string) *Response {

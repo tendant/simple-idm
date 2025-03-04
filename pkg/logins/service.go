@@ -2,9 +2,7 @@ package logins
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/base64"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -127,24 +125,6 @@ func (s *LoginsService) UpdateLogin(ctx context.Context, id uuid.UUID, request L
 		}
 	}
 
-	// Handle two-factor enabled separately if needed
-	if request.TwoFactorEnabled != nil {
-		// We need to use EnableTwoFactor or DisableTwoFactor instead
-		// as UpdateLoginParams doesn't have TwoFactorEnabled field
-		if *request.TwoFactorEnabled {
-			// For enabling, we would need a secret, so we'll skip this for now
-			// and let the dedicated endpoints handle it
-		} else {
-			// We can disable two-factor auth
-			login, err := s.loginsRepo.DisableTwoFactor(ctx, id)
-			if err != nil {
-				return nil, fmt.Errorf("failed to disable two-factor authentication: %w", err)
-			}
-			result := FromDBLogin(&login)
-			return &result, nil
-		}
-	}
-
 	// Update username
 	login, err := s.loginsRepo.UpdateLogin(ctx, params)
 	if err != nil {
@@ -191,63 +171,6 @@ func (s *LoginsService) UpdatePassword(ctx context.Context, id uuid.UUID, reques
 
 	result := FromDBLogin(&login)
 	return &result, nil
-}
-
-// EnableTwoFactor enables two-factor authentication for a login
-func (s *LoginsService) EnableTwoFactor(ctx context.Context, id uuid.UUID, secret string) (*LoginModel, error) {
-	// Convert secret to pgtype.Text
-	var secretText pgtype.Text
-	secretText.String = secret
-	secretText.Valid = true
-
-	login, err := s.loginsRepo.EnableTwoFactor(ctx, loginsdb.EnableTwoFactorParams{
-		ID:              id,
-		TwoFactorSecret: secretText,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable two-factor authentication: %w", err)
-	}
-
-	result := FromDBLogin(&login)
-	return &result, nil
-}
-
-// DisableTwoFactor disables two-factor authentication for a login
-func (s *LoginsService) DisableTwoFactor(ctx context.Context, id uuid.UUID) (*LoginModel, error) {
-	login, err := s.loginsRepo.DisableTwoFactor(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to disable two-factor authentication: %w", err)
-	}
-
-	result := FromDBLogin(&login)
-	return &result, nil
-}
-
-// GenerateBackupCodes generates new backup codes for a login
-func (s *LoginsService) GenerateBackupCodes(ctx context.Context, id uuid.UUID) ([]string, error) {
-	// Generate 10 backup codes
-	backupCodes := make([]string, 10)
-	for i := 0; i < 10; i++ {
-		// Generate 10 random bytes
-		bytes := make([]byte, 10)
-		_, err := rand.Read(bytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate random bytes: %w", err)
-		}
-		// Encode as base32 and take the first 10 characters
-		backupCodes[i] = base64.StdEncoding.EncodeToString(bytes)[:10]
-	}
-
-	// Save backup codes to the database
-	_, err := s.loginsRepo.SetTwoFactorBackupCodes(ctx, loginsdb.SetTwoFactorBackupCodesParams{
-		ID:                   id,
-		TwoFactorBackupCodes: backupCodes,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to save backup codes: %w", err)
-	}
-
-	return backupCodes, nil
 }
 
 // VerifyPassword verifies a login's password

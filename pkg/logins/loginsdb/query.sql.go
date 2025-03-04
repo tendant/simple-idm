@@ -33,7 +33,7 @@ INSERT INTO login (
 ) VALUES (
   $1, $2, $3
 )
-RETURNING id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version
+RETURNING id, created_at, updated_at, deleted_at, created_by, password, username, password_version
 `
 
 type CreateLoginParams struct {
@@ -53,9 +53,6 @@ func (q *Queries) CreateLogin(ctx context.Context, arg CreateLoginParams) (Login
 		&i.CreatedBy,
 		&i.Password,
 		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
 		&i.PasswordVersion,
 	)
 	return i, err
@@ -73,70 +70,8 @@ func (q *Queries) DeleteLogin(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const disableTwoFactor = `-- name: DisableTwoFactor :one
-UPDATE login
-SET 
-  two_factor_enabled = false,
-  updated_at = (now() AT TIME ZONE 'utc')
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version
-`
-
-func (q *Queries) DisableTwoFactor(ctx context.Context, id uuid.UUID) (Login, error) {
-	row := q.db.QueryRow(ctx, disableTwoFactor, id)
-	var i Login
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.CreatedBy,
-		&i.Password,
-		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
-		&i.PasswordVersion,
-	)
-	return i, err
-}
-
-const enableTwoFactor = `-- name: EnableTwoFactor :one
-UPDATE login
-SET 
-  two_factor_secret = $2,
-  two_factor_enabled = true,
-  updated_at = (now() AT TIME ZONE 'utc')
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version
-`
-
-type EnableTwoFactorParams struct {
-	ID              uuid.UUID   `json:"id"`
-	TwoFactorSecret pgtype.Text `json:"two_factor_secret"`
-}
-
-func (q *Queries) EnableTwoFactor(ctx context.Context, arg EnableTwoFactorParams) (Login, error) {
-	row := q.db.QueryRow(ctx, enableTwoFactor, arg.ID, arg.TwoFactorSecret)
-	var i Login
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.CreatedBy,
-		&i.Password,
-		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
-		&i.PasswordVersion,
-	)
-	return i, err
-}
-
 const getLogin = `-- name: GetLogin :one
-SELECT id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version FROM login
+SELECT id, created_at, updated_at, deleted_at, created_by, password, username, password_version FROM login
 WHERE id = $1 AND deleted_at IS NULL LIMIT 1
 `
 
@@ -151,16 +86,13 @@ func (q *Queries) GetLogin(ctx context.Context, id uuid.UUID) (Login, error) {
 		&i.CreatedBy,
 		&i.Password,
 		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
 		&i.PasswordVersion,
 	)
 	return i, err
 }
 
 const getLoginByUsername = `-- name: GetLoginByUsername :one
-SELECT id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version FROM login
+SELECT id, created_at, updated_at, deleted_at, created_by, password, username, password_version FROM login
 WHERE username = $1 AND deleted_at IS NULL LIMIT 1
 `
 
@@ -175,16 +107,13 @@ func (q *Queries) GetLoginByUsername(ctx context.Context, username sql.NullStrin
 		&i.CreatedBy,
 		&i.Password,
 		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
 		&i.PasswordVersion,
 	)
 	return i, err
 }
 
 const listLogins = `-- name: ListLogins :many
-SELECT id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version FROM login
+SELECT id, created_at, updated_at, deleted_at, created_by, password, username, password_version FROM login
 WHERE deleted_at IS NULL
 ORDER BY username
 LIMIT $1 OFFSET $2
@@ -212,9 +141,6 @@ func (q *Queries) ListLogins(ctx context.Context, arg ListLoginsParams) ([]Login
 			&i.CreatedBy,
 			&i.Password,
 			&i.Username,
-			&i.TwoFactorSecret,
-			&i.TwoFactorEnabled,
-			&i.TwoFactorBackupCodes,
 			&i.PasswordVersion,
 		); err != nil {
 			return nil, err
@@ -228,7 +154,7 @@ func (q *Queries) ListLogins(ctx context.Context, arg ListLoginsParams) ([]Login
 }
 
 const searchLogins = `-- name: SearchLogins :many
-SELECT id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version FROM login
+SELECT id, created_at, updated_at, deleted_at, created_by, password, username, password_version FROM login
 WHERE 
   deleted_at IS NULL AND
   username ILIKE '%' || $1 || '%'
@@ -259,9 +185,6 @@ func (q *Queries) SearchLogins(ctx context.Context, arg SearchLoginsParams) ([]L
 			&i.CreatedBy,
 			&i.Password,
 			&i.Username,
-			&i.TwoFactorSecret,
-			&i.TwoFactorEnabled,
-			&i.TwoFactorBackupCodes,
 			&i.PasswordVersion,
 		); err != nil {
 			return nil, err
@@ -274,46 +197,13 @@ func (q *Queries) SearchLogins(ctx context.Context, arg SearchLoginsParams) ([]L
 	return items, nil
 }
 
-const setTwoFactorBackupCodes = `-- name: SetTwoFactorBackupCodes :one
-UPDATE login
-SET 
-  two_factor_backup_codes = $2,
-  updated_at = (now() AT TIME ZONE 'utc')
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version
-`
-
-type SetTwoFactorBackupCodesParams struct {
-	ID                   uuid.UUID `json:"id"`
-	TwoFactorBackupCodes []string  `json:"two_factor_backup_codes"`
-}
-
-func (q *Queries) SetTwoFactorBackupCodes(ctx context.Context, arg SetTwoFactorBackupCodesParams) (Login, error) {
-	row := q.db.QueryRow(ctx, setTwoFactorBackupCodes, arg.ID, arg.TwoFactorBackupCodes)
-	var i Login
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.CreatedBy,
-		&i.Password,
-		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
-		&i.PasswordVersion,
-	)
-	return i, err
-}
-
 const updateLogin = `-- name: UpdateLogin :one
 UPDATE login
 SET 
   username = $2,
   updated_at = (now() AT TIME ZONE 'utc')
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version
+RETURNING id, created_at, updated_at, deleted_at, created_by, password, username, password_version
 `
 
 type UpdateLoginParams struct {
@@ -332,9 +222,6 @@ func (q *Queries) UpdateLogin(ctx context.Context, arg UpdateLoginParams) (Login
 		&i.CreatedBy,
 		&i.Password,
 		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
 		&i.PasswordVersion,
 	)
 	return i, err
@@ -347,7 +234,7 @@ SET
   password_version = password_version + 1,
   updated_at = (now() AT TIME ZONE 'utc')
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, created_at, updated_at, deleted_at, created_by, password, username, two_factor_secret, two_factor_enabled, two_factor_backup_codes, password_version
+RETURNING id, created_at, updated_at, deleted_at, created_by, password, username, password_version
 `
 
 type UpdateLoginPasswordParams struct {
@@ -366,9 +253,6 @@ func (q *Queries) UpdateLoginPassword(ctx context.Context, arg UpdateLoginPasswo
 		&i.CreatedBy,
 		&i.Password,
 		&i.Username,
-		&i.TwoFactorSecret,
-		&i.TwoFactorEnabled,
-		&i.TwoFactorBackupCodes,
 		&i.PasswordVersion,
 	)
 	return i, err

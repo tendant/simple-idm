@@ -45,31 +45,6 @@ SET
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
--- name: EnableTwoFactor :one
-UPDATE login
-SET 
-  two_factor_secret = $2,
-  two_factor_enabled = true,
-  updated_at = (now() AT TIME ZONE 'utc')
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING *;
-
--- name: DisableTwoFactor :one
-UPDATE login
-SET 
-  two_factor_enabled = false,
-  updated_at = (now() AT TIME ZONE 'utc')
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING *;
-
--- name: SetTwoFactorBackupCodes :one
-UPDATE login
-SET 
-  two_factor_backup_codes = $2,
-  updated_at = (now() AT TIME ZONE 'utc')
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING *;
-
 -- name: CountLogins :one
 SELECT COUNT(*) FROM login
 WHERE deleted_at IS NULL;

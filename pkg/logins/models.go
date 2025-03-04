@@ -14,7 +14,6 @@ type LoginModel struct {
 	UpdatedAt        time.Time  `json:"updated_at"`
 	DeletedAt        *time.Time `json:"deleted_at,omitempty"`
 	CreatedBy        string     `json:"created_by,omitempty"`
-	TwoFactorEnabled bool       `json:"two_factor_enabled"`
 	PasswordVersion  int        `json:"password_version,omitempty"`
 }
 
@@ -32,8 +31,7 @@ type LoginCreateRequest struct {
 
 // LoginUpdateRequest represents the request to update a login
 type LoginUpdateRequest struct {
-	Username         *string `json:"username,omitempty"`
-	TwoFactorEnabled *bool   `json:"two_factor_enabled,omitempty"`
+	Username *string `json:"username,omitempty"`
 }
 
 // PasswordUpdateRequest represents the request to update a password
@@ -74,9 +72,7 @@ func FromDBLogin(dbLogin *loginsdb.Login) LoginModel {
 		login.DeletedAt = &deletedAt
 	}
 
-	if dbLogin.TwoFactorEnabled.Valid {
-		login.TwoFactorEnabled = dbLogin.TwoFactorEnabled.Bool
-	}
+
 
 	if dbLogin.PasswordVersion.Valid {
 		login.PasswordVersion = int(dbLogin.PasswordVersion.Int32)
