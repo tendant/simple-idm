@@ -84,7 +84,7 @@ func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 			ID *string `json:"id,omitempty"`
 		}{
 			Email:    &user.Email,
-			Username: &user.Username.String,
+			// Username field removed as it doesn't exist in the struct
 			Name:     namePtr,
 			Roles:    roles,
 			ID:       &idStr,
@@ -126,10 +126,11 @@ func (h Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 	if !user.Name.Valid {
 		namePtr = nil
 	}
-	usernamePtr := &user.Username.String
-	if !user.Username.Valid {
-		usernamePtr = nil
-	}
+	// Username field removed as it doesn't exist in the struct
+	// usernamePtr := &user.Username.String
+	// if !user.Username.Valid {
+	// 	usernamePtr = nil
+	// }
 
 	response := struct {
 		Email    *string `json:"email,omitempty"`
@@ -142,7 +143,7 @@ func (h Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 		ID *string `json:"id,omitempty"`
 	}{
 		Email:    &user.Email,
-		Username: usernamePtr,
+		// Username field removed as it doesn't exist in the struct
 		Name:     namePtr,
 		ID:       &idStr,
 	}
@@ -190,10 +191,11 @@ func (h Handle) GetID(w http.ResponseWriter, r *http.Request, id string) *Respon
 	if !user.Name.Valid {
 		namePtr = nil
 	}
-	usernamePtr := &user.Username.String
-	if !user.Username.Valid {
-		usernamePtr = nil
-	}
+	// Username field removed as it doesn't exist in the struct
+	// usernamePtr := &user.Username.String
+	// if !user.Username.Valid {
+	// 	usernamePtr = nil
+	// }
 	responseUser := struct {
 		Email    *string `json:"email,omitempty"`
 		Username *string `json:"username,omitempty"`
@@ -205,7 +207,7 @@ func (h Handle) GetID(w http.ResponseWriter, r *http.Request, id string) *Respon
 		ID *string `json:"id,omitempty"`
 	}{
 		Email:    &user.Email,
-		Username: usernamePtr,
+		// Username field removed as it doesn't exist in the struct
 		Name:     namePtr,
 		ID:       &idStr,
 	}
@@ -266,10 +268,11 @@ func (h Handle) PutID(w http.ResponseWriter, r *http.Request, id string) *Respon
 	if !user.Name.Valid {
 		namePtr = nil
 	}
-	usernamePtr := &user.Username.String
-	if !user.Username.Valid {
-		usernamePtr = nil
-	}
+	// Username field removed as it doesn't exist in the struct
+	// usernamePtr := &user.Username.String
+	// if !user.Username.Valid {
+	// 	usernamePtr = nil
+	// }
 	responseUser := struct {
 		Email    *string `json:"email,omitempty"`
 		Username *string `json:"username,omitempty"`
@@ -281,7 +284,7 @@ func (h Handle) PutID(w http.ResponseWriter, r *http.Request, id string) *Respon
 		ID *string `json:"id,omitempty"`
 	}{
 		Email:    &user.Email,
-		Username: usernamePtr,
+		// Username field removed as it doesn't exist in the struct
 		Name:     namePtr,
 		ID:       &idStrPtr,
 	}

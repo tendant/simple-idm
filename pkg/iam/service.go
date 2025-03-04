@@ -31,10 +31,10 @@ func (s *IamService) CreateUser(ctx context.Context, email, username, name strin
 
 	// Create the user first
 	nullString := sql.NullString{String: name, Valid: name != ""}
+	// Note: Username field is removed as it doesn't exist in the struct
 	user, err := s.queries.CreateUser(ctx, iamdb.CreateUserParams{
-		Email:    email,
-		Username: sql.NullString{String: username, Valid: true},
-		Name:     nullString,
+		Email: email,
+		Name:  nullString,
 	})
 	if err != nil {
 		return iamdb.GetUserWithRolesRow{}, fmt.Errorf("failed to create user: %w", err)
