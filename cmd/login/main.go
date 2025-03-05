@@ -220,7 +220,7 @@ func main() {
 		loginsQueries := loginsdb.New(pool)
 		loginsService := logins.NewLoginsService(loginsQueries)
 		loginsHandle := logins.NewHandle(loginsService)
-		r.Mount("/idm/logins", logins.Handler(loginsHandle))
+		r.Mount("/idm/logins", logins.SecureHandler(loginsHandle))
 
 		// Initialize impersonate service and routes
 		impersonateService := impersonate.NewImpersonateService(impersonateQueries)
