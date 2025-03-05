@@ -85,7 +85,15 @@ export const userApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
     const response = await apiClient.post('/auth/login', credentials, { skipAuth: true });
 
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       const errorText = await response.text();
       throw new Error(errorText || 'Login failed');
     }
@@ -96,7 +104,15 @@ export const userApi = {
   listUsers: async (): Promise<User[]> => {
     const response = await apiClient.get('/idm/users');
 
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       throw new Error('Failed to fetch users');
     }
 
@@ -106,7 +122,15 @@ export const userApi = {
   getUser: async (id: string): Promise<User> => {
     const response = await apiClient.get(`/idm/users/${id}`);
 
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       throw new Error('Failed to fetch user');
     }
 
@@ -122,7 +146,15 @@ export const userApi = {
     
     const response = await apiClient.post('/idm/users', payload);
 
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       const errorData = await response.json().catch(() => null);
       if (errorData && errorData.message) {
         throw new Error(errorData.message);
@@ -136,7 +168,15 @@ export const userApi = {
   updateUser: async (id: string, user: UpdateUserRequest): Promise<User> => {
     const response = await apiClient.put(`/idm/users/${id}`, user);
 
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       throw new Error('Failed to update user');
     }
 
@@ -146,7 +186,15 @@ export const userApi = {
   deleteUser: async (id: string): Promise<void> => {
     const response = await apiClient.delete(`/idm/users/${id}`);
 
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       throw new Error('Failed to delete user');
     }
   },
@@ -154,7 +202,15 @@ export const userApi = {
   findUsername: async (email: string): Promise<void> => {
     const response = await apiClient.post('/auth/find-username', { email }, { skipAuth: true });
 
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       const errorData = await response.json().catch(() => null);
       throw new Error(errorData?.message || 'Failed to find username');
     }
@@ -171,7 +227,15 @@ export const userApi = {
       skipAuth: !!token // Skip default auth if we're providing a token
     });
 
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       const errorData = await response.json().catch(() => null);
       throw new Error(errorData?.message || 'Failed to switch user');
     }

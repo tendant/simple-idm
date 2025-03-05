@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 const PasswordResetInit: Component = () => {
   const [username, setUsername] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
+  const [permissionError, setPermissionError] = createSignal<boolean>(false);
   const [success, setSuccess] = createSignal(false);
   const [loading, setLoading] = createSignal(false);
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ const PasswordResetInit: Component = () => {
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
     setError(null);
+    setPermissionError(false);
     setLoading(true);
     
     try {
@@ -26,6 +28,13 @@ const PasswordResetInit: Component = () => {
         },
         body: JSON.stringify({ username: username() }),
       });
+
+      // Check for permission error (403)
+      if (response.status === 403) {
+        setPermissionError(true);
+        setLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         const data = await response.text();
@@ -55,6 +64,22 @@ const PasswordResetInit: Component = () => {
                   <AlertTitle>Check Your Email</AlertTitle>
                   <AlertDescription>
                     If an account exists with that username, we have sent password reset instructions.
+                  </AlertDescription>
+                </Alert>
+                <Button 
+                  type="button"
+                  onClick={() => navigate('/login')}
+                  class="w-full"
+                >
+                  Back to Login
+                </Button>
+              </div>
+            ) : permissionError() ? (
+              <div class="space-y-4">
+                <Alert>
+                  <AlertTitle>No Permission</AlertTitle>
+                  <AlertDescription>
+                    You do not have permission to perform this action.
                   </AlertDescription>
                 </Alert>
                 <Button 

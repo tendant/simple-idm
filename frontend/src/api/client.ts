@@ -61,6 +61,24 @@ async function fetchWithAuth(url: string, config: RequestConfig = {}): Promise<R
     credentials: 'include',
   });
 
+  // If 403, return a custom response with "No permission" message
+  if (response.status === 403) {
+    // Create a modified response with our custom error message
+    const modifiedResponse = new Response(JSON.stringify({ message: 'No permission' }), {
+      status: 403,
+      statusText: 'Forbidden',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    // Add a custom property to identify this as our permission error response
+    // This will be used to show a regular box instead of an error
+    Object.defineProperty(modifiedResponse, 'isPermissionError', { value: true });
+    
+    return modifiedResponse;
+  }
+
   // If not 401, return the response
   if (response.status !== 401) {
     return response;
@@ -75,6 +93,23 @@ async function fetchWithAuth(url: string, config: RequestConfig = {}): Promise<R
       ...config,
       credentials: 'include',
     });
+
+    // Also handle 403 for the retry response
+    if (retryResponse.status === 403) {
+      // Create a modified response with our custom error message
+      const modifiedResponse = new Response(JSON.stringify({ message: 'No permission' }), {
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      // Add a custom property to identify this as our permission error response
+      Object.defineProperty(modifiedResponse, 'isPermissionError', { value: true });
+      
+      return modifiedResponse;
+    }
 
     return retryResponse;
   } catch (error) {

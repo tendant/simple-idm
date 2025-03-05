@@ -7,6 +7,7 @@ const Users: Component = () => {
   const navigate = useNavigate();
   const [users, setUsers] = createSignal<User[]>([]);
   const [error, setError] = createSignal<string | null>(null);
+  const [permissionError, setPermissionError] = createSignal<boolean>(false);
   const [loading, setLoading] = createSignal(true);
 
   const fetchUsers = async () => {
@@ -14,7 +15,11 @@ const Users: Component = () => {
       const data = await userApi.listUsers();
       setUsers(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch users');
+      if (err instanceof Error && err.message === 'No permission') {
+        setPermissionError(true);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to fetch users');
+      }
     } finally {
       setLoading(false);
     }
@@ -27,7 +32,11 @@ const Users: Component = () => {
       await userApi.deleteUser(uuid);
       setUsers(users().filter(user => user.uuid !== uuid));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete user');
+      if (err instanceof Error && err.message === 'No permission') {
+        setPermissionError(true);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to delete user');
+      }
     }
   };
 
@@ -55,6 +64,21 @@ const Users: Component = () => {
         </div>
       </div>
 
+      <Show when={permissionError()}>
+        <div class="mt-4 bg-blue-50 p-4 rounded-lg">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-blue-800">No permission</h3>
+            </div>
+          </div>
+        </div>
+      </Show>
+
       <Show when={error()}>
         <div class="mt-4 bg-red-50 p-4 rounded-lg">
           <div class="flex">
@@ -70,93 +94,95 @@ const Users: Component = () => {
         </div>
       </Show>
 
-      <div class="mt-8 flex flex-col">
-        <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
-              <table class="min-w-full divide-y divide-gray-6">
-                <thead>
-                  <tr>
-                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-11 sm:pl-6">
-                      Name
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
-                      Username
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
-                      Email
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
-                      Roles
-                    </th>
-                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span class="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-6">
-                  <Show when={!loading()} fallback={<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>}>
-                    {users().map((user) => (
-                      <tr key={user.id}>
-                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
-                          {user.name || '-'}
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          {user.username ? (
-                            <a 
-                              href="#" 
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (user.login_id) {
-                                  navigate(`/logins/${user.login_id}/detail`);
-                                }
-                              }}
-                              class={user.login_id ? "text-blue-600 hover:text-blue-800 hover:underline" : "text-gray-11"}
-                            >
-                              {user.username}
-                            </a>
-                          ) : (
-                            '-'
-                          )}
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          {user.email}
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          <div class="flex flex-wrap gap-1">
-                            {user.roles?.map((role) => (
-                              <span
-                                key={role.id}
-                                class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20"
+      <Show when={!permissionError()}>
+        <div class="mt-8 flex flex-col">
+          <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+            <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+              <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+                <table class="min-w-full divide-y divide-gray-6">
+                  <thead>
+                    <tr>
+                      <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-11 sm:pl-6">
+                        Name
+                      </th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                        Username
+                      </th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                        Email
+                      </th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                        Roles
+                      </th>
+                      <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                        <span class="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-6">
+                    <Show when={!loading()} fallback={<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>}>
+                      {users().map((user) => (
+                        <tr key={user.id}>
+                          <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
+                            {user.name || '-'}
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                            {user.username ? (
+                              <a 
+                                href="#" 
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (user.login_id) {
+                                    navigate(`/logins/${user.login_id}/detail`);
+                                  }
+                                }}
+                                class={user.login_id ? "text-blue-600 hover:text-blue-800 hover:underline" : "text-gray-11"}
                               >
-                                {role.name}
-                              </span>
-                            )) || '-'}
-                          </div>
-                        </td>
-                        <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                          <button
-                            onClick={() => navigate(`/users/${user.id}/edit`)}
-                            class="text-blue-600 hover:text-blue-900 mr-4"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(user.id!)}
-                            class="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </Show>
-                </tbody>
-              </table>
+                                {user.username}
+                              </a>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                            {user.email}
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                            <div class="flex flex-wrap gap-1">
+                              {user.roles?.map((role) => (
+                                <span
+                                  key={role.id}
+                                  class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20"
+                                >
+                                  {role.name}
+                                </span>
+                              )) || '-'}
+                            </div>
+                          </td>
+                          <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                            <button
+                              onClick={() => navigate(`/users/${user.id}/edit`)}
+                              class="text-blue-600 hover:text-blue-900 mr-4"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(user.id!)}
+                              class="text-red-600 hover:text-red-900"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </Show>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Show>
     </div>
   );
 };

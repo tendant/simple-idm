@@ -25,7 +25,17 @@ export interface RoleUser {
 export const roleApi = {
   listRoles: async (): Promise<Role[]> => {
     const response = await apiClient.get('/idm/roles');
+    
+    // Check for permission error
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+    
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       throw new Error('Failed to fetch roles');
     }
     const roles = await response.json();
@@ -43,7 +53,16 @@ export const roleApi = {
     console.log('Response status:', response.status);
     console.log('Response headers:', Object.fromEntries(response.headers.entries()));
     
+    // Check for permission error
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+    
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       console.error('Failed to fetch role:', response.status, response.statusText);
       throw new Error('Failed to fetch role');
     }
@@ -60,7 +79,17 @@ export const roleApi = {
 
   getRoleUsers: async (id: string): Promise<RoleUser[]> => {
     const response = await apiClient.get(`/idm/roles/${id}/users`);
+    
+    // Check for permission error
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+    
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       throw new Error('Failed to fetch role users');
     }
     return response.json();
@@ -68,8 +97,17 @@ export const roleApi = {
 
   createRole: async (role: CreateRoleRequest): Promise<Role> => {
     const response = await apiClient.post('/idm/roles', role);
-
+    
+    // Check for permission error
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+    
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       throw new Error('Failed to create role');
     }
     return response.json();
@@ -80,10 +118,19 @@ export const roleApi = {
     console.log('API: Update payload:', JSON.stringify(role));
     
     const response = await apiClient.put(`/idm/roles/${id}`, role);
-
+    
+    // Check for permission error
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+    
     console.log('API: Update response status:', response.status);
     
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       const errorText = await response.text();
       console.error('API: Failed to update role:', errorText);
       throw new Error(`Failed to update role: ${errorText}`);
@@ -101,15 +148,34 @@ export const roleApi = {
 
   deleteRole: async (id: string): Promise<void> => {
     const response = await apiClient.delete(`/idm/roles/${id}`);
-
+    
+    // Check for permission error
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+    
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       throw new Error('Failed to delete role');
     }
   },
 
   removeUserFromRole: async (roleId: string, userId: string): Promise<void> => {
     const response = await apiClient.delete(`/idm/roles/${roleId}/users/${userId}`);
+    
+    // Check for permission error
+    if ((response as any).isPermissionError) {
+      throw new Error('No permission');
+    }
+    
     if (!response.ok) {
+      if (response.status === 403) {
+        const data = await response.json();
+        throw new Error(data.message || 'No permission');
+      }
       throw new Error('Failed to remove user from role');
     }
   },
