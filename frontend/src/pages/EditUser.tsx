@@ -43,6 +43,12 @@ const EditUser: Component = () => {
     navigate('/users');
   };
 
+  const viewLoginDetails = () => {
+    if (user()?.login_id) {
+      navigate(`/logins/${user()?.login_id}/detail`);
+    }
+  };
+
   return (
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       <div class="md:flex md:items-center md:justify-between">
@@ -52,6 +58,15 @@ const EditUser: Component = () => {
           </h2>
         </div>
         <div class="mt-4 flex md:mt-0 md:ml-4">
+          <Show when={user()?.login_id}>
+            <button
+              type="button"
+              onClick={viewLoginDetails}
+              class="inline-flex items-center rounded-lg border border-gray-7 bg-white px-4 py-2 text-sm font-medium text-blue-600 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 mr-2"
+            >
+              View Login Details
+            </button>
+          </Show>
           <button
             type="button"
             onClick={() => navigate('/users')}

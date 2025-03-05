@@ -209,8 +209,11 @@ const UserForm: Component<Props> = (props) => {
               <option value="">None</option>
               <For each={logins()}>
                 {(login) => (
-                  <option value={login.id}>
-                    {login.username} ({login.email || 'No email'})
+                  <option 
+                    value={login.id}
+                    selected={login.id === props.initialData?.login_id}
+                  >
+                    {login.username} {login.id === props.initialData?.login_id ? '(Current)' : ''}
                   </option>
                 )}
               </For>

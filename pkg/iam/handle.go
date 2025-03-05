@@ -215,12 +215,14 @@ func (h Handle) GetID(w http.ResponseWriter, r *http.Request, id string) *Respon
 			Name *string `json:"name,omitempty"`
 			ID   *string `json:"id,omitempty"`
 		} `json:"roles,omitempty"`
-		ID *string `json:"id,omitempty"`
+		ID      *string `json:"id,omitempty"`
+		LoginID string  `json:"login_id,omitempty"`
 	}{
 		Email:    &user.Email,
 		Username: &user.Username.String,
 		Name:     namePtr,
 		ID:       &idStr,
+		LoginID:  user.LoginID.UUID.String(),
 	}
 
 	// Unmarshal roles from []byte

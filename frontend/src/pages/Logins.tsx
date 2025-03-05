@@ -80,9 +80,6 @@ const Logins: Component = () => {
                       Username
                     </th>
                     <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
-                      Email
-                    </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
                       2FA Enabled
                     </th>
                     <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
@@ -97,10 +94,10 @@ const Logins: Component = () => {
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-6">
-                  <Show when={!loading()} fallback={<tr><td colspan="6" class="text-center py-4">Loading...</td></tr>}>
+                  <Show when={!loading()} fallback={<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>}>
                     {logins().length === 0 ? (
                       <tr>
-                        <td colspan="6" class="text-center py-4 text-sm text-gray-9">No logins found</td>
+                        <td colspan="5" class="text-center py-4 text-sm text-gray-9">No logins found</td>
                       </tr>
                     ) : (
                       logins().map((login) => (
@@ -116,9 +113,6 @@ const Logins: Component = () => {
                             >
                               {login.username}
                             </a>
-                          </td>
-                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                            {login.email || '-'}
                           </td>
                           <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
                             {login.two_factor_enabled ? (
