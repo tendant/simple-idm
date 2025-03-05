@@ -128,51 +128,53 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(r.Context(), loginID)
-	if err != nil {
-		slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
-		return &Response{
-			body: "Failed to find enabled 2FA",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	var twoFactorMethods []TwoFactorMethod
-	if len(enabledTwoFAs) > 0 {
-		// TODO: set cookies only with login id
-		slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
-
-		// If email 2FA is enabled, get unique emails from users
-		for _, method := range enabledTwoFAs {
-			curMethod := TwoFactorMethod{
-				Type: method,
-			}
-			switch method {
-			case twofa.TWO_FACTOR_TYPE_EMAIL:
-				options := getUniqueEmailsFromUsers(idmUsers)
-				curMethod.DeliveryOptions = options
-			default:
-				curMethod.DeliveryOptions = []DeliveryOption{}
-			}
-			twoFactorMethods = append(twoFactorMethods, curMethod)
-		}
-
-		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+	if h.twoFactorService != nil {
+		enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(r.Context(), loginID)
 		if err != nil {
-			slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
+			slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
+			return &Response{
+				body: "Failed to find enabled 2FA",
+				Code: http.StatusInternalServerError,
+			}
 		}
 
-		h.setTokenCookie(w, REFRESH_TOKEN_NAME, tempToken.Token, tempToken.Expiry)
-		twoFARequiredResp := TwoFactorRequiredResponse{
-			TempToken:        tempToken.Token,
-			TwoFactorMethods: twoFactorMethods,
-			Status:           "2fa_required",
-			Message:          "2FA verification required",
-		}
+		var twoFactorMethods []TwoFactorMethod
+		if len(enabledTwoFAs) > 0 {
+			// TODO: set cookies only with login id
+			slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
 
-		return PostLoginJSON202Response(twoFARequiredResp)
-	} else {
-		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginID)
+			// If email 2FA is enabled, get unique emails from users
+			for _, method := range enabledTwoFAs {
+				curMethod := TwoFactorMethod{
+					Type: method,
+				}
+				switch method {
+				case twofa.TWO_FACTOR_TYPE_EMAIL:
+					options := getUniqueEmailsFromUsers(idmUsers)
+					curMethod.DeliveryOptions = options
+				default:
+					curMethod.DeliveryOptions = []DeliveryOption{}
+				}
+				twoFactorMethods = append(twoFactorMethods, curMethod)
+			}
+
+			tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+			if err != nil {
+				slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
+			}
+
+			h.setTokenCookie(w, REFRESH_TOKEN_NAME, tempToken.Token, tempToken.Expiry)
+			twoFARequiredResp := TwoFactorRequiredResponse{
+				TempToken:        tempToken.Token,
+				TwoFactorMethods: twoFactorMethods,
+				Status:           "2fa_required",
+				Message:          "2FA verification required",
+			}
+
+			return PostLoginJSON202Response(twoFARequiredResp)
+		} else {
+			slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginID)
+		}
 	}
 
 	if len(idmUsers) > 1 {
