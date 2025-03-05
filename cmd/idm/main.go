@@ -10,6 +10,8 @@ import (
 	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/twofa"
+	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 	"golang.org/x/exp/slog"
 )
 
@@ -72,8 +74,12 @@ func main() {
 
 	// Initialize login service with email
 	loginQueries := logindb.New(pool)
+	twofaQueries := twofadb.New(pool)
 	loginService := login.NewLoginService(loginQueries, nil, nil, nil, nil)
-	loginHandler := login.NewHandle(loginService, *jwtService)
+
+	twoFaService := twofa.NewTwoFaService(twofaQueries, nil)
+
+	loginHandler := login.NewHandle(loginService, *jwtService, login.WithTwoFactorService(twoFaService))
 	myApp.R.Mount("/auth", login.Handler(loginHandler))
 
 	myApp.Run()
