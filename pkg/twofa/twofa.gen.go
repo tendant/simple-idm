@@ -15,7 +15,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/discord-gophers/goapi-gen/runtime"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -41,6 +40,42 @@ type User struct {
 	Name  string `json:"name"`
 }
 
+// Delete2faJSONBody defines parameters for Delete2fa.
+type Delete2faJSONBody struct {
+	LoginID   string                     `json:"login_id"`
+	TwofaType Delete2faJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Delete2faJSONBodyTwofaType defines parameters for Delete2fa.
+type Delete2faJSONBodyTwofaType string
+
+// Post2faCreateJSONBody defines parameters for Post2faCreate.
+type Post2faCreateJSONBody struct {
+	LoginID   string                         `json:"login_id"`
+	TwofaType Post2faCreateJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Post2faCreateJSONBodyTwofaType defines parameters for Post2faCreate.
+type Post2faCreateJSONBodyTwofaType string
+
+// Post2faDisableJSONBody defines parameters for Post2faDisable.
+type Post2faDisableJSONBody struct {
+	LoginID   string                          `json:"login_id"`
+	TwofaType Post2faDisableJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Post2faDisableJSONBodyTwofaType defines parameters for Post2faDisable.
+type Post2faDisableJSONBodyTwofaType string
+
+// Post2faEnableJSONBody defines parameters for Post2faEnable.
+type Post2faEnableJSONBody struct {
+	LoginID   string                         `json:"login_id"`
+	TwofaType Post2faEnableJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Post2faEnableJSONBodyTwofaType defines parameters for Post2faEnable.
+type Post2faEnableJSONBodyTwofaType string
+
 // Post2faSendJSONBody defines parameters for Post2faSend.
 type Post2faSendJSONBody struct {
 	DeliveryOption string `json:"delivery_option"`
@@ -51,6 +86,38 @@ type Post2faSendJSONBody struct {
 type Post2faValidateJSONBody struct {
 	Passcode  string `json:"passcode"`
 	TwofaType string `json:"twofa_type"`
+}
+
+// Delete2faJSONRequestBody defines body for Delete2fa for application/json ContentType.
+type Delete2faJSONRequestBody Delete2faJSONBody
+
+// Bind implements render.Binder.
+func (Delete2faJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faCreateJSONRequestBody defines body for Post2faCreate for application/json ContentType.
+type Post2faCreateJSONRequestBody Post2faCreateJSONBody
+
+// Bind implements render.Binder.
+func (Post2faCreateJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faDisableJSONRequestBody defines body for Post2faDisable for application/json ContentType.
+type Post2faDisableJSONRequestBody Post2faDisableJSONBody
+
+// Bind implements render.Binder.
+func (Post2faDisableJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faEnableJSONRequestBody defines body for Post2faEnable for application/json ContentType.
+type Post2faEnableJSONRequestBody Post2faEnableJSONBody
+
+// Bind implements render.Binder.
+func (Post2faEnableJSONRequestBody) Bind(*http.Request) error {
+	return nil
 }
 
 // Post2faSendJSONRequestBody defines body for Post2faSend for application/json ContentType.
@@ -110,6 +177,46 @@ func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	return e.Encode(resp.body)
 }
 
+// Delete2faJSON200Response is a constructor method for a Delete2fa response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Delete2faJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// Post2faCreateJSON201Response is a constructor method for a Post2faCreate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faCreateJSON201Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        201,
+		contentType: "application/json",
+	}
+}
+
+// Post2faDisableJSON200Response is a constructor method for a Post2faDisable response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faDisableJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// Post2faEnableJSON200Response is a constructor method for a Post2faEnable response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faEnableJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // Post2faSendJSON200Response is a constructor method for a Post2faSend response.
 // A *Response is returned with the configured status code and content type from the spec.
 func Post2faSendJSON200Response(body SuccessResponse) *Response {
@@ -140,35 +247,104 @@ func Post2faValidateJSON202Response(body SelectUserRequiredResponse) *Response {
 	}
 }
 
-// Get2faEnabledJSON200Response is a constructor method for a Get2faEnabled response.
-// A *Response is returned with the configured status code and content type from the spec.
-func Get2faEnabledJSON200Response(body struct {
-	N2faMethods []string `json:"2fa_methods,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// Delete a 2FA method
+	// (DELETE /)
+	Delete2fa(w http.ResponseWriter, r *http.Request) *Response
+	// Create a new 2FA method
+	// (POST /)
+	Post2faCreate(w http.ResponseWriter, r *http.Request) *Response
+	// Disable an existing 2FA method
+	// (POST /disable)
+	Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
+	// Enable an existing 2FA method
+	// (POST /enable)
+	Post2faEnable(w http.ResponseWriter, r *http.Request) *Response
 	// Initiate sending 2fa code
 	// (POST /send)
 	Post2faSend(w http.ResponseWriter, r *http.Request) *Response
 	// Authenticate 2fa passcode
 	// (POST /validate)
 	Post2faValidate(w http.ResponseWriter, r *http.Request) *Response
-	// Get all enabled 2fas
-	// (GET /{login_id}/2fa/enabled)
-	Get2faEnabled(w http.ResponseWriter, r *http.Request, loginID string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler          ServerInterface
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// Delete2fa operation middleware
+func (siw *ServerInterfaceWrapper) Delete2fa(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Delete2fa(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post2faCreate operation middleware
+func (siw *ServerInterfaceWrapper) Post2faCreate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faCreate(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post2faDisable operation middleware
+func (siw *ServerInterfaceWrapper) Post2faDisable(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faDisable(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post2faEnable operation middleware
+func (siw *ServerInterfaceWrapper) Post2faEnable(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faEnable(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
 }
 
 // Post2faSend operation middleware
@@ -195,32 +371,6 @@ func (siw *ServerInterfaceWrapper) Post2faValidate(w http.ResponseWriter, r *htt
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Post2faValidate(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
-// Get2faEnabled operation middleware
-func (siw *ServerInterfaceWrapper) Get2faEnabled(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// ------------- Path parameter "login_id" -------------
-	var loginID string
-
-	if err := runtime.BindStyledParameter("simple", false, "login_id", chi.URLParam(r, "login_id"), &loginID); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "login_id"})
-		return
-	}
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.Get2faEnabled(w, r, loginID)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -348,9 +498,12 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
+		r.Delete("/", wrapper.Delete2fa)
+		r.Post("/", wrapper.Post2faCreate)
+		r.Post("/disable", wrapper.Post2faDisable)
+		r.Post("/enable", wrapper.Post2faEnable)
 		r.Post("/send", wrapper.Post2faSend)
 		r.Post("/validate", wrapper.Post2faValidate)
-		r.Get("/{login_id}/2fa/enabled", wrapper.Get2faEnabled)
 	})
 	return r
 }
@@ -376,17 +529,20 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"AAD//+4dyYwmEQAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

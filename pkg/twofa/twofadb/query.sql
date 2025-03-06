@@ -34,6 +34,12 @@ WHERE login_id = $1
 AND two_factor_type = $2
 AND deleted_at IS NULL;
 
+-- name: FindTwoFAsByLoginId :many
+SELECT id, login_id, two_factor_type, two_factor_enabled, created_at, updated_at
+FROM login_2fa
+WHERE login_id = $1
+AND deleted_at IS NULL;
+
 -- name: FindEnabledTwoFAs :many
 SELECT id, login_id, two_factor_type, two_factor_enabled, created_at
 FROM login_2fa
@@ -42,11 +48,11 @@ AND two_factor_enabled = TRUE
 AND deleted_at IS NULL;
 
 -- name: GetUsersByLoginId :many
-SELECT u.id, u.username, u.name, u.email, u.created_at, u.last_modified_at,
+SELECT u.id, u.name, u.email, u.created_at, u.last_modified_at,
        COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.login_id = $1
 AND u.deleted_at IS NULL
-GROUP BY u.id, u.username, u.name, u.email, u.created_at, u.last_modified_at;
+GROUP BY u.id, u.name, u.email, u.created_at, u.last_modified_at;

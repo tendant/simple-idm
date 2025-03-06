@@ -24,11 +24,12 @@ paths:
                 - delivery_option
       responses:
         "200":
-          description: 2fa initiated Successful
+          description: 2fa initiated successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
+
   /validate:
     post:
       summary: Authenticate 2fa passcode
@@ -49,7 +50,7 @@ paths:
                 - twofa_type
       responses:
         "200":
-          description: 2fa validated Successful
+          description: 2fa validated successfully
           content:
             application/json:
               schema:
@@ -60,28 +61,138 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SelectUserRequiredResponse"
-  /{login_id}/2fa/enabled:
-    get:
-      summary: Get all enabled 2fas
-      operationId: get_2fa_enabled
-      parameters:
-        - name: login_id
-          in: path
-          required: true
-          schema:
-            type: string
+  /enable:
+    post:
+      summary: Enable an existing 2FA method
+      operationId: post_2fa_enable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login_id:
+                  type: string
+                  format: uuid
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - login_id
+                - twofa_type
       responses:
         "200":
-          description: Successfully retrieved enabled 2FA methods
+          description: 2FA method enabled successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  2fa_methods:
-                    type: array
-                    items:
-                      type: string
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: 2FA method not found
+        "500":
+          description: Internal server error
+
+  /disable:
+    post:
+      summary: Disable an existing 2FA method
+      operationId: post_2fa_disable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login_id:
+                  type: string
+                  format: uuid
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - login_id
+                - twofa_type
+      responses:
+        "200":
+          description: 2FA method disabled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: 2FA method not found
+        "500":
+          description: Internal server error
+  /:
+    post:
+      summary: Create a new 2FA method
+      operationId: post_2fa_create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login_id:
+                  type: string
+                  format: uuid
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - login_id
+                - twofa_type
+      responses:
+        "201":
+          description: 2FA method created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "409":
+          description: 2FA method already exists
+        "500":
+          description: Internal server error
+    delete:
+      summary: Delete a 2FA method
+      operationId: delete_2fa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login_id:
+                  type: string
+                  format: uuid
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - login_id
+                - twofa_type
+      responses:
+        "200":
+          description: 2FA method deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: 2FA method not found
+        "500":
+          description: Internal server error
 components:
   schemas:
     SuccessResponse:
@@ -108,9 +219,6 @@ components:
             $ref: "#/components/schemas/User"
     User:
       type: object
-      properties:
-        id:
-          type: string
       properties:
         id:
           type: string

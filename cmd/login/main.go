@@ -222,7 +222,7 @@ func main() {
 			PasswordPolicy: passwordPolicy,
 		}
 		loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
-		loginsHandle := logins.NewHandle(loginsService)
+		loginsHandle := logins.NewHandle(loginsService, twoFaService)
 		r.Mount("/idm/logins", logins.Handler(loginsHandle))
 
 		// Initialize impersonate service and routes

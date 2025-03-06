@@ -8,20 +8,23 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/twofa"
 )
 
 // LoginsHandle handles HTTP requests for login management
 type LoginsHandle struct {
-	loginService *LoginsService
+	loginService     *LoginsService
+	twoFactorService twofa.TwoFactorService
 }
 
 // Ensure LoginsHandle implements ServerInterface
 var _ ServerInterface = (*LoginsHandle)(nil)
 
 // NewHandle creates a new login handler
-func NewHandle(loginService *LoginsService) *LoginsHandle {
+func NewHandle(loginService *LoginsService, twoFactorService twofa.TwoFactorService) *LoginsHandle {
 	return &LoginsHandle{
-		loginService: loginService,
+		loginService:     loginService,
+		twoFactorService: twoFactorService,
 	}
 }
 
@@ -288,4 +291,52 @@ func (h *LoginsHandle) PutID(w http.ResponseWriter, r *http.Request, id string) 
 
 	h.UpdateLogin(w, r)
 	return nil
+}
+
+// PutIDPassword implements ServerInterface.PutIDPassword
+func (h *LoginsHandle) PutIDPassword(w http.ResponseWriter, r *http.Request, id string) *Response {
+	// Set the ID in the URL context
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", id)
+	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+	h.UpdatePassword(w, r)
+	return nil
+}
+
+// Get login 2FA methods
+// (GET /{id}/2fa)
+func (h *LoginsHandle) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request, id string) *Response {
+	loginId, err := uuid.Parse(id)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{"error": "Invalid UUID format"},
+		}
+	}
+
+	res, err := h.twoFactorService.FindTwoFAsByLoginId(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{"error": err.Error()},
+		}
+	}
+
+	var (
+		methods []TwoFactorMethod
+		resp    TwoFactorMethods
+	)
+
+	for _, v := range res {
+		methods = append(methods, TwoFactorMethod{
+			Type:    v.TwoFactorType,
+			Enabled: v.TwoFactorEnabled,
+		})
+	}
+
+	resp.Count = len(methods)
+	resp.Methods = methods
+
+	return Get2faMethodsByLoginIDJSON200Response(resp)
 }

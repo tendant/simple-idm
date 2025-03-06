@@ -21,6 +21,7 @@ import (
 type TwoFactorService interface {
 	GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error)
 	SendTwoFaNotification(ctx context.Context, loginId uuid.UUID, twoFactorType, hashedDeliveryOption string) error
+	FindTwoFAsByLoginId(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error)
 	FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]string, error)
 	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
@@ -46,6 +47,7 @@ type (
 		TwoFactorType    string    `json:"two_factor_type"`
 		TwoFactorEnabled bool      `json:"two_factor_enabled"`
 		CreatedAt        time.Time `json:"created_at"`
+		UpdatedAt        time.Time `json:"updated_at"`
 	}
 )
 
@@ -144,6 +146,67 @@ func (s TwoFaService) FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) 
 		res = append(res, e.TwoFactorType.String)
 	}
 	return res, nil
+}
+
+func (s TwoFaService) FindTwoFAsByLoginId(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error) {
+	var res []TwoFA
+	twofas, err := s.queries.FindTwoFAsByLoginId(ctx, loginId)
+	if err != nil {
+		slog.Error("Failed to find 2FA by login ID", "loginUuid", loginId, "error", err)
+		return nil, fmt.Errorf("failed to find 2FA by login ID: %w", err)
+	}
+
+	for _, t := range twofas {
+		res = append(res, TwoFA{
+			TwoFactorType:    t.TwoFactorType.String,
+			TwoFactorEnabled: t.TwoFactorEnabled.Bool,
+			CreatedAt:        t.CreatedAt,
+		})
+	}
+
+	return res, nil
+}
+
+func (s TwoFaService) CreateTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error {
+	// Validate twoFactorType
+	err := ValidateTwoFactorType(twoFactorType)
+	if err != nil {
+		return fmt.Errorf("invalid 2FA type: %w", err)
+	}
+
+	// Check if 2FA record exists and is enabled
+	_, err = s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
+		LoginID:       loginId,
+		TwoFactorType: utils.ToNullString(twoFactorType),
+	})
+
+	// If no record exists, process create 2fa init
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Generate and store new secret
+		newSecret, err := GenerateTotpSecret(loginId.String())
+		if err != nil {
+			return fmt.Errorf("failed to generate 2fa secret: %w", err)
+		}
+
+		// !! create 2fa record and set enabled to false: hardcoded in query
+		_, err = s.queries.Create2FAInit(ctx, twofadb.Create2FAInitParams{
+			LoginID:              loginId,
+			TwoFactorSecret:      pgtype.Text{String: newSecret, Valid: true},
+			TwoFactorBackupCodes: []string{},
+			TwoFactorType:        utils.ToNullString(twoFactorType),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create 2FA record: %w", err)
+		}
+		return nil
+	}
+
+	// Handle other errors
+	if err != nil {
+		return fmt.Errorf("failed to get 2FA record: %w", err)
+	}
+
+	return fmt.Errorf("2FA is already exists for the user with type: %s", twoFactorType)
 }
 
 func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error {
