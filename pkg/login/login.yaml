@@ -88,6 +88,16 @@ paths:
                 properties:
                   message:
                     type: string
+  /password/reset/policy:
+    get:
+      summary: Get password reset policy
+      responses:
+        "200":
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordPolicyResponse"
   /logout:
     post:
       summary: Logout user
@@ -398,6 +408,36 @@ components:
       required:
         - code
         - password
+    PasswordPolicyResponse:
+      type: object
+      properties:
+        minLength:
+          type: integer
+          description: Minimum length of the password
+        requireUppercase:
+          type: boolean
+          description: Whether the password requires an uppercase letter
+        requireLowercase:
+          type: boolean
+          description: Whether the password requires a lowercase letter
+        requireDigit:
+          type: boolean
+          description: Whether the password requires a digit
+        requireSpecialChar:
+          type: boolean
+          description: Whether the password requires a special character
+        disallowCommonPwds:
+          type: boolean
+          description: Whether common passwords are disallowed
+        maxRepeatedChars:
+          type: integer
+          description: Maximum number of repeated characters allowed
+        historyCheckCount:
+          type: integer
+          description: Number of previous passwords to check against
+        expirationDays:
+          type: integer
+          description: Number of days until password expires
     RegisterRequest:
       type: object
       properties:
