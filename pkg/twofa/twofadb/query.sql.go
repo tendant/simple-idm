@@ -138,6 +138,49 @@ func (q *Queries) FindEnabledTwoFAs(ctx context.Context, loginID uuid.UUID) ([]F
 	return items, nil
 }
 
+const findTwoFAsByLoginId = `-- name: FindTwoFAsByLoginId :many
+SELECT id, login_id, two_factor_type, two_factor_enabled, created_at, updated_at
+FROM login_2fa
+WHERE login_id = $1
+AND deleted_at IS NULL
+`
+
+type FindTwoFAsByLoginIdRow struct {
+	ID               uuid.UUID      `json:"id"`
+	LoginID          uuid.UUID      `json:"login_id"`
+	TwoFactorType    sql.NullString `json:"two_factor_type"`
+	TwoFactorEnabled pgtype.Bool    `json:"two_factor_enabled"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        sql.NullTime   `json:"updated_at"`
+}
+
+func (q *Queries) FindTwoFAsByLoginId(ctx context.Context, loginID uuid.UUID) ([]FindTwoFAsByLoginIdRow, error) {
+	rows, err := q.db.Query(ctx, findTwoFAsByLoginId, loginID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindTwoFAsByLoginIdRow
+	for rows.Next() {
+		var i FindTwoFAsByLoginIdRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LoginID,
+			&i.TwoFactorType,
+			&i.TwoFactorEnabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const get2FAByLoginId = `-- name: Get2FAByLoginId :one
 SELECT id, login_id, two_factor_secret, two_factor_enabled
 FROM login_2fa
