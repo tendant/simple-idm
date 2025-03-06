@@ -15,14 +15,9 @@ interface TwoFactorMethod {
   delivery_options: DeliveryOption[];
 }
 
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  twoFactorEnabled?: boolean;
-}
+// Removing this duplicate interface
 
-interface LoginResponse {
+export interface LoginResponse {
   id?: string;
   email?: string;
   username?: string;
@@ -65,7 +60,7 @@ interface FindUsernameRequest {
   email: string;
 }
 
-interface User {
+export interface User {
   id?: string;
   email?: string;
   username?: string;
@@ -79,6 +74,7 @@ interface User {
     id?: string;
     name?: string;
   }> | null;
+  twoFactorEnabled?: boolean;
 }
 
 export const userApi = {

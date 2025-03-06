@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, Show, For } from 'solid-js';
 import { useNavigate, useParams } from '@solidjs/router';
-import { loginApi, type Login } from '../api/login';
+import { loginApi, type Login, type TwoFactorMethod } from '../api/login';
 import { userApi, type User } from '../api/user';
 
 const LoginDetail: Component = () => {
@@ -8,13 +8,16 @@ const LoginDetail: Component = () => {
   const navigate = useNavigate();
   const [login, setLogin] = createSignal<Login | null>(null);
   const [associatedUsers, setAssociatedUsers] = createSignal<User[]>([]);
+  const [twoFactorMethods, setTwoFactorMethods] = createSignal<TwoFactorMethod[]>([]);
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [loadingUsers, setLoadingUsers] = createSignal(true);
+  const [loadingTwoFactorMethods, setLoadingTwoFactorMethods] = createSignal(true);
 
   onMount(() => {
     fetchLogin();
     fetchAssociatedUsers();
+    fetchTwoFactorMethods();
   });
 
   const fetchLogin = async () => {
@@ -37,6 +40,17 @@ const LoginDetail: Component = () => {
       console.error('Failed to fetch associated users:', err);
     } finally {
       setLoadingUsers(false);
+    }
+  };
+  
+  const fetchTwoFactorMethods = async () => {
+    try {
+      const methods = await loginApi.get2FAMethods(params.id);
+      setTwoFactorMethods(methods);
+    } catch (err) {
+      console.error('Failed to fetch 2FA methods:', err);
+    } finally {
+      setLoadingTwoFactorMethods(false);
     }
   };
 
@@ -128,6 +142,81 @@ const LoginDetail: Component = () => {
           </div>
         </div>
 
+        {/* Two-Factor Authentication Methods Section */}
+        <div class="mt-8">
+          <h2 class="text-xl font-semibold text-gray-11">Two-Factor Authentication Methods</h2>
+          <p class="mt-2 text-sm text-gray-9">
+            Available 2FA methods for this login account.
+          </p>
+
+          <Show when={loadingTwoFactorMethods()}>
+            <div class="mt-4 text-center">
+              <p>Loading 2FA methods...</p>
+            </div>
+          </Show>
+
+          <Show when={!loadingTwoFactorMethods() && twoFactorMethods().length === 0}>
+            <div class="mt-4 bg-yellow-50 p-4 rounded-lg">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-yellow-800">No 2FA methods configured for this login</h3>
+                </div>
+              </div>
+            </div>
+          </Show>
+
+          <Show when={!loadingTwoFactorMethods() && twoFactorMethods().length > 0}>
+            <div class="mt-4 overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+              <table class="min-w-full divide-y divide-gray-6">
+                <thead>
+                  <tr>
+                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-11 sm:pl-6">
+                      Method Type
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                      Status
+                    </th>
+                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                      <span class="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-6">
+                  <For each={twoFactorMethods()}>
+                    {(method) => (
+                      <tr>
+                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
+                          {method.type === 'email' ? 'Email' : 
+                           method.type === 'totp' ? 'Authenticator App (TOTP)' : 
+                           method.type === 'sms' ? 'SMS' : method.type}
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                          <span class={`inline-flex items-center rounded-md px-2.5 py-0.5 text-sm font-medium ${method.enabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                            {method.enabled ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </td>
+                        <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                          <button
+                            onClick={() => navigate(`/logins/${params.id}/edit`)}
+                            class="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Manage<span class="sr-only">, {method.type}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
+            </div>
+          </Show>
+        </div>
+
         {/* Associated Users Section */}
         <div class="mt-8">
           <h2 class="text-xl font-semibold text-gray-11">Associated Users</h2>
@@ -187,9 +276,8 @@ const LoginDetail: Component = () => {
                         </td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
                           <div class="flex flex-wrap gap-1">
-                            {user.roles?.map((role) => (
+                            {user.roles?.map((role: { id?: string; name?: string }) => (
                               <span
-                                key={role.id}
                                 class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20"
                               >
                                 {role.name}

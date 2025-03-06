@@ -11,6 +11,11 @@ export interface Login {
   status?: string;
 }
 
+export interface TwoFactorMethod {
+  type: string;
+  enabled: boolean;
+}
+
 export interface CreateLoginRequest {
   username: string;
   email?: string;
@@ -102,6 +107,14 @@ export const loginApi = {
     const response = await apiClient.post(`/idm/logins/${id}/2fa/backup-codes`, {});
     if (!response.ok) {
       throw new Error('Failed to generate backup codes');
+    }
+    return response.json();
+  },
+  
+  get2FAMethods: async (id: string): Promise<TwoFactorMethod[]> => {
+    const response = await apiClient.get(`/idm/logins/${id}/2fa`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch 2FA methods');
     }
     return response.json();
   }
