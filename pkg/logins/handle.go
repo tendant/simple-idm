@@ -336,3 +336,9 @@ func (h *LoginsHandle) PutIDPassword(w http.ResponseWriter, r *http.Request, id 
 	h.UpdatePassword(w, r)
 	return nil
 }
+
+// Get login 2FA methods
+// (GET /{id}/twofa)
+func (h *LoginsHandle) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request, id string) *Response {
+	return &Response{}
+}
