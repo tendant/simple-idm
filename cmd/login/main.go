@@ -84,7 +84,6 @@ type Config struct {
 	JwtConfig                JwtConfig
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
-	Instance                 string `env:"INSTANCE" env-default:"local"`
 }
 
 func main() {
@@ -137,7 +136,7 @@ func main() {
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Create a password policy based on the environment
-	passwordPolicy := createPasswordPolicy(config.Instance, &config.PasswordComplexityConfig)
+	passwordPolicy := createPasswordPolicy(&config.PasswordComplexityConfig)
 
 	// Create login service with the appropriate policy
 	loginServiceOptions := &login.LoginServiceOptions{
@@ -236,7 +235,7 @@ func main() {
 
 }
 
-func createPasswordPolicy(instanceType string, config *PasswordComplexityConfig) *login.PasswordPolicy {
+func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolicy {
 	// If no config is provided, use the default policy
 	if config == nil {
 		return login.DefaultPasswordPolicy()
