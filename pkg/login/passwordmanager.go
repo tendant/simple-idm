@@ -322,7 +322,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 // ChangePassword changes a user's password after verifying the current password
 func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
 	// Get the current user info
-	login, err := pm.queries.GetLoginById(ctx, utils.ParseUUID(userID))
+	login, err := pm.queries.GetLoginByUserId(ctx, utils.ParseUUID(userID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return errors.New("user not found")
@@ -363,6 +363,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 		if err != nil {
 			// Log but continue
 			slog.Error("Failed to add password to history", "error", err)
+			return err
 		}
 	}
 

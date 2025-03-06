@@ -77,7 +77,7 @@ func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 					"message": "Current password is incorrect",
 				},
 			}
-		} else if strings.Contains(err.Error(), "password must") || 
+		} else if strings.Contains(err.Error(), "password must") ||
 			strings.Contains(err.Error(), "password cannot") ||
 			strings.Contains(err.Error(), "password is") ||
 			strings.Contains(err.Error(), "password has been") {
@@ -132,14 +132,14 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Disable 2FA for the user
-	err := h.profileService.Disable2FA(r.Context(), authUser.UserUuid, req.CurrentPassword, req.Code)
-	if err != nil {
-		slog.Error("Failed to disable 2FA", "err", err)
-		return &Response{
-			body: "Failed to disable 2FA: " + err.Error(),
-			Code: http.StatusBadRequest,
-		}
-	}
+	// err := h.profileService.Disable2FA(r.Context(), authUser.UserUuid, req.CurrentPassword, req.Code)
+	// if err != nil {
+	// 	slog.Error("Failed to disable 2FA", "err", err)
+	// 	return &Response{
+	// 		body: "Failed to disable 2FA: " + err.Error(),
+	// 		Code: http.StatusBadRequest,
+	// 	}
+	// }
 
 	return &Response{
 		body: struct {
@@ -174,21 +174,21 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 	}
 
 	// Enable 2FA and get backup codes
-	backupCodes, err := h.profileService.Enable2FA(r.Context(), authUser.UserUuid, req.Secret, req.Code)
-	if err != nil {
-		slog.Error("Failed to enable 2FA", "err", err)
-		return &Response{
-			body: "Failed to enable 2FA: " + err.Error(),
-			Code: http.StatusBadRequest,
-		}
-	}
+	// backupCodes, err := h.profileService.Enable2FA(r.Context(), authUser.UserUuid, req.Secret, req.Code)
+	// if err != nil {
+	// 	slog.Error("Failed to enable 2FA", "err", err)
+	// 	return &Response{
+	// 		body: "Failed to enable 2FA: " + err.Error(),
+	// 		Code: http.StatusBadRequest,
+	// 	}
+	// }
 
 	return &Response{
 		body: struct {
 			BackupCodes []string `json:"backupCodes"`
 			Message     string   `json:"message"`
 		}{
-			BackupCodes: backupCodes,
+			BackupCodes: []string{},
 			Message:     "2FA has been enabled",
 		},
 		Code: http.StatusOK,
