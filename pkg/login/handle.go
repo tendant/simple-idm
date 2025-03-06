@@ -21,15 +21,6 @@ const (
 	REFRESH_TOKEN_NAME = "refreshToken"
 )
 
-type PasswordResetInitJSONRequestBody struct {
-	Username string `json:"username"`
-}
-
-type PasswordResetJSONRequestBody struct {
-	Token       string `json:"token"`
-	NewPassword string `json:"new_password"`
-}
-
 type Handle struct {
 	loginService     *LoginService
 	jwtService       auth.Jwt
@@ -244,7 +235,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 }
 
 func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response {
-	var body PasswordResetInitJSONRequestBody
+	var body PostPasswordResetInitJSONBody
 
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -284,7 +275,7 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 }
 
 func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Response {
-	var body PasswordResetJSONRequestBody
+	var body PostPasswordResetJSONBody
 
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -649,17 +640,17 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 	registerParam := RegisterParam{}
 	copier.Copy(&registerParam, data)
 
-	_, err = h.loginService.Create(r.Context(), registerParam)
-	if err != nil {
-		slog.Error("Failed to register user", "email", registerParam.Email, "err", err)
-		return &Response{
-			body: "Failed to register user",
-			Code: http.StatusInternalServerError,
-		}
-	}
+	// _, err = h.loginService.Create(r.Context(), registerParam)
+	// if err != nil {
+	// 	slog.Error("Failed to register user", "email", registerParam.Email, "err", err)
+	// 	return &Response{
+	// 		body: "Failed to register user",
+	// 		Code: http.StatusInternalServerError,
+	// 	}
+	// }
 	return &Response{
-		Code: http.StatusCreated,
-		body: "User registered successfully",
+		Code: http.StatusNotImplemented,
+		body: "Not implemented",
 	}
 }
 
@@ -791,4 +782,43 @@ func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response 
 		},
 		Code: http.StatusOK,
 	}
+}
+
+// GetPasswordResetPolicy returns the current password policy
+func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request) *Response {
+	var req PasswordResetPolicyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			body: "Invalid reset token",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// validate token before returning policy
+	_, err := h.loginService.passwordManager.ValidateResetToken(r.Context(), req.Token)
+	if err != nil {
+		return &Response{
+			body: "Invalid or expired reset token",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// get policy and respond
+	policy := h.loginService.GetPasswordPolicy()
+
+	// Map the policy fields to the response fields using snake_case
+	response := PasswordPolicyResponse{
+		MinLength:         &policy.MinLength,
+		RequireUppercase:  &policy.RequireUppercase,
+		RequireLowercase:  &policy.RequireLowercase,
+		RequireDigit:      &policy.RequireDigit,
+		RequireSpecialChar: &policy.RequireSpecialChar,
+		DisallowCommonPwds: &policy.DisallowCommonPwds,
+		MaxRepeatedChars:  &policy.MaxRepeatedChars,
+		HistoryCheckCount: &policy.HistoryCheckCount,
+		ExpirationDays:    &policy.ExpirationDays,
+	}
+	
+	return GetPasswordResetPolicyJSON200Response(response)
 }

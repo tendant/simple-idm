@@ -65,22 +65,25 @@ type EmailConfig struct {
 	From     string `env:"EMAIL_FROM" env-default:"noreply@example.com"`
 }
 
-// type PasswordComplexityConfig struct {
-// 	RequiredDigit           bool `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
-// 	RequiredLowercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
-// 	RequiredNonAlphanumeric bool `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
-// 	RequiredUppercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
-// 	RequiredLength          int  `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
-// }
+type PasswordComplexityConfig struct {
+	RequiredDigit           bool `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
+	RequiredLowercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
+	RequiredNonAlphanumeric bool `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
+	RequiredUppercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
+	RequiredLength          int  `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
+	DisallowCommonPwds      bool `env:"PASSWORD_COMPLEXITY_DISALLOW_COMMON_PWDS" env-default:"true"`
+	MaxRepeatedChars        int  `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
+	HistoryCheckCount       int  `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
+	ExpirationDays          int  `env:"PASSWORD_COMPLEXITY_EXPIRATION_DAYS" env-default:"90"`
+}
 
 type Config struct {
-	BaseUrl     string `env:"BASE_URL" env-default:"http://localhost:3000"`
-	IdmDbConfig IdmDbConfig
-	AppConfig   app.AppConfig
-	JwtConfig   JwtConfig
-	EmailConfig EmailConfig
-	// PasswordComplexityConfig PasswordComplexityConfig
-	Instance string `env:"INSTANCE" env-default:"local"`
+	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:3000"`
+	IdmDbConfig              IdmDbConfig
+	AppConfig                app.AppConfig
+	JwtConfig                JwtConfig
+	EmailConfig              EmailConfig
+	PasswordComplexityConfig PasswordComplexityConfig
 }
 
 func main() {
@@ -133,7 +136,7 @@ func main() {
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Create a password policy based on the environment
-	passwordPolicy := createPasswordPolicy(config.Instance)
+	passwordPolicy := createPasswordPolicy(&config.PasswordComplexityConfig)
 
 	// Create login service with the appropriate policy
 	loginServiceOptions := &login.LoginServiceOptions{
@@ -150,14 +153,6 @@ func main() {
 
 	// auth queries
 	// authQueries := authDb.New(pool)
-
-	// auth login service
-	// var pwdComplex authpkg.PasswordComplexity
-	// copier.Copy(&pwdComplex, &config.PasswordComplexityConfig)
-	// authLoginService := authpkg.NewAuthLoginService(
-	// 	authQueries,
-	// 	authpkg.WithPwdComplex(pwdComplex),
-	// )
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager)
 	loginHandle := login.NewHandle(loginService, *jwtService, login.WithTwoFactorService(twoFaService))
@@ -240,49 +235,22 @@ func main() {
 
 }
 
-func createPasswordPolicy(instanceType string) *login.PasswordPolicy {
-	switch instanceType {
-	case "local":
-		// Relaxed policy for development
-		return &login.PasswordPolicy{
-			MinLength:          6,
-			RequireUppercase:   false,
-			RequireLowercase:   true,
-			RequireDigit:       true,
-			RequireSpecialChar: false,
-			DisallowCommonPwds: true,
-			MaxRepeatedChars:   4,
-			HistoryCheckCount:  3,
-			ExpirationDays:     180,
-		}
-	case "testing":
-		// Policy for testing environments
-		return &login.PasswordPolicy{
-			MinLength:          4, // Very short for easy testing
-			RequireUppercase:   false,
-			RequireLowercase:   false,
-			RequireDigit:       false,
-			RequireSpecialChar: false,
-			DisallowCommonPwds: false,
-			MaxRepeatedChars:   0,
-			HistoryCheckCount:  1,
-			ExpirationDays:     365,
-		}
-	case "prod":
-		// Strict policy for production
-		return &login.PasswordPolicy{
-			MinLength:          10,
-			RequireUppercase:   true,
-			RequireLowercase:   true,
-			RequireDigit:       true,
-			RequireSpecialChar: true,
-			DisallowCommonPwds: true,
-			MaxRepeatedChars:   3,
-			HistoryCheckCount:  10,
-			ExpirationDays:     90,
-		}
-	default:
-		// Default policy (moderate security)
+func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolicy {
+	// If no config is provided, use the default policy
+	if config == nil {
 		return login.DefaultPasswordPolicy()
+	}
+
+	// Create a policy based on the configuration
+	return &login.PasswordPolicy{
+		MinLength:          config.RequiredLength,
+		RequireUppercase:   config.RequiredUppercase,
+		RequireLowercase:   config.RequiredLowercase,
+		RequireDigit:       config.RequiredDigit,
+		RequireSpecialChar: config.RequiredNonAlphanumeric,
+		DisallowCommonPwds: config.DisallowCommonPwds,
+		MaxRepeatedChars:   config.MaxRepeatedChars,
+		HistoryCheckCount:  config.HistoryCheckCount,
+		ExpirationDays:     config.ExpirationDays,
 	}
 }

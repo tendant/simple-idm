@@ -478,3 +478,8 @@ func (pm *PasswordManager) CheckPasswordComplexity(password string) error {
 
 	return nil
 }
+
+// GetPolicy returns the current password policy
+func (pm *PasswordManager) GetPolicy() *PasswordPolicy {
+	return pm.policyChecker.GetPolicy()
+}

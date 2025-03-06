@@ -88,6 +88,22 @@ paths:
                 properties:
                   message:
                     type: string
+  /password/reset/policy:
+    get:
+      summary: Get password reset policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetPolicyRequest"
+      responses:
+        "200":
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordPolicyResponse"
   /logout:
     post:
       summary: Logout user
@@ -390,14 +406,51 @@ components:
         - twoFactorEnabled
     PasswordReset:
       type: object
+      x-go-optional-value: true
       properties:
-        code:
+        token:
           type: string
-        password:
+        new_password:
           type: string
       required:
-        - code
-        - password
+        - token
+        - new_password
+    PasswordResetPolicyRequest:
+      type: object
+      x-go-optional-value: true
+      properties:
+        token:
+          type: string
+    PasswordPolicyResponse:
+      type: object
+      properties:
+        min_length:
+          type: integer
+          description: Minimum length of the password
+        require_uppercase:
+          type: boolean
+          description: Whether the password requires an uppercase letter
+        require_lowercase:
+          type: boolean
+          description: Whether the password requires a lowercase letter
+        require_digit:
+          type: boolean
+          description: Whether the password requires a digit
+        require_special_char:
+          type: boolean
+          description: Whether the password requires a special character
+        disallow_common_pwds:
+          type: boolean
+          description: Whether common passwords are disallowed
+        max_repeated_chars:
+          type: integer
+          description: Maximum number of repeated characters allowed
+        history_check_count:
+          type: integer
+          description: Number of previous passwords to check against
+        expiration_days:
+          type: integer
+          description: Number of days until password expires
     RegisterRequest:
       type: object
       properties:
