@@ -299,6 +299,43 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	return Post2faValidateJSON200Response(resp)
 }
 
+// Create a new 2FA method
+// (POST /)
+func (h Handle) Post2faCreate(w http.ResponseWriter, r *http.Request) *Response {
+	var resp SuccessResponse
+
+	data := Post2faCreateJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Get login ID from path parameter
+	loginId, err := uuid.Parse(data.LoginID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid login id",
+		}
+	}
+
+	// Create new 2FA method
+	err = h.twoFaService.CreateTwoFactor(r.Context(), loginId, string(data.TwofaType))
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to create 2fa: " + err.Error(),
+		}
+	}
+
+	// Return success response
+	resp.Result = "success"
+	return Post2faCreateJSON201Response(resp)
+}
+
 // Enable an existing 2FA method
 // (POST /enable)
 func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response {
