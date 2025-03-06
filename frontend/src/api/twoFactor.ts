@@ -111,5 +111,17 @@ export const twoFactorApi = {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.message || `Failed to disable ${twofaType} 2FA method`);
     }
+  },
+  
+  create2FAMethod: async (loginId: string, twofaType: string): Promise<void> => {
+    const response = await apiClient.post('/idm/2fa', {
+      login_id: loginId,
+      twofa_type: twofaType
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Failed to create ${twofaType} 2FA method`);
+    }
   }
 };
