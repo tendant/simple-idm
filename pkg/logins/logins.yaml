@@ -183,6 +183,36 @@ paths:
                   message:
                     type: string
                     example: "Login not found"
+  /{id}/twofa:
+    get:
+      operationId: get_2fa_methods_by_login_id
+      summary: Get login 2FA methods
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 2FA method found successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TwoFactorMethod"
+        "404":
+          description: Login 2fa methods not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Login 2fa methods not found"
 
 components:
   schemas:
@@ -232,13 +262,11 @@ components:
       required:
         - password
     
-    EnableTwoFactorRequest:
+    TwoFactorMethod:
+      x-go-optional-value: true
       type: object
       properties:
-        secret:
+        type:
           type: string
-        verification_code:
-          type: string
-      required:
-        - secret
-        - verification_code
+        enabled:
+          type: boolean
