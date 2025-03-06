@@ -8,20 +8,23 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/twofa"
 )
 
 // LoginsHandle handles HTTP requests for login management
 type LoginsHandle struct {
-	loginService *LoginsService
+	loginService     *LoginsService
+	twoFactorService twofa.TwoFactorService
 }
 
 // Ensure LoginsHandle implements ServerInterface
 var _ ServerInterface = (*LoginsHandle)(nil)
 
 // NewHandle creates a new login handler
-func NewHandle(loginService *LoginsService) *LoginsHandle {
+func NewHandle(loginService *LoginsService, twoFactorService twofa.TwoFactorService) *LoginsHandle {
 	return &LoginsHandle{
-		loginService: loginService,
+		loginService:     loginService,
+		twoFactorService: twoFactorService,
 	}
 }
 
@@ -340,5 +343,6 @@ func (h *LoginsHandle) PutIDPassword(w http.ResponseWriter, r *http.Request, id 
 // Get login 2FA methods
 // (GET /{id}/twofa)
 func (h *LoginsHandle) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request, id string) *Response {
+
 	return &Response{}
 }

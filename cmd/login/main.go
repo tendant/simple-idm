@@ -219,7 +219,7 @@ func main() {
 		// Initialize logins management service and routes
 		loginsQueries := loginsdb.New(pool)
 		loginsService := logins.NewLoginsService(loginsQueries)
-		loginsHandle := logins.NewHandle(loginsService)
+		loginsHandle := logins.NewHandle(loginsService, twoFaService)
 		r.Mount("/idm/logins", logins.Handler(loginsHandle))
 
 		// Initialize impersonate service and routes
