@@ -183,7 +183,7 @@ paths:
                   message:
                     type: string
                     example: "Login not found"
-  /{id}/twofa:
+  /{id}/2fa:
     get:
       operationId: get_2fa_methods_by_login_id
       summary: Get login 2FA methods
@@ -270,3 +270,6 @@ components:
           type: string
         enabled:
           type: boolean
+      required:
+        - type
+        - enabled

@@ -40,8 +40,8 @@ type Login struct {
 
 // TwoFactorMethod defines model for TwoFactorMethod.
 type TwoFactorMethod struct {
-	Enabled bool   `json:"enabled,omitempty"`
-	Type    string `json:"type,omitempty"`
+	Enabled bool   `json:"enabled"`
+	Type    string `json:"type"`
 }
 
 // UpdateLoginRequest defines model for UpdateLoginRequest.
@@ -233,28 +233,6 @@ func PutIDJSON404Response(body struct {
 	}
 }
 
-// PutIDPasswordJSON200Response is a constructor method for a PutIDPassword response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PutIDPasswordJSON200Response(body Login) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// PutIDPasswordJSON404Response is a constructor method for a PutIDPassword response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PutIDPasswordJSON404Response(body struct {
-	Message *string `json:"message,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        404,
-		contentType: "application/json",
-	}
-}
-
 // Get2faMethodsByLoginIDJSON200Response is a constructor method for a Get2faMethodsByLoginID response.
 // A *Response is returned with the configured status code and content type from the spec.
 func Get2faMethodsByLoginIDJSON200Response(body []TwoFactorMethod) *Response {
@@ -268,6 +246,28 @@ func Get2faMethodsByLoginIDJSON200Response(body []TwoFactorMethod) *Response {
 // Get2faMethodsByLoginIDJSON404Response is a constructor method for a Get2faMethodsByLoginID response.
 // A *Response is returned with the configured status code and content type from the spec.
 func Get2faMethodsByLoginIDJSON404Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        404,
+		contentType: "application/json",
+	}
+}
+
+// PutIDPasswordJSON200Response is a constructor method for a PutIDPassword response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PutIDPasswordJSON200Response(body Login) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// PutIDPasswordJSON404Response is a constructor method for a PutIDPassword response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PutIDPasswordJSON404Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
@@ -294,12 +294,12 @@ type ServerInterface interface {
 	// Update login
 	// (PUT /{id})
 	PutID(w http.ResponseWriter, r *http.Request, id string) *Response
+	// Get login 2FA methods
+	// (GET /{id}/2fa)
+	Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request, id string) *Response
 	// Update login password
 	// (PUT /{id}/password)
 	PutIDPassword(w http.ResponseWriter, r *http.Request, id string) *Response
-	// Get login 2FA methods
-	// (GET /{id}/twofa)
-	Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request, id string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -449,32 +449,6 @@ func (siw *ServerInterfaceWrapper) PutID(w http.ResponseWriter, r *http.Request)
 	handler(w, r.WithContext(ctx))
 }
 
-// PutIDPassword operation middleware
-func (siw *ServerInterfaceWrapper) PutIDPassword(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
-		return
-	}
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.PutIDPassword(w, r, id)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
 // Get2faMethodsByLoginID operation middleware
 func (siw *ServerInterfaceWrapper) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -489,6 +463,32 @@ func (siw *ServerInterfaceWrapper) Get2faMethodsByLoginID(w http.ResponseWriter,
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Get2faMethodsByLoginID(w, r, id)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PutIDPassword operation middleware
+func (siw *ServerInterfaceWrapper) PutIDPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PutIDPassword(w, r, id)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -621,8 +621,8 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Delete("/{id}", wrapper.DeleteID)
 		r.Get("/{id}", wrapper.GetID)
 		r.Put("/{id}", wrapper.PutID)
+		r.Get("/{id}/2fa", wrapper.Get2faMethodsByLoginID)
 		r.Put("/{id}/password", wrapper.PutIDPassword)
-		r.Get("/{id}/twofa", wrapper.Get2faMethodsByLoginID)
 	})
 	return r
 }
@@ -648,22 +648,22 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9xXT2/buBP9KsT8fkeldr056dZu0MJAgw1221NRBGNp5LCgSIUcxTEMf/cFh3L8R7Kb",
-	"ZoPsppdAocYzj++9GVIrKFzdOEuWA+QrCMUN1SiPv3tCpk9uru2fdNtS4LjaeNeQZ00S02AIC+fL+MzL",
-	"hiCHwF7bOawzaAN5izUNvFxn4Om21Z5KyL9uI7Ntxm/Z5kdu9p0KjhkFTB9FIUjLaxSElfN1fIISmc5Y",
-	"S9oeOF3uxbatLofCNnCu78gH7ezOXrRlmpOPUbxw1xUW7Pw1WZwZ2iVk5pwhtMJIU/400NMs9ij6vHAf",
-	"BMkl8Y0r+2SdBJhWflwog/uzuTtzDWtn0ZzdoWkJcvYtrTP4Its87ZwnmGPIEanUVafSU3x6UO2E/2Ko",
-	"tpWTJJpNfCebDOoSLc6pJsvq3dUUMniwC7x9M34zjlBdQxYbDTn8JkvRXHwj8Ebxz5wEeISNkdZpCTl8",
-	"JJZAjzUx+QD51xWUFAqvhXvI4RLvdd3Wyrb1jLxylTIJFDvliVtvIeKGHG5b8kvIIPEORtc6Zk89H2uX",
-	"VGFrGPLJOOvZfJ0dVv6jqgKxqpxXDc61FdhHijmJHa72qGJ/EfriRjH5WipW2jBFCbvtHqkb5Gd7dQ8N",
-	"8C06IDTOhmSWyXgsU8VZJiuaYNMYXcj2Rt9DmgLbfPtW69DkK9BMtTz831MFOfxvtJ21o27QjtJI2zYY",
-	"eo9L+d8xmkTTLg2f43JPaxhicMi/+8k+6cA7SWJAaOsa/XLzEo15eJtB48KAR6/iauoiCvzelcufou8U",
-	"OwNn0Hq/Y7uRcyDg22dD0OkzwF18obqjR4W2KCiEqjVG1Dv/Rx6qKQScy2yke6wbGTVfujmo0HjCcqno",
-	"XgcO/TPjMcpP7R0aXSr/wOqu9Il2hcrSIskvAaOVLtfJkoaY+k64kPXpRX9kSWvGebftTDlw94Xc7dIf",
-	"HM0DXXve75YkUoI7JNL5c4uUCloXp2Jry6eJc5hkX5xE8kaW7Oi58W/JMH6p3iuJUZvwepX8SJxkVLOl",
-	"ml7IhG2HBmz7kmI+/xQfuA8+aoq/mJO6e/kvMiAS3Ydze7R7Bz5us81V+tXb7fCb4L/iuA2uX9h06sFq",
-	"W/fxwlV46jNnUmH6ZA3vl1LqdZxfj7rkH36U9677fbYnH96pWqIT3S9nk0mFXeXwPJYZTnjsKNxuPH6Q",
-	"rNd/BwAA//9ZbXEPohIAAA==",
+	"H4sIAAAAAAAC/9xXTW/bOBD9K8TsHpXa9eakW7tBCwMNNthtT0URjKWRw4IiFX4kMQz99wWH8qdkN80G",
+	"3iaXQCHHM6P33jyKSyhM3RhN2jvIl+CKG6qRH/+0hJ4+mbnUf9NtIOfjamNNQ9ZL4pgGnbs3tozPftEQ",
+	"5OC8lXoObQbBkdVY08Bmm4Gl2yAtlZB/3URmm4zfstWPzOw7FT5m5Gb6XRTcaXmN3GFlbB2foERPZ15y",
+	"2l5zstyJDUGWQ2Grdq7vyDpp9Na7SO1pTjZG+XtzXWHhjb0mjTNF24DMjFGEmhFpyp9u9DiKPYg+35sP",
+	"3Mkl+RtT9sE62mBa+RFdvJutM/WYyuDhbG7OTOOl0ajO7lAFgtzbQG0GXxiE47p6gnSG9JJKXXUcPkXF",
+	"e9WOqDOGSl0ZTiK9inv8kk5cosY51aS9eHc1hQzWYoK3b8ZvxrFV05DGRkIOf/BSlJ6/4fZG8c+cuPHY",
+	"NkZYpyXk8JE8B1qsyZN1kH9dQkmusJKxhxwu8UHWoRY61DOywlRCpaa8EZZ8sBpi35DDbSC7gAwS7qBk",
+	"LWP25AixdkkVBuUhn4yz3hC02X7lv6rKkReVsaLBudTc9oFihmOHqz2q2D+EtrgRnmzNFSupPEUKu9c9",
+	"UNfxz3bq7gvgW1SAa4x2SSyT8Zg9x2hPmjnBplGy4NcbfXfJIzb5dqXWdZMvQXqq+eF3SxXk8Nto48Sj",
+	"zoZHyfA2c47W4oL/Nx5Vgmkbhs9xucc1DCE4pN/dZJ+k81tJYoALdY12sdpEpda7GTTGDWj0Kq6mKSLn",
+	"35ty8VPwHUNn4IRqdye2s5w9At8+WwcdPwPYxQ3RHUzChaIg56qgFLN3/p80VJNzOGdvpAesG7aaL50P",
+	"ClSWsFwIepDOu/6J8hjmp/oOlSyFXaO6TX2CXaDQdJ/o54DRUpZtkqQiT30lXPD69KJvWTya0e82k8nH",
+	"8S6R21P6g4N7YGrP+9OSSErtDpF0/twkpYLaRFcMunwaOftJdslJIK9oyQ6eG/8XDeNTzV5JHqVyL5fJ",
+	"j+QTjWK2ENMLdtgwZLDhlGQ+v4sPfA8+ysVPpqTuq/2VGESCe9+3R5MKj31mTipMFwr3fsH5X4Z/POoj",
+	"a//K1Pvc6kM8+fBO1BydMD6dNiYVdpXd8+hkOOEhK9q8uNsSz/YF6rBHre5hL96r9i+Uv4pdrfp6xY4l",
+	"1lJr27b9NwAA//9UH4KbvhIAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
