@@ -87,5 +87,29 @@ export const twoFactorApi = {
     } catch (e) {
       return { success: true };
     }
+  },
+
+  enable2FAMethod: async (loginId: string, twofaType: string): Promise<void> => {
+    const response = await apiClient.post('/idm/2fa/enable', {
+      login_id: loginId,
+      twofa_type: twofaType
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Failed to enable ${twofaType} 2FA method`);
+    }
+  },
+
+  disable2FAMethod: async (loginId: string, twofaType: string): Promise<void> => {
+    const response = await apiClient.post('/idm/2fa/disable', {
+      login_id: loginId,
+      twofa_type: twofaType
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Failed to disable ${twofaType} 2FA method`);
+    }
   }
 };

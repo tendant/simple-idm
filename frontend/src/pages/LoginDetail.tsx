@@ -2,6 +2,7 @@ import { Component, createSignal, onMount, Show, For } from 'solid-js';
 import { useNavigate, useParams } from '@solidjs/router';
 import { loginApi, type Login, type TwoFactorMethod } from '../api/login';
 import { userApi, type User } from '../api/user';
+import { twoFactorApi } from '../api/twoFactor';
 
 const LoginDetail: Component = () => {
   const params = useParams();
@@ -13,6 +14,7 @@ const LoginDetail: Component = () => {
   const [loading, setLoading] = createSignal(true);
   const [loadingUsers, setLoadingUsers] = createSignal(true);
   const [loadingTwoFactorMethods, setLoadingTwoFactorMethods] = createSignal(true);
+  const [processingMethod, setProcessingMethod] = createSignal<string | null>(null);
 
   onMount(() => {
     fetchLogin();
@@ -51,6 +53,26 @@ const LoginDetail: Component = () => {
       console.error('Failed to fetch 2FA methods:', err);
     } finally {
       setLoadingTwoFactorMethods(false);
+    }
+  };
+
+  const toggleTwoFactorMethod = async (methodType: string, currentStatus: boolean) => {
+    setProcessingMethod(methodType);
+    try {
+      if (currentStatus) {
+        // Disable the method
+        await twoFactorApi.disable2FAMethod(params.id, methodType);
+      } else {
+        // Enable the method
+        await twoFactorApi.enable2FAMethod(params.id, methodType);
+      }
+      // Refresh the 2FA methods list
+      await fetchTwoFactorMethods();
+    } catch (err) {
+      console.error(`Failed to ${currentStatus ? 'disable' : 'enable'} 2FA method:`, err);
+      setError(err instanceof Error ? err.message : `Failed to ${currentStatus ? 'disable' : 'enable'} 2FA method`);
+    } finally {
+      setProcessingMethod(null);
     }
   };
 
@@ -201,12 +223,20 @@ const LoginDetail: Component = () => {
                           </span>
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                          <button
-                            onClick={() => navigate(`/logins/${params.id}/edit`)}
-                            class="text-indigo-600 hover:text-indigo-900"
-                          >
-                            Manage<span class="sr-only">, {method.type}</span>
-                          </button>
+                          <div class="flex justify-end">
+                            <button
+                              onClick={() => toggleTwoFactorMethod(method.type, method.enabled)}
+                              disabled={processingMethod() === method.type}
+                              class={`px-3 py-1 rounded-md text-sm font-medium ${method.enabled 
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                : 'bg-green-100 text-green-700 hover:bg-green-200'} 
+                                ${processingMethod() === method.type ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {processingMethod() === method.type 
+                                ? 'Processing...' 
+                                : method.enabled ? 'Disable' : 'Enable'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )}
