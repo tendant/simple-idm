@@ -231,33 +231,6 @@ func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 	return nil
 }
 
-// func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) error {
-// 	// Validate password complexity
-// 	if err := s.passwordManager.CheckPasswordComplexity(params.Password); err != nil {
-// 		return fmt.Errorf("password does not meet complexity requirements: %w", err)
-// 	}
-
-// 	// Hash the password
-// 	hashedPassword, err := s.passwordManager.HashPassword(params.Password)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to hash password: %w", err)
-// 	}
-
-// 	// Create reset password parameters
-// 	resetPasswordParams := logindb.ResetPasswordByIdParams{
-// 		Password: []byte(hashedPassword),
-// 		ID:       uuid.MustParse(params.Code), // Assuming Code is the ID of the user
-// 	}
-
-// 	slog.Debug("Resetting password", "params", params.Code)
-// 	err = s.queries.ResetPasswordById(ctx, resetPasswordParams)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to reset password: %w", err)
-// 	}
-
-// 	return nil
-// }
-
 func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.NullString, error) {
 	slog.Debug("FindUserRoles", "params", uuid)
 	roles, err := s.queries.FindUserRolesByUserId(ctx, uuid)
