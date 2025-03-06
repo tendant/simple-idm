@@ -337,7 +337,35 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 // Disable an existing 2FA method
 // (POST /disable)
 func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response {
-	return Post2faDisableJSON200Response(SuccessResponse{})
+	var resp SuccessResponse
+
+	data := Post2faEnableJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Get login ID from path parameter
+	loginId, err := uuid.Parse(data.LoginID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid login id",
+		}
+	}
+
+	err = h.twoFaService.DisableTwoFactor(r.Context(), loginId, string(data.TwofaType))
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: err.Error(),
+		}
+	}
+
+	return Post2faDisableJSON200Response(resp)
 }
 
 // Delete a 2FA method
