@@ -171,19 +171,18 @@ func (q *Queries) Get2FAByLoginId(ctx context.Context, arg Get2FAByLoginIdParams
 }
 
 const getUsersByLoginId = `-- name: GetUsersByLoginId :many
-SELECT u.id, u.username, u.name, u.email, u.created_at, u.last_modified_at,
+SELECT u.id, u.name, u.email, u.created_at, u.last_modified_at,
        COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.login_id = $1
 AND u.deleted_at IS NULL
-GROUP BY u.id, u.username, u.name, u.email, u.created_at, u.last_modified_at
+GROUP BY u.id, u.name, u.email, u.created_at, u.last_modified_at
 `
 
 type GetUsersByLoginIdRow struct {
 	ID             uuid.UUID      `json:"id"`
-	Username       sql.NullString `json:"username"`
 	Name           sql.NullString `json:"name"`
 	Email          string         `json:"email"`
 	CreatedAt      time.Time      `json:"created_at"`
@@ -202,7 +201,6 @@ func (q *Queries) GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) 
 		var i GetUsersByLoginIdRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.Username,
 			&i.Name,
 			&i.Email,
 			&i.CreatedAt,
