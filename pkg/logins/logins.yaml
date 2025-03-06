@@ -200,9 +200,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/TwoFactorMethod"
+                $ref: "#/components/schemas/TwoFactorMethods"
         "404":
           description: Login 2fa methods not found
           content:
@@ -261,6 +259,18 @@ components:
           type: string
       required:
         - password
+    TwoFactorMethods:
+      type: object
+      properties:
+        methods:
+          type: array
+          items:
+            $ref: "#/components/schemas/TwoFactorMethod"
+        count:
+          type: integer
+      required:
+        - methods
+        - count
     
     TwoFactorMethod:
       x-go-optional-value: true

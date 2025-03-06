@@ -1,6 +1,6 @@
 import { Component, createSignal, onMount, Show, For } from 'solid-js';
 import { useNavigate, useParams } from '@solidjs/router';
-import { loginApi, type Login, type TwoFactorMethod } from '../api/login';
+import { loginApi, type Login, type TwoFactorMethod, type TwoFactorMethods } from '../api/login';
 import { userApi, type User } from '../api/user';
 import { twoFactorApi } from '../api/twoFactor';
 
@@ -9,6 +9,7 @@ const LoginDetail: Component = () => {
   const navigate = useNavigate();
   const [login, setLogin] = createSignal<Login | null>(null);
   const [associatedUsers, setAssociatedUsers] = createSignal<User[]>([]);
+  const [twoFactorMethodsResponse, setTwoFactorMethodsResponse] = createSignal<TwoFactorMethods>({ count: 0, methods: [] });
   const [twoFactorMethods, setTwoFactorMethods] = createSignal<TwoFactorMethod[]>([]);
   const [error, setError] = createSignal<string | null>(null);
   const [successMessage, setSuccessMessage] = createSignal<string | null>(null);
@@ -51,8 +52,9 @@ const LoginDetail: Component = () => {
   
   const fetchTwoFactorMethods = async () => {
     try {
-      const methods = await loginApi.get2FAMethods(params.id);
-      setTwoFactorMethods(methods);
+      const response = await loginApi.get2FAMethods(params.id);
+      setTwoFactorMethodsResponse(response);
+      setTwoFactorMethods(response.methods || []);
     } catch (err) {
       console.error('Failed to fetch 2FA methods:', err);
     } finally {
@@ -254,7 +256,7 @@ const LoginDetail: Component = () => {
             </div>
           </Show>
 
-          <Show when={!loadingTwoFactorMethods() && twoFactorMethods().length > 0}>
+          <Show when={!loadingTwoFactorMethods() && twoFactorMethodsResponse().count > 0 && twoFactorMethods().length > 0}>
             <div class="mt-4 overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
               <table class="min-w-full divide-y divide-gray-6">
                 <thead>
@@ -315,7 +317,22 @@ const LoginDetail: Component = () => {
             </div>
           </Show>
           
-          <Show when={!loadingTwoFactorMethods() && twoFactorMethods().length === 0}>
+          <Show when={!loadingTwoFactorMethods() && twoFactorMethodsResponse().count === 0}>
+            <div class="mt-4 rounded-md bg-yellow-50 p-4">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-yellow-800">No two-factor authentication methods configured</h3>
+                  <div class="mt-2 text-sm text-yellow-700">
+                    <p>This login doesn't have any two-factor authentication methods configured. Add a method to enhance security.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="mt-4 flex justify-end">
               <button
                 onClick={() => setShowCreateModal(true)}

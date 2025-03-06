@@ -359,14 +359,20 @@ func (h *LoginsHandle) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	var resp []TwoFactorMethod
+	var (
+		methods []TwoFactorMethod
+		resp    TwoFactorMethods
+	)
 
 	for _, v := range res {
-		resp = append(resp, TwoFactorMethod{
+		methods = append(methods, TwoFactorMethod{
 			Type:    v.TwoFactorType,
 			Enabled: v.TwoFactorEnabled,
 		})
 	}
+
+	resp.Count = len(methods)
+	resp.Methods = methods
 
 	return Get2faMethodsByLoginIDJSON200Response(resp)
 }

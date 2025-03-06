@@ -16,6 +16,11 @@ export interface TwoFactorMethod {
   enabled: boolean;
 }
 
+export interface TwoFactorMethods {
+  count: number;
+  methods: TwoFactorMethod[] | null;
+}
+
 export interface CreateLoginRequest {
   username: string;
   email?: string;
@@ -111,7 +116,7 @@ export const loginApi = {
     return response.json();
   },
   
-  get2FAMethods: async (id: string): Promise<TwoFactorMethod[]> => {
+  get2FAMethods: async (id: string): Promise<TwoFactorMethods> => {
     const response = await apiClient.get(`/idm/logins/${id}/2fa`);
     if (!response.ok) {
       throw new Error('Failed to fetch 2FA methods');

@@ -44,6 +44,12 @@ type TwoFactorMethod struct {
 	Type    string `json:"type"`
 }
 
+// TwoFactorMethods defines model for TwoFactorMethods.
+type TwoFactorMethods struct {
+	Count   int               `json:"count"`
+	Methods []TwoFactorMethod `json:"methods"`
+}
+
 // UpdateLoginRequest defines model for UpdateLoginRequest.
 type UpdateLoginRequest struct {
 	Username string `json:"username"`
@@ -235,7 +241,7 @@ func PutIDJSON404Response(body struct {
 
 // Get2faMethodsByLoginIDJSON200Response is a constructor method for a Get2faMethodsByLoginID response.
 // A *Response is returned with the configured status code and content type from the spec.
-func Get2faMethodsByLoginIDJSON200Response(body []TwoFactorMethod) *Response {
+func Get2faMethodsByLoginIDJSON200Response(body TwoFactorMethods) *Response {
 	return &Response{
 		body:        body,
 		Code:        200,
@@ -648,22 +654,22 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9xXTW/bOBD9K8TsHpXa9eakW7tBCwMNNthtT0URjKWRw4IiFX4kMQz99wWH8qdkN80G",
-	"3iaXQCHHM6P33jyKSyhM3RhN2jvIl+CKG6qRH/+0hJ4+mbnUf9NtIOfjamNNQ9ZL4pgGnbs3tozPftEQ",
-	"5OC8lXoObQbBkdVY08Bmm4Gl2yAtlZB/3URmm4zfstWPzOw7FT5m5Gb6XRTcaXmN3GFlbB2foERPZ15y",
-	"2l5zstyJDUGWQ2Grdq7vyDpp9Na7SO1pTjZG+XtzXWHhjb0mjTNF24DMjFGEmhFpyp9u9DiKPYg+35sP",
-	"3Mkl+RtT9sE62mBa+RFdvJutM/WYyuDhbG7OTOOl0ajO7lAFgtzbQG0GXxiE47p6gnSG9JJKXXUcPkXF",
-	"e9WOqDOGSl0ZTiK9inv8kk5cosY51aS9eHc1hQzWYoK3b8ZvxrFV05DGRkIOf/BSlJ6/4fZG8c+cuPHY",
-	"NkZYpyXk8JE8B1qsyZN1kH9dQkmusJKxhxwu8UHWoRY61DOywlRCpaa8EZZ8sBpi35DDbSC7gAwS7qBk",
-	"LWP25AixdkkVBuUhn4yz3hC02X7lv6rKkReVsaLBudTc9oFihmOHqz2q2D+EtrgRnmzNFSupPEUKu9c9",
-	"UNfxz3bq7gvgW1SAa4x2SSyT8Zg9x2hPmjnBplGy4NcbfXfJIzb5dqXWdZMvQXqq+eF3SxXk8Nto48Sj",
-	"zoZHyfA2c47W4oL/Nx5Vgmkbhs9xucc1DCE4pN/dZJ+k81tJYoALdY12sdpEpda7GTTGDWj0Kq6mKSLn",
-	"35ty8VPwHUNn4IRqdye2s5w9At8+WwcdPwPYxQ3RHUzChaIg56qgFLN3/p80VJNzOGdvpAesG7aaL50P",
-	"ClSWsFwIepDOu/6J8hjmp/oOlSyFXaO6TX2CXaDQdJ/o54DRUpZtkqQiT30lXPD69KJvWTya0e82k8nH",
-	"8S6R21P6g4N7YGrP+9OSSErtDpF0/twkpYLaRFcMunwaOftJdslJIK9oyQ6eG/8XDeNTzV5JHqVyL5fJ",
-	"j+QTjWK2ENMLdtgwZLDhlGQ+v4sPfA8+ysVPpqTuq/2VGESCe9+3R5MKj31mTipMFwr3fsH5X4Z/POoj",
-	"a//K1Pvc6kM8+fBO1BydMD6dNiYVdpXd8+hkOOEhK9q8uNsSz/YF6rBHre5hL96r9i+Uv4pdrfp6xY4l",
-	"1lJr27b9NwAA//9UH4KbvhIAAA==",
+	"H4sIAAAAAAAC/9xXTW/bOBD9K8TsHpXa9eakW7tBCwMNNthtT0URjKWRw4IiFXKYxAj83xck5U/RbpoN",
+	"sk0uhkCOZx7nvXkS76EybWc0aXZQ3oOrrqjF+PinJWT6ZOZS/03XnhyH1c6ajixLijEdOndrbB2eedER",
+	"lODYSj2HZQHekdXYUmZzWYClay8t1VB+3UQWm4zfitWfzOw7VRwyRjBDFFVEWl9iRNgY24YnqJHphGVM",
+	"OwAn651Y72WdC1vBubwh66TRW2eRmmlONkTxrblssGJjL0njTNF2Q2bGKEIdO9LVPw30eBcHLfp8az5E",
+	"JOfEV6YeNusowLTyI7ribrHONGCqgLuTuTkxHUujUZ3coPIEJVtPQ4Quw6fxmvOdbjf/kUxtfPjdUgMl",
+	"/DbaSHnU63i0345Ny9BaXAyOtspf9CByKvwSWTw+GI/Q/uFSF70IHzOGe9WOjFcIlboxMYlkFfbiIZ04",
+	"R41zakmzeHcxhQLW0wBv34zfjANU05HGTkIJf8SlMDt8FeGNws+cIvAAG4MupjWU8JE4Blpsick6KL/e",
+	"Q02usjKKB0o4xzvZ+lZo387ICtMIlUCxEZbYWw0BN5Rw7ckuoIDUd1CylSF7kkKoXVODXjGUk3Ex0Nay",
+	"2K/8V9M4YtEYKzqcSx1hHyhmYmy+2oOK/UNoqyvBZNtYsZGKKVDYH/dAXRf/tlN3XwDfggJcZ7RLYpmM",
+	"x2nINFMaM+w6Jat4vNF3l0xuk29Xaj2ah85fcuzB1BXAhlGlNm234XNYHnANuQ7m9Lub7JN0vJUkBDjf",
+	"tmgXq01Uar1bQGdcRqMXYTVNETl+b+rFT7XvWHcyr9jl7sT2nrlH4NsnQ9Dzk+ld2BD9m1U4X1XkXOOV",
+	"iuyd/icNteQczqM30h22XbSaL70PClSWsF4IupOO3fCV+BDmp/oGlayFXXd1m/rUdoFC022iPwaM7mW9",
+	"TJJUxDRUwllcn54NLSuOZvC7zWTG74ldIren9AdfHpmpPR1OSyIpwc2RdPrUJKWC2gRX9Lp+HDn7SXbJ",
+	"SU1e0VIcfG/8XzSMn2v2amKUyr1cJj8SJxrFbCGmZ9Fhfc5g/XOS+fQunvkefJCLP5uS+mvHKzGI1O59",
+	"3x5NGjz2mTlpsL9vvF/E/C/fPwYXqUwrJx/eiXSnSb18Pg1MGuwru6fRQz7hIcvZHNxtiWT7onTYi1b3",
+	"rRfvSfsXx1/Flla4XrEzibXUlsvl8t8AAAD//3jfpVdnEwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
