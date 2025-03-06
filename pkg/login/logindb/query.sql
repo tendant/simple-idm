@@ -116,6 +116,13 @@ FROM login l
 WHERE l.id = $1
 AND l.deleted_at IS NULL;
 
+-- name: GetLoginByUserId :one
+SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at
+FROM login l
+JOIN users u ON l.id = u.login_id
+WHERE u.id = $1
+AND l.deleted_at IS NULL;
+
 -- name: UpdateUserPasswordAndVersion :exec
 UPDATE login
 SET password = $1,
