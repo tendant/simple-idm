@@ -150,39 +150,6 @@ paths:
                     type: string
                     example: "Login not found"
   
-  /{id}/password:
-    put:
-      summary: Update login password
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdatePasswordRequest"
-      responses:
-        "200":
-          description: Password updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Login"
-        "404":
-          description: Login not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Login not found"
   /{id}/2fa:
     get:
       operationId: get_2fa_methods_by_login_id
@@ -252,14 +219,7 @@ components:
           type: string
       required:
         - username
-    
-    UpdatePasswordRequest:
-      type: object
-      properties:
-        password:
-          type: string
-      required:
-        - password
+  
     TwoFactorMethods:
       type: object
       properties:
