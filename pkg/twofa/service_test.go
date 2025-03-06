@@ -244,3 +244,16 @@ func TestFindEnabledTwoFAs(t *testing.T) {
 
 	slog.Info("res", "res", res[0])
 }
+
+func TestCreateTwoFactor(t *testing.T) {
+	setup()
+
+	// Create queries and service
+	queries := twofadb.New(dbPool)
+	service := NewTwoFaService(queries, nil)
+
+	err := service.CreateTwoFactor(context.Background(), uuid.MustParse("92d4479a-7692-4d9d-a4c1-77f203e4b621"), TWO_FACTOR_TYPE_EMAIL)
+
+	require.NoError(t, err)
+
+}
