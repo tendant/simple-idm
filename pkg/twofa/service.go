@@ -21,6 +21,7 @@ import (
 type TwoFactorService interface {
 	GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error)
 	SendTwoFaNotification(ctx context.Context, loginId uuid.UUID, twoFactorType, hashedDeliveryOption string) error
+	FindTwoFAsByLoginId(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error)
 	FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]string, error)
 	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
@@ -46,6 +47,7 @@ type (
 		TwoFactorType    string    `json:"two_factor_type"`
 		TwoFactorEnabled bool      `json:"two_factor_enabled"`
 		CreatedAt        time.Time `json:"created_at"`
+		UpdatedAt        time.Time `json:"updated_at"`
 	}
 )
 
@@ -143,6 +145,25 @@ func (s TwoFaService) FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) 
 	for _, e := range enabled2fas {
 		res = append(res, e.TwoFactorType.String)
 	}
+	return res, nil
+}
+
+func (s TwoFaService) FindTwoFAsByLoginId(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error) {
+	var res []TwoFA
+	twofas, err := s.queries.FindTwoFAsByLoginId(ctx, loginId)
+	if err != nil {
+		slog.Error("Failed to find 2FA by login ID", "loginUuid", loginId, "error", err)
+		return nil, fmt.Errorf("failed to find 2FA by login ID: %w", err)
+	}
+
+	for _, t := range twofas {
+		res = append(res, TwoFA{
+			TwoFactorType:    t.TwoFactorType.String,
+			TwoFactorEnabled: t.TwoFactorEnabled.Bool,
+			CreatedAt:        t.CreatedAt,
+		})
+	}
+
 	return res, nil
 }
 
