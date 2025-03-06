@@ -55,11 +55,6 @@ type UpdateLoginRequest struct {
 	Username string `json:"username"`
 }
 
-// UpdatePasswordRequest defines model for UpdatePasswordRequest.
-type UpdatePasswordRequest struct {
-	Password string `json:"password"`
-}
-
 // GetParams defines parameters for Get.
 type GetParams struct {
 	// Maximum number of logins to return
@@ -78,9 +73,6 @@ type PostJSONBody CreateLoginRequest
 // PutIDJSONBody defines parameters for PutID.
 type PutIDJSONBody UpdateLoginRequest
 
-// PutIDPasswordJSONBody defines parameters for PutIDPassword.
-type PutIDPasswordJSONBody UpdatePasswordRequest
-
 // PostJSONRequestBody defines body for Post for application/json ContentType.
 type PostJSONRequestBody PostJSONBody
 
@@ -94,14 +86,6 @@ type PutIDJSONRequestBody PutIDJSONBody
 
 // Bind implements render.Binder.
 func (PutIDJSONRequestBody) Bind(*http.Request) error {
-	return nil
-}
-
-// PutIDPasswordJSONRequestBody defines body for PutIDPassword for application/json ContentType.
-type PutIDPasswordJSONRequestBody PutIDPasswordJSONBody
-
-// Bind implements render.Binder.
-func (PutIDPasswordJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -670,6 +654,7 @@ var swaggerSpec = []string{
 	"SU1e0VIcfG/8XzSMn2v2amKUyr1cJj8SJxrFbCGmZ9Fhfc5g/XOS+fQunvkefJCLP5uS+mvHKzGI1O59",
 	"3x5NGjz2mTlpsL9vvF/E/C/fPwYXqUwrJx/eiXSnSb18Pg1MGuwru6fRQz7hIcvZHNxtiWT7onTYi1b3",
 	"rRfvSfsXx1/Flla4XrEzibXUlsvl8t8AAAD//3jfpVdnEwAA",
+
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

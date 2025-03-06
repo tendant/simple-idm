@@ -8,13 +8,13 @@ import (
 
 // LoginModel represents a login in the service layer
 type LoginModel struct {
-	ID               string     `json:"id"`
-	Username         string     `json:"username"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
-	DeletedAt        *time.Time `json:"deleted_at,omitempty"`
-	CreatedBy        string     `json:"created_by,omitempty"`
-	PasswordVersion  int        `json:"password_version,omitempty"`
+	ID              string     `json:"id"`
+	Username        string     `json:"username"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	DeletedAt       *time.Time `json:"deleted_at,omitempty"`
+	CreatedBy       string     `json:"created_by,omitempty"`
+	PasswordVersion int        `json:"password_version,omitempty"`
 }
 
 // LoginListResponse represents the response for listing logins
@@ -31,7 +31,7 @@ type LoginCreateRequest struct {
 
 // LoginUpdateRequest represents the request to update a login
 type LoginUpdateRequest struct {
-	Username *string `json:"username,omitempty"`
+	Username string `json:"username,omitempty"`
 }
 
 // PasswordUpdateRequest represents the request to update a password
@@ -71,8 +71,6 @@ func FromDBLogin(dbLogin *loginsdb.Login) LoginModel {
 		deletedAt := dbLogin.DeletedAt.Time
 		login.DeletedAt = &deletedAt
 	}
-
-
 
 	if dbLogin.PasswordVersion.Valid {
 		login.PasswordVersion = int(dbLogin.PasswordVersion.Int32)

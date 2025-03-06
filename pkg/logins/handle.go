@@ -36,7 +36,6 @@ func (h *LoginsHandle) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}", h.GetLogin)
 		r.Put("/{id}", h.UpdateLogin)
 		r.Delete("/{id}", h.DeleteLogin)
-		r.Put("/{id}/password", h.UpdatePassword)
 	})
 }
 
@@ -162,7 +161,7 @@ func (h *LoginsHandle) UpdateLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate request
-	if request.Username == nil || *request.Username == "" {
+	if request.Username == "" {
 		http.Error(w, "Username is required", http.StatusBadRequest)
 		return
 	}
@@ -198,41 +197,6 @@ func (h *LoginsHandle) DeleteLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Write response
 	w.WriteHeader(http.StatusNoContent)
-}
-
-// UpdatePassword handles the request to update a login's password
-func (h *LoginsHandle) UpdatePassword(w http.ResponseWriter, r *http.Request) {
-	// Parse login ID from URL
-	idStr := chi.URLParam(r, "id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		http.Error(w, "Invalid login ID", http.StatusBadRequest)
-		return
-	}
-
-	// Parse request body
-	var request PasswordUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Validate request
-	if request.CurrentPassword == "" || request.NewPassword == "" {
-		http.Error(w, "Current password and new password are required", http.StatusBadRequest)
-		return
-	}
-
-	// Update password
-	login, err := h.loginService.UpdatePassword(r.Context(), id, request)
-	if err != nil {
-		http.Error(w, "Failed to update password: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Write response
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(login)
 }
 
 // ServerInterface implementation

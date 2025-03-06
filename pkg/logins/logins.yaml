@@ -246,6 +246,7 @@ components:
     
     UpdateLoginRequest:
       type: object
+      x-go-optional-value: true
       properties:
         username:
           type: string

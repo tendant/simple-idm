@@ -7,7 +7,6 @@ const CreateLogin: Component = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [username, setUsername] = createSignal('');
-  const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
   const [confirmPassword, setConfirmPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
@@ -37,7 +36,6 @@ const CreateLogin: Component = () => {
         setUserData(userData);
         // Pre-fill fields with user data
         setUsername(userData.username || '');
-        setEmail(userData.email || '');
       }
     } catch (err) {
       console.error('Failed to fetch user data:', err);
@@ -59,7 +57,6 @@ const CreateLogin: Component = () => {
     try {
       const newLogin = await loginApi.createLogin({
         username: username(),
-        email: email(),
         password: password(),
       });
       
@@ -137,22 +134,6 @@ const CreateLogin: Component = () => {
                     required
                     value={username()}
                     onInput={(e) => setUsername(e.currentTarget.value)}
-                    class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label for="email" class="block text-sm font-medium text-gray-11">
-                  Email
-                </label>
-                <div class="mt-1">
-                  <input
-                    type="email"
-                    name="email"
-                    id="email"
-                    value={email()}
-                    onInput={(e) => setEmail(e.currentTarget.value)}
                     class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   />
                 </div>

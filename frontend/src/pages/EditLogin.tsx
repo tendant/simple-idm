@@ -10,7 +10,6 @@ const EditLogin: Component = () => {
   const [login, setLogin] = createSignal<Login | null>(null);
   const [user, setUser] = createSignal<User | null>(null);
   const [username, setUsername] = createSignal('');
-  const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
   const [confirmPassword, setConfirmPassword] = createSignal('');
   const [twoFactorEnabled, setTwoFactorEnabled] = createSignal(false);
@@ -33,7 +32,6 @@ const EditLogin: Component = () => {
         const loginData = await loginApi.getLogin(userData.login_id);
         setLogin(loginData);
         setUsername(loginData.username);
-        setEmail(loginData.email || '');
         setTwoFactorEnabled(loginData.two_factor_enabled || false);
       } else {
         setError('User does not have a login');
@@ -50,7 +48,6 @@ const EditLogin: Component = () => {
       const data = await loginApi.getLogin(params.id);
       setLogin(data);
       setUsername(data.username);
-      setEmail(data.email || '');
       setTwoFactorEnabled(data.two_factor_enabled || false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch login');
@@ -68,7 +65,6 @@ const EditLogin: Component = () => {
     try {
       const updateData: any = {
         username: username(),
-        email: email() || undefined,
       };
 
       await loginApi.updateLogin(login()?.id || params.id, updateData);
@@ -241,22 +237,6 @@ const EditLogin: Component = () => {
                       required
                       value={username()}
                       onInput={(e) => setUsername(e.currentTarget.value)}
-                      class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label for="email" class="block text-sm font-medium text-gray-11">
-                    Email
-                  </label>
-                  <div class="mt-1">
-                    <input
-                      type="email"
-                      name="email"
-                      id="email"
-                      value={email()}
-                      onInput={(e) => setEmail(e.currentTarget.value)}
                       class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                     />
                   </div>
