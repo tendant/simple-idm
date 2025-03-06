@@ -1,16 +1,16 @@
 import { apiClient } from './client';
 
-interface LoginRequest {
+export interface LoginRequest {
   username: string;
   password: string;
 }
 
-interface DeliveryOption {
+export interface DeliveryOption {
   display_value: string;
   hashed_value: string;
 }
 
-interface TwoFactorMethod {
+export interface TwoFactorMethod {
   type: string;
   delivery_options: DeliveryOption[];
 }
@@ -39,7 +39,7 @@ export interface LoginResponse {
   users?: User[];
 }
 
-interface CreateUserRequest {
+export interface CreateUserRequest {
   email: string;
   username: string;
   name?: string | null;
@@ -48,7 +48,7 @@ interface CreateUserRequest {
   password: string;
 }
 
-interface UpdateUserRequest {
+export interface UpdateUserRequest {
   name?: string | null;
   username?: string;
   password?: string;
@@ -56,7 +56,7 @@ interface UpdateUserRequest {
   login_id?: string;
 }
 
-interface FindUsernameRequest {
+export interface FindUsernameRequest {
   email: string;
 }
 
