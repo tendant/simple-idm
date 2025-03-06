@@ -36,15 +36,6 @@ SET
   deleted_at = (now() AT TIME ZONE 'utc')
 WHERE id = $1;
 
--- name: UpdateLoginPassword :one
-UPDATE login
-SET 
-  password = $2,
-  password_version = password_version + 1,
-  updated_at = (now() AT TIME ZONE 'utc')
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING *;
-
 -- name: CountLogins :one
 SELECT COUNT(*) FROM login
 WHERE deleted_at IS NULL;
