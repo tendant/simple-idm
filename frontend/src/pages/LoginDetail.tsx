@@ -11,6 +11,7 @@ const LoginDetail: Component = () => {
   const [associatedUsers, setAssociatedUsers] = createSignal<User[]>([]);
   const [twoFactorMethods, setTwoFactorMethods] = createSignal<TwoFactorMethod[]>([]);
   const [error, setError] = createSignal<string | null>(null);
+  const [successMessage, setSuccessMessage] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [loadingUsers, setLoadingUsers] = createSignal(true);
   const [loadingTwoFactorMethods, setLoadingTwoFactorMethods] = createSignal(true);
@@ -58,21 +59,38 @@ const LoginDetail: Component = () => {
 
   const toggleTwoFactorMethod = async (methodType: string, currentStatus: boolean) => {
     setProcessingMethod(methodType);
+    setError(null);
+    setSuccessMessage(null);
+    
     try {
       if (currentStatus) {
         // Disable the method
         await twoFactorApi.disable2FAMethod(params.id, methodType);
+        setSuccessMessage(`${getMethodDisplayName(methodType)} two-factor authentication has been disabled.`);
       } else {
         // Enable the method
         await twoFactorApi.enable2FAMethod(params.id, methodType);
+        setSuccessMessage(`${getMethodDisplayName(methodType)} two-factor authentication has been enabled.`);
       }
       // Refresh the 2FA methods list
       await fetchTwoFactorMethods();
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
       console.error(`Failed to ${currentStatus ? 'disable' : 'enable'} 2FA method:`, err);
       setError(err instanceof Error ? err.message : `Failed to ${currentStatus ? 'disable' : 'enable'} 2FA method`);
     } finally {
       setProcessingMethod(null);
+    }
+  };
+  
+  const getMethodDisplayName = (methodType: string): string => {
+    switch (methodType) {
+      case 'email': return 'Email';
+      case 'totp': return 'Authenticator App';
+      case 'sms': return 'SMS';
+      default: return methodType;
     }
   };
 
@@ -111,6 +129,21 @@ const LoginDetail: Component = () => {
             </div>
             <div class="ml-3">
               <h3 class="text-sm font-medium text-red-800">{error()}</h3>
+            </div>
+          </div>
+        </div>
+      </Show>
+      
+      <Show when={successMessage()}>
+        <div class="mt-4 bg-green-50 p-4 rounded-lg">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-green-800">{successMessage()}</h3>
             </div>
           </div>
         </div>
@@ -213,9 +246,7 @@ const LoginDetail: Component = () => {
                     {(method) => (
                       <tr>
                         <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
-                          {method.type === 'email' ? 'Email' : 
-                           method.type === 'totp' ? 'Authenticator App (TOTP)' : 
-                           method.type === 'sms' ? 'SMS' : method.type}
+                          {getMethodDisplayName(method.type)}
                         </td>
                         <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
                           <span class={`inline-flex items-center rounded-md px-2.5 py-0.5 text-sm font-medium ${method.enabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
