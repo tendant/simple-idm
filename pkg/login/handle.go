@@ -807,7 +807,18 @@ func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request) *
 	// get policy and respond
 	policy := h.loginService.GetPasswordPolicy()
 
-	response := PasswordPolicyResponse{}
-	copier.Copy(&response, &policy)
+	// Map the policy fields to the response fields using snake_case
+	response := PasswordPolicyResponse{
+		MinLength:         &policy.MinLength,
+		RequireUppercase:  &policy.RequireUppercase,
+		RequireLowercase:  &policy.RequireLowercase,
+		RequireDigit:      &policy.RequireDigit,
+		RequireSpecialChar: &policy.RequireSpecialChar,
+		DisallowCommonPwds: &policy.DisallowCommonPwds,
+		MaxRepeatedChars:  &policy.MaxRepeatedChars,
+		HistoryCheckCount: &policy.HistoryCheckCount,
+		ExpirationDays:    &policy.ExpirationDays,
+	}
+	
 	return GetPasswordResetPolicyJSON200Response(response)
 }
