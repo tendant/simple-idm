@@ -245,6 +245,32 @@ func TestFindEnabledTwoFAs(t *testing.T) {
 	slog.Info("res", "res", res[0])
 }
 
+func TestFindTwoFAsByLoginId(t *testing.T) {
+	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
+		Host:     "localhost",
+		Port:     1025,
+		Username: "noreply@example.com",
+		Password: "pwd",
+		From:     "noreply@example.com",
+		NoTLS:    true,
+	})
+	if err != nil {
+		slog.Error("Failed initialize notification manager", "err", err)
+	}
+
+	setup()
+
+	// Create queries and service
+	queries := twofadb.New(dbPool)
+	service := NewTwoFaService(queries, notificationManager)
+
+	res, err := service.FindTwoFAsByLoginId(context.Background(), uuid.MustParse("92d4479a-7692-4d9d-a4c1-77f203e4b621"))
+	require.NoError(t, err)
+	require.NotEmpty(t, res)
+
+	slog.Info("res", "res", res[0])
+}
+
 func TestCreateTwoFactor(t *testing.T) {
 	setup()
 
