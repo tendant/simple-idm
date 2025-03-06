@@ -49,6 +49,15 @@ type Delete2faJSONBody struct {
 // Delete2faJSONBodyTwofaType defines parameters for Delete2fa.
 type Delete2faJSONBodyTwofaType string
 
+// Post2faCreateJSONBody defines parameters for Post2faCreate.
+type Post2faCreateJSONBody struct {
+	LoginID   string                         `json:"login_id"`
+	TwofaType Post2faCreateJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Post2faCreateJSONBodyTwofaType defines parameters for Post2faCreate.
+type Post2faCreateJSONBodyTwofaType string
+
 // Post2faDisableJSONBody defines parameters for Post2faDisable.
 type Post2faDisableJSONBody struct {
 	LoginID   string                          `json:"login_id"`
@@ -84,6 +93,14 @@ type Delete2faJSONRequestBody Delete2faJSONBody
 
 // Bind implements render.Binder.
 func (Delete2faJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faCreateJSONRequestBody defines body for Post2faCreate for application/json ContentType.
+type Post2faCreateJSONRequestBody Post2faCreateJSONBody
+
+// Bind implements render.Binder.
+func (Post2faCreateJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -170,6 +187,16 @@ func Delete2faJSON200Response(body SuccessResponse) *Response {
 	}
 }
 
+// Post2faCreateJSON201Response is a constructor method for a Post2faCreate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faCreateJSON201Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        201,
+		contentType: "application/json",
+	}
+}
+
 // Post2faDisableJSON200Response is a constructor method for a Post2faDisable response.
 // A *Response is returned with the configured status code and content type from the spec.
 func Post2faDisableJSON200Response(body SuccessResponse) *Response {
@@ -225,6 +252,9 @@ type ServerInterface interface {
 	// Delete a 2FA method
 	// (DELETE /)
 	Delete2fa(w http.ResponseWriter, r *http.Request) *Response
+	// Create a new 2FA method
+	// (POST /)
+	Post2faCreate(w http.ResponseWriter, r *http.Request) *Response
 	// Disable an existing 2FA method
 	// (POST /disable)
 	Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
@@ -251,6 +281,24 @@ func (siw *ServerInterfaceWrapper) Delete2fa(w http.ResponseWriter, r *http.Requ
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Delete2fa(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post2faCreate operation middleware
+func (siw *ServerInterfaceWrapper) Post2faCreate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faCreate(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -451,6 +499,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Delete("/", wrapper.Delete2fa)
+		r.Post("/", wrapper.Post2faCreate)
 		r.Post("/disable", wrapper.Post2faDisable)
 		r.Post("/enable", wrapper.Post2faEnable)
 		r.Post("/send", wrapper.Post2faSend)
@@ -480,19 +529,20 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+yXTU/7RhDGv8pq2qMhaUovvlHRSjlUQqD2UlXRYI+Tpd6X7oxTosjfvdq1SQh2AqhI",
-	"f5C4IGt3ntmZZ35e4i0UznhnyQpDvgUuVmQwPd5STYX8zhRu6J9GBypviL2zTHHXB+cpiKYUa4gZl2mD",
-	"HtD4miDvE6iGKajQp4AMZOPjLkvQdgltBiwoDR9qOWkXUbs4pRUyfiHub7JRP9iO+pRZC5n08H2gCnL4",
-	"brLve9I3PYm9pqRdGgwBN9DuF9zdPRUCGTycLd2Z86KdxfpsjXVDkEtoqM3gtikKYj7uVSBuahkp940H",
-	"pWoH2cmgrke90OXoskVD48XsfM//jOI+NOuP+Ot5tW3UaFu5lE1LmuPceArsLAqp39DikgxZUZfXc8hg",
-	"TYG1s5DDD+fT82msxnmy6DXk8GNaysCjrFJnk/inpJok1RubxmjMvIQcrtL6rELo6iaWn125iYGFs0I2",
-	"GY7e17pIqsk9O7snfmhk7ZbaLjrTKhcMCuTQNHocw39dhYtueQtkGxNN64zKgA1DBtjIiqzE811YoPdP",
-	"LDzi+q6GgxPGnd/rej5CT2DqZjadvsmLU6/Jc8LT8SVxEXQiFXKY/XqpDMnKlaqbWKm4U1VNXW+iZRdd",
-	"RYe6uV1jrUvVj1B5DGhI4kucJBdDyZOjrBNVucaWMfin8fxCwWKtmMKagqIQXEi2c2MMhs0OJYVqnzlF",
-	"TErNeFd3b7RjGUJ47VhmFV71cV8kfjASu7l8JhS7ihVaRQ+aRdvlgEqyr4LyF/vF5AdkspveJ0Ky4+gk",
-	"kUy2fJHH2xj0XjSWVOs1hc3C9a1sX4LwNFlPYrNB8tcAdvqX2zdlr0KlrRaNw3/KB4Oe90EqjjONuUJV",
-	"uJK6IScSUV6+eP54DHyvYXtkTnX83ynvEn26+6NC9ej/8OqYTWfvV8zxb8Aj99q+GnXXiOKxb8BD0C73",
-	"Nz8lyHZzadu2/S8AAP//Bitr9qEOAAA=",
+	"H4sIAAAAAAAC/+yYz27bRhDGX2Ux7ZGOFDU9lDe3aQEdCgQx2ktRCGNyKG+6/7ozVCwYfPdgdxnJiig5",
+	"QQwkBnwxhN35Zme/+XEI8w4ab4N35IShvgNubshi/nlFhhr5iym+pf97Hal9Sxy8Y0q7IfpAUTTlWEvM",
+	"uM4bdIs2GIJ6TKB6pqjimAIqkG1IuyxRuzUMFbCg9Hyo5axdJe3qnFbIhpX4/8gl/dF20ufMWsjmHz9G",
+	"6qCGH2b7e8/GS8/SXXPSkgZjxC0M+wV//Y4agQpuL9b+wgfR3qG52KDpCWqJPQ0VXPVNQ8ynvYrEvZGJ",
+	"cr/woFztUXayqM2kF7qdXHZoabqYne/1P0k8hlbjEf9+Wu2QNNp1PmfTkvu4tIEie4dC6k90uCZLTtTl",
+	"myVUsKHI2juo4eWL+Yt5qsYHchg01PBTXqogoNzkm83Sn5YMSa43XRqTMcsWanid1xcdQqmbWH717TYF",
+	"Nt4JuWw4hmB0k1Wzd+zdnvhjI41fa7cqpnU+WhSooe/1NIbvfYersnwH5HqbTCtGVcCWoQLs5YacpPN9",
+	"XGEI9yw84fquhoMTpp3f60Y+4khgvs1iPv8iL849Jp8Sno9viZuoM6lQw+KPS2VJbnyrSsdaxUXV9cZs",
+	"k2WvSkWHuqXboNGtGluoAka0JOkhzpJXx5J7RzkvqvO9a1Pwz9P5haJDo5jihqKiGH3MtnNvLcbtDiWF",
+	"ap855Que5Zi7N55l0eFvkVDomb0T7L38Ruw1uS2PxN4vZ9lDEwnbraJbzcJfBWCBSaFy9P4AwqGCWasZ",
+	"r015rZwj8vUY94zkdzYOS1+e0jwsFSt0BW7t1kdUkvssKH93z0x+h0yW7j0hJAtHZ4lkcu2DPF6loMei",
+	"sSWjNxS3Kz9e5e4hCM+TdS+2Okr+OYCd//fhm7LXodJOi554Ox80ejkGqdTO3OYOVeNbKk3OJKI8PHj+",
+	"/hj4WM0OyJzr+Nou7xI9ufnRofro//HoWMwXj1fM6Q8RJ+bavhp13YviqQ8Rh6Bd7ic/Zch2fRmGYfgQ",
+	"AAD//+4dyYwmEQAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

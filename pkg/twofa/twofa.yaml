@@ -61,36 +61,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SelectUserRequiredResponse"
-  /:
-    post:
-      summary: Register a new 2FA method
-      operationId: post_2fa_create
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                login_id:
-                  type: string
-                  format: uuid
-                twofa_type:
-                  type: string
-                  enum: ["email", "sms", "authenticator_app"]
-              required:
-                - login_id
-                - twofa_type
-      responses:
-        "201":
-          description: 2FA method created successfully
-        "400":
-          description: Invalid request parameters
-        "409":
-          description: 2FA method already exists
-        "500":
-          description: Internal server error
-
   /enable:
     post:
       summary: Enable an existing 2FA method
@@ -159,6 +129,38 @@ paths:
         "500":
           description: Internal server error
   /:
+    post:
+      summary: Create a new 2FA method
+      operationId: post_2fa_create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login_id:
+                  type: string
+                  format: uuid
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - login_id
+                - twofa_type
+      responses:
+        "201":
+          description: 2FA method created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "409":
+          description: 2FA method already exists
+        "500":
+          description: Internal server error
     delete:
       summary: Delete a 2FA method
       operationId: delete_2fa
