@@ -3,7 +3,6 @@ import { apiClient } from './client';
 export interface Login {
   id?: string;
   username: string;
-  email?: string;
   created_at?: string;
   last_modified_at?: string;
   two_factor_enabled?: boolean;
@@ -13,13 +12,11 @@ export interface Login {
 
 export interface CreateLoginRequest {
   username: string;
-  email?: string;
   password: string;
 }
 
 export interface UpdateLoginRequest {
   username?: string;
-  email?: string;
   password?: string;
   two_factor_enabled?: boolean;
 }
