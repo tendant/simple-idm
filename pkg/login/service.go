@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -177,37 +176,37 @@ func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code st
 	// return true, nil
 }
 
-func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb.User, error) {
-	slog.Debug("Registering user with params:", "params", params)
+// func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb.User, error) {
+// 	slog.Debug("Registering user with params:", "params", params)
 
-	// Validate password complexity
-	if err := s.passwordManager.CheckPasswordComplexity(params.Password); err != nil {
-		return logindb.User{}, fmt.Errorf("password does not meet complexity requirements: %w", err)
-	}
+// 	// Validate password complexity
+// 	if err := s.passwordManager.CheckPasswordComplexity(params.Password); err != nil {
+// 		return logindb.User{}, fmt.Errorf("password does not meet complexity requirements: %w", err)
+// 	}
 
-	// Hash the password
-	_, err := s.passwordManager.HashPassword(params.Password)
-	if err != nil {
-		return logindb.User{}, fmt.Errorf("failed to hash password: %w", err)
-	}
+// 	// Hash the password
+// 	_, err := s.passwordManager.HashPassword(params.Password)
+// 	if err != nil {
+// 		return logindb.User{}, fmt.Errorf("failed to hash password: %w", err)
+// 	}
 
-	// Since we don't have a direct CreateUser method, we need to use what's available
-	// This is a placeholder implementation - you'll need to implement the actual user creation
-	// based on the available methods in your logindb package
-	slog.Info("User creation not fully implemented", "email", params.Email)
+// 	// Since we don't have a direct CreateUser method, we need to use what's available
+// 	// This is a placeholder implementation - you'll need to implement the actual user creation
+// 	// based on the available methods in your logindb package
+// 	slog.Info("User creation not fully implemented", "email", params.Email)
 
-	// Return a placeholder user with the provided information
-	user := logindb.User{
-		ID:    uuid.New(),
-		Email: params.Email,
-		Name:  utils.ToNullString(params.Name),
-		// Password field removed as it's not in the User struct
-		CreatedAt:      time.Now(),
-		LastModifiedAt: time.Now(),
-	}
+// 	// Return a placeholder user with the provided information
+// 	user := logindb.User{
+// 		ID:    uuid.New(),
+// 		Email: params.Email,
+// 		Name:  utils.ToNullString(params.Name),
+// 		// Password field removed as it's not in the User struct
+// 		CreatedAt:      time.Now(),
+// 		LastModifiedAt: time.Now(),
+// 	}
 
-	return user, nil
-}
+// 	return user, nil
+// }
 
 func (s LoginService) HashPassword(password string) (string, error) {
 	return s.passwordManager.HashPassword(password)
@@ -232,32 +231,32 @@ func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 	return nil
 }
 
-func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) error {
-	// Validate password complexity
-	if err := s.passwordManager.CheckPasswordComplexity(params.Password); err != nil {
-		return fmt.Errorf("password does not meet complexity requirements: %w", err)
-	}
+// func (s LoginService) ResetPasswordUsers(ctx context.Context, params PasswordReset) error {
+// 	// Validate password complexity
+// 	if err := s.passwordManager.CheckPasswordComplexity(params.Password); err != nil {
+// 		return fmt.Errorf("password does not meet complexity requirements: %w", err)
+// 	}
 
-	// Hash the password
-	hashedPassword, err := s.passwordManager.HashPassword(params.Password)
-	if err != nil {
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
+// 	// Hash the password
+// 	hashedPassword, err := s.passwordManager.HashPassword(params.Password)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to hash password: %w", err)
+// 	}
 
-	// Create reset password parameters
-	resetPasswordParams := logindb.ResetPasswordByIdParams{
-		Password: []byte(hashedPassword),
-		ID:       uuid.MustParse(params.Code), // Assuming Code is the ID of the user
-	}
+// 	// Create reset password parameters
+// 	resetPasswordParams := logindb.ResetPasswordByIdParams{
+// 		Password: []byte(hashedPassword),
+// 		ID:       uuid.MustParse(params.Code), // Assuming Code is the ID of the user
+// 	}
 
-	slog.Debug("Resetting password", "params", params.Code)
-	err = s.queries.ResetPasswordById(ctx, resetPasswordParams)
-	if err != nil {
-		return fmt.Errorf("failed to reset password: %w", err)
-	}
+// 	slog.Debug("Resetting password", "params", params.Code)
+// 	err = s.queries.ResetPasswordById(ctx, resetPasswordParams)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to reset password: %w", err)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.NullString, error) {
 	slog.Debug("FindUserRoles", "params", uuid)
@@ -334,14 +333,14 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	// Send reset email
-	if users[0].Email == "" {
-		slog.Info("User has no email address", "user", users[0])
-		return fmt.Errorf("user has no email address")
-	}
-
-	err = s.SendPasswordResetEmail(ctx, users[0].Email, resetToken)
-	if err != nil {
-		return err
+	for _, user := range users {
+		if user.Email == "" {
+			continue
+		}
+		err = s.SendPasswordResetEmail(ctx, user.Email, resetToken)
+		if err != nil {
+			slog.Error("Error sending password reset email", "err", err, "user", user.UserId)
+		}
 	}
 
 	return nil
