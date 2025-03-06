@@ -299,11 +299,22 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	return Post2faValidateJSON200Response(resp)
 }
 
-// Get all enabled 2fas
-// (GET /2fa/enabled)
-func (h Handle) Get2faEnabled(w http.ResponseWriter, r *http.Request, loginID string) *Response {
+// Enable an existing 2FA method
+// (POST /enable)
+func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response {
+	var resp SuccessResponse
+
+	data := Post2faEnableJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
 	// Get login ID from path parameter
-	loginId, err := uuid.Parse(loginID)
+	loginId, err := uuid.Parse(data.LoginID)
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
@@ -312,17 +323,25 @@ func (h Handle) Get2faEnabled(w http.ResponseWriter, r *http.Request, loginID st
 	}
 
 	// Find enabled 2FA methods
-	twoFAs, err := h.twoFaService.FindEnabledTwoFAs(r.Context(), loginId)
+	err = h.twoFaService.EnableTwoFactor(r.Context(), loginId, string(data.TwofaType))
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
-			body: "failed to validate 2fa: " + err.Error(),
+			body: err.Error(),
 		}
 	}
 
-	return Get2faEnabledJSON200Response(struct {
-		N2faMethods []string `json:"2fa_methods,omitempty"`
-	}{
-		N2faMethods: twoFAs,
-	})
+	return Post2faEnableJSON200Response(resp)
+}
+
+// Disable an existing 2FA method
+// (POST /disable)
+func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response {
+	return Post2faDisableJSON200Response(SuccessResponse{})
+}
+
+// Delete a 2FA method
+// (DELETE /)
+func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
+	return Delete2faJSON200Response(SuccessResponse{})
 }
