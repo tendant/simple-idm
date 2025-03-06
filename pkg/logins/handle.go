@@ -341,8 +341,32 @@ func (h *LoginsHandle) PutIDPassword(w http.ResponseWriter, r *http.Request, id 
 }
 
 // Get login 2FA methods
-// (GET /{id}/twofa)
+// (GET /{id}/2fa)
 func (h *LoginsHandle) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request, id string) *Response {
+	loginId, err := uuid.Parse(id)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{"error": "Invalid UUID format"},
+		}
+	}
 
-	return &Response{}
+	res, err := h.twoFactorService.FindTwoFAsByLoginId(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{"error": err.Error()},
+		}
+	}
+
+	var resp []TwoFactorMethod
+
+	for _, v := range res {
+		resp = append(resp, TwoFactorMethod{
+			Type:    v.TwoFactorType,
+			Enabled: v.TwoFactorEnabled,
+		})
+	}
+
+	return Get2faMethodsByLoginIDJSON200Response(resp)
 }
