@@ -30,6 +30,10 @@ type PasswordResetJSONRequestBody struct {
 	NewPassword string `json:"new_password"`
 }
 
+type PasswordResetPolicyJSONRequestBody struct {
+	Token string `json:"token"`
+}
+
 type Handle struct {
 	loginService     *LoginService
 	jwtService       auth.Jwt
@@ -791,4 +795,32 @@ func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response 
 		},
 		Code: http.StatusOK,
 	}
+}
+
+// GetPasswordResetPolicy returns the current password policy
+func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request) *Response {
+	var req PasswordResetPolicyJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			body: "Invalid reset token",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// validate token before returning policy
+	_, err := h.loginService.passwordManager.ValidateResetToken(r.Context(), req.Token)
+	if err != nil {
+		return &Response{
+			body: "Invalid or expired reset token",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// get policy and respond
+	policy := h.loginService.GetPasswordPolicy()
+
+	response := PasswordPolicyResponse{}
+	copier.Copy(&response, &policy)
+	return GetPasswordResetPolicyJSON200Response(response)
 }
