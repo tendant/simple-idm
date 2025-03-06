@@ -293,17 +293,6 @@ func (h *LoginsHandle) PutID(w http.ResponseWriter, r *http.Request, id string) 
 	return nil
 }
 
-// PutIDPassword implements ServerInterface.PutIDPassword
-func (h *LoginsHandle) PutIDPassword(w http.ResponseWriter, r *http.Request, id string) *Response {
-	// Set the ID in the URL context
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", id)
-	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
-
-	h.UpdatePassword(w, r)
-	return nil
-}
-
 // Get login 2FA methods
 // (GET /{id}/2fa)
 func (h *LoginsHandle) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request, id string) *Response {
