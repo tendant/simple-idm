@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
 	"github.com/tendant/simple-idm/pkg/utils"
 )
@@ -17,10 +18,30 @@ type LoginsService struct {
 	passwordManager *login.PasswordManager
 }
 
+// LoginsServiceOptions contains optional parameters for creating a LoginsService
+type LoginsServiceOptions struct {
+	PasswordPolicy *login.PasswordPolicy
+}
+
 // NewLoginsService creates a new logins service
-func NewLoginsService(loginsRepo *loginsdb.Queries) *LoginsService {
+func NewLoginsService(loginsRepo *loginsdb.Queries, loginQueries *logindb.Queries, options *LoginsServiceOptions) *LoginsService {
+	// Use provided policy or default
+	var policy *login.PasswordPolicy
+	if options != nil && options.PasswordPolicy != nil {
+		policy = options.PasswordPolicy
+	} else {
+		policy = login.DefaultPasswordPolicy()
+	}
+
+	// Create the policy checker
+	policyChecker := login.NewDefaultPasswordPolicyChecker(policy, nil)
+
+	// Create password manager with the policy checker
+	passwordManager := login.NewPasswordManager(loginQueries, policyChecker, login.CurrentPasswordVersion)
+
 	return &LoginsService{
-		loginsRepo: loginsRepo,
+		loginsRepo:      loginsRepo,
+		passwordManager: passwordManager,
 	}
 }
 
