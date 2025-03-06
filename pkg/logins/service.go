@@ -2,18 +2,19 @@ package logins
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 // LoginsService provides methods for managing logins
 type LoginsService struct {
-	loginsRepo *loginsdb.Queries
+	loginsRepo      *loginsdb.Queries
+	passwordManager *login.PasswordManager
 }
 
 // NewLoginsService creates a new logins service
@@ -21,6 +22,12 @@ func NewLoginsService(loginsRepo *loginsdb.Queries) *LoginsService {
 	return &LoginsService{
 		loginsRepo: loginsRepo,
 	}
+}
+
+// WithPasswordManager sets the password manager
+func (s *LoginsService) WithPasswordManager(passwordManager *login.PasswordManager) *LoginsService {
+	s.passwordManager = passwordManager
+	return s
 }
 
 // GetLogin retrieves a login by ID
@@ -74,32 +81,28 @@ func (s *LoginsService) SearchLogins(ctx context.Context, search string, limit, 
 // CreateLogin creates a new login
 func (s *LoginsService) CreateLogin(ctx context.Context, request LoginCreateRequest, createdBy string) (*LoginModel, error) {
 	// Convert username to sql.NullString
-	usernameSQL := sql.NullString{
-		String: request.Username,
-		Valid:  true,
-	}
+	usernameSQL := utils.ToNullString(request.Username)
+	createdBySQL := utils.ToNullString(createdBy)
 
 	// Check if username already exists
 	_, err := s.loginsRepo.GetLoginByUsername(ctx, usernameSQL)
 	if err == nil {
 		return nil, fmt.Errorf("username already exists")
 	}
+	// Validate password complexity
+	if err := s.passwordManager.CheckPasswordComplexity(request.Password); err != nil {
+		return nil, fmt.Errorf("password does not meet complexity requirements: %w", err)
+	}
 
 	// Hash the password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.Password), bcrypt.DefaultCost)
+	hashedPassword, err := s.passwordManager.HashPassword(request.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Convert createdBy to sql.NullString
-	createdBySQL := sql.NullString{
-		String: createdBy,
-		Valid:  true,
-	}
-
 	login, err := s.loginsRepo.CreateLogin(ctx, loginsdb.CreateLoginParams{
 		Username:  usernameSQL,
-		Password:  hashedPassword,
+		Password:  []byte(hashedPassword),
 		CreatedBy: createdBySQL,
 	})
 	if err != nil {
@@ -112,17 +115,18 @@ func (s *LoginsService) CreateLogin(ctx context.Context, request LoginCreateRequ
 
 // UpdateLogin updates a login's username
 func (s *LoginsService) UpdateLogin(ctx context.Context, id uuid.UUID, request LoginUpdateRequest) (*LoginModel, error) {
-	// Prepare update parameters
-	params := loginsdb.UpdateLoginParams{
-		ID: id,
+	// Convert username to sql.NullString
+	usernameSQL := utils.ToNullString(request.Username)
+	// Check if username already exists
+	_, err := s.loginsRepo.GetLoginByUsername(ctx, usernameSQL)
+	if err == nil {
+		return nil, fmt.Errorf("username already exists")
 	}
 
-	// Set username if provided
-	if request.Username != nil {
-		params.Username = sql.NullString{
-			String: *request.Username,
-			Valid:  true,
-		}
+	// Prepare update parameters
+	params := loginsdb.UpdateLoginParams{
+		ID:       id,
+		Username: usernameSQL,
 	}
 
 	// Update username
@@ -142,48 +146,4 @@ func (s *LoginsService) DeleteLogin(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("failed to delete login: %w", err)
 	}
 	return nil
-}
-
-// UpdatePassword updates a login's password
-func (s *LoginsService) UpdatePassword(ctx context.Context, id uuid.UUID, request PasswordUpdateRequest) (*LoginModel, error) {
-	// Verify current password
-	valid, err := s.VerifyPassword(ctx, id, request.CurrentPassword)
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify current password: %w", err)
-	}
-	if !valid {
-		return nil, fmt.Errorf("current password is incorrect")
-	}
-
-	// Hash the new password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(request.NewPassword), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	login, err := s.loginsRepo.UpdateLoginPassword(ctx, loginsdb.UpdateLoginPasswordParams{
-		ID:       id,
-		Password: hashedPassword,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to update password: %w", err)
-	}
-
-	result := FromDBLogin(&login)
-	return &result, nil
-}
-
-// VerifyPassword verifies a login's password
-func (s *LoginsService) VerifyPassword(ctx context.Context, id uuid.UUID, password string) (bool, error) {
-	login, err := s.loginsRepo.GetLogin(ctx, id)
-	if err != nil {
-		return false, fmt.Errorf("failed to get login: %w", err)
-	}
-
-	err = bcrypt.CompareHashAndPassword(login.Password, []byte(password))
-	if err != nil {
-		return false, nil
-	}
-
-	return true, nil
 }
