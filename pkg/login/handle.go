@@ -21,19 +21,6 @@ const (
 	REFRESH_TOKEN_NAME = "refreshToken"
 )
 
-type PasswordResetInitJSONRequestBody struct {
-	Username string `json:"username"`
-}
-
-type PasswordResetJSONRequestBody struct {
-	Token       string `json:"token"`
-	NewPassword string `json:"new_password"`
-}
-
-type PasswordResetPolicyJSONRequestBody struct {
-	Token string `json:"token"`
-}
-
 type Handle struct {
 	loginService     *LoginService
 	jwtService       auth.Jwt
@@ -248,7 +235,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 }
 
 func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response {
-	var body PasswordResetInitJSONRequestBody
+	var body PostPasswordResetInitJSONBody
 
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -288,7 +275,7 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 }
 
 func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Response {
-	var body PasswordResetJSONRequestBody
+	var body PostPasswordResetJSONBody
 
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -799,7 +786,7 @@ func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response 
 
 // GetPasswordResetPolicy returns the current password policy
 func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request) *Response {
-	var req PasswordResetPolicyJSONRequestBody
+	var req PasswordResetPolicyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		slog.Error("Failed to decode request body", "err", err)
 		return &Response{

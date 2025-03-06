@@ -91,6 +91,12 @@ paths:
   /password/reset/policy:
     get:
       summary: Get password reset policy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetPolicyRequest"
       responses:
         "200":
           description: Successful
@@ -400,14 +406,21 @@ components:
         - twoFactorEnabled
     PasswordReset:
       type: object
+      x-go-optional-value: true
       properties:
-        code:
+        token:
           type: string
-        password:
+        new_password:
           type: string
       required:
-        - code
-        - password
+        - token
+        - new_password
+    PasswordResetPolicyRequest:
+      type: object
+      x-go-optional-value: true
+      properties:
+        token:
+          type: string
     PasswordPolicyResponse:
       type: object
       properties:
