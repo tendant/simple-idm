@@ -218,7 +218,10 @@ func main() {
 
 		// Initialize logins management service and routes
 		loginsQueries := loginsdb.New(pool)
-		loginsService := logins.NewLoginsService(loginsQueries)
+		loginsServiceOptions := &logins.LoginsServiceOptions{
+			PasswordPolicy: passwordPolicy,
+		}
+		loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
 		loginsHandle := logins.NewHandle(loginsService)
 		r.Mount("/idm/logins", logins.Handler(loginsHandle))
 
