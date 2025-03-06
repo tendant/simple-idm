@@ -649,17 +649,17 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 	registerParam := RegisterParam{}
 	copier.Copy(&registerParam, data)
 
-	_, err = h.loginService.Create(r.Context(), registerParam)
-	if err != nil {
-		slog.Error("Failed to register user", "email", registerParam.Email, "err", err)
-		return &Response{
-			body: "Failed to register user",
-			Code: http.StatusInternalServerError,
-		}
-	}
+	// _, err = h.loginService.Create(r.Context(), registerParam)
+	// if err != nil {
+	// 	slog.Error("Failed to register user", "email", registerParam.Email, "err", err)
+	// 	return &Response{
+	// 		body: "Failed to register user",
+	// 		Code: http.StatusInternalServerError,
+	// 	}
+	// }
 	return &Response{
-		Code: http.StatusCreated,
-		body: "User registered successfully",
+		Code: http.StatusNotImplemented,
+		body: "Not implemented",
 	}
 }
 
