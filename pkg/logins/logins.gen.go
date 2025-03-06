@@ -245,28 +245,6 @@ func Get2faMethodsByLoginIDJSON404Response(body struct {
 	}
 }
 
-// PutIDPasswordJSON200Response is a constructor method for a PutIDPassword response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PutIDPasswordJSON200Response(body Login) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// PutIDPasswordJSON404Response is a constructor method for a PutIDPassword response.
-// A *Response is returned with the configured status code and content type from the spec.
-func PutIDPasswordJSON404Response(body struct {
-	Message *string `json:"message,omitempty"`
-}) *Response {
-	return &Response{
-		body:        body,
-		Code:        404,
-		contentType: "application/json",
-	}
-}
-
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// List all logins
@@ -287,9 +265,6 @@ type ServerInterface interface {
 	// Get login 2FA methods
 	// (GET /{id}/2fa)
 	Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request, id string) *Response
-	// Update login password
-	// (PUT /{id}/password)
-	PutIDPassword(w http.ResponseWriter, r *http.Request, id string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -465,32 +440,6 @@ func (siw *ServerInterfaceWrapper) Get2faMethodsByLoginID(w http.ResponseWriter,
 	handler(w, r.WithContext(ctx))
 }
 
-// PutIDPassword operation middleware
-func (siw *ServerInterfaceWrapper) PutIDPassword(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// ------------- Path parameter "id" -------------
-	var id string
-
-	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
-		return
-	}
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.PutIDPassword(w, r, id)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
 type UnescapedCookieParamError struct {
 	err       error
 	paramName string
@@ -612,7 +561,6 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Get("/{id}", wrapper.GetID)
 		r.Put("/{id}", wrapper.PutID)
 		r.Get("/{id}/2fa", wrapper.Get2faMethodsByLoginID)
-		r.Put("/{id}/password", wrapper.PutIDPassword)
 	})
 	return r
 }
@@ -638,23 +586,21 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
