@@ -52,6 +52,13 @@ GROUP BY u.email, u.name;
 INSERT INTO login_password_reset_tokens (login_id, token, expire_at)
 VALUES ($1, $2, $3);
 
+-- name: ExpirePasswordResetToken :exec
+UPDATE login_password_reset_tokens
+SET expire_at = NOW() at time zone 'UTC'
+WHERE login_id = $1
+AND used_at IS NULL
+AND expire_at > NOW() at time zone 'UTC';
+
 -- name: ValidatePasswordResetToken :one
 SELECT prt.id as id, prt.login_id as login_id
 FROM login_password_reset_tokens prt
