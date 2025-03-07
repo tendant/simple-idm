@@ -69,10 +69,11 @@ func NewHandle() *Handle {
 	// In-memory OAuth2 storage (Replace with a database in production)
 	store := storage.NewExampleStore()
 
-	// Register a client
+	// Register a client with a plain text secret for testing
+	// In production, you should use a hashed secret
 	store.Clients["myclient"] = &fosite.DefaultClient{
 		ID:            "myclient",
-		Secret:        []byte("some-mysecret"), // Change this if using client authentication
+		Secret:        []byte("mysecret"), // Plain text secret for testing
 		RedirectURIs:  []string{"http://localhost:8080/callback"},
 		ResponseTypes: []string{"code", "token", "id_token"},
 		GrantTypes:    []string{"authorization_code", "implicit", "refresh_token"},
@@ -81,11 +82,12 @@ func NewHandle() *Handle {
 
 	// Fosite Config
 	config := &fosite.Config{
-		AccessTokenLifespan:   time.Hour,
-		AuthorizeCodeLifespan: time.Minute * 10,
-		IDTokenLifespan:       time.Hour,
-		GlobalSecret:          []byte("some-very-long-secret-at-least-32-characters"),
+		AccessTokenLifespan:        time.Hour,
+		AuthorizeCodeLifespan:      time.Minute * 10,
+		IDTokenLifespan:            time.Hour,
+		GlobalSecret:               []byte("some-very-long-secret-at-least-32-characters"),
 		SendDebugMessagesToClients: true, // Helpful for debugging
+		AllowedPromptValues:        []string{"login", "none", "consent", "select_account"},
 	}
 
 	// Define Fosite configuration with OIDC support
@@ -150,20 +152,42 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
+	// Log the request details for debugging
+	log.Printf("[INFO] Token request received - Grant Type: %s", r.FormValue("grant_type"))
+	
+	// Create a default session with claims
+	session := &fosite.DefaultSession{
+		Subject: "user-123456", // This should match the subject from the authorization endpoint
+		Extra: map[string]interface{}{
+			"name": "Test User",
+			"email": "user@example.com",
+		},
+	}
+
 	// Parse token request
-	ar, err := h.OAuth2Provider.NewAccessRequest(ctx, r, &fosite.DefaultSession{})
+	ar, err := h.OAuth2Provider.NewAccessRequest(ctx, r, session)
 	if err != nil {
+		log.Printf("[ERROR] NewAccessRequest failed: %v", err)
 		h.OAuth2Provider.WriteAccessError(ctx, w, ar, err)
 		return
 	}
+
+	// Log the client and grant type
+	log.Printf("[INFO] Access request - Client: %s, Grant Type: %s", 
+		ar.GetClient().GetID(), ar.GetGrantTypes()[0])
 
 	// Generate token response
 	response, err := h.OAuth2Provider.NewAccessResponse(ctx, ar)
 	if err != nil {
+		log.Printf("[ERROR] NewAccessResponse failed: %v", err)
 		h.OAuth2Provider.WriteAccessError(ctx, w, ar, err)
 		return
 	}
 
+	// Log success
+	log.Printf("[INFO] Successfully issued tokens to client: %s", ar.GetClient().GetID())
+
+	// Write the response
 	h.OAuth2Provider.WriteAccessResponse(ctx, w, ar, response)
 }
 

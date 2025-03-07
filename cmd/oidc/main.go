@@ -23,6 +23,12 @@ const callbackTmpl = `
         .success { color: green; }
         .error { color: red; }
         pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        form { margin-top: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"] { width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #4285f4; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #3367d6; }
+        #token-response { margin-top: 20px; display: none; }
     </style>
 </head>
 <body>
@@ -44,15 +50,77 @@ const callbackTmpl = `
             </div>
             
             <div class="card">
-                <h3>Next Steps</h3>
-                <p>Use this code to request an access token from the token endpoint:</p>
+                <h3>Exchange Code for Token</h3>
+                <p>Use the form below to exchange your code for an access token:</p>
+                
+                <form id="token-form">
+                    <label for="code">Authorization Code:</label>
+                    <input type="text" id="code" name="code" value="{{.Code}}" readonly>
+                    
+                    <label for="redirect_uri">Redirect URI:</label>
+                    <input type="text" id="redirect_uri" name="redirect_uri" value="http://localhost:8080/callback">
+                    
+                    <label for="client_id">Client ID:</label>
+                    <input type="text" id="client_id" name="client_id" value="myclient">
+                    
+                    <label for="client_secret">Client Secret:</label>
+                    <input type="text" id="client_secret" name="client_secret" value="mysecret">
+                    
+                    <button type="submit">Exchange for Token</button>
+                </form>
+                
+                <div id="token-response" class="card">
+                    <h3>Token Response</h3>
+                    <pre id="token-result"></pre>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Command Line</h3>
+                <p>Or use this curl command to request an access token from the token endpoint:</p>
                 <pre>curl -X POST \
     http://localhost:8080/token \
     -d "grant_type=authorization_code" \
     -d "code={{.Code}}" \
     -d "redirect_uri=http://localhost:8080/callback" \
-    -d "client_id=myclient"</pre>
+    -d "client_id=myclient" \
+    -d "client_secret=mysecret"</pre>
             </div>
+            
+            <script>
+                document.getElementById('token-form').addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const code = document.getElementById('code').value;
+                    const redirectUri = document.getElementById('redirect_uri').value;
+                    const clientId = document.getElementById('client_id').value;
+                    const clientSecret = document.getElementById('client_secret').value;
+                    
+                    const formData = new URLSearchParams();
+                    formData.append('grant_type', 'authorization_code');
+                    formData.append('code', code);
+                    formData.append('redirect_uri', redirectUri);
+                    formData.append('client_id', clientId);
+                    formData.append('client_secret', clientSecret);
+                    
+                    try {
+                        const response = await fetch('/token', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: formData
+                        });
+                        
+                        const result = await response.json();
+                        document.getElementById('token-result').textContent = JSON.stringify(result, null, 2);
+                        document.getElementById('token-response').style.display = 'block';
+                    } catch (error) {
+                        document.getElementById('token-result').textContent = 'Error: ' + error.message;
+                        document.getElementById('token-response').style.display = 'block';
+                    }
+                });
+            </script>
         {{end}}
     </div>
 </body>
