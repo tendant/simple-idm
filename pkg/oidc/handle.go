@@ -69,19 +69,23 @@ func NewHandle() *Handle {
 	// In-memory OAuth2 storage (Replace with a database in production)
 	store := storage.NewExampleStore()
 
+	// Register a client
 	store.Clients["myclient"] = &fosite.DefaultClient{
 		ID:            "myclient",
 		Secret:        []byte("some-mysecret"), // Change this if using client authentication
 		RedirectURIs:  []string{"http://localhost:8080/callback"},
-		ResponseTypes: []string{"code"},
-		GrantTypes:    []string{"authorization_code"},
-		Scopes:        []string{"openid"},
+		ResponseTypes: []string{"code", "token", "id_token"},
+		GrantTypes:    []string{"authorization_code", "implicit", "refresh_token"},
+		Scopes:        []string{"openid", "profile", "email"},
 	}
 
 	// Fosite Config
 	config := &fosite.Config{
-		AccessTokenLifespan: time.Hour,
-		GlobalSecret:        []byte("some-secret"),
+		AccessTokenLifespan:   time.Hour,
+		AuthorizeCodeLifespan: time.Minute * 10,
+		IDTokenLifespan:       time.Hour,
+		GlobalSecret:          []byte("some-very-long-secret-at-least-32-characters"),
+		SendDebugMessagesToClients: true, // Helpful for debugging
 	}
 
 	// Define Fosite configuration with OIDC support
@@ -90,6 +94,7 @@ func NewHandle() *Handle {
 		store,
 		privateKey,
 	)
+
 	return &Handle{
 		OAuth2Provider: oauth2Provider,
 		PrivateKey:     privateKey,
@@ -107,19 +112,26 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// In a real application, you would check if the user is logged in
+	// If not, redirect to a login page and then come back to this endpoint
+	// For now, we'll simulate a logged-in user
+	
 	// Mock user authentication (in production, check session or database)
-	userID := "123456"
-	if userID == "" {
-		log.Println("[ERROR] User not authenticated")
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
-		return
-	}
-
-	// Create a session for the user
+	userID := "user-123456"
+	
+	// Create a session for the user with claims
 	session := &fosite.DefaultSession{
 		Subject: userID,
+		Extra: map[string]interface{}{
+			"name": "Test User",
+			"email": "user@example.com",
+		},
 	}
 
+	// For demonstration purposes, automatically approve the request
+	// In a real application, you would show a consent screen to the user
+	// and only proceed if they approve
+	
 	// Generate the authorization response
 	response, err := h.OAuth2Provider.NewAuthorizeResponse(ctx, ar, session)
 	if err != nil {
@@ -129,7 +141,7 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log successful authorization
-	log.Printf("[INFO] Successful authorization for user: %s", userID)
+	log.Printf("[INFO] Successful authorization for user: %s, client: %s", userID, ar.GetClient().GetID())
 
 	// Write response
 	h.OAuth2Provider.WriteAuthorizeResponse(ctx, w, ar, response)
@@ -164,6 +176,7 @@ func (h *Handle) UserInfoEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Perform token introspection (capture all 3 return values)
 	tokenType, accessRequest, err := h.OAuth2Provider.IntrospectToken(ctx, token, fosite.AccessToken, &fosite.DefaultSession{})
 	if err != nil {
+		log.Printf("[ERROR] Token introspection failed: %v", err)
 		http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 		return
 	}
@@ -203,6 +216,8 @@ func (h *Handle) JwksEndpoint(w http.ResponseWriter, r *http.Request) {
 				"alg": "RS256",
 				"n":   key.N.String(),
 				"e":   key.E,
+				"kid": "1", // Key ID
+				"use": "sig", // Key usage: signature
 			},
 		},
 	}
@@ -210,4 +225,38 @@ func (h *Handle) JwksEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Respond with JWKS JSON
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(jwks)
+}
+
+// ValidateToken validates an access token and returns the claims
+func (h *Handle) ValidateToken(ctx context.Context, token string) (map[string]interface{}, error) {
+	// Introspect the token
+	tokenType, ar, err := h.OAuth2Provider.IntrospectToken(ctx, token, fosite.AccessToken, &fosite.DefaultSession{})
+	if err != nil {
+		return nil, fmt.Errorf("token introspection failed: %w", err)
+	}
+
+	// Ensure it's an access token
+	if tokenType != fosite.AccessToken {
+		return nil, fmt.Errorf("expected access token but got %s", tokenType)
+	}
+
+	// Extract session data
+	session, ok := ar.GetSession().(*fosite.DefaultSession)
+	if !ok {
+		return nil, fmt.Errorf("invalid session type")
+	}
+
+	// Create claims map
+	claims := map[string]interface{}{
+		"sub": session.Subject,
+	}
+
+	// Add extra claims if available
+	if session.Extra != nil {
+		for k, v := range session.Extra {
+			claims[k] = v
+		}
+	}
+
+	return claims, nil
 }
