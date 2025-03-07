@@ -68,6 +68,15 @@ func NewHandle() *Handle {
 	// In-memory OAuth2 storage (Replace with a database in production)
 	store := storage.NewExampleStore()
 
+	store.Clients["myclient"] = &fosite.DefaultClient{
+		ID:            "myclient",
+		Secret:        []byte("some-mysecret"), // Change this if using client authentication
+		RedirectURIs:  []string{"http://localhost:8080/callback"},
+		ResponseTypes: []string{"code"},
+		GrantTypes:    []string{"authorization_code"},
+		Scopes:        []string{"openid"},
+	}
+
 	// Fosite Config
 	config := &fosite.Config{
 		AccessTokenLifespan: time.Hour,
