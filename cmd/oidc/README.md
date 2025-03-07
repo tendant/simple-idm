@@ -1,0 +1,1 @@
+curl -i "http://localhost:8080/authorize?response_type=code&client_id=myclient&redirect_uri=http://localhost:8080/callback&scope=openid&state=abcdefgh"
