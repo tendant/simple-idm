@@ -302,6 +302,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 // Create a new 2FA method
 // (POST /)
 func (h Handle) Post2faCreate(w http.ResponseWriter, r *http.Request) *Response {
+	//TODO: add permission check: who can create 2FA
 	var resp SuccessResponse
 
 	data := Post2faCreateJSONRequestBody{}
@@ -339,6 +340,7 @@ func (h Handle) Post2faCreate(w http.ResponseWriter, r *http.Request) *Response 
 // Enable an existing 2FA method
 // (POST /enable)
 func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response {
+	//TODO: add permission check: who can enable 2FA
 	var resp SuccessResponse
 
 	data := Post2faEnableJSONRequestBody{}
@@ -374,6 +376,7 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 // Disable an existing 2FA method
 // (POST /disable)
 func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response {
+	//TODO: add permission check: who can disable 2FA
 	var resp SuccessResponse
 
 	data := Post2faEnableJSONRequestBody{}
@@ -408,5 +411,6 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 // Delete a 2FA method
 // (DELETE /)
 func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
+	//TODO: add permission check: who can delete 2FA
 	return Delete2faJSON200Response(SuccessResponse{})
 }
