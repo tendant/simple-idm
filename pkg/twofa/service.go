@@ -50,6 +50,12 @@ type (
 		CreatedAt        time.Time `json:"created_at"`
 		UpdatedAt        time.Time `json:"updated_at"`
 	}
+
+	DeleteTwoFactorParams struct {
+		LoginId       uuid.UUID `json:"login_id"`
+		TwoFactorType string    `json:"two_factor_type"`
+		TwoFactorId   uuid.UUID `json:"two_factor_id"`
+	}
 )
 
 const (
@@ -286,6 +292,10 @@ func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcod
 		To:   email,
 		Data: data,
 	})
+}
+
+func (s TwoFaService) DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error {
+	return nil
 }
 
 func (s TwoFaService) Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error) {
