@@ -17,6 +17,7 @@ import (
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/storage"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Handle struct {
@@ -69,11 +70,16 @@ func NewHandle() *Handle {
 	// In-memory OAuth2 storage (Replace with a database in production)
 	store := storage.NewExampleStore()
 
-	// Register a client with a plain text secret for testing
-	// In production, you should use a hashed secret
+	// Hash the client secret using bcrypt
+	hashedSecret, err := bcrypt.GenerateFromPassword([]byte("mysecret"), bcrypt.DefaultCost)
+	if err != nil {
+		slog.Error("Could not hash client secret:", "err", err)
+	}
+
+	// Register a client with a bcrypt hashed secret
 	store.Clients["myclient"] = &fosite.DefaultClient{
 		ID:            "myclient",
-		Secret:        []byte("mysecret"), // Plain text secret for testing
+		Secret:        hashedSecret, // Bcrypt hashed secret
 		RedirectURIs:  []string{"http://localhost:8080/callback"},
 		ResponseTypes: []string{"code", "token", "id_token"},
 		GrantTypes:    []string{"authorization_code", "implicit", "refresh_token"},
@@ -117,15 +123,15 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	// In a real application, you would check if the user is logged in
 	// If not, redirect to a login page and then come back to this endpoint
 	// For now, we'll simulate a logged-in user
-	
+
 	// Mock user authentication (in production, check session or database)
 	userID := "user-123456"
-	
+
 	// Create a session for the user with claims
 	session := &fosite.DefaultSession{
 		Subject: userID,
 		Extra: map[string]interface{}{
-			"name": "Test User",
+			"name":  "Test User",
 			"email": "user@example.com",
 		},
 	}
@@ -133,7 +139,7 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	// For demonstration purposes, automatically approve the request
 	// In a real application, you would show a consent screen to the user
 	// and only proceed if they approve
-	
+
 	// Generate the authorization response
 	response, err := h.OAuth2Provider.NewAuthorizeResponse(ctx, ar, session)
 	if err != nil {
@@ -154,12 +160,12 @@ func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	// Log the request details for debugging
 	log.Printf("[INFO] Token request received - Grant Type: %s", r.FormValue("grant_type"))
-	
+
 	// Create a default session with claims
 	session := &fosite.DefaultSession{
 		Subject: "user-123456", // This should match the subject from the authorization endpoint
 		Extra: map[string]interface{}{
-			"name": "Test User",
+			"name":  "Test User",
 			"email": "user@example.com",
 		},
 	}
@@ -173,7 +179,7 @@ func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log the client and grant type
-	log.Printf("[INFO] Access request - Client: %s, Grant Type: %s", 
+	log.Printf("[INFO] Access request - Client: %s, Grant Type: %s",
 		ar.GetClient().GetID(), ar.GetGrantTypes()[0])
 
 	// Generate token response
@@ -240,7 +246,7 @@ func (h *Handle) JwksEndpoint(w http.ResponseWriter, r *http.Request) {
 				"alg": "RS256",
 				"n":   key.N.String(),
 				"e":   key.E,
-				"kid": "1", // Key ID
+				"kid": "1",   // Key ID
 				"use": "sig", // Key usage: signature
 			},
 		},
