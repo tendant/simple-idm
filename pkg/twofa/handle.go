@@ -302,6 +302,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 // Create a new 2FA method
 // (POST /)
 func (h Handle) Post2faCreate(w http.ResponseWriter, r *http.Request) *Response {
+	//TODO: add permission check: who can create 2FA
 	var resp SuccessResponse
 
 	data := Post2faCreateJSONRequestBody{}
@@ -339,6 +340,7 @@ func (h Handle) Post2faCreate(w http.ResponseWriter, r *http.Request) *Response 
 // Enable an existing 2FA method
 // (POST /enable)
 func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response {
+	//TODO: add permission check: who can enable 2FA
 	var resp SuccessResponse
 
 	data := Post2faEnableJSONRequestBody{}
@@ -374,6 +376,7 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 // Disable an existing 2FA method
 // (POST /disable)
 func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response {
+	//TODO: add permission check: who can disable 2FA
 	var resp SuccessResponse
 
 	data := Post2faEnableJSONRequestBody{}
@@ -406,7 +409,48 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // Delete a 2FA method
-// (DELETE /)
+// (POST /delete)
 func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
-	return Delete2faJSON200Response(SuccessResponse{})
+	//TODO: add permission check: who can delete 2FA
+	var resp SuccessResponse
+
+	data := Delete2faJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Get login ID from path parameter
+	loginId, err := uuid.Parse(data.LoginID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid login id",
+		}
+	}
+
+	twofaId, err := uuid.Parse(*data.TwofaID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid 2fa id",
+		}
+	}
+
+	err = h.twoFaService.DeleteTwoFactor(r.Context(), DeleteTwoFactorParams{
+		LoginId:       loginId,
+		TwoFactorId:   twofaId,
+		TwoFactorType: string(data.TwofaType),
+	})
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: err.Error(),
+		}
+	}
+
+	return Delete2faJSON200Response(resp)
 }

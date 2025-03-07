@@ -17,6 +17,7 @@ const LoginDetail: Component = () => {
   const [loadingUsers, setLoadingUsers] = createSignal(true);
   const [loadingTwoFactorMethods, setLoadingTwoFactorMethods] = createSignal(true);
   const [processingMethod, setProcessingMethod] = createSignal<string | null>(null);
+  const [deletingMethod, setDeletingMethod] = createSignal<string | null>(null);
   const [showCreateModal, setShowCreateModal] = createSignal(false);
   const [selectedMethodType, setSelectedMethodType] = createSignal<string>('email');
   const [creatingMethod, setCreatingMethod] = createSignal(false);
@@ -87,6 +88,32 @@ const LoginDetail: Component = () => {
       setError(err instanceof Error ? err.message : `Failed to ${currentStatus ? 'disable' : 'enable'} 2FA method`);
     } finally {
       setProcessingMethod(null);
+    }
+  };
+
+  const deleteTwoFactorMethod = async (method: TwoFactorMethod) => {
+    if (!confirm(`Are you sure you want to delete the ${getMethodDisplayName(method.type)} two-factor authentication method?`)) {
+      return;
+    }
+    
+    setDeletingMethod(method.type);
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      await twoFactorApi.delete2FAMethod(params.id, method.type, method.two_factor_id);
+      setSuccessMessage(`${getMethodDisplayName(method.type)} two-factor authentication has been deleted.`);
+      
+      // Refresh the 2FA methods list
+      await fetchTwoFactorMethods();
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err) {
+      console.error(`Failed to delete 2FA method:`, err);
+      setError(err instanceof Error ? err.message : `Failed to delete 2FA method`);
+    } finally {
+      setDeletingMethod(null);
     }
   };
   
@@ -241,20 +268,7 @@ const LoginDetail: Component = () => {
             </div>
           </Show>
 
-          <Show when={!loadingTwoFactorMethods() && twoFactorMethods().length === 0}>
-            <div class="mt-4 bg-yellow-50 p-4 rounded-lg">
-              <div class="flex">
-                <div class="flex-shrink-0">
-                  <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                  </svg>
-                </div>
-                <div class="ml-3">
-                  <h3 class="text-sm font-medium text-yellow-800">No 2FA methods configured for this login</h3>
-                </div>
-              </div>
-            </div>
-          </Show>
+          {/* Placeholder for when no 2FA methods are configured - now handled by the twoFactorMethodsResponse().count === 0 condition below */}
 
           <Show when={!loadingTwoFactorMethods() && twoFactorMethodsResponse().count > 0 && twoFactorMethods().length > 0}>
             <div class="mt-4 overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
@@ -285,18 +299,26 @@ const LoginDetail: Component = () => {
                           </span>
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                          <div class="flex justify-end">
+                          <div class="flex justify-end space-x-2">
                             <button
                               onClick={() => toggleTwoFactorMethod(method.type, method.enabled)}
-                              disabled={processingMethod() === method.type}
+                              disabled={processingMethod() === method.type || deletingMethod() === method.type}
                               class={`px-3 py-1 rounded-md text-sm font-medium ${method.enabled 
                                 ? 'bg-red-100 text-red-700 hover:bg-red-200' 
                                 : 'bg-green-100 text-green-700 hover:bg-green-200'} 
-                                ${processingMethod() === method.type ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                ${(processingMethod() === method.type || deletingMethod() === method.type) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {processingMethod() === method.type 
                                 ? 'Processing...' 
                                 : method.enabled ? 'Disable' : 'Enable'}
+                            </button>
+                            <button
+                              onClick={() => deleteTwoFactorMethod(method)}
+                              disabled={processingMethod() === method.type || deletingMethod() === method.type}
+                              class={`px-3 py-1 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500
+                                ${(processingMethod() === method.type || deletingMethod() === method.type) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {deletingMethod() === method.type ? 'Deleting...' : 'Delete'}
                             </button>
                           </div>
                         </td>

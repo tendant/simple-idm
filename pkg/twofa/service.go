@@ -25,6 +25,7 @@ type TwoFactorService interface {
 	FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]string, error)
 	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
+	DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error
 	SendTwofaPasscodeEmail(ctx context.Context, email, passcode string) error
 	Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error)
 }
@@ -44,10 +45,17 @@ func NewTwoFaService(queries *twofadb.Queries, notificationManager *notification
 type (
 	TwoFA struct {
 		LoginId          uuid.UUID `json:"login_id"`
+		TwoFactorId      uuid.UUID `json:"two_factor_id"`
 		TwoFactorType    string    `json:"two_factor_type"`
 		TwoFactorEnabled bool      `json:"two_factor_enabled"`
 		CreatedAt        time.Time `json:"created_at"`
 		UpdatedAt        time.Time `json:"updated_at"`
+	}
+
+	DeleteTwoFactorParams struct {
+		LoginId       uuid.UUID `json:"login_id"`
+		TwoFactorType string    `json:"two_factor_type"`
+		TwoFactorId   uuid.UUID `json:"two_factor_id"`
 	}
 )
 
@@ -81,22 +89,7 @@ func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid
 	}
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		// Generate and store new secret
-		newSecret, err := GenerateTotpSecret(loginUuid.String())
-		if err != nil {
-			return "", fmt.Errorf("failed to generate totp secret: %w", err)
-		}
-		// slog.Info("Generated new totp secret", "loginUuid", loginUuid)
-		_, err = s.queries.Create2FAInit(ctx, twofadb.Create2FAInitParams{
-			LoginID:              loginUuid,
-			TwoFactorSecret:      pgtype.Text{String: newSecret, Valid: true},
-			TwoFactorBackupCodes: []string{},
-			TwoFactorType:        utils.ToNullString(twoFactorType),
-		})
-		if err != nil {
-			return "", fmt.Errorf("failed to create 2FA record: %w", err)
-		}
-		return newSecret, nil
+		return "", fmt.Errorf("2FA record does not exist for login ID: %s", loginUuid)
 	}
 	return "", fmt.Errorf("failed to get 2FA record: %w", err)
 }
@@ -158,6 +151,7 @@ func (s TwoFaService) FindTwoFAsByLoginId(ctx context.Context, loginId uuid.UUID
 
 	for _, t := range twofas {
 		res = append(res, TwoFA{
+			TwoFactorId:      t.ID,
 			TwoFactorType:    t.TwoFactorType.String,
 			TwoFactorEnabled: t.TwoFactorEnabled.Bool,
 			CreatedAt:        t.CreatedAt,
@@ -299,6 +293,33 @@ func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcod
 		To:   email,
 		Data: data,
 	})
+}
+
+func (s TwoFaService) DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error {
+	// TODO: add logic to check if 2FA is enabled before deleting
+
+	_, err := s.queries.Get2FAById(ctx, twofadb.Get2FAByIdParams{
+		ID:            params.TwoFactorId,
+		LoginID:       params.LoginId,
+		TwoFactorType: utils.ToNullString(params.TwoFactorType),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("2FA not found")
+		}
+		return fmt.Errorf("failed to get 2FA: %w", err)
+	}
+
+	err = s.queries.Delete2FA(ctx, twofadb.Delete2FAParams{
+		ID:            params.TwoFactorId,
+		LoginID:       params.LoginId,
+		TwoFactorType: utils.ToNullString(params.TwoFactorType),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete 2FA: %w", err)
+	}
+
+	return nil
 }
 
 func (s TwoFaService) Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error) {

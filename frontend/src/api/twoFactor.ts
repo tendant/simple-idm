@@ -123,5 +123,18 @@ export const twoFactorApi = {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.message || `Failed to create ${twofaType} 2FA method`);
     }
+  },
+
+  delete2FAMethod: async (loginId: string, twofaType: string, twofaId: string): Promise<void> => {
+    const response = await apiClient.post('/idm/2fa/delete', {
+      login_id: loginId,
+      twofa_type: twofaType,
+      twofa_id: twofaId
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Failed to delete ${twofaType} 2FA method`);
+    }
   }
 };
