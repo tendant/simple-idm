@@ -81,22 +81,7 @@ func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid
 	}
 
 	if errors.Is(err, pgx.ErrNoRows) {
-		// Generate and store new secret
-		newSecret, err := GenerateTotpSecret(loginUuid.String())
-		if err != nil {
-			return "", fmt.Errorf("failed to generate totp secret: %w", err)
-		}
-		// slog.Info("Generated new totp secret", "loginUuid", loginUuid)
-		_, err = s.queries.Create2FAInit(ctx, twofadb.Create2FAInitParams{
-			LoginID:              loginUuid,
-			TwoFactorSecret:      pgtype.Text{String: newSecret, Valid: true},
-			TwoFactorBackupCodes: []string{},
-			TwoFactorType:        utils.ToNullString(twoFactorType),
-		})
-		if err != nil {
-			return "", fmt.Errorf("failed to create 2FA record: %w", err)
-		}
-		return newSecret, nil
+		return "", fmt.Errorf("2FA record does not exist for login ID: %s", loginUuid)
 	}
 	return "", fmt.Errorf("failed to get 2FA record: %w", err)
 }
