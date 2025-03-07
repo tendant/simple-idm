@@ -10,7 +10,7 @@ interface ApiError extends Error {
 
 export async function refreshToken(): Promise<boolean> {
   try {
-    const response = await fetch('/auth/refresh', {
+    const response = await fetch('/auth/token/refresh', {
       method: 'POST',
       credentials: 'include',
     });
@@ -37,7 +37,7 @@ export async function fetchWithAuth(
       await refreshPromise;
     } else {
       // Create new refresh request
-      refreshPromise = fetch('/auth/refresh', {
+      refreshPromise = fetch('/auth/token/refresh', {
         method: 'POST',
         credentials: 'include',
       });
