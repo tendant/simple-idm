@@ -89,6 +89,10 @@ func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswo
 	return nil
 }
 
+func (s *ProfileService) GetPasswordPolicy() *login.PasswordPolicy {
+	return s.loginService.GetPasswordPolicy()
+}
+
 // Disable2FA disables 2FA for a user after verifying their password and 2FA code
 // func (s ProfileService) Disable2FA(ctx context.Context, userUUID uuid.UUID, currentPassword string, code string) error {
 // 	// Get the user to verify password
