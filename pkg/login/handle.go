@@ -785,18 +785,9 @@ func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response 
 }
 
 // GetPasswordResetPolicy returns the current password policy
-func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request) *Response {
-	var req PasswordResetPolicyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Error("Failed to decode request body", "err", err)
-		return &Response{
-			body: "Invalid reset token",
-			Code: http.StatusBadRequest,
-		}
-	}
-
+func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request, params GetPasswordResetPolicyParams) *Response {
 	// validate token before returning policy
-	_, err := h.loginService.passwordManager.ValidateResetToken(r.Context(), req.Token)
+	_, err := h.loginService.passwordManager.ValidateResetToken(r.Context(), params.Token)
 	if err != nil {
 		return &Response{
 			body: "Invalid or expired reset token",
@@ -809,16 +800,16 @@ func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request) *
 
 	// Map the policy fields to the response fields using snake_case
 	response := PasswordPolicyResponse{
-		MinLength:         &policy.MinLength,
-		RequireUppercase:  &policy.RequireUppercase,
-		RequireLowercase:  &policy.RequireLowercase,
-		RequireDigit:      &policy.RequireDigit,
+		MinLength:          &policy.MinLength,
+		RequireUppercase:   &policy.RequireUppercase,
+		RequireLowercase:   &policy.RequireLowercase,
+		RequireDigit:       &policy.RequireDigit,
 		RequireSpecialChar: &policy.RequireSpecialChar,
 		DisallowCommonPwds: &policy.DisallowCommonPwds,
-		MaxRepeatedChars:  &policy.MaxRepeatedChars,
-		HistoryCheckCount: &policy.HistoryCheckCount,
-		ExpirationDays:    &policy.ExpirationDays,
+		MaxRepeatedChars:   &policy.MaxRepeatedChars,
+		HistoryCheckCount:  &policy.HistoryCheckCount,
+		ExpirationDays:     &policy.ExpirationDays,
 	}
-	
+
 	return GetPasswordResetPolicyJSON200Response(response)
 }
