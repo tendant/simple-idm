@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"time"
 
@@ -124,7 +125,15 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	// If not, redirect to a login page and then come back to this endpoint
 	// For now, we'll simulate a logged-in user
 
-	// Mock user authentication (in production, check session or database)
+	// Check if the user is authenticated
+	// userID, err := h.ValidateUserToken(r)
+	// if err != nil {
+	// 	// Redirect to login page if not authenticated
+	// 	loginURL := fmt.Sprintf("/login?redirect=%s", url.QueryEscape(r.URL.String()))
+	// 	slog.Warn("[WARNING] ValidateUserToken: ", "err", err)
+	// 	http.Redirect(w, r, loginURL, http.StatusFound)
+	// 	return
+	// }
 	userID := "user-123456"
 
 	// Create a session for the user with claims
@@ -153,6 +162,51 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	// Write response
 	h.OAuth2Provider.WriteAuthorizeResponse(ctx, w, ar, response)
+}
+
+func (h *Handle) ValidateUserToken(r *http.Request) (string, error) {
+	ctx := context.Background()
+
+	// Try to retrieve the token from the Authorization header
+	authHeader := r.Header.Get("Authorization")
+	var accessToken string
+
+	if authHeader != "" {
+		// Format should be: "Bearer <token>"
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			accessToken = parts[1]
+		}
+	}
+
+	// If no Authorization header, check cookies
+	if accessToken == "" {
+		cookie, err := r.Cookie("access_token")
+		if err != nil {
+			return "", fmt.Errorf("missing access token")
+		}
+		accessToken = cookie.Value
+	}
+
+	// Validate token using oauth2Provider
+	tokenType, accessRequest, err := h.OAuth2Provider.IntrospectToken(ctx, accessToken, fosite.AccessToken, &fosite.DefaultSession{})
+	if err != nil {
+		log.Printf("[ERROR] Token validation failed: %v", err)
+		return "", fmt.Errorf("invalid or expired token")
+	}
+
+	// Ensure the token is an access token
+	if tokenType != fosite.AccessToken {
+		return "", fmt.Errorf("invalid token type")
+	}
+
+	// Extract user ID from the session
+	session, ok := accessRequest.GetSession().(*fosite.DefaultSession)
+	if !ok {
+		return "", fmt.Errorf("invalid session data")
+	}
+
+	return session.Subject, nil
 }
 
 func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
