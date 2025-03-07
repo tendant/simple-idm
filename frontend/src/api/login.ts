@@ -13,6 +13,7 @@ export interface Login {
 export interface TwoFactorMethod {
   type: string;
   enabled: boolean;
+  two_factor_id: string;
 }
 
 export interface TwoFactorMethods {

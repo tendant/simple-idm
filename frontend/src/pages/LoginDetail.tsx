@@ -17,6 +17,7 @@ const LoginDetail: Component = () => {
   const [loadingUsers, setLoadingUsers] = createSignal(true);
   const [loadingTwoFactorMethods, setLoadingTwoFactorMethods] = createSignal(true);
   const [processingMethod, setProcessingMethod] = createSignal<string | null>(null);
+  const [deletingMethod, setDeletingMethod] = createSignal<string | null>(null);
   const [showCreateModal, setShowCreateModal] = createSignal(false);
   const [selectedMethodType, setSelectedMethodType] = createSignal<string>('email');
   const [creatingMethod, setCreatingMethod] = createSignal(false);
@@ -87,6 +88,32 @@ const LoginDetail: Component = () => {
       setError(err instanceof Error ? err.message : `Failed to ${currentStatus ? 'disable' : 'enable'} 2FA method`);
     } finally {
       setProcessingMethod(null);
+    }
+  };
+
+  const deleteTwoFactorMethod = async (method: TwoFactorMethod) => {
+    if (!confirm(`Are you sure you want to delete the ${getMethodDisplayName(method.type)} two-factor authentication method?`)) {
+      return;
+    }
+    
+    setDeletingMethod(method.type);
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      await twoFactorApi.delete2FAMethod(params.id, method.type, method.two_factor_id);
+      setSuccessMessage(`${getMethodDisplayName(method.type)} two-factor authentication has been deleted.`);
+      
+      // Refresh the 2FA methods list
+      await fetchTwoFactorMethods();
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err) {
+      console.error(`Failed to delete 2FA method:`, err);
+      setError(err instanceof Error ? err.message : `Failed to delete 2FA method`);
+    } finally {
+      setDeletingMethod(null);
     }
   };
   
@@ -272,18 +299,26 @@ const LoginDetail: Component = () => {
                           </span>
                         </td>
                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                          <div class="flex justify-end">
+                          <div class="flex justify-end space-x-2">
                             <button
                               onClick={() => toggleTwoFactorMethod(method.type, method.enabled)}
-                              disabled={processingMethod() === method.type}
+                              disabled={processingMethod() === method.type || deletingMethod() === method.type}
                               class={`px-3 py-1 rounded-md text-sm font-medium ${method.enabled 
                                 ? 'bg-red-100 text-red-700 hover:bg-red-200' 
                                 : 'bg-green-100 text-green-700 hover:bg-green-200'} 
-                                ${processingMethod() === method.type ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                ${(processingMethod() === method.type || deletingMethod() === method.type) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {processingMethod() === method.type 
                                 ? 'Processing...' 
                                 : method.enabled ? 'Disable' : 'Enable'}
+                            </button>
+                            <button
+                              onClick={() => deleteTwoFactorMethod(method)}
+                              disabled={processingMethod() === method.type || deletingMethod() === method.type}
+                              class={`px-3 py-1 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500
+                                ${(processingMethod() === method.type || deletingMethod() === method.type) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {deletingMethod() === method.type ? 'Deleting...' : 'Delete'}
                             </button>
                           </div>
                         </td>
