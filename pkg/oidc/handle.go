@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
 	"time"
 
 	"github.com/ory/fosite"
@@ -97,12 +96,8 @@ func NewHandle() *Handle {
 		AllowedPromptValues:        []string{"login", "none", "consent", "select_account"},
 	}
 
-	// Define Fosite configuration with OIDC support
-	oauth2Provider := compose.ComposeAllEnabled(
-		config,
-		store,
-		privateKey,
-	)
+	// Create a provider with all enabled handlers
+	oauth2Provider := compose.ComposeAllEnabled(config, store, privateKey)
 
 	return &Handle{
 		OAuth2Provider: oauth2Provider,
@@ -136,13 +131,20 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	// }
 	userID := "user-123456"
 
-	// Create a session for the user with claims
+	// Create a session for the user with claims and expiration times
 	session := &fosite.DefaultSession{
 		Subject: userID,
 		Extra: map[string]interface{}{
 			"name":  "Test User",
 			"email": "user@example.com",
 		},
+		ExpiresAt: map[fosite.TokenType]time.Time{
+			// Set token expiration times
+			fosite.AccessToken:  time.Now().Add(1 * time.Hour),
+			fosite.RefreshToken: time.Now().Add(30 * 24 * time.Hour),
+			fosite.IDToken:      time.Now().Add(1 * time.Hour),
+		},
+		Username: "testuser",
 	}
 
 	// For demonstration purposes, automatically approve the request
@@ -215,13 +217,20 @@ func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Log the request details for debugging
 	log.Printf("[INFO] Token request received - Grant Type: %s", r.FormValue("grant_type"))
 
-	// Create a default session with claims
+	// Create a default session with claims and expiration times
 	session := &fosite.DefaultSession{
 		Subject: "user-123456", // This should match the subject from the authorization endpoint
 		Extra: map[string]interface{}{
 			"name":  "Test User",
 			"email": "user@example.com",
 		},
+		ExpiresAt: map[fosite.TokenType]time.Time{
+			// Set token expiration times
+			fosite.AccessToken:  time.Now().Add(1 * time.Hour),
+			fosite.RefreshToken: time.Now().Add(30 * 24 * time.Hour),
+			fosite.IDToken:      time.Now().Add(1 * time.Hour),
+		},
+		Username: "testuser",
 	}
 
 	// Parse token request
@@ -243,6 +252,41 @@ func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 		h.OAuth2Provider.WriteAccessError(ctx, w, ar, err)
 		return
 	}
+
+	// Get the original opaque access token
+	opaqueToken := response.GetAccessToken()
+
+	// Extract client ID and user ID for JWT claims
+	clientID := ar.GetClient().GetID()
+	userID := ""
+	if session, ok := ar.GetSession().(*fosite.DefaultSession); ok && session.Subject != "" {
+		userID = session.Subject
+	} else {
+		// For client credentials, use client ID as subject
+		userID = clientID
+	}
+
+	// Get granted scopes
+	scopes := strings.Join(ar.GetGrantedScopes(), " ")
+
+	// Create extra claims
+	extraClaims := map[string]interface{}{
+		"client_id": clientID,
+	}
+
+	// Convert to JWT
+	jwtToken, err := ConvertToJWT(h.PrivateKey, opaqueToken, clientID, userID, scopes, extraClaims)
+	if err != nil {
+		log.Printf("[ERROR] Error creating JWT token: %v", err)
+		h.OAuth2Provider.WriteAccessError(ctx, w, ar, err)
+		return
+	}
+
+	// Replace the access token with the JWT token
+	response.SetAccessToken(jwtToken)
+
+	// Log the token for debugging
+	log.Printf("[INFO] Generated JWT access token: %s", jwtToken)
 
 	// Log success
 	log.Printf("[INFO] Successfully issued tokens to client: %s", ar.GetClient().GetID())
