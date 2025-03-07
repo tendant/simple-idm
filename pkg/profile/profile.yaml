@@ -6,6 +6,7 @@ paths:
   /username:
     put:
       summary: Change username
+      operationId: ChangeUsername
       description: Update the user's username after verifying their password
       security:
         - bearerAuth: []
@@ -61,10 +62,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-
   /password:
     put:
       summary: Change user password
+      operationId: ChangePassword
       description: Update the user's password after verifying their current password
       security:
         - bearerAuth: []
@@ -111,6 +112,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /password/policy:
+    get:
+      summary: Get password policy
+      responses:
+        "200":
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordPolicyResponse"
   /2fa/setup:
     post:
       summary: Generate 2FA secret and QR code
@@ -223,6 +234,36 @@ components:
         currentPassword:
           type: string
           description: Current account password
+    PasswordPolicyResponse:
+      type: object
+      properties:
+        min_length:
+          type: integer
+          description: Minimum length of the password
+        require_uppercase:
+          type: boolean
+          description: Whether the password requires an uppercase letter
+        require_lowercase:
+          type: boolean
+          description: Whether the password requires a lowercase letter
+        require_digit:
+          type: boolean
+          description: Whether the password requires a digit
+        require_special_char:
+          type: boolean
+          description: Whether the password requires a special character
+        disallow_common_pwds:
+          type: boolean
+          description: Whether common passwords are disallowed
+        max_repeated_chars:
+          type: integer
+          description: Maximum number of repeated characters allowed
+        history_check_count:
+          type: integer
+          description: Number of previous passwords to check against
+        expiration_days:
+          type: integer
+          description: Number of days until password expires
   securitySchemes:
     BearerAuth:
       type: http

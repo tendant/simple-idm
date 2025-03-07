@@ -3,8 +3,8 @@ package profile
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
+	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
@@ -20,9 +20,20 @@ func NewHandle(profileService *ProfileService) Handle {
 	}
 }
 
-// PutPassword handles password change requests
+// Get password policy
+// (GET /password/policy)
+func (h Handle) GetPasswordPolicy(w http.ResponseWriter, r *http.Request) *Response {
+	// get password policy
+	policy := h.profileService.GetPasswordPolicy()
+
+	response := PasswordPolicyResponse{}
+	copier.Copy(&response, &policy)
+	return GetPasswordPolicyJSON200Response(response)
+}
+
+// Change Password handles password change requests
 // (PUT /password)
-func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
+func (h Handle) ChangePassword(w http.ResponseWriter, r *http.Request) *Response {
 
 	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
 	if !ok {
@@ -37,7 +48,7 @@ func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 	userUuid := authUser.UserUuid
 
 	// Parse request body
-	var data PutPasswordJSONRequestBody
+	var data ChangePasswordJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		slog.Error("Failed to decode request body", "err", err)
 		return &Response{
@@ -68,35 +79,12 @@ func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 	})
 
 	if err != nil {
-		if err.Error() == "invalid current password" {
-			slog.Info("Password update failed: invalid current password")
-			return &Response{
-				Code: http.StatusForbidden,
-				body: map[string]string{
-					"code":    "invalid_password",
-					"message": "Current password is incorrect",
-				},
-			}
-		} else if strings.Contains(err.Error(), "password must") ||
-			strings.Contains(err.Error(), "password cannot") ||
-			strings.Contains(err.Error(), "password is") ||
-			strings.Contains(err.Error(), "password has been") {
-			// Handle all password complexity and history errors
-			slog.Info("Password update failed: complexity or history requirement", "error", err.Error())
-			return &Response{
-				Code: http.StatusBadRequest,
-				body: map[string]string{
-					"code":    "invalid_password_complexity",
-					"message": err.Error(),
-				},
-			}
-		}
 		slog.Error("Failed to update password", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: map[string]string{
 				"code":    "internal_error",
-				"message": "Failed to update password",
+				"message": err.Error(),
 			},
 		}
 	}
@@ -105,6 +93,16 @@ func (h Handle) PutPassword(w http.ResponseWriter, r *http.Request) *Response {
 		Code: http.StatusOK,
 		body: map[string]string{
 			"message": "Password updated successfully",
+		},
+	}
+}
+
+func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response {
+	// TODO: Implement Change Username
+	return &Response{
+		Code: http.StatusNotImplemented,
+		body: map[string]string{
+			"message": "Change username not implemented",
 		},
 	}
 }

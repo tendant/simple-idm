@@ -34,6 +34,36 @@ type Error struct {
 	Message string `json:"message"`
 }
 
+// PasswordPolicyResponse defines model for PasswordPolicyResponse.
+type PasswordPolicyResponse struct {
+	// Whether common passwords are disallowed
+	DisallowCommonPwds *bool `json:"disallow_common_pwds,omitempty"`
+
+	// Number of days until password expires
+	ExpirationDays *int `json:"expiration_days,omitempty"`
+
+	// Number of previous passwords to check against
+	HistoryCheckCount *int `json:"history_check_count,omitempty"`
+
+	// Maximum number of repeated characters allowed
+	MaxRepeatedChars *int `json:"max_repeated_chars,omitempty"`
+
+	// Minimum length of the password
+	MinLength *int `json:"min_length,omitempty"`
+
+	// Whether the password requires a digit
+	RequireDigit *bool `json:"require_digit,omitempty"`
+
+	// Whether the password requires a lowercase letter
+	RequireLowercase *bool `json:"require_lowercase,omitempty"`
+
+	// Whether the password requires a special character
+	RequireSpecialChar *bool `json:"require_special_char,omitempty"`
+
+	// Whether the password requires an uppercase letter
+	RequireUppercase *bool `json:"require_uppercase,omitempty"`
+}
+
 // TwoFactorDisable defines model for TwoFactorDisable.
 type TwoFactorDisable struct {
 	// Current TOTP code
@@ -70,13 +100,22 @@ type Post2faDisableJSONBody TwoFactorDisable
 // Post2faEnableJSONBody defines parameters for Post2faEnable.
 type Post2faEnableJSONBody TwoFactorEnable
 
-// PutPasswordJSONBody defines parameters for PutPassword.
-type PutPasswordJSONBody struct {
+// ChangePasswordJSONBody defines parameters for ChangePassword.
+type ChangePasswordJSONBody struct {
 	// User's current password
 	CurrentPassword string `json:"currentPassword"`
 
 	// User's new password
 	NewPassword string `json:"newPassword"`
+}
+
+// ChangeUsernameJSONBody defines parameters for ChangeUsername.
+type ChangeUsernameJSONBody struct {
+	// User's current password for verification
+	CurrentPassword string `json:"currentPassword"`
+
+	// New username to set
+	NewUsername string `json:"newUsername"`
 }
 
 // Post2faDisableJSONRequestBody defines body for Post2faDisable for application/json ContentType.
@@ -95,11 +134,19 @@ func (Post2faEnableJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
-// PutPasswordJSONRequestBody defines body for PutPassword for application/json ContentType.
-type PutPasswordJSONRequestBody PutPasswordJSONBody
+// ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
+type ChangePasswordJSONRequestBody ChangePasswordJSONBody
 
 // Bind implements render.Binder.
-func (PutPasswordJSONRequestBody) Bind(*http.Request) error {
+func (ChangePasswordJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// ChangeUsernameJSONRequestBody defines body for ChangeUsername for application/json ContentType.
+type ChangeUsernameJSONRequestBody ChangeUsernameJSONBody
+
+// Bind implements render.Binder.
+func (ChangeUsernameJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -180,9 +227,9 @@ func Post2faSetupJSON200Response(body TwoFactorSetup) *Response {
 	}
 }
 
-// PutPasswordJSON400Response is a constructor method for a PutPassword response.
+// ChangePasswordJSON400Response is a constructor method for a ChangePassword response.
 // A *Response is returned with the configured status code and content type from the spec.
-func PutPasswordJSON400Response(body Error) *Response {
+func ChangePasswordJSON400Response(body Error) *Response {
 	return &Response{
 		body:        body,
 		Code:        400,
@@ -190,9 +237,9 @@ func PutPasswordJSON400Response(body Error) *Response {
 	}
 }
 
-// PutPasswordJSON401Response is a constructor method for a PutPassword response.
+// ChangePasswordJSON401Response is a constructor method for a ChangePassword response.
 // A *Response is returned with the configured status code and content type from the spec.
-func PutPasswordJSON401Response(body Error) *Response {
+func ChangePasswordJSON401Response(body Error) *Response {
 	return &Response{
 		body:        body,
 		Code:        401,
@@ -200,9 +247,9 @@ func PutPasswordJSON401Response(body Error) *Response {
 	}
 }
 
-// PutPasswordJSON403Response is a constructor method for a PutPassword response.
+// ChangePasswordJSON403Response is a constructor method for a ChangePassword response.
 // A *Response is returned with the configured status code and content type from the spec.
-func PutPasswordJSON403Response(body Error) *Response {
+func ChangePasswordJSON403Response(body Error) *Response {
 	return &Response{
 		body:        body,
 		Code:        403,
@@ -210,9 +257,69 @@ func PutPasswordJSON403Response(body Error) *Response {
 	}
 }
 
-// PutPasswordJSON500Response is a constructor method for a PutPassword response.
+// ChangePasswordJSON500Response is a constructor method for a ChangePassword response.
 // A *Response is returned with the configured status code and content type from the spec.
-func PutPasswordJSON500Response(body Error) *Response {
+func ChangePasswordJSON500Response(body Error) *Response {
+	return &Response{
+		body:        body,
+		Code:        500,
+		contentType: "application/json",
+	}
+}
+
+// GetPasswordPolicyJSON200Response is a constructor method for a GetPasswordPolicy response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetPasswordPolicyJSON200Response(body PasswordPolicyResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// ChangeUsernameJSON400Response is a constructor method for a ChangeUsername response.
+// A *Response is returned with the configured status code and content type from the spec.
+func ChangeUsernameJSON400Response(body Error) *Response {
+	return &Response{
+		body:        body,
+		Code:        400,
+		contentType: "application/json",
+	}
+}
+
+// ChangeUsernameJSON401Response is a constructor method for a ChangeUsername response.
+// A *Response is returned with the configured status code and content type from the spec.
+func ChangeUsernameJSON401Response(body Error) *Response {
+	return &Response{
+		body:        body,
+		Code:        401,
+		contentType: "application/json",
+	}
+}
+
+// ChangeUsernameJSON403Response is a constructor method for a ChangeUsername response.
+// A *Response is returned with the configured status code and content type from the spec.
+func ChangeUsernameJSON403Response(body Error) *Response {
+	return &Response{
+		body:        body,
+		Code:        403,
+		contentType: "application/json",
+	}
+}
+
+// ChangeUsernameJSON409Response is a constructor method for a ChangeUsername response.
+// A *Response is returned with the configured status code and content type from the spec.
+func ChangeUsernameJSON409Response(body Error) *Response {
+	return &Response{
+		body:        body,
+		Code:        409,
+		contentType: "application/json",
+	}
+}
+
+// ChangeUsernameJSON500Response is a constructor method for a ChangeUsername response.
+// A *Response is returned with the configured status code and content type from the spec.
+func ChangeUsernameJSON500Response(body Error) *Response {
 	return &Response{
 		body:        body,
 		Code:        500,
@@ -233,7 +340,13 @@ type ServerInterface interface {
 	Post2faSetup(w http.ResponseWriter, r *http.Request) *Response
 	// Change user password
 	// (PUT /password)
-	PutPassword(w http.ResponseWriter, r *http.Request) *Response
+	ChangePassword(w http.ResponseWriter, r *http.Request) *Response
+	// Get password policy
+	// (GET /password/policy)
+	GetPasswordPolicy(w http.ResponseWriter, r *http.Request) *Response
+	// Change username
+	// (PUT /username)
+	ChangeUsername(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -302,14 +415,52 @@ func (siw *ServerInterfaceWrapper) Post2faSetup(w http.ResponseWriter, r *http.R
 	handler(w, r.WithContext(ctx))
 }
 
-// PutPassword operation middleware
-func (siw *ServerInterfaceWrapper) PutPassword(w http.ResponseWriter, r *http.Request) {
+// ChangePassword operation middleware
+func (siw *ServerInterfaceWrapper) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	ctx = context.WithValue(ctx, BearerAuthScopes, []string{""})
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.PutPassword(w, r)
+		resp := siw.Handler.ChangePassword(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetPasswordPolicy operation middleware
+func (siw *ServerInterfaceWrapper) GetPasswordPolicy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetPasswordPolicy(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// ChangeUsername operation middleware
+func (siw *ServerInterfaceWrapper) ChangeUsername(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{""})
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.ChangeUsername(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -440,7 +591,9 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/2fa/disable", wrapper.Post2faDisable)
 		r.Post("/2fa/enable", wrapper.Post2faEnable)
 		r.Post("/2fa/setup", wrapper.Post2faSetup)
-		r.Put("/password", wrapper.PutPassword)
+		r.Put("/password", wrapper.ChangePassword)
+		r.Get("/password/policy", wrapper.GetPasswordPolicy)
+		r.Put("/username", wrapper.ChangeUsername)
 	})
 	return r
 }
@@ -466,21 +619,28 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
