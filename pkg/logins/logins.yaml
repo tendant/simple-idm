@@ -237,6 +237,9 @@ components:
       x-go-optional-value: true
       type: object
       properties:
+        two_factor_id:
+          type: string
+          format: uuid
         type:
           type: string
         enabled:
