@@ -76,10 +76,10 @@ func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) 
 
 // CheckPasswordByLoginId verifies a password for a given login ID
 // It returns true if the password is valid, false otherwise
-func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId string, password, hashedPassword string) (bool, error) {
+func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId uuid.UUID, password, hashedPassword string) (bool, error) {
 	// Get the password version
-	parsedLoginId := utils.ParseUUID(loginId)
-	passwordVersion, err := s.queries.GetUserPasswordVersion(ctx, parsedLoginId)
+	parsedLoginId := loginId
+	passwordVersion, err := s.queries.GetPasswordVersion(ctx, parsedLoginId)
 	if err != nil {
 		// If there's an error getting the version, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
@@ -107,7 +107,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 	}
 
 	// Verify password
-	valid, err := s.CheckPasswordByLoginId(ctx, loginUser.ID.String(), password, string(loginUser.Password))
+	valid, err := s.CheckPasswordByLoginId(ctx, loginUser.ID, password, string(loginUser.Password))
 	if err != nil {
 		return []mapper.MappedUser{}, fmt.Errorf("error checking password: %w", err)
 	}
