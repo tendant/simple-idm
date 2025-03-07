@@ -25,6 +25,7 @@ type TwoFactorService interface {
 	FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]string, error)
 	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
+	DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error
 	SendTwofaPasscodeEmail(ctx context.Context, email, passcode string) error
 	Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error)
 }
@@ -295,6 +296,29 @@ func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcod
 }
 
 func (s TwoFaService) DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error {
+	// TODO: add logic to check if 2FA is enabled before deleting
+
+	_, err := s.queries.Get2FAById(ctx, twofadb.Get2FAByIdParams{
+		ID:            params.TwoFactorId,
+		LoginID:       params.LoginId,
+		TwoFactorType: utils.ToNullString(params.TwoFactorType),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("2FA not found")
+		}
+		return fmt.Errorf("failed to get 2FA: %w", err)
+	}
+
+	err = s.queries.Delete2FA(ctx, twofadb.Delete2FAParams{
+		ID:            params.TwoFactorId,
+		LoginID:       params.LoginId,
+		TwoFactorType: utils.ToNullString(params.TwoFactorType),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete 2FA: %w", err)
+	}
+
 	return nil
 }
 
