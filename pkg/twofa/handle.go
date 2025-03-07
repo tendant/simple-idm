@@ -409,7 +409,7 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // Delete a 2FA method
-// (DELETE /)
+// (POST /delete)
 func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 	//TODO: add permission check: who can delete 2FA
 	var resp SuccessResponse
