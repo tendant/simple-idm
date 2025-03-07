@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -98,28 +99,39 @@ func NewHandle() *Handle {
 func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
-	// Parse authorization request
+	// Parse the authorization request
 	ar, err := h.OAuth2Provider.NewAuthorizeRequest(ctx, r)
 	if err != nil {
+		log.Printf("[ERROR] NewAuthorizeRequest: %v", err)
 		h.OAuth2Provider.WriteAuthorizeError(ctx, w, ar, err)
 		return
 	}
 
-	// Normally, you'd authenticate the user before issuing a response
-	userID := "123456" // Mocked user ID
+	// Mock user authentication (in production, check session or database)
+	userID := "123456"
+	if userID == "" {
+		log.Println("[ERROR] User not authenticated")
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
 
-	// Create session
+	// Create a session for the user
 	session := &fosite.DefaultSession{
 		Subject: userID,
 	}
 
-	// Generate authorization response (redirects with code)
+	// Generate the authorization response
 	response, err := h.OAuth2Provider.NewAuthorizeResponse(ctx, ar, session)
 	if err != nil {
+		log.Printf("[ERROR] NewAuthorizeResponse: %v", err)
 		h.OAuth2Provider.WriteAuthorizeError(ctx, w, ar, err)
 		return
 	}
 
+	// Log successful authorization
+	log.Printf("[INFO] Successful authorization for user: %s", userID)
+
+	// Write response
 	h.OAuth2Provider.WriteAuthorizeResponse(ctx, w, ar, response)
 }
 
