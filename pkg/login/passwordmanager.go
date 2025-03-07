@@ -221,20 +221,26 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 }
 
 // InitPasswordReset generates a reset token and stores it in the database
-func (pm *PasswordManager) InitPasswordReset(ctx context.Context, loginID string) (string, error) {
+func (pm *PasswordManager) InitPasswordReset(ctx context.Context, loginID uuid.UUID) (string, error) {
 	// Generate a secure random token
 	resetToken := utils.GenerateRandomString(32)
 
 	// Set expiration time (24 hours from now)
 	expireAt := pgtype.Timestamptz{}
-	err := expireAt.Scan(time.Now().Add(24 * time.Hour))
+	err := expireAt.Scan(time.Now().UTC().Add(24 * time.Hour))
 	if err != nil {
 		return "", fmt.Errorf("failed to create expiry time: %w", err)
 	}
 
+	err = pm.queries.ExpirePasswordResetToken(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to expire existing reset token", "err", err)
+		return "", err
+	}
+
 	// Store the token in the database
 	err = pm.queries.InitPasswordResetToken(ctx, logindb.InitPasswordResetTokenParams{
-		LoginID:  utils.ParseUUID(loginID),
+		LoginID:  loginID,
 		Token:    resetToken,
 		ExpireAt: expireAt,
 	})

@@ -301,7 +301,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	// Generate reset token using password manager
-	resetToken, err := s.passwordManager.InitPasswordReset(ctx, loginUser.ID.String())
+	resetToken, err := s.passwordManager.InitPasswordReset(ctx, loginUser.ID)
 	if err != nil {
 		return err
 	}
