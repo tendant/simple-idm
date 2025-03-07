@@ -44,6 +44,7 @@ func NewTwoFaService(queries *twofadb.Queries, notificationManager *notification
 type (
 	TwoFA struct {
 		LoginId          uuid.UUID `json:"login_id"`
+		TwoFactorId      uuid.UUID `json:"two_factor_id"`
 		TwoFactorType    string    `json:"two_factor_type"`
 		TwoFactorEnabled bool      `json:"two_factor_enabled"`
 		CreatedAt        time.Time `json:"created_at"`
@@ -143,6 +144,7 @@ func (s TwoFaService) FindTwoFAsByLoginId(ctx context.Context, loginId uuid.UUID
 
 	for _, t := range twofas {
 		res = append(res, TwoFA{
+			TwoFactorId:      t.ID,
 			TwoFactorType:    t.TwoFactorType.String,
 			TwoFactorEnabled: t.TwoFactorEnabled.Bool,
 			CreatedAt:        t.CreatedAt,
