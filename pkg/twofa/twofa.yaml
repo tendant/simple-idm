@@ -161,7 +161,8 @@ paths:
           description: 2FA method already exists
         "500":
           description: Internal server error
-    delete:
+  /delete:
+    post:
       summary: Delete a 2FA method
       operationId: delete_2fa
       requestBody:
