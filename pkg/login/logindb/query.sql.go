@@ -303,15 +303,15 @@ func (q *Queries) GetPasswordHistory(ctx context.Context, arg GetPasswordHistory
 	return items, nil
 }
 
-const getUserPasswordVersion = `-- name: GetUserPasswordVersion :one
+const getPasswordVersion = `-- name: GetPasswordVersion :one
 SELECT password_version
 FROM login
 WHERE id = $1
 AND deleted_at IS NULL
 `
 
-func (q *Queries) GetUserPasswordVersion(ctx context.Context, id uuid.UUID) (pgtype.Int4, error) {
-	row := q.db.QueryRow(ctx, getUserPasswordVersion, id)
+func (q *Queries) GetPasswordVersion(ctx context.Context, id uuid.UUID) (pgtype.Int4, error) {
+	row := q.db.QueryRow(ctx, getPasswordVersion, id)
 	var password_version pgtype.Int4
 	err := row.Scan(&password_version)
 	return password_version, err
