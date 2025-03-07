@@ -412,5 +412,45 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 // (DELETE /)
 func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 	//TODO: add permission check: who can delete 2FA
-	return Delete2faJSON200Response(SuccessResponse{})
+	var resp SuccessResponse
+
+	data := Delete2faJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Get login ID from path parameter
+	loginId, err := uuid.Parse(data.LoginID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid login id",
+		}
+	}
+
+	twofaId, err := uuid.Parse(*data.TwofaID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid 2fa id",
+		}
+	}
+
+	err = h.twoFaService.DeleteTwoFactor(r.Context(), DeleteTwoFactorParams{
+		LoginId:       loginId,
+		TwoFactorId:   twofaId,
+		TwoFactorType: string(data.TwofaType),
+	})
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: err.Error(),
+		}
+	}
+
+	return Delete2faJSON200Response(resp)
 }
