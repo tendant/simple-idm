@@ -30,6 +30,19 @@ func (q *Queries) AddPasswordToHistory(ctx context.Context, arg AddPasswordToHis
 	return err
 }
 
+const expirePasswordResetToken = `-- name: ExpirePasswordResetToken :exec
+UPDATE login_password_reset_tokens
+SET expire_at = NOW() at time zone 'UTC'
+WHERE login_id = $1
+AND used_at IS NULL
+AND expire_at > NOW() at time zone 'UTC'
+`
+
+func (q *Queries) ExpirePasswordResetToken(ctx context.Context, loginID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, expirePasswordResetToken, loginID)
+	return err
+}
+
 const findEmailByEmail = `-- name: FindEmailByEmail :one
 SELECT u.email
 FROM users u
