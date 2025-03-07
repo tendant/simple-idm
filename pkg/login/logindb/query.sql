@@ -141,7 +141,7 @@ WHERE login_id = $1
 ORDER BY created_at DESC
 LIMIT $2;
 
--- name: GetUserPasswordVersion :one
+-- name: GetPasswordVersion :one
 SELECT password_version
 FROM login
 WHERE id = $1
