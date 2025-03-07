@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
@@ -79,7 +80,7 @@ func (pm *PasswordManager) VerifyPasswordWithVersion(password, hashedPassword st
 
 // UpgradePasswordVersionIfNeeded checks if the password hash needs to be upgraded
 // and returns true if an upgrade was performed
-func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, userID string, password string, currentHash string, currentVersion PasswordVersion) (bool, error) {
+func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, loginID uuid.UUID, password string, currentHash string, currentVersion PasswordVersion) (bool, error) {
 	// If the current version is less than the target version, upgrade
 	if currentVersion < pm.currentVersion {
 		// Hash the password with the current version
@@ -90,7 +91,7 @@ func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, u
 
 		// Update the password hash and version in the database
 		err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
-			ID:              utils.ParseUUID(userID),
+			ID:              loginID,
 			Password:        []byte(newHash),
 			PasswordVersion: pgtype.Int4{Int32: int32(pm.currentVersion), Valid: true},
 		})
@@ -99,14 +100,14 @@ func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, u
 		}
 
 		// Add the old password to history
-		err = pm.addPasswordToHistory(ctx, userID, currentHash, currentVersion)
+		err = pm.addPasswordToHistory(ctx, loginID, currentHash, currentVersion)
 		if err != nil {
 			// Log but don't fail the upgrade
 			slog.Error("Failed to add password to history", "error", err)
 		}
 
 		slog.Info("Upgraded password hash version",
-			"userID", userID,
+			"loginID", loginID,
 			"fromVersion", currentVersion,
 			"toVersion", pm.currentVersion)
 
@@ -117,10 +118,10 @@ func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, u
 }
 
 // addPasswordToHistory adds a password to the password history table
-func (pm *PasswordManager) addPasswordToHistory(ctx context.Context, userID, passwordHash string, version PasswordVersion) error {
+func (pm *PasswordManager) addPasswordToHistory(ctx context.Context, loginID uuid.UUID, passwordHash string, version PasswordVersion) error {
 	// Add the password to the history table
 	err := pm.queries.AddPasswordToHistory(ctx, logindb.AddPasswordToHistoryParams{
-		LoginID:         utils.ParseUUID(userID),
+		LoginID:         loginID,
 		PasswordHash:    []byte(passwordHash),
 		PasswordVersion: int32(version),
 	})
@@ -131,7 +132,7 @@ func (pm *PasswordManager) addPasswordToHistory(ctx context.Context, userID, pas
 }
 
 // AuthenticateAndUpgrade verifies a password and upgrades the hash if needed
-func (pm *PasswordManager) AuthenticateAndUpgrade(ctx context.Context, userID, password, currentHash string, currentVersion PasswordVersion) (bool, error) {
+func (pm *PasswordManager) AuthenticateAndUpgrade(ctx context.Context, loginID uuid.UUID, password, currentHash string, currentVersion PasswordVersion) (bool, error) {
 	// First verify the password with the known version
 	valid, err := pm.VerifyPasswordWithVersion(password, currentHash, currentVersion)
 	if err != nil {
@@ -143,7 +144,7 @@ func (pm *PasswordManager) AuthenticateAndUpgrade(ctx context.Context, userID, p
 	}
 
 	// If password is valid, check if we need to upgrade the hash version
-	_, err = pm.UpgradePasswordVersionIfNeeded(ctx, userID, password, currentHash, currentVersion)
+	_, err = pm.UpgradePasswordVersionIfNeeded(ctx, loginID, password, currentHash, currentVersion)
 	if err != nil {
 		// Log the error but don't fail authentication
 		slog.Error("Failed to upgrade password hash", "error", err)
@@ -161,7 +162,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 	}
 
 	// First check against the current password
-	login, err := pm.queries.GetLoginById(ctx, utils.ParseUUID(userID))
+	login, err := pm.queries.GetLoginByUserId(ctx, utils.ParseUUID(userID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil // No user found, so no history to check against
@@ -170,7 +171,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 	}
 
 	// Get the current password version
-	passwordVersion, err := pm.queries.GetUserPasswordVersion(ctx, utils.ParseUUID(userID))
+	passwordVersion, err := pm.queries.GetPasswordVersion(ctx, login.LoginID)
 	if err != nil {
 		// If there's an error getting the version, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
@@ -189,7 +190,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 
 	// Now check against password history
 	passwordHistory, err := pm.queries.GetPasswordHistory(ctx, logindb.GetPasswordHistoryParams{
-		LoginID: utils.ParseUUID(userID),
+		LoginID: login.LoginID,
 		Limit:   int32(pm.policyChecker.GetPolicy().HistoryCheckCount),
 	})
 	if err != nil {
@@ -282,10 +283,10 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 		}
 
 		// Store the old password in history
-		passwordVersion, err := pm.queries.GetUserPasswordVersion(ctx, tokenInfo.LoginID)
+		passwordVersion, err := pm.queries.GetPasswordVersion(ctx, tokenInfo.LoginID)
 		if err == nil {
 			// Only add to history if we could get the version
-			err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID.String(), string(login.Password), PasswordVersion(passwordVersion.Int32))
+			err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID, string(login.Password), PasswordVersion(passwordVersion.Int32))
 			if err != nil {
 				// Log but continue
 				slog.Error("Failed to add password to history", "error", err)
@@ -331,7 +332,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	}
 
 	// Get the password version
-	passwordVersion, err := pm.queries.GetUserPasswordVersion(ctx, utils.ParseUUID(userID))
+	passwordVersion, err := pm.queries.GetPasswordVersion(ctx, login.LoginID)
 	if err != nil {
 		// If there's an error getting the version, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
@@ -359,7 +360,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 		}
 
 		// Add the current password to history
-		err = pm.addPasswordToHistory(ctx, userID, string(login.Password), PasswordVersion(passwordVersion.Int32))
+		err = pm.addPasswordToHistory(ctx, login.LoginID, string(login.Password), PasswordVersion(passwordVersion.Int32))
 		if err != nil {
 			// Log but continue
 			slog.Error("Failed to add password to history", "error", err)
