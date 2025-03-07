@@ -23,8 +23,17 @@ AND deleted_at IS NULL;
 -- name: Delete2FA :exec
 UPDATE login_2fa
 SET deleted_at = now() AT TIME ZONE 'utc'
-WHERE login_id = $1
-AND two_factor_type = $2
+WHERE id = $1
+AND login_id = $2
+AND two_factor_type = $3
+AND deleted_at IS NULL;
+
+-- name: Get2FAById :one
+SELECT id, two_factor_enabled
+FROM login_2fa
+WHERE id = $1
+AND login_id = $2
+AND two_factor_type = $3
 AND deleted_at IS NULL;
 
 -- name: Get2FAByLoginId :one
