@@ -218,7 +218,12 @@ func main() {
 		}
 		loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
 		loginsHandle := logins.NewHandle(loginsService, twoFaService)
-		r.Mount("/idm/logins", logins.Handler(loginsHandle))
+		loginsRouter := chi.NewRouter()
+		loginsRouter.Group(func(r chi.Router) {
+			r.Use(iam.AdminRoleMiddleware)
+			r.Mount("/", logins.Handler(loginsHandle))
+		})
+		r.Mount("/idm/logins", loginsRouter)
 
 		// Initialize impersonate service and routes
 		impersonateService := impersonate.NewImpersonateService(impersonateQueries)
