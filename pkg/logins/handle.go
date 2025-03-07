@@ -319,8 +319,9 @@ func (h *LoginsHandle) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Req
 
 	for _, v := range res {
 		methods = append(methods, TwoFactorMethod{
-			Type:    v.TwoFactorType,
-			Enabled: v.TwoFactorEnabled,
+			TwoFactorID: v.TwoFactorId.String(),
+			Type:        v.TwoFactorType,
+			Enabled:     v.TwoFactorEnabled,
 		})
 	}
 
