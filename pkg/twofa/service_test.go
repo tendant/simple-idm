@@ -188,6 +188,25 @@ func TestDisableTwoFactor(t *testing.T) {
 
 }
 
+func TestDeleteTwoFactor(t *testing.T) {
+	setup()
+
+	// Create queries and service
+	queries := twofadb.New(dbPool)
+	service := NewTwoFaService(queries, nil)
+
+	loginId := uuid.MustParse("92d4479a-7692-4d9d-a4c1-77f203e4b621")
+	TwoFaId := uuid.MustParse("83168a16-7c74-438c-94ea-5aacae00881f")
+
+	err := service.DeleteTwoFactor(context.Background(), DeleteTwoFactorParams{
+		LoginId:       loginId,
+		TwoFactorId:   TwoFaId,
+		TwoFactorType: TWO_FACTOR_TYPE_SMS,
+	})
+
+	require.NoError(t, err)
+}
+
 func TestValidate2faPasscode(t *testing.T) {
 	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
 		Host:     "localhost",
