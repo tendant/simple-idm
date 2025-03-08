@@ -360,19 +360,19 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	}
 
 	// Check password history if enabled
-	if pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
-		if err := pm.CheckPasswordHistory(ctx, userID, newPassword); err != nil {
-			return err
-		}
+	// if pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
+	// 	if err := pm.CheckPasswordHistory(ctx, userID, newPassword); err != nil {
+	// 		return err
+	// 	}
 
-		// Add the current password to history
-		err = pm.addPasswordToHistory(ctx, login.LoginID, string(login.Password), PasswordVersion(passwordVersion.Int32))
-		if err != nil {
-			// Log but continue
-			slog.Error("Failed to add password to history", "error", err)
-			return err
-		}
-	}
+	// 	// Add the current password to history
+	// 	err = pm.addPasswordToHistory(ctx, login.LoginID, string(login.Password), PasswordVersion(passwordVersion.Int32))
+	// 	if err != nil {
+	// 		// Log but continue
+	// 		slog.Error("Failed to add password to history", "error", err)
+	// 		return err
+	// 	}
+	// }
 
 	// Hash the new password using the current version
 	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
