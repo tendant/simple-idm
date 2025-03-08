@@ -86,10 +86,12 @@ const Login: Component = () => {
       // Redirect to the original page or default to /users
       let redirectPath = '/users';
       if (searchParams.redirect) {
+        console.log("searchParams.redirect to:", searchParams.redirect);
         redirectPath = Array.isArray(searchParams.redirect) 
           ? searchParams.redirect[0] 
           : searchParams.redirect;
       }
+      console.log("Redirecting to:", redirectPath);
       navigate(redirectPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
