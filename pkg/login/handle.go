@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	ACCESS_TOKEN_NAME  = "accessToken"
-	REFRESH_TOKEN_NAME = "refreshToken"
+	ACCESS_TOKEN_NAME  = "access_token"
+	REFRESH_TOKEN_NAME = "refresh_token"
 )
 
 type Handle struct {

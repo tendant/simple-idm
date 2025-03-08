@@ -180,12 +180,12 @@ func (h *Handle) ValidateUserToken(r *http.Request) (string, error) {
 	// If no Authorization header, check cookies
 	if accessToken == "" {
 		// Check for both possible cookie names
-		cookie, err := r.Cookie("accessToken")
+		cookie, err := r.Cookie("access_token")
 		slog.Info("[INFO] Checking cookie", "err", err, "cookie", cookie)
 		if err == nil {
 			accessToken = cookie.Value
 		} else {
-			cookie, err = r.Cookie("access_token")
+			cookie, err = r.Cookie("accessToken")
 			slog.Info("[INFO] Checking cookie", "err", err, "cookie", cookie)
 			if err == nil {
 				slog.Info("[INFO] Found cookie", "cookie", cookie)
@@ -194,7 +194,7 @@ func (h *Handle) ValidateUserToken(r *http.Request) (string, error) {
 		}
 	}
 
-	slog.Info("[INFO] Checking URL parameters", "accessToken", accessToken)
+	slog.Info("[INFO] Checking URL parameters", "access_token", accessToken)
 	// If still no token, check URL parameters (for testing/development)
 	if accessToken == "" {
 		accessToken = r.URL.Query().Get("access_token")
@@ -373,7 +373,7 @@ func (h *Handle) JwksEndpoint(w http.ResponseWriter, r *http.Request) {
 // ValidateToken validates an access token and returns the claims
 func (h *Handle) ValidateToken(ctx context.Context, token string) (map[string]interface{}, error) {
 	// Introspect the token
-	tokenType, ar, err := h.OAuth2Provider.IntrospectToken(ctx, token, fosite.AccessToken, &fosite.DefaultSession{})
+	tokenType, ar, err := h.OAuth2Provider.IntrospectToken(ctx, token, fosite.AccessToken, &DefaultSession{})
 	if err != nil {
 		return nil, fmt.Errorf("token introspection failed: %w", err)
 	}
@@ -384,7 +384,7 @@ func (h *Handle) ValidateToken(ctx context.Context, token string) (map[string]in
 	}
 
 	// Extract session data
-	session, ok := ar.GetSession().(*fosite.DefaultSession)
+	session, ok := ar.GetSession().(*DefaultSession)
 	if !ok {
 		return nil, fmt.Errorf("invalid session type")
 	}
