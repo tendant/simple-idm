@@ -223,7 +223,7 @@ func main() {
 	http.HandleFunc("/oauth2/home", homeHandler)
 	http.HandleFunc("/oauth2/callback", callbackHandler)
 
-	log.Println("OIDC Provider running on http://localhost:3000")
-	log.Println("Visit http://localhost:3000/ to start the OAuth2 flow")
-	log.Fatal(http.ListenAndServe(":3000", nil))
+	log.Println("OIDC Provider running on http://localhost:4002")
+	log.Println("Visit http://localhost:4002/ to start the OAuth2 flow")
+	log.Fatal(http.ListenAndServe(":4002", nil))
 }

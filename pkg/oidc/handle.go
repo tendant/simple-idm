@@ -10,6 +10,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -121,15 +122,17 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	// For now, we'll simulate a logged-in user
 
 	// Check if the user is authenticated
-	// userID, err := h.ValidateUserToken(r)
-	// if err != nil {
-	// 	// Redirect to login page if not authenticated
-	// 	loginURL := fmt.Sprintf("/login?redirect=%s", url.QueryEscape(r.URL.String()))
-	// 	slog.Warn("[WARNING] ValidateUserToken: ", "err", err)
-	// 	http.Redirect(w, r, loginURL, http.StatusFound)
-	// 	return
-	// }
-	userID := "user-123456"
+	userID, err := h.ValidateUserToken(r)
+	if err != nil {
+		slog.Warn("[WARNING] ValidateUserToken: ", "err", err)
+		// Redirect to login page if not authenticated
+		slog.Info("[INFO] Redirecting to login page")
+		loginURL := fmt.Sprintf("/login?redirect=%s", url.QueryEscape(r.URL.String()))
+		http.Redirect(w, r, loginURL, http.StatusFound)
+		return
+	}
+	// userID := "user-123456"
+	slog.Info("[INFO] User is authenticated", "userID", userID)
 
 	// Create a session for the user with claims and expiration times
 	session := &fosite.DefaultSession{
@@ -183,7 +186,7 @@ func (h *Handle) ValidateUserToken(r *http.Request) (string, error) {
 
 	// If no Authorization header, check cookies
 	if accessToken == "" {
-		cookie, err := r.Cookie("access_token")
+		cookie, err := r.Cookie("accessToken")
 		if err != nil {
 			return "", fmt.Errorf("missing access token")
 		}
