@@ -33,6 +33,14 @@ export default defineConfig({
         target: 'http://localhost:4001',
         changeOrigin: true,
       },
+      '/oidc': {
+        target: 'http://localhost:4002',
+        changeOrigin: true,
+      },
+      '/oauth2': {
+        target: 'http://localhost:4002',
+        changeOrigin: true,
+      },
       '/idm': {
         target: 'http://localhost:4001',
         changeOrigin: true,

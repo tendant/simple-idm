@@ -80,7 +80,7 @@ func NewHandle() *Handle {
 	store.Clients["myclient"] = &fosite.DefaultClient{
 		ID:            "myclient",
 		Secret:        hashedSecret, // Bcrypt hashed secret
-		RedirectURIs:  []string{"http://localhost:8080/callback"},
+		RedirectURIs:  []string{"http://localhost:3000/oauth2/callback"},
 		ResponseTypes: []string{"code", "token", "id_token"},
 		GrantTypes:    []string{"authorization_code", "implicit", "refresh_token"},
 		Scopes:        []string{"openid", "profile", "email"},

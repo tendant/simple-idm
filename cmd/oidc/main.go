@@ -58,7 +58,7 @@ const callbackTmpl = `
                     <input type="text" id="code" name="code" value="{{.Code}}" readonly>
                     
                     <label for="redirect_uri">Redirect URI:</label>
-                    <input type="text" id="redirect_uri" name="redirect_uri" value="http://localhost:8080/callback">
+                    <input type="text" id="redirect_uri" name="redirect_uri" value="http://localhost:3000/oauth2/callback">
                     
                     <label for="client_id">Client ID:</label>
                     <input type="text" id="client_id" name="client_id" value="myclient">
@@ -79,10 +79,10 @@ const callbackTmpl = `
                 <h3>Command Line</h3>
                 <p>Or use this curl command to request an access token from the token endpoint:</p>
                 <pre>curl -X POST \
-    http://localhost:8080/token \
+    http://localhost:3000/oidc/token \
     -d "grant_type=authorization_code" \
     -d "code={{.Code}}" \
-    -d "redirect_uri=http://localhost:8080/callback" \
+    -d "redirect_uri=http://localhost:3000/oauth2/callback" \
     -d "client_id=myclient" \
     -d "client_secret=mysecret"</pre>
             </div>
@@ -104,7 +104,7 @@ const callbackTmpl = `
                     formData.append('client_secret', clientSecret);
                     
                     try {
-                        const response = await fetch('/token', {
+                        const response = await fetch('/oidc/token', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/x-www-form-urlencoded'
@@ -161,13 +161,13 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 
 // Simple home page with a link to start the OAuth2 flow
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
+	if r.URL.Path != "/oauth2/home" {
 		http.NotFound(w, r)
 		return
 	}
 
 	// Create the authorization URL
-	authURL, err := url.Parse("http://localhost:8080/authorize")
+	authURL, err := url.Parse("http://localhost:3000/oidc/authorize")
 	if err != nil {
 		http.Error(w, "Error creating auth URL", http.StatusInternalServerError)
 		return
@@ -177,7 +177,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	q := authURL.Query()
 	q.Set("response_type", "code")
 	q.Set("client_id", "myclient")
-	q.Set("redirect_uri", "http://localhost:8080/callback")
+	q.Set("redirect_uri", "http://localhost:3000/oauth2/callback")
 	q.Set("scope", "openid profile email")
 	q.Set("state", "random-state-value")
 	authURL.RawQuery = q.Encode()
@@ -214,16 +214,16 @@ func main() {
 	handle := oidc.NewHandle()
 
 	// OIDC endpoints
-	http.HandleFunc("/authorize", handle.AuthorizeEndpoint)
-	http.HandleFunc("/token", handle.TokenEndpoint)
-	http.HandleFunc("/userinfo", handle.UserInfoEndpoint)
-	http.HandleFunc("/jwks", handle.JwksEndpoint)
+	http.HandleFunc("/oidc/authorize", handle.AuthorizeEndpoint)
+	http.HandleFunc("/oidc/token", handle.TokenEndpoint)
+	http.HandleFunc("/oidc/userinfo", handle.UserInfoEndpoint)
+	http.HandleFunc("/oidc/jwks", handle.JwksEndpoint)
 
 	// Client endpoints
-	http.HandleFunc("/", homeHandler)
-	http.HandleFunc("/callback", callbackHandler)
+	http.HandleFunc("/oauth2/home", homeHandler)
+	http.HandleFunc("/oauth2/callback", callbackHandler)
 
-	log.Println("OIDC Provider running on http://localhost:8080")
-	log.Println("Visit http://localhost:8080/ to start the OAuth2 flow")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Println("OIDC Provider running on http://localhost:3000")
+	log.Println("Visit http://localhost:3000/ to start the OAuth2 flow")
+	log.Fatal(http.ListenAndServe(":3000", nil))
 }
