@@ -117,12 +117,10 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In a real application, you would check if the user is logged in
-	// If not, redirect to a login page and then come back to this endpoint
-	// For now, we'll simulate a logged-in user
-
 	// Check if the user is authenticated
+	slog.Info("[INFO] Checking user authentication")
 	userID, err := h.ValidateUserToken(r)
+	slog.Info("[INFO] ValidateUserToken result", "userID", userID, "err", err)
 	if err != nil {
 		slog.Warn("[WARNING] ValidateUserToken: ", "err", err)
 		// Redirect to login page if not authenticated
@@ -130,9 +128,9 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 		loginURL := fmt.Sprintf("/login?redirect=%s", url.QueryEscape(r.URL.String()))
 		http.Redirect(w, r, loginURL, http.StatusFound)
 		return
+	} else {
+		slog.Info("[INFO] User is authenticated", "userID", userID)
 	}
-	// userID := "user-123456"
-	slog.Info("[INFO] User is authenticated", "userID", userID)
 
 	// Create a session for the user with claims and expiration times
 	session := &fosite.DefaultSession{
@@ -149,11 +147,6 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 		},
 		Username: "testuser",
 	}
-
-	// For demonstration purposes, automatically approve the request
-	// In a real application, you would show a consent screen to the user
-	// and only proceed if they approve
-
 	// Generate the authorization response
 	response, err := h.OAuth2Provider.NewAuthorizeResponse(ctx, ar, session)
 	if err != nil {
@@ -176,6 +169,7 @@ func (h *Handle) ValidateUserToken(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	var accessToken string
 
+	slog.Info("[INFO] Checking Authorization header", "authHeader", authHeader)
 	if authHeader != "" {
 		// Format should be: "Bearer <token>"
 		parts := strings.Split(authHeader, " ")
@@ -183,14 +177,32 @@ func (h *Handle) ValidateUserToken(r *http.Request) (string, error) {
 			accessToken = parts[1]
 		}
 	}
-
 	// If no Authorization header, check cookies
 	if accessToken == "" {
+		// Check for both possible cookie names
 		cookie, err := r.Cookie("accessToken")
-		if err != nil {
-			return "", fmt.Errorf("missing access token")
+		slog.Info("[INFO] Checking cookie", "err", err, "cookie", cookie)
+		if err == nil {
+			accessToken = cookie.Value
+		} else {
+			cookie, err = r.Cookie("access_token")
+			slog.Info("[INFO] Checking cookie", "err", err, "cookie", cookie)
+			if err == nil {
+				slog.Info("[INFO] Found cookie", "cookie", cookie)
+				accessToken = cookie.Value
+			}
 		}
-		accessToken = cookie.Value
+	}
+
+	slog.Info("[INFO] Checking URL parameters", "accessToken", accessToken)
+	// If still no token, check URL parameters (for testing/development)
+	if accessToken == "" {
+		accessToken = r.URL.Query().Get("access_token")
+	}
+
+	// If we still don't have a token, return an error
+	if accessToken == "" {
+		return "", fmt.Errorf("missing access token")
 	}
 
 	// Validate token using oauth2Provider
