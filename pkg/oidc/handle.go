@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/ory/fosite"
 	"github.com/ory/fosite/compose"
 	"github.com/ory/fosite/storage"
@@ -22,6 +23,9 @@ import (
 )
 
 type Handle struct {
+	// JWT Auth for validating user login tokens
+	JwtAuth *jwtauth.JWTAuth
+
 	// Global Fosite OAuth2 Provider
 	OAuth2Provider fosite.OAuth2Provider
 
@@ -61,7 +65,7 @@ func loadPrivateKey() (*rsa.PrivateKey, error) {
 	return rsaKey, nil
 }
 
-func NewHandle() *Handle {
+func NewHandle(jwtAuth *jwtauth.JWTAuth) *Handle {
 	// Generate RSA Key for signing ID Tokens
 	privateKey, err := loadPrivateKey()
 	if err != nil {
@@ -103,6 +107,7 @@ func NewHandle() *Handle {
 	return &Handle{
 		OAuth2Provider: oauth2Provider,
 		PrivateKey:     privateKey,
+		JwtAuth:        jwtAuth,
 	}
 }
 
@@ -163,7 +168,7 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handle) ValidateUserToken(r *http.Request) (string, error) {
-	ctx := context.Background()
+	// ctx := context.Background()
 
 	// Try to retrieve the token from the Authorization header
 	authHeader := r.Header.Get("Authorization")
@@ -194,9 +199,9 @@ func (h *Handle) ValidateUserToken(r *http.Request) (string, error) {
 		}
 	}
 
-	slog.Info("[INFO] Checking URL parameters", "access_token", accessToken)
 	// If still no token, check URL parameters (for testing/development)
 	if accessToken == "" {
+		slog.Info("[INFO] Checking URL parameters", "access_token", accessToken)
 		accessToken = r.URL.Query().Get("access_token")
 	}
 
@@ -206,24 +211,28 @@ func (h *Handle) ValidateUserToken(r *http.Request) (string, error) {
 	}
 
 	// Validate token using oauth2Provider
-	tokenType, accessRequest, err := h.OAuth2Provider.IntrospectToken(ctx, accessToken, fosite.AccessToken, &fosite.DefaultSession{})
+	// tokenType, accessRequest, err := h.OAuth2Provider.IntrospectToken(ctx, accessToken, fosite.AccessToken, &fosite.DefaultSession{})
+	slog.Info("[INFO] Validating token", "publicKey", h.PrivateKey.PublicKey, "privateKey", h.PrivateKey)
+	// jwtAuth := jwtauth.New("HS256", h.PrivateKey, h.PrivateKey.PublicKey)
+	token, err := jwtauth.VerifyToken(h.JwtAuth, accessToken)
 	if err != nil {
-		log.Printf("[ERROR] Token validation failed: %v", err)
+		slog.Error("[ERROR] Token validation failed", "err", err)
 		return "", fmt.Errorf("invalid or expired token")
 	}
+	slog.Info("[INFO] Token validation successful", "token", token)
 
-	// Ensure the token is an access token
-	if tokenType != fosite.AccessToken {
-		return "", fmt.Errorf("invalid token type")
-	}
+	// // Ensure the token is an access token
+	// if tokenType != fosite.AccessToken {
+	// 	return "", fmt.Errorf("invalid token type")
+	// }
 
-	// Extract user ID from the session
-	session, ok := accessRequest.GetSession().(*fosite.DefaultSession)
-	if !ok {
-		return "", fmt.Errorf("invalid session data")
-	}
+	// // Extract user ID from the session
+	// session, ok := accessRequest.GetSession().(*fosite.DefaultSession)
+	// if !ok {
+	// 	return "", fmt.Errorf("invalid session data")
+	// }
 
-	return session.Subject, nil
+	return token.Subject(), nil
 }
 
 func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {

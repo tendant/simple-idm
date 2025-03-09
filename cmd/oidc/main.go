@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/tendant/simple-idm/pkg/oidc"
 )
 
@@ -211,7 +212,9 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	handle := oidc.NewHandle()
+
+	tokenAuth := jwtauth.New("HS256", []byte("very-secure-jwt-secret"), nil)
+	handle := oidc.NewHandle(tokenAuth)
 
 	// OIDC endpoints
 	http.HandleFunc("/oidc/authorize", handle.AuthorizeEndpoint)
