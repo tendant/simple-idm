@@ -190,8 +190,17 @@ func main() {
 
 		profileQueries := profiledb.New(pool)
 		profileService := profile.NewProfileService(profileQueries, loginService)
-		profileHandle := profile.NewHandle(profileService)
-		r.Mount("/profile", profile.Handler(profileHandle))
+		profileHandle := profile.NewHandle(profileService, *jwtService)
+
+		// Create a secure profile router that requires authentication
+		profileRouter := chi.NewRouter()
+		profileRouter.Group(func(r chi.Router) {
+			r.Use(login.Verifier(tokenAuth))
+			r.Use(jwtauth.Authenticator(tokenAuth))
+			r.Use(login.AuthUserMiddleware)
+			r.Mount("/", profile.Handler(profileHandle))
+		})
+		r.Mount("/profile", profileRouter)
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
 		// Initialize user service and handle
