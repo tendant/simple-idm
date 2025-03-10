@@ -277,44 +277,6 @@ func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the original opaque access token
-	opaqueToken := response.GetAccessToken()
-
-	// Extract client ID and user ID for JWT claims
-	clientID := ar.GetClient().GetID()
-	userID := ""
-	if session, ok := ar.GetSession().(*fosite.DefaultSession); ok && session.Subject != "" {
-		userID = session.Subject
-	} else {
-		// For client credentials, use client ID as subject
-		userID = clientID
-	}
-
-	// Get granted scopes
-	scopes := strings.Join(ar.GetGrantedScopes(), " ")
-
-	// Create extra claims
-	extraClaims := map[string]interface{}{
-		"client_id": clientID,
-	}
-
-	// Convert to JWT
-	jwtToken, err := ConvertToJWT(h.PrivateKey, opaqueToken, clientID, userID, scopes, extraClaims)
-	if err != nil {
-		log.Printf("[ERROR] Error creating JWT token: %v", err)
-		h.OAuth2Provider.WriteAccessError(ctx, w, ar, err)
-		return
-	}
-
-	// Replace the access token with the JWT token
-	response.SetAccessToken(jwtToken)
-
-	// Log the token for debugging
-	log.Printf("[INFO] Generated JWT access token: %s", jwtToken)
-
-	// Log success
-	log.Printf("[INFO] Successfully issued tokens to client: %s", ar.GetClient().GetID())
-
 	// Write the response
 	h.OAuth2Provider.WriteAccessResponse(ctx, w, ar, response)
 }
