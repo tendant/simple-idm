@@ -136,7 +136,7 @@ func Verifier(ja *jwtauth.JWTAuth) func(http.Handler) http.Handler {
 }
 
 func TokenFromCookie(r *http.Request) string {
-	cookie, err := r.Cookie("accessToken")
+	cookie, err := r.Cookie(ACCESS_TOKEN_NAME)
 	if err != nil {
 		return ""
 	}
