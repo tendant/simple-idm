@@ -2,22 +2,94 @@ package profile
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
+	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
 )
 
 type Handle struct {
 	profileService *ProfileService
+	jwtService     auth.Jwt
 }
 
-func NewHandle(profileService *ProfileService) Handle {
+func NewHandle(profileService *ProfileService, jwtService auth.Jwt) Handle {
 	return Handle{
 		profileService: profileService,
+		jwtService:     jwtService,
 	}
+}
+
+// Helper function to set token cookies
+func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue string, expire time.Time) {
+	tokenCookie := &http.Cookie{
+		Name:     tokenName,
+		Path:     "/",
+		Value:    tokenValue,
+		Expires:  expire,
+		HttpOnly: h.jwtService.CoookieHttpOnly,
+		Secure:   h.jwtService.CookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, tokenCookie)
+}
+
+// getTokenUserFromRequest extracts the token user from the request's cookies
+func (h Handle) getTokenUserFromRequest(r *http.Request, userUuid uuid.UUID) (mapper.MappedUser, error) {
+	// Get token from cookie
+	cookie, err := r.Cookie(login.ACCESS_TOKEN_NAME)
+	if err != nil {
+		return mapper.MappedUser{}, fmt.Errorf("missing or invalid access token cookie: %w", err)
+	}
+	tokenStr := cookie.Value
+	slog.Info("cookie value", "value", tokenStr)
+
+	// Parse and validate token
+	token, err := h.jwtService.ParseTokenStr(tokenStr)
+	if err != nil {
+		return mapper.MappedUser{}, fmt.Errorf("invalid access token: %w", err)
+	}
+
+	// Get claims from token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return mapper.MappedUser{}, fmt.Errorf("invalid token claims")
+	}
+
+	// Extract login_id from custom_claims
+	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	if !ok {
+		return mapper.MappedUser{}, fmt.Errorf("invalid custom claims format")
+	}
+	loginIdStr, ok := customClaims["login_id"].(string)
+	if !ok {
+		return mapper.MappedUser{}, fmt.Errorf("missing or invalid login_id in token")
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		return mapper.MappedUser{}, fmt.Errorf("invalid login_id format in token: %w", err)
+	}
+
+	// Extract email and display name
+	email, _ := customClaims["email"].(string)
+	displayName, _ := customClaims["display_name"].(string)
+
+	return mapper.MappedUser{
+		UserId:      userUuid.String(),
+		LoginID:     loginId.String(),
+		Email:       email,
+		DisplayName: displayName,
+		ExtraClaims: customClaims,
+	}, nil
 }
 
 // Get password policy
@@ -86,6 +158,35 @@ func (h Handle) ChangePassword(w http.ResponseWriter, r *http.Request) *Response
 				"code":    "internal_error",
 				"message": err.Error(),
 			},
+		}
+	}
+
+	// Get token user from request
+	tokenUser, err := h.getTokenUserFromRequest(r, userUuid)
+	if err != nil {
+		slog.Error("Failed to get token user", "err", err)
+		// Continue with the response even if token user extraction fails
+	} else {
+		// Create new access token
+		accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
+		if err != nil {
+			slog.Error("Failed to create new access token", "user", tokenUser, "err", err)
+			// Continue with the response even if token creation fails
+		} else {
+			// Set the new access token cookie
+			h.setTokenCookie(w, login.ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
+			slog.Info("Set new access token cookie", "token", accessToken.Token)
+		}
+
+		// Create new refresh token
+		refreshToken, err := h.jwtService.CreateRefreshToken(tokenUser)
+		if err != nil {
+			slog.Error("Failed to create new refresh token", "user", tokenUser, "err", err)
+			// Continue with the response even if token creation fails
+		} else {
+			// Set the new refresh token cookie
+			h.setTokenCookie(w, login.REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
+			slog.Info("Set new refresh token cookie", "token", refreshToken.Token)
 		}
 	}
 
