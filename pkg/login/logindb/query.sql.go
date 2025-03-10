@@ -419,7 +419,7 @@ func (q *Queries) MarkBackupCodeUsed(ctx context.Context) error {
 
 const markPasswordResetTokenUsed = `-- name: MarkPasswordResetTokenUsed :exec
 UPDATE login_password_reset_tokens
-SET used_at = NOW()
+SET used_at = NOW() at time zone 'UTC'
 WHERE token = $1
 `
 
@@ -431,7 +431,7 @@ func (q *Queries) MarkPasswordResetTokenUsed(ctx context.Context, token string) 
 const resetPassword = `-- name: ResetPassword :exec
 UPDATE login
 SET password = $1, 
-    last_modified_at = NOW()
+    last_modified_at = NOW() at time zone 'UTC'
 WHERE username = $2
 `
 
@@ -448,7 +448,7 @@ func (q *Queries) ResetPassword(ctx context.Context, arg ResetPasswordParams) er
 const resetPasswordById = `-- name: ResetPasswordById :exec
 UPDATE login
 SET password = $1,
-    updated_at = NOW()
+    updated_at = NOW() at time zone 'UTC'
 WHERE login.id = $2
 `
 
@@ -465,7 +465,7 @@ func (q *Queries) ResetPasswordById(ctx context.Context, arg ResetPasswordByIdPa
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE login
 SET password = $1,
-    updated_at = NOW()
+    updated_at = NOW() at time zone 'UTC'
 WHERE id = $2
 `
 
@@ -483,7 +483,7 @@ const updateUserPasswordAndVersion = `-- name: UpdateUserPasswordAndVersion :exe
 UPDATE login
 SET password = $1,
     password_version = $3,
-    updated_at = NOW()
+    updated_at = NOW() at time zone 'UTC'
 WHERE id = $2
 `
 
@@ -516,7 +516,7 @@ SELECT prt.id as id, prt.login_id as login_id
 FROM login_password_reset_tokens prt
 JOIN login l ON l.id = prt.login_id 
 WHERE prt.token = $1
-  AND prt.expire_at > NOW()
+  AND prt.expire_at > NOW() at time zone 'UTC'
   AND prt.used_at IS NULL
 LIMIT 1
 `

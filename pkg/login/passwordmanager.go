@@ -270,11 +270,13 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	if err != nil {
 		return errors.New("invalid or expired reset token")
 	}
+	slog.Info("token validated")
 
 	// Check if the new password meets complexity requirements
 	if err := pm.CheckPasswordComplexity(newPassword); err != nil {
 		return err
 	}
+	slog.Info("Password complexity checked")
 
 	// Get current password and version for history
 	login, err := pm.queries.GetLoginById(ctx, tokenInfo.LoginID)
@@ -300,11 +302,14 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 		}
 	}
 
+	slog.Info("Password history checked")
+
 	// Hash the new password using the current version
 	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
+	slog.Info("password hashed")
 
 	// Update password and version
 	err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
@@ -315,6 +320,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
+	slog.Info("Password updated")
 
 	// Mark token as used
 	err = pm.queries.MarkPasswordResetTokenUsed(ctx, token)
@@ -322,6 +328,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 		slog.Error("Failed to mark token as used", "err", err)
 		// Don't return error as password was successfully reset
 	}
+	slog.Info("Token marked as used")
 
 	return nil
 }
@@ -336,6 +343,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 		}
 		return err
 	}
+	slog.Info("User found", "user", login.Username)
 
 	// Get the password version
 	passwordVersion, err := pm.queries.GetPasswordVersion(ctx, login.LoginID)
@@ -344,6 +352,8 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
 		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
 	}
+
+	slog.Info("Password version", "version", passwordVersion.Int32)
 
 	// Verify the current password
 	match, err := pm.VerifyPasswordWithVersion(currentPassword, string(login.Password), PasswordVersion(passwordVersion.Int32))
@@ -354,10 +364,13 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 		return errors.New("current password is incorrect")
 	}
 
+	slog.Info("Current password is correct")
+
 	// Check if the new password meets complexity requirements
 	if err := pm.CheckPasswordComplexity(newPassword); err != nil {
 		return err
 	}
+	slog.Info("New password is valid")
 
 	// Check password history if enabled
 	// if pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
@@ -380,15 +393,18 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 		return err
 	}
 
+	slog.Info("password hashed")
+
 	// Update the password hash and version in the database
 	err = pm.queries.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
-		ID:              utils.ParseUUID(userID),
+		ID:              login.LoginID,
 		Password:        []byte(hashedPassword),
 		PasswordVersion: pgtype.Int4{Int32: int32(pm.currentVersion), Valid: true},
 	})
 	if err != nil {
 		return err
 	}
+	slog.Info("Updated password and version")
 
 	return nil
 }

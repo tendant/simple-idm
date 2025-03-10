@@ -320,7 +320,7 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Response {
 
 	// FIXME: validate refreshToken
-	cookie, err := r.Cookie("refreshToken")
+	cookie, err := r.Cookie(REFRESH_TOKEN_NAME)
 	if err != nil {
 		slog.Error("No Refresh Token Cookie", "err", err)
 		return &Response{
@@ -616,8 +616,8 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 
 	// Return tokens in response
 	return PostMobileLoginJSON200Response(struct {
-		AccessToken  string `json:"accessToken"`
-		RefreshToken string `json:"refreshToken"`
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
 	}{
 		AccessToken:  accessToken.Token,
 		RefreshToken: refreshToken.Token,
