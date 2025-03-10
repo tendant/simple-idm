@@ -7,7 +7,7 @@ AND deleted_at IS NULL;
 -- name: ResetPassword :exec
 UPDATE login
 SET password = $1, 
-    last_modified_at = NOW()
+    last_modified_at = NOW() at time zone 'UTC'
 WHERE username = $2; 
 
 -- name: FindLoginByUsername :one
@@ -30,7 +30,7 @@ AND u.deleted_at IS NULL;
 -- name: UpdateUserPassword :exec
 UPDATE login
 SET password = $1,
-    updated_at = NOW()
+    updated_at = NOW() at time zone 'UTC'
 WHERE id = $2;
 
 -- name: FindUserRolesByUserId :many
@@ -64,13 +64,13 @@ SELECT prt.id as id, prt.login_id as login_id
 FROM login_password_reset_tokens prt
 JOIN login l ON l.id = prt.login_id 
 WHERE prt.token = $1
-  AND prt.expire_at > NOW()
+  AND prt.expire_at > NOW() at time zone 'UTC'
   AND prt.used_at IS NULL
 LIMIT 1;
 
 -- name: MarkPasswordResetTokenUsed :exec
 UPDATE login_password_reset_tokens
-SET used_at = NOW()
+SET used_at = NOW() at time zone 'UTC'
 WHERE token = $1;
 
 -- name: GetUsersByLoginId :many
@@ -86,7 +86,7 @@ GROUP BY u.id, u.name, u.email, u.created_at, u.last_modified_at;
 -- name: ResetPasswordById :exec
 UPDATE login
 SET password = $1,
-    updated_at = NOW()
+    updated_at = NOW() at time zone 'UTC'
 WHERE login.id = $2;
 
 -- name: Get2FASecret :one
@@ -134,7 +134,7 @@ AND l.deleted_at IS NULL;
 UPDATE login
 SET password = $1,
     password_version = $3,
-    updated_at = NOW()
+    updated_at = NOW() at time zone 'UTC'
 WHERE id = $2;
 
 -- name: AddPasswordToHistory :exec
