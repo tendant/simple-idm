@@ -192,15 +192,15 @@ paths:
               schema:
                 type: object
                 properties:
-                  accessToken:
+                  access_token:
                     type: string
                     description: JWT access token
-                  refreshToken:
+                  refresh_token:
                     type: string
                     description: JWT refresh token
                 required:
-                  - accessToken
-                  - refreshToken
+                  - access_token
+                  - refresh_token
   /username/find:
     post:
       summary: Send username to user's email address
