@@ -7,7 +7,6 @@ toolchain go1.23.2
 require (
 	github.com/discord-gophers/goapi-gen v0.2.2
 	github.com/getkin/kin-openapi v0.116.0
-	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/go-chi/jwtauth/v5 v5.3.2
 	github.com/go-chi/render v1.0.2
@@ -16,6 +15,8 @@ require (
 	github.com/ilyakaznacheev/cleanenv v1.4.0
 	github.com/jackc/pgx/v5 v5.5.5
 	github.com/jinzhu/copier v0.4.0
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
+	github.com/ory/fosite v0.49.0
 	github.com/pquerna/otp v1.4.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tendant/chi-demo v1.5.2
@@ -23,7 +24,6 @@ require (
 	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.35.0
 	github.com/wneessen/go-mail v0.6.1
-	github.com/xlzd/gotp v0.1.0
 	golang.org/x/crypto v0.32.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
 )
@@ -100,12 +100,10 @@ require (
 	github.com/moby/sys/sequential v0.5.0 // indirect
 	github.com/moby/sys/user v0.1.0 // indirect
 	github.com/moby/term v0.5.0 // indirect
-	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/openzipkin/zipkin-go v0.4.2 // indirect
-	github.com/ory/fosite v0.49.0 // indirect
 	github.com/ory/go-acc v0.2.9-0.20230103102148-6b1c9a70dbbe // indirect
 	github.com/ory/go-convenience v0.1.0 // indirect
 	github.com/ory/x v0.0.665 // indirect
@@ -162,7 +160,6 @@ require (
 	google.golang.org/grpc v1.64.1 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	olympos.io/encoding/edn v0.0.0-20201019073823-d3554ca0b0a3 // indirect
 )
