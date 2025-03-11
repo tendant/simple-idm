@@ -190,7 +190,7 @@ func main() {
 
 		profileQueries := profiledb.New(pool)
 		profileService := profile.NewProfileService(profileQueries, loginService)
-		profileHandle := profile.NewHandle(profileService)
+		profileHandle := profile.NewHandle(profileService, twoFaService)
 		r.Mount("/profile", profile.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
