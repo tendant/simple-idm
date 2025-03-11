@@ -84,6 +84,7 @@ type Config struct {
 	JwtConfig                JwtConfig
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
+	PasswordVersion          int    `env:"PASSWORD_VERSION" env-default:"1"`
 }
 
 func main() {
@@ -138,9 +139,10 @@ func main() {
 	// Create a password policy based on the environment
 	passwordPolicy := createPasswordPolicy(&config.PasswordComplexityConfig)
 
-	// Create login service with the appropriate policy
+	// Create login service with the appropriate policy and password version
 	loginServiceOptions := &login.LoginServiceOptions{
 		PasswordPolicy: passwordPolicy,
+		PasswordVersion: login.PasswordVersion(config.PasswordVersion),
 	}
 	loginService := login.NewLoginService(loginQueries, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
 
