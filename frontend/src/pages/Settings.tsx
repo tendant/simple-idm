@@ -1,7 +1,7 @@
-import { Component, createSignal, Show, createEffect } from 'solid-js';
+import { Component, createSignal, Show, createEffect, For } from 'solid-js';
 import { useApi } from '../lib/hooks/useApi';
 import { extractErrorDetails } from '../lib/api';
-import { twoFactorApi } from '../api/twoFactor';
+import { twoFactorApi, ProfileTwoFactorMethod } from '../api/twoFactor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -22,8 +22,29 @@ const Settings: Component = () => {
   const [twoFactorType, setTwoFactorType] = createSignal<string>('email');
   const [isAddingMethod, setIsAddingMethod] = createSignal(false);
   const [isLoading, setIsLoading] = createSignal(false);
+  const [twoFactorMethods, setTwoFactorMethods] = createSignal<ProfileTwoFactorMethod[]>([]);
+  const [isLoadingMethods, setIsLoadingMethods] = createSignal(false);
 
   const { request } = useApi();
+
+  const fetch2FAMethods = async () => {
+    setIsLoadingMethods(true);
+    try {
+      const data = await twoFactorApi.get2FAMethods();
+      setTwoFactorMethods(data.methods || []);
+      setTwoFactorEnabled(data.methods && data.methods.length > 0);
+    } catch (err) {
+      const errorDetails = extractErrorDetails(err);
+      setError(errorDetails.message || 'Failed to fetch 2FA methods');
+    } finally {
+      setIsLoadingMethods(false);
+    }
+  };
+
+  // Fetch 2FA methods when component mounts
+  createEffect(() => {
+    fetch2FAMethods();
+  });
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -149,21 +170,12 @@ const Settings: Component = () => {
           </CardHeader>
           <CardContent>
               
-              <Show when={!twoFactorEnabled()}>
-                <div class="space-y-4">
-                  <p class="text-sm text-gray-600">
-                    Two-factor authentication adds an extra layer of security to your account.
-                    When enabled, you'll need to enter both your password and a verification code
-                    when signing in.
-                  </p>
-                  
-                  <Show when={!isAddingMethod()}>
-                    <Button
-                      onClick={() => setIsAddingMethod(true)}
-                    >
-                      Add 2FA Method
-                    </Button>
-                  </Show>
+              <div class="space-y-4">
+                <p class="text-sm text-gray-600">
+                  Two-factor authentication adds an extra layer of security to your account.
+                  When enabled, you'll need to enter both your password and a verification code
+                  when signing in.
+                </p>
                   
                   <Show when={isAddingMethod()}>
                     <div class="space-y-4 p-4 border rounded-md">
@@ -194,6 +206,7 @@ const Settings: Component = () => {
                               setSuccess(`${twoFactorType().toUpperCase()} 2FA method added successfully`);
                               setTwoFactorEnabled(true);
                               setIsAddingMethod(false);
+                              fetch2FAMethods();
                             } catch (err) {
                               const errorDetails = extractErrorDetails(err);
                               setError(errorDetails.message || `Failed to setup ${twoFactorType()} 2FA method`);
@@ -214,8 +227,88 @@ const Settings: Component = () => {
                       </div>
                     </div>
                   </Show>
+                  
+                  <Show when={isLoadingMethods()}>
+                    <div class="py-4 text-center">
+                      <p class="text-sm text-gray-500">Loading 2FA methods...</p>
+                    </div>
+                  </Show>
+                  
+                  <Show when={!isLoadingMethods() && twoFactorMethods().length > 0}>
+                    <div class="mt-6">
+                      <h3 class="font-medium mb-2">Your 2FA Methods</h3>
+                      <div class="border rounded-md divide-y">
+                        <For each={twoFactorMethods()}>
+                          {(method) => (
+                            <div class="p-4 flex justify-between items-center">
+                              <div>
+                                <div class="font-medium capitalize">{method.type}</div>
+                                <div class="text-sm text-gray-500">
+                                  Status: {method.enabled ? (
+                                    <span class="text-green-600 font-medium">Enabled</span>
+                                  ) : (
+                                    <span class="text-red-600 font-medium">Disabled</span>
+                                  )}
+                                </div>
+                              </div>
+                              <Button 
+                                variant="destructive" 
+                                size="sm"
+                                onClick={async () => {
+                                  if (confirm(`Are you sure you want to delete this ${method.type} 2FA method?`)) {
+                                    setError(null);
+                                    setSuccess(null);
+                                    setIsLoading(true);
+                                    try {
+                                      await request(`/profile/2fa/${method.two_factor_id}`, {
+                                        method: 'DELETE'
+                                      });
+                                      setSuccess(`${method.type} 2FA method deleted successfully`);
+                                      fetch2FAMethods();
+                                    } catch (err) {
+                                      const errorDetails = extractErrorDetails(err);
+                                      setError(errorDetails.message || `Failed to delete ${method.type} 2FA method`);
+                                    } finally {
+                                      setIsLoading(false);
+                                    }
+                                  }
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                      
+                      <Show when={!isAddingMethod()}>
+                        <div class="mt-4 flex justify-end">
+                          <button
+                            onClick={() => setIsAddingMethod(true)}
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            Add 2FA Method
+                          </button>
+                        </div>
+                      </Show>
+                    </div>
+                  </Show>
+                  
+                  <Show when={!isLoadingMethods() && twoFactorMethods().length === 0 && !isAddingMethod()}>
+                    <div class="py-4 border rounded-md text-center">
+                      <p class="text-sm text-gray-500 mb-4">You don't have any 2FA methods set up yet.</p>
+                      
+                      <div class="flex justify-center">
+                        <button
+                          onClick={() => setIsAddingMethod(true)}
+                          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          Add 2FA Method
+                        </button>
+                      </div>
+                    </div>
+                  </Show>
                 </div>
-              </Show>
 
               {/* QR code section removed as TOTP is not supported */}
 
@@ -234,47 +327,7 @@ const Settings: Component = () => {
                 </div>
               </Show>
 
-              <Show when={twoFactorEnabled()}>
-                <div class="space-y-4">
-                  <p class="text-sm text-gray-600">
-                    Two-factor authentication is enabled. You'll need to enter a code from your
-                    authenticator app when signing in.
-                  </p>
-                  <div class="space-y-2">
-                    <Label for="disable-2fa-code">Enter Code to Disable 2FA</Label>
-                    <Input
-                      id="disable-2fa-code"
-                      type="text"
-                      value={twoFactorCode()}
-                      onInput={(e) => setTwoFactorCode(e.currentTarget.value)}
-                      required
-                    />
-                  </div>
-                  <Button
-                    variant="destructive"
-                    onClick={async () => {
-                      try {
-                        await request('/profile/2fa/disable', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                          },
-                          body: JSON.stringify({
-                            code: twoFactorCode()
-                          }),
-                        });
-                        setTwoFactorEnabled(false);
-                        setTwoFactorCode('');
-                        setSuccess('2FA disabled successfully');
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : 'Failed to disable 2FA');
-                      }
-                    }}
-                  >
-                    Disable 2FA
-                  </Button>
-                </div>
-              </Show>
+              {/* Removed the "Enter Code to Disable 2FA" block as requested */}
           </CardContent>
         </Card>
       </TabsContent>

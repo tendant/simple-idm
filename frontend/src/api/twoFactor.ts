@@ -30,6 +30,17 @@ export interface TwoFactorMethod {
   display_name?: string;
 }
 
+export interface ProfileTwoFactorMethod {
+  two_factor_id: string;
+  type: string;
+  enabled: boolean;
+}
+
+export interface ProfileTwoFactorMethods {
+  count: number;
+  methods: ProfileTwoFactorMethod[];
+}
+
 export interface User {
   id: string;
   email: string;
@@ -149,5 +160,16 @@ export const twoFactorApi = {
     }
     
     return await response.json().catch(() => ({}));
+  },
+  
+  get2FAMethods: async (): Promise<ProfileTwoFactorMethods> => {
+    const response = await apiClient.get('/profile/2fa');
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Failed to get 2FA methods');
+    }
+    
+    return await response.json();
   }
 };
