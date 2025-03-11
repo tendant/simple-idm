@@ -251,31 +251,63 @@ const Settings: Component = () => {
                                   )}
                                 </div>
                               </div>
-                              <Button 
-                                variant="destructive" 
-                                size="sm"
-                                onClick={async () => {
-                                  if (confirm(`Are you sure you want to delete this ${method.type} 2FA method?`)) {
+                              <div class="flex space-x-2">
+                                <button
+                                  onClick={async () => {
                                     setError(null);
                                     setSuccess(null);
                                     setIsLoading(true);
                                     try {
-                                      await request(`/profile/2fa/${method.two_factor_id}`, {
-                                        method: 'DELETE'
+                                      await request(`/profile/2fa/${method.enabled ? 'disable' : 'enable'}`, {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                          twofa_type: method.type
+                                        })
                                       });
-                                      setSuccess(`${method.type} 2FA method deleted successfully`);
+                                      setSuccess(`${method.type} 2FA method ${method.enabled ? 'disabled' : 'enabled'} successfully`);
                                       fetch2FAMethods();
                                     } catch (err) {
                                       const errorDetails = extractErrorDetails(err);
-                                      setError(errorDetails.message || `Failed to delete ${method.type} 2FA method`);
+                                      setError(errorDetails.message || `Failed to ${method.enabled ? 'disable' : 'enable'} ${method.type} 2FA method`);
                                     } finally {
                                       setIsLoading(false);
                                     }
-                                  }
-                                }}
-                              >
-                                Delete
-                              </Button>
+                                  }}
+                                  class={`px-3 py-1 rounded-md text-sm font-medium ${method.enabled 
+                                    ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                    : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                                >
+                                  {method.enabled ? 'Disable' : 'Enable'}
+                                </button>
+                                <Button 
+                                  variant="destructive" 
+                                  size="sm"
+                                  onClick={async () => {
+                                    if (confirm(`Are you sure you want to delete this ${method.type} 2FA method?`)) {
+                                      setError(null);
+                                      setSuccess(null);
+                                      setIsLoading(true);
+                                      try {
+                                        await request(`/profile/2fa/${method.two_factor_id}`, {
+                                          method: 'DELETE'
+                                        });
+                                        setSuccess(`${method.type} 2FA method deleted successfully`);
+                                        fetch2FAMethods();
+                                      } catch (err) {
+                                        const errorDetails = extractErrorDetails(err);
+                                        setError(errorDetails.message || `Failed to delete ${method.type} 2FA method`);
+                                      } finally {
+                                        setIsLoading(false);
+                                      }
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </For>
