@@ -64,6 +64,11 @@ type PasswordPolicyResponse struct {
 	RequireUppercase *bool `json:"require_uppercase,omitempty"`
 }
 
+// SuccessResponse defines model for SuccessResponse.
+type SuccessResponse struct {
+	Result string `json:"result,omitempty"`
+}
+
 // TwoFactorDisable defines model for TwoFactorDisable.
 type TwoFactorDisable struct {
 	// Current TOTP code
@@ -82,23 +87,19 @@ type TwoFactorEnable struct {
 	Secret string `json:"secret"`
 }
 
-// TwoFactorSetup defines model for TwoFactorSetup.
-type TwoFactorSetup struct {
-	// otpauth:// URL for manual setup
-	OtpauthURL *string `json:"otpauthUrl,omitempty"`
-
-	// Data URI of QR code image
-	QrCode *string `json:"qrCode,omitempty"`
-
-	// TOTP secret key
-	Secret *string `json:"secret,omitempty"`
-}
-
 // Post2faDisableJSONBody defines parameters for Post2faDisable.
 type Post2faDisableJSONBody TwoFactorDisable
 
 // Post2faEnableJSONBody defines parameters for Post2faEnable.
 type Post2faEnableJSONBody TwoFactorEnable
+
+// Post2faSetupJSONBody defines parameters for Post2faSetup.
+type Post2faSetupJSONBody struct {
+	TwofaType Post2faSetupJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Post2faSetupJSONBodyTwofaType defines parameters for Post2faSetup.
+type Post2faSetupJSONBodyTwofaType string
 
 // ChangePasswordJSONBody defines parameters for ChangePassword.
 type ChangePasswordJSONBody struct {
@@ -131,6 +132,14 @@ type Post2faEnableJSONRequestBody Post2faEnableJSONBody
 
 // Bind implements render.Binder.
 func (Post2faEnableJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faSetupJSONRequestBody defines body for Post2faSetup for application/json ContentType.
+type Post2faSetupJSONRequestBody Post2faSetupJSONBody
+
+// Bind implements render.Binder.
+func (Post2faSetupJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -217,12 +226,12 @@ func Post2faEnableJSON200Response(body struct {
 	}
 }
 
-// Post2faSetupJSON200Response is a constructor method for a Post2faSetup response.
+// Post2faSetupJSON201Response is a constructor method for a Post2faSetup response.
 // A *Response is returned with the configured status code and content type from the spec.
-func Post2faSetupJSON200Response(body TwoFactorSetup) *Response {
+func Post2faSetupJSON201Response(body SuccessResponse) *Response {
 	return &Response{
 		body:        body,
-		Code:        200,
+		Code:        201,
 		contentType: "application/json",
 	}
 }
@@ -335,7 +344,7 @@ type ServerInterface interface {
 	// Enable 2FA for the user
 	// (POST /2fa/enable)
 	Post2faEnable(w http.ResponseWriter, r *http.Request) *Response
-	// Generate 2FA secret and QR code
+	// Create a new 2FA method
 	// (POST /2fa/setup)
 	Post2faSetup(w http.ResponseWriter, r *http.Request) *Response
 	// Change user password
@@ -619,28 +628,29 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"H4sIAAAAAAAC/+xYbW/bNhD+KwRXYBlmx2m6fqi/pVlTdFhXY0lQYEEmnKWTxFYiuSMVxy303weSkl8l",
+	"56XOsAH7FMfiPff23MOzvvJYlVpJlNbw8Vdu4hxL8B/fEClyHzQpjWQF+q9jlaD7m6CJSWgrlOTjcJj5",
+	"ZwNu5xr5mBtLQma8HvASjYGs16x9vGVZDzjhX5UgTPj4ijfw7fHrxXk1/YSxdZ4mYMxMUTJRhYjnv6PR",
+	"ShrcziIRBopCzaJYlaWSkZ4lZju8jznaHF1e7hDTDbhhQMhaCEyWgU+VKhCkiwRvtSBwQFEC8w7w36py",
+	"isRUytxzVkkrioUL5s3RLKGFtJghOehcGKtoHsU5xp+jWFXS7oLXhDdCVWYlfquYN2aQgZDGdrop4TYi",
+	"1AgWkyjOgTqSeA+3oqxKJhfeWgvmLCC2SIZt1WnVi5BRgTKzeQe6kB49PHfoNsdFGp1wDV+iRGTC9nd0",
+	"FYc1NoYBC2Zd/WyBXSYUg8GHgy9MWYHWIu30YzTGAgpf+Ie7aqyXTdjpq9L6kTlJtrDtT6ruGNTzKo7R",
+	"mP4JJTRV4Tu4LQrraAN+O8zUUPmQoRjeQFEhH1uqsB7wi5k6g9gq+lkYmBZ4X0U7rYhQWnbx4WLSK2xx",
+	"ONSqTj8KxH5MO7i7W+s2HXRp3iLDN3LvCRqMCTvmyBuFhywlVTKDttL3zapB3U4meKxI2Pm5u4lC/K8R",
+	"COmkChIx9f+dKSrB8jH/5eOFQ/SnHen802UgubWa1w5YyFR5OgnrisQnpFJRIHsPEjIsXSlOJu/4gN8g",
+	"mZDl88OjwyNXBqVRghZ8zF/4rwZcg819cKPjFEbJCreU8fVyDfDy/y5xzpSxxym0HAxVQWNfq2QeWiQt",
+	"BhkHrQsRe9PRJ+PiaK9l9+kZYcrH/LvR8t4eNZf2aIvq9Xr9m4mgZuZ8+MdHRw/yv86slYsdb6HUvrDH",
+	"ZyesKUjCTJjztCqKeSc9NhlQDzao1g+3Shc+vlonytV1fT3gpipLoDkf86YmzMGlKghaZdylUQ9CE1He",
+	"q4fNlD1xCxsvT97BKcSfK32qEuy43T9IHFpR+kKxcNIrhVtLhMXSdMjzoqNABPON7W+dJKHg++JIJ9qD",
+	"KBJqvoMhQeTuIsh5I4WP5cd6g+xMpRCFCnzlKKvSCSmWIAqne6XrBVQ2R2kdpKIItF6R1h4lXoG97izw",
+	"XaR7vjfOb64CPf0t0eYqYTGF9XK9zQP+UxiDdbt38gYKERYWNO76JSjR7aTB5NW2yYorKAghmTO8FcZ6",
+	"i5fdTiyShIIZpBskhv6H0xbzpjuYd+qTYsAkztgygsA8vbJd6KrjMr7UibNu+fr9ctNnkFokdoMk0rmQ",
+	"mTsjiDVbxeo2ss7k0xxkhpPl4/1wufEb6d596TLE3xHglsxInN0N5Op5/51rM7wNJ48blA7GtIVlle9c",
+	"L5n3Ml5vGjpuDdXmcBzgYXY4YKL5erMHP4TAnj99YJfSCZoi8QUTdiCVZYXKMkyYkE0QL54+iDNFU5Ek",
+	"KNnBzoq8/Gda9e0S40faC8RyItb0ZaT9SxMXZIYd19tbtOuvV/g3biK7StHzIqejNueL2QkFWWT8Fpet",
+	"Yk1uPmFXAwklPkBQW5MeQb1DSC9bh3sW0slDddTvNT74xlOPsF6uVGjjtRLOlsWwyv3u4/5V0a/NO5yX",
+	"R/6dTvvvC/9TybGXj/mfVzD8cjL842j4Khpe//jsvoo8WRPkRXB70+MW8V+tx4uqp/6n7/9yvHExvXr6",
+	"IE6VTAsRW3aw1INmR7TwGeV/9ULw01TXdf13AAAA///jEwTGDxgAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
