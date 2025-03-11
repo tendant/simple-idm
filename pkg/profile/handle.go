@@ -204,48 +204,50 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 	}
 }
 
-// Post2faEnable handles enabling 2FA for a user
+// Enable an existing 2FA method
 // (POST /2fa/enable)
 func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response {
-	var req TwoFactorEnable
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Error("Failed to decode request body", "err", err)
-		return &Response{
-			body: "Invalid request body",
-			Code: http.StatusBadRequest,
-		}
-	}
-
-	// Get the authenticated user from context
+	var resp SuccessResponse
 	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
-	if !ok || authUser == nil {
-		slog.Error("User not authenticated")
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
-			body: "User not authenticated",
+			body: http.StatusText(http.StatusUnauthorized),
 			Code: http.StatusUnauthorized,
 		}
 	}
 
-	// Enable 2FA and get backup codes
-	// backupCodes, err := h.profileService.Enable2FA(r.Context(), authUser.UserUuid, req.Secret, req.Code)
-	// if err != nil {
-	// 	slog.Error("Failed to enable 2FA", "err", err)
-	// 	return &Response{
-	// 		body: "Failed to enable 2FA: " + err.Error(),
-	// 		Code: http.StatusBadRequest,
-	// 	}
-	// }
+	// Get user UUID from context (assuming it's set by auth middleware)
+	loginIdStr := authUser.LoginId
 
-	return &Response{
-		body: struct {
-			BackupCodes []string `json:"backupCodes"`
-			Message     string   `json:"message"`
-		}{
-			BackupCodes: []string{},
-			Message:     "2FA has been enabled",
-		},
-		Code: http.StatusOK,
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
 	}
+
+	data := Post2faEnableJSONRequestBody{}
+	err = render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Find enabled 2FA methods
+	err = h.twoFaService.EnableTwoFactor(r.Context(), loginId, string(data.TwofaType))
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: err.Error(),
+		}
+	}
+
+	return Post2faEnableJSON200Response(resp)
 }
 
 // Create a new 2FA method
