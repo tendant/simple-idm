@@ -203,27 +203,37 @@ paths:
           description: Internal server error
   /2fa/disable:
     post:
-      summary: Disable 2FA for the user
-      security:
-        - BearerAuth: []
+      summary: Disable an existing 2FA method
+      operationId: post_2fa_disable
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TwoFactorDisable"
+              type: object
+              properties:
+                login_id:
+                  type: string
+                  format: uuid
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - login_id
+                - twofa_type
       responses:
         "200":
-          description: 2FA disabled successfully
+          description: 2FA method disabled successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "2FA disabled successfully"
-
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: 2FA method not found
+        "500":
+          description: Internal server error
 components:
   schemas:
     SuccessResponse:
