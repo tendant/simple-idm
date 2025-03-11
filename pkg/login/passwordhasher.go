@@ -1,7 +1,6 @@
 package login
 
 import (
-	"errors"
 	"fmt"
 )
 
@@ -36,9 +35,9 @@ func NewDefaultPasswordHasherFactory(currentVersion PasswordVersion) *DefaultPas
 }
 
 const (
-	// PasswordV1 is the original bcrypt implementation
+	// PasswordV1 is the original bcrypt implementation used for bat server
 	PasswordV1 PasswordVersion = 1
-	// PasswordV2 is reserved for future implementation
+	// PasswordV2 is Pbkdf2Hasher, which is based on PBKDF2 with HMAC-SHA256, use for app server
 	PasswordV2 PasswordVersion = 2
 	// PasswordV3 is reserved for future implementation
 	PasswordV3 PasswordVersion = 3
@@ -53,7 +52,7 @@ func (f *DefaultPasswordHasherFactory) GetHasher(version PasswordVersion) (Passw
 	case PasswordV1:
 		return &BcryptV1Hasher{}, nil
 	case PasswordV2:
-		return nil, errors.New("password version 2 not implemented yet")
+		return &Pbkdf2Hasher{}, nil
 	default:
 		return nil, fmt.Errorf("unsupported password version: %d", version)
 	}
