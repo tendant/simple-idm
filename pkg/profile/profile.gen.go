@@ -82,9 +82,17 @@ type TwoFactorMethods struct {
 	Methods []TwoFactorMethod `json:"methods"`
 }
 
+// Delete2faJSONBody defines parameters for Delete2fa.
+type Delete2faJSONBody struct {
+	TwofaID   *string                    `json:"twofa_id,omitempty"`
+	TwofaType Delete2faJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Delete2faJSONBodyTwofaType defines parameters for Delete2fa.
+type Delete2faJSONBodyTwofaType string
+
 // Post2faDisableJSONBody defines parameters for Post2faDisable.
 type Post2faDisableJSONBody struct {
-	LoginID   string                          `json:"login_id"`
 	TwofaType Post2faDisableJSONBodyTwofaType `json:"twofa_type"`
 }
 
@@ -123,6 +131,14 @@ type ChangeUsernameJSONBody struct {
 
 	// New username to set
 	NewUsername string `json:"newUsername"`
+}
+
+// Delete2faJSONRequestBody defines body for Delete2fa for application/json ContentType.
+type Delete2faJSONRequestBody Delete2faJSONBody
+
+// Bind implements render.Binder.
+func (Delete2faJSONRequestBody) Bind(*http.Request) error {
+	return nil
 }
 
 // Post2faDisableJSONRequestBody defines body for Post2faDisable for application/json ContentType.
@@ -224,6 +240,16 @@ func Get2faMethodsJSON404Response(body struct {
 	return &Response{
 		body:        body,
 		Code:        404,
+		contentType: "application/json",
+	}
+}
+
+// Delete2faJSON200Response is a constructor method for a Delete2fa response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Delete2faJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
 		contentType: "application/json",
 	}
 }
@@ -363,6 +389,9 @@ type ServerInterface interface {
 	// Get login 2FA methods
 	// (GET /2fa)
 	Get2faMethods(w http.ResponseWriter, r *http.Request) *Response
+	// Delete a 2FA method
+	// (POST /2fa/delete)
+	Delete2fa(w http.ResponseWriter, r *http.Request) *Response
 	// Disable an existing 2FA method
 	// (POST /2fa/disable)
 	Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
@@ -395,6 +424,24 @@ func (siw *ServerInterfaceWrapper) Get2faMethods(w http.ResponseWriter, r *http.
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Get2faMethods(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Delete2fa operation middleware
+func (siw *ServerInterfaceWrapper) Delete2fa(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Delete2fa(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -635,6 +682,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Get("/2fa", wrapper.Get2faMethods)
+		r.Post("/2fa/delete", wrapper.Delete2fa)
 		r.Post("/2fa/disable", wrapper.Post2faDisable)
 		r.Post("/2fa/enable", wrapper.Post2faEnable)
 		r.Post("/2fa/setup", wrapper.Post2faSetup)
@@ -666,29 +714,30 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"EFw3rdfr9Z8BAAD//2SZTKvfHAAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
