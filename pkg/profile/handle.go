@@ -162,46 +162,49 @@ func (h Handle) Get2faMethods(w http.ResponseWriter, r *http.Request) *Response 
 	return Get2faMethodsJSON200Response(resp)
 }
 
-// Post2faDisable handles disabling 2FA for a user
+// Disable an existing 2FA method
 // (POST /2fa/disable)
 func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response {
-	var req TwoFactorDisable
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Error("Failed to decode request body", "err", err)
-		return &Response{
-			body: "Invalid request body",
-			Code: http.StatusBadRequest,
-		}
-	}
-
-	// Get the authenticated user from context
+	var resp SuccessResponse
 	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
-	if !ok || authUser == nil {
-		slog.Error("User not authenticated")
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
-			body: "User not authenticated",
+			body: http.StatusText(http.StatusUnauthorized),
 			Code: http.StatusUnauthorized,
 		}
 	}
 
-	// Disable 2FA for the user
-	// err := h.profileService.Disable2FA(r.Context(), authUser.UserUuid, req.CurrentPassword, req.Code)
-	// if err != nil {
-	// 	slog.Error("Failed to disable 2FA", "err", err)
-	// 	return &Response{
-	// 		body: "Failed to disable 2FA: " + err.Error(),
-	// 		Code: http.StatusBadRequest,
-	// 	}
-	// }
+	// Get user UUID from context (assuming it's set by auth middleware)
+	loginIdStr := authUser.LoginId
 
-	return &Response{
-		body: struct {
-			Message string `json:"message"`
-		}{
-			Message: "2FA has been disabled",
-		},
-		Code: http.StatusOK,
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
 	}
+
+	data := Post2faEnableJSONRequestBody{}
+	err = render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	err = h.twoFaService.DisableTwoFactor(r.Context(), loginId, string(data.TwofaType))
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: err.Error(),
+		}
+	}
+
+	return Post2faDisableJSON200Response(resp)
 }
 
 // Enable an existing 2FA method
