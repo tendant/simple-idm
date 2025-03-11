@@ -111,6 +111,57 @@ func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response
 	}
 }
 
+// Get login 2FA methods
+// (GET /2fa)
+func (h Handle) Get2faMethods(w http.ResponseWriter, r *http.Request) *Response {
+	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Get user UUID from context (assuming it's set by auth middleware)
+	loginIdStr := authUser.LoginId
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	res, err := h.twoFaService.FindTwoFAsByLoginId(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{"error": err.Error()},
+		}
+	}
+
+	var (
+		methods []TwoFactorMethod
+		resp    TwoFactorMethods
+	)
+
+	for _, v := range res {
+		methods = append(methods, TwoFactorMethod{
+			TwoFactorID: v.TwoFactorId.String(),
+			Type:        v.TwoFactorType,
+			Enabled:     v.TwoFactorEnabled,
+		})
+	}
+
+	resp.Count = len(methods)
+	resp.Methods = methods
+
+	return Get2faMethodsJSON200Response(resp)
+}
+
 // Post2faDisable handles disabling 2FA for a user
 // (POST /2fa/disable)
 func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response {
