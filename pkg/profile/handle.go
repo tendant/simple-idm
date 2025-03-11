@@ -300,3 +300,61 @@ func (h Handle) Post2faSetup(w http.ResponseWriter, r *http.Request) *Response {
 	resp.Result = "success"
 	return Post2faSetupJSON201Response(resp)
 }
+
+// Delete a 2FA method
+// (POST /2fa/delete)
+func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
+	//TODO: add check: can the user directly delete 2FA
+	var resp SuccessResponse
+	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Get user UUID from context (assuming it's set by auth middleware)
+	loginIdStr := authUser.LoginId
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	data := Delete2faJSONRequestBody{}
+	err = render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	twofaId, err := uuid.Parse(*data.TwofaID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid 2fa id",
+		}
+	}
+
+	err = h.twoFaService.DeleteTwoFactor(r.Context(), twofa.DeleteTwoFactorParams{
+		LoginId:       loginId,
+		TwoFactorId:   twofaId,
+		TwoFactorType: string(data.TwofaType),
+	})
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: err.Error(),
+		}
+	}
+
+	return Delete2faJSON200Response(resp)
+}
