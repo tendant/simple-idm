@@ -136,5 +136,18 @@ export const twoFactorApi = {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.message || `Failed to delete ${twofaType} 2FA method`);
     }
+  },
+
+  setup2FAMethod: async (twofaType: string): Promise<any> => {
+    const response = await apiClient.post('/profile/2fa/setup', {
+      twofa_type: twofaType
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Failed to setup ${twofaType} 2FA method`);
+    }
+    
+    return await response.json().catch(() => ({}));
   }
 };

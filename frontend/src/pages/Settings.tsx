@@ -1,6 +1,7 @@
-import { Component, createSignal, Show } from 'solid-js';
+import { Component, createSignal, Show, createEffect } from 'solid-js';
 import { useApi } from '../lib/hooks/useApi';
 import { extractErrorDetails } from '../lib/api';
+import { twoFactorApi } from '../api/twoFactor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -16,9 +17,11 @@ const Settings: Component = () => {
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal<string | null>(null);
   const [twoFactorEnabled, setTwoFactorEnabled] = createSignal(false);
-  const [qrCode, setQrCode] = createSignal<string | null>(null);
   const [backupCodes, setBackupCodes] = createSignal<string[] | null>(null);
   const [twoFactorCode, setTwoFactorCode] = createSignal('');
+  const [twoFactorType, setTwoFactorType] = createSignal<string>('email');
+  const [isAddingMethod, setIsAddingMethod] = createSignal(false);
+  const [isLoading, setIsLoading] = createSignal(false);
 
   const { request } = useApi();
 
@@ -150,71 +153,71 @@ const Settings: Component = () => {
                 <div class="space-y-4">
                   <p class="text-sm text-gray-600">
                     Two-factor authentication adds an extra layer of security to your account.
-                    When enabled, you'll need to enter both your password and a code from your
-                    authenticator app when signing in.
+                    When enabled, you'll need to enter both your password and a verification code
+                    when signing in.
                   </p>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        const data = await request('/profile/2fa/setup', {
-                          method: 'POST'
-                        });
-                        if (data) {
-                          setQrCode(data.qrCode);
-                        }
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : 'Failed to setup 2FA');
-                      }
-                    }}
-                  >
-                    Setup 2FA
-                  </Button>
+                  
+                  <Show when={!isAddingMethod()}>
+                    <Button
+                      onClick={() => setIsAddingMethod(true)}
+                    >
+                      Add 2FA Method
+                    </Button>
+                  </Show>
+                  
+                  <Show when={isAddingMethod()}>
+                    <div class="space-y-4 p-4 border rounded-md">
+                      <h3 class="font-medium">Add 2FA Method</h3>
+                      <div class="space-y-2">
+                        <Label for="twofa-type">Authentication Type</Label>
+                        <div class="relative">
+                          <select 
+                            id="twofa-type"
+                            class="w-full h-10 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            value={twoFactorType()}
+                            onChange={(e) => setTwoFactorType(e.target.value)}
+                          >
+                            <option value="email">Email</option>
+                            <option value="sms">SMS</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div class="flex space-x-2">
+                        <Button
+                          onClick={async () => {
+                            setError(null);
+                            setSuccess(null);
+                            setIsLoading(true);
+                            try {
+                              await twoFactorApi.setup2FAMethod(twoFactorType());
+                              setSuccess(`${twoFactorType().toUpperCase()} 2FA method added successfully`);
+                              setTwoFactorEnabled(true);
+                              setIsAddingMethod(false);
+                            } catch (err) {
+                              const errorDetails = extractErrorDetails(err);
+                              setError(errorDetails.message || `Failed to setup ${twoFactorType()} 2FA method`);
+                            } finally {
+                              setIsLoading(false);
+                            }
+                          }}
+                          disabled={isLoading()}
+                        >
+                          {isLoading() ? 'Adding...' : 'Add Method'}
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          onClick={() => setIsAddingMethod(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </Show>
                 </div>
               </Show>
 
-              <Show when={qrCode() && !twoFactorEnabled()}>
-                <div class="mt-4 space-y-4">
-                  <img src={qrCode()} alt="2FA QR Code" class="w-48 h-48" />
-                  <p class="text-sm text-gray-600">
-                    Scan this QR code with your authenticator app, then enter the code below to enable 2FA.
-                  </p>
-                  <div class="space-y-2">
-                    <Label for="2fa-code">Authentication Code</Label>
-                    <Input
-                      id="2fa-code"
-                      type="text"
-                      value={twoFactorCode()}
-                      onInput={(e) => setTwoFactorCode(e.currentTarget.value)}
-                      required
-                    />
-                  </div>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        const data = await request('/profile/2fa/enable', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                          },
-                          body: JSON.stringify({
-                            code: twoFactorCode()
-                          }),
-                        });
-                        if (data) {
-                          setBackupCodes(data.backupCodes);
-                          setTwoFactorEnabled(true);
-                          setQrCode(null);
-                          setSuccess('2FA enabled successfully');
-                        }
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : 'Failed to enable 2FA');
-                      }
-                    }}
-                  >
-                    Enable 2FA
-                  </Button>
-                </div>
-              </Show>
+              {/* QR code section removed as TOTP is not supported */}
 
               <Show when={backupCodes()}>
                 <div class="mt-4 space-y-4">
