@@ -28,6 +28,7 @@ type LoginService struct {
 // LoginServiceOptions contains optional parameters for creating a LoginService
 type LoginServiceOptions struct {
 	PasswordPolicy *PasswordPolicy
+	PasswordVersion PasswordVersion
 }
 
 func NewLoginService(
@@ -39,17 +40,28 @@ func NewLoginService(
 ) *LoginService {
 	// Use provided policy or default
 	var policy *PasswordPolicy
-	if options != nil && options.PasswordPolicy != nil {
-		policy = options.PasswordPolicy
-	} else {
+	var passwordVersion PasswordVersion = CurrentPasswordVersion
+	
+	if options != nil {
+		if options.PasswordPolicy != nil {
+			policy = options.PasswordPolicy
+		}
+		
+		// Use the provided password version if specified
+		if options.PasswordVersion > 0 {
+			passwordVersion = options.PasswordVersion
+		}
+	}
+	
+	if policy == nil {
 		policy = DefaultPasswordPolicy()
 	}
 
 	// Create the policy checker
 	policyChecker := NewDefaultPasswordPolicyChecker(policy, nil)
 
-	// Create password manager with the policy checker
-	passwordManager := NewPasswordManager(queries, policyChecker, CurrentPasswordVersion)
+	// Create password manager with the policy checker and specified password version
+	passwordManager := NewPasswordManager(queries, policyChecker, passwordVersion)
 
 	return &LoginService{
 		queries:             queries,
