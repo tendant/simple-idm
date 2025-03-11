@@ -4,19 +4,23 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/render"
+	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/login"
-	"github.com/tendant/simple-idm/pkg/utils"
+	"github.com/tendant/simple-idm/pkg/twofa"
 	"golang.org/x/exp/slog"
 )
 
 type Handle struct {
 	profileService *ProfileService
+	twoFaService   *twofa.TwoFaService
 }
 
-func NewHandle(profileService *ProfileService) Handle {
+func NewHandle(profileService *ProfileService, twoFaService *twofa.TwoFaService) Handle {
 	return Handle{
 		profileService: profileService,
+		twoFaService:   twoFaService,
 	}
 }
 
@@ -193,22 +197,50 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 	}
 }
 
-// Post2faSetup handles setting up 2FA for a user
+// Create a new 2FA method
 // (POST /2fa/setup)
 func (h Handle) Post2faSetup(w http.ResponseWriter, r *http.Request) *Response {
-	// TODO: Implement 2FA setup logic here
-	// This should:
-	// 1. Generate a new secret
-	// 2. Generate QR code
-	// 3. Generate otpauth URL
-	// 4. Store the secret temporarily
-
-	return &Response{
-		body: TwoFactorSetup{
-			Secret:     utils.StringPtr("temporary-secret"),
-			QrCode:     utils.StringPtr("base64-encoded-qr-code"),
-			OtpauthURL: utils.StringPtr("otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"),
-		},
-		Code: http.StatusOK,
+	var resp SuccessResponse
+	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
 	}
+
+	// Get user UUID from context (assuming it's set by auth middleware)
+	loginIdStr := authUser.LoginId
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	data := Post2faSetupJSONRequestBody{}
+	err = render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Create new 2FA method
+	err = h.twoFaService.CreateTwoFactor(r.Context(), loginId, string(data.TwofaType))
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to create 2fa: " + err.Error(),
+		}
+	}
+
+	// Return success response
+	resp.Result = "success"
+	return Post2faSetupJSON201Response(resp)
 }
