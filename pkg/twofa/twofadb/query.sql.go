@@ -16,7 +16,7 @@ import (
 
 const create2FAInit = `-- name: Create2FAInit :one
 INSERT INTO login_2fa (login_id, two_factor_secret, two_factor_enabled, two_factor_type, two_factor_backup_codes)
-VALUES ($1, $2, FALSE, $3, $4::TEXT[])
+VALUES ($1, $2, TRUE, $3, $4::TEXT[])
 RETURNING id
 `
 
