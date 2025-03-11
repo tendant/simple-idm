@@ -124,16 +124,35 @@ paths:
                 $ref: "#/components/schemas/PasswordPolicyResponse"
   /2fa/setup:
     post:
-      summary: Generate 2FA secret and QR code
+      summary: Create a new 2FA method
+      operationId: post_2fa_setup
       security:
-        - BearerAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - twofa_type
       responses:
-        "200":
-          description: 2FA setup information generated successfully
+        "201":
+          description: 2FA method created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TwoFactorSetup"
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "409":
+          description: 2FA method already exists
+        "500":
+          description: Internal server error
   /2fa/enable:
     post:
       summary: Enable 2FA for the user
@@ -186,6 +205,12 @@ paths:
 
 components:
   schemas:
+    SuccessResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        result:
+          type: string
     Error:
       type: object
       properties:
