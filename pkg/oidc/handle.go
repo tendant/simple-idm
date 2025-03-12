@@ -173,7 +173,7 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log successful authorization
-	slog.Info("[INFO] Successful authorization for user", "userToken", userToken, "client", ar.GetClient().GetID())
+	slog.Info("[INFO] Successful authorization for user", "userID", userID, "client", ar.GetClient().GetID())
 
 	// Write response
 	h.OAuth2Provider.WriteAuthorizeResponse(ctx, w, ar, response)
