@@ -138,9 +138,18 @@ func main() {
 	// Create a password policy based on the environment
 	passwordPolicy := createPasswordPolicy(&config.PasswordComplexityConfig)
 
-	// Create login service with the appropriate policy
+	// Create a password manager with the policy checker
+	passwordManager := login.NewPasswordManager(
+		loginQueries,
+	)
+
+	// Create a policy checker
+	policyChecker := login.NewDefaultPasswordPolicyChecker(passwordPolicy, nil)
+	passwordManager.WithPolicyChecker(policyChecker)
+
+	// Create login service with the custom password manager
 	loginServiceOptions := &login.LoginServiceOptions{
-		PasswordPolicy: passwordPolicy,
+		PasswordManager: passwordManager,
 	}
 	loginService := login.NewLoginService(loginQueries, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
 
@@ -214,7 +223,7 @@ func main() {
 		// Initialize logins management service and routes
 		loginsQueries := loginsdb.New(pool)
 		loginsServiceOptions := &logins.LoginsServiceOptions{
-			PasswordPolicy: passwordPolicy,
+			PasswordManager: passwordManager,
 		}
 		loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
 		loginsHandle := logins.NewHandle(loginsService, twoFaService)
