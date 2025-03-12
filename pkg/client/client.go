@@ -22,6 +22,8 @@ type AuthUser struct {
 	LoginId string `json:"login_id,omitempty"`
 	// For backward compatibility, we still need to support UserUuid, also it is convenient to have it as a uuid.UUID
 	UserUuid    uuid.UUID
+	// LoginID as UUID for direct use (parsed from LoginId string)
+	LoginID     uuid.UUID
 	ExtraClaims ExtraClaims `json:"extra_claims,omitempty"`
 }
 
@@ -123,6 +125,17 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 			// Continue processing as we have the string version
 		} else {
 			authUser.UserUuid = userUUID
+		}
+		
+		// Parse login UUID if present
+		if authUser.LoginId != "" {
+			loginUUID, err := uuid.Parse(authUser.LoginId)
+			if err != nil {
+				slog.Warn("failed to parse login ID as UUID", "loginId", authUser.LoginId, "error", err)
+				// Continue processing as we have the string version
+			} else {
+				authUser.LoginID = loginUUID
+			}
 		}
 
 		slog.Debug("authenticated user", "userId", authUser.UserId, "roles", authUser.ExtraClaims.Roles)
