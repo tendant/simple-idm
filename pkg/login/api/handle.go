@@ -10,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	"golang.org/x/exp/slog"
@@ -21,12 +22,12 @@ const (
 )
 
 type Handle struct {
-	loginService     *LoginService
+	loginService     *login.LoginService
 	jwtService       auth.Jwt
 	twoFactorService twofa.TwoFactorService
 }
 
-func NewHandle(loginService *LoginService, jwtService auth.Jwt, opts ...Option) Handle {
+func NewHandle(loginService *login.LoginService, jwtService auth.Jwt, opts ...Option) Handle {
 	h := Handle{
 		loginService: loginService,
 		jwtService:   jwtService,
