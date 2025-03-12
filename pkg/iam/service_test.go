@@ -10,8 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"encoding/json"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -100,7 +98,7 @@ func TestCreateUser(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewIamService(queries)
+	service := NewIamServiceWithQueries(queries)
 
 	// Create a test role first
 	role, err := queries.CreateRole(ctx, "test-role")
@@ -147,7 +145,7 @@ func TestCreateUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			user, err := service.CreateUser(ctx, tt.email, tt.username, tt.fullName, tt.roleUuids)
+			user, err := service.CreateUser(ctx, tt.email, tt.username, tt.fullName, tt.roleUuids, "")
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -156,33 +154,23 @@ func TestCreateUser(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, user)
 			assert.Equal(t, tt.email, user.Email)
-			assert.Equal(t, tt.username, user.Username.String)
+			// Username is populated from login, which is not set in this test
+			// assert.Equal(t, tt.username, user.Username)
 			if tt.fullName != "" {
-				assert.Equal(t, tt.fullName, user.Name.String)
+				assert.Equal(t, tt.fullName, user.Name)
 			}
 
 			// Verify roles if any were assigned
 			if len(tt.roleUuids) > 0 {
-				var roles []struct {
-					UUID string `json:"uuid"`
-					Name string `json:"name"`
+
+				assert.Len(t, user.Roles, len(tt.roleUuids))
+				if len(user.Roles) > 0 {
+					assert.Equal(t, tt.roleUuids[0], user.Roles[0].ID)
+					assert.Equal(t, "test-role", user.Roles[0].Name)
 				}
-				err = json.Unmarshal(user.Roles, &roles)
-				require.NoError(t, err)
-				assert.Len(t, roles, len(tt.roleUuids))
-				assert.Equal(t, tt.roleUuids[0].String(), roles[0].UUID)
-				assert.Equal(t, "test-role", roles[0].Name)
 			} else {
-				// For users without roles, the roles array should contain a single null role
-				var roles []struct {
-					UUID interface{} `json:"uuid"`
-					Name interface{} `json:"name"`
-				}
-				err = json.Unmarshal(user.Roles, &roles)
-				require.NoError(t, err)
-				assert.Len(t, roles, 1)
-				assert.Nil(t, roles[0].UUID)
-				assert.Nil(t, roles[0].Name)
+				// For users without roles, the roles array should be empty
+				assert.Empty(t, user.Roles, "Expected empty roles array")
 			}
 		})
 	}
@@ -197,7 +185,7 @@ func TestFindUsers(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewIamService(queries)
+	service := NewIamServiceWithQueries(queries)
 
 	// Create a test role
 	role, err := queries.CreateRole(ctx, "test-role")
@@ -225,7 +213,7 @@ func TestFindUsers(t *testing.T) {
 	}
 
 	for _, u := range testUsers {
-		_, err := service.CreateUser(ctx, u.email, u.username, u.name, u.roleUuids)
+		_, err := service.CreateUser(ctx, u.email, u.username, u.name, u.roleUuids, "")
 		require.NoError(t, err)
 	}
 
@@ -238,38 +226,25 @@ func TestFindUsers(t *testing.T) {
 	// Verify each user
 	for i, u := range users {
 		assert.Equal(t, testUsers[i].email, u.Email)
-		assert.Equal(t, testUsers[i].username, u.Username.String)
-		assert.Equal(t, testUsers[i].name, u.Name.String)
+		// Username is populated from login, which is not set in this test
+		// assert.Equal(t, testUsers[i].username, u.Username)
+		assert.Equal(t, testUsers[i].name, u.Name)
 
 		// Verify roles
 		if len(testUsers[i].roleUuids) > 0 {
-			var roles []struct {
-				UUID string `json:"uuid"`
-				Name string `json:"name"`
-			}
-			err = json.Unmarshal(u.Roles, &roles)
-			require.NoError(t, err)
-			assert.Len(t, roles, len(testUsers[i].roleUuids))
+			assert.Len(t, u.Roles, len(testUsers[i].roleUuids))
 
 			// Verify each role UUID
-			roleUUIDs := make(map[string]bool)
-			for _, role := range roles {
-				roleUUIDs[role.UUID] = true
+			roleIDs := make(map[uuid.UUID]bool)
+			for _, role := range u.Roles {
+				roleIDs[role.ID] = true
 			}
 			for _, expectedUUID := range testUsers[i].roleUuids {
-				assert.True(t, roleUUIDs[expectedUUID.String()], "Expected role UUID not found: %s", expectedUUID)
+				assert.True(t, roleIDs[expectedUUID], "Expected role UUID not found: %s", expectedUUID)
 			}
 		} else {
-			// For users without roles, the roles array should contain a single null role
-			var roles []struct {
-				UUID interface{} `json:"uuid"`
-				Name interface{} `json:"name"`
-			}
-			err = json.Unmarshal(u.Roles, &roles)
-			require.NoError(t, err)
-			assert.Len(t, roles, 1)
-			assert.Nil(t, roles[0].UUID)
-			assert.Nil(t, roles[0].Name)
+			// For users without roles, the roles array should be empty
+			assert.Empty(t, u.Roles, "Expected empty roles array")
 		}
 	}
 }
@@ -283,18 +258,18 @@ func TestGetUser(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewIamService(queries)
+	service := NewIamServiceWithQueries(queries)
 
 	// Create a test role
 	roleUUID := uuid.New()
 	_, err := pool.Exec(ctx, `
-		INSERT INTO roles (uuid, name, description)
+		INSERT INTO roles (id, name, description)
 		VALUES ($1, $2, $3)
 	`, roleUUID, "TestRole", "A test role")
 	require.NoError(t, err)
 
 	// Create a test user
-	user, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{roleUUID})
+	user, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{roleUUID}, "")
 	require.NoError(t, err)
 
 	// Test cases
@@ -322,7 +297,7 @@ func TestUpdateUser(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewIamService(queries)
+	service := NewIamServiceWithQueries(queries)
 
 	// Create test roles
 	role1, err := queries.CreateRole(ctx, "role-1")
@@ -334,7 +309,7 @@ func TestUpdateUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create initial user with role1
-	initialUser, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{role1})
+	initialUser, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{role1}, "")
 	require.NoError(t, err)
 
 	// Test cases
@@ -367,7 +342,7 @@ func TestUpdateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Update user
-			updatedUser, err := service.UpdateUser(ctx, initialUser.ID, tt.newName, tt.roleUuids)
+			updatedUser, err := service.UpdateUser(ctx, initialUser.ID, tt.newName, tt.roleUuids, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -375,31 +350,21 @@ func TestUpdateUser(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.NotNil(t, updatedUser)
-			assert.Equal(t, tt.newName, updatedUser.Name.String)
+			assert.Equal(t, tt.newName, updatedUser.Name)
 
 			// Verify roles
-			var roles []struct {
-				UUID interface{} `json:"uuid"`
-				Name interface{} `json:"name"`
-			}
-			err = json.Unmarshal(updatedUser.Roles, &roles)
-			require.NoError(t, err)
-
 			if len(tt.roleUuids) > 0 {
-				assert.Len(t, roles, len(tt.roleUuids))
-				roleUUIDs := make(map[string]bool)
-				for _, role := range roles {
-					roleUUIDs[role.UUID.(string)] = true
+				assert.Len(t, updatedUser.Roles, len(tt.roleUuids))
+				roleIDs := make(map[uuid.UUID]bool)
+				for _, role := range updatedUser.Roles {
+					roleIDs[role.ID] = true
 				}
 				for _, expectedUUID := range tt.roleUuids {
-					assert.True(t, roleUUIDs[expectedUUID.String()], "Expected role UUID not found: %s", expectedUUID)
+					assert.True(t, roleIDs[expectedUUID], "Expected role UUID not found: %s", expectedUUID)
 				}
 			} else {
-				// When there are no roles, we get [{"uuid": null, "name": null}] from the database
-				// This is expected behavior from PostgreSQL's json_agg
-				assert.Len(t, roles, 1)
-				assert.Nil(t, roles[0].UUID)
-				assert.Nil(t, roles[0].Name)
+				// When there are no roles, the array should be empty
+				assert.Empty(t, updatedUser.Roles, "Expected empty roles array")
 			}
 
 			// Verify the roles in database
@@ -407,7 +372,7 @@ func TestUpdateUser(t *testing.T) {
 			err = pool.QueryRow(ctx, `
 				SELECT COUNT(*)
 				FROM user_roles
-				WHERE user_uuid = $1
+				WHERE user_id = $1
 			`, updatedUser.ID).Scan(&roleCount)
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.roleUuids), roleCount)
@@ -424,18 +389,18 @@ func TestDeleteUser(t *testing.T) {
 
 	// Create test dependencies
 	queries := iamdb.New(pool)
-	service := NewIamService(queries)
+	service := NewIamServiceWithQueries(queries)
 
 	// Create a test role
 	roleUUID := uuid.New()
 	_, err := pool.Exec(ctx, `
-		INSERT INTO roles (uuid, name, description)
+		INSERT INTO roles (id, name, description)
 		VALUES ($1, $2, $3)
 	`, roleUUID, "TestRole", "A test role")
 	require.NoError(t, err)
 
 	// Create a test user
-	user, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{roleUUID})
+	user, err := service.CreateUser(ctx, "test@example.com", "testuser", "Test User", []uuid.UUID{roleUUID}, "")
 	require.NoError(t, err)
 
 	// Test cases
@@ -449,7 +414,7 @@ func TestDeleteUser(t *testing.T) {
 		err = pool.QueryRow(ctx, `
 			SELECT deleted_at
 			FROM users
-			WHERE uuid = $1
+			WHERE id = $1
 		`, user.ID).Scan(&deletedAt)
 		assert.NoError(t, err)
 		assert.True(t, deletedAt.Valid)

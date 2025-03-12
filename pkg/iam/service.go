@@ -137,7 +137,7 @@ func (r *PostgresIamRepository) GetUserWithRoles(ctx context.Context, id uuid.UU
 	roles := []Role{}
 	if len(dbUser.Roles) > 0 {
 		var dbRoles []struct {
-			UUID interface{} `json:"uuid"`
+			ID interface{} `json:"id"`
 			Name interface{} `json:"name"`
 		}
 		if err := json.Unmarshal(dbUser.Roles, &dbRoles); err != nil {
@@ -146,16 +146,16 @@ func (r *PostgresIamRepository) GetUserWithRoles(ctx context.Context, id uuid.UU
 
 		for _, r := range dbRoles {
 			// Skip null roles
-			if r.UUID == nil || r.Name == nil {
+			if r.ID == nil || r.Name == nil {
 				continue
 			}
 
-			uuidStr, ok := r.UUID.(string)
+			idStr, ok := r.ID.(string)
 			if !ok {
 				continue
 			}
 
-			roleID, err := uuid.Parse(uuidStr)
+			roleID, err := uuid.Parse(idStr)
 			if err != nil {
 				continue
 			}
@@ -231,7 +231,7 @@ func (r *PostgresIamRepository) FindUsersWithRoles(ctx context.Context) ([]UserW
 		roles := []Role{}
 		if len(dbUser.Roles) > 0 {
 			var dbRoles []struct {
-				UUID interface{} `json:"uuid"`
+				ID interface{} `json:"id"`
 				Name interface{} `json:"name"`
 			}
 			if err := json.Unmarshal(dbUser.Roles, &dbRoles); err != nil {
@@ -240,16 +240,16 @@ func (r *PostgresIamRepository) FindUsersWithRoles(ctx context.Context) ([]UserW
 
 			for _, r := range dbRoles {
 				// Skip null roles
-				if r.UUID == nil || r.Name == nil {
+				if r.ID == nil || r.Name == nil {
 					continue
 				}
 
-				uuidStr, ok := r.UUID.(string)
+				idStr, ok := r.ID.(string)
 				if !ok {
 					continue
 				}
 
-				roleID, err := uuid.Parse(uuidStr)
+				roleID, err := uuid.Parse(idStr)
 				if err != nil {
 					continue
 				}
