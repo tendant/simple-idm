@@ -150,20 +150,55 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a session for the user with claims and expiration times
+	// Extract user information from claims or use defaults if not available
+	name := "Unknown User"
+	email := ""
+	username := ""
+	
+	// If we have claims, extract user information from them
+	if len(userClaims) > 0 {
+		if n, ok := userClaims["name"].(string); ok && n != "" {
+			name = n
+		}
+		
+		if e, ok := userClaims["email"].(string); ok && e != "" {
+			email = e
+		}
+		
+		if u, ok := userClaims["username"].(string); ok && u != "" {
+			username = u
+		} else if u, ok := userClaims["preferred_username"].(string); ok && u != "" {
+			username = u
+		}
+	}
+	
+	// If username is still empty, use the userID as a fallback
+	if username == "" {
+		username = userID
+	}
+	
+	// Set expiration times
+	now := time.Now()
+	accessExpiry := now.Add(1 * time.Hour)
+	refreshExpiry := now.Add(30 * 24 * time.Hour)
+	idTokenExpiry := now.Add(1 * time.Hour)
+	
+	// Create the session with all the information
 	session := &DefaultSession{
 		Subject: userID,
 		Extra: map[string]interface{}{
-			"name":  "Test User",
-			"email": "test@example.com",
+			"name":  name,
+			"email": email,
 		},
 		ExpiresAt: map[fosite.TokenType]time.Time{
-			// Set token expiration times
-			fosite.AccessToken:  time.Now().Add(1 * time.Hour),
-			fosite.RefreshToken: time.Now().Add(30 * 24 * time.Hour),
-			fosite.IDToken:      time.Now().Add(1 * time.Hour),
+			fosite.AccessToken:  accessExpiry,
+			fosite.RefreshToken: refreshExpiry,
+			fosite.IDToken:      idTokenExpiry,
 		},
-		Username: "testuser",
+		Username: username,
 	}
+	
+	slog.Info("[INFO] Created session", "subject", userID, "username", username, "expires", accessExpiry)
 	// Generate the authorization response
 	response, err := h.OAuth2Provider.NewAuthorizeResponse(ctx, ar, session)
 	if err != nil {
@@ -211,7 +246,7 @@ func (h *Handle) ValidateUserToken(r *http.Request) (map[string]interface{}, err
 
 	// If still no token, check URL parameters (for testing/development)
 	if accessToken == "" {
-		slog.Info("[INFO] Checking URL parameters", "access_token", accessToken)
+		slog.Info("[INFO] Checking URL parameters")
 		accessToken = r.URL.Query().Get("access_token")
 	}
 
@@ -222,22 +257,29 @@ func (h *Handle) ValidateUserToken(r *http.Request) (map[string]interface{}, err
 
 	slog.Info("[INFO] Validating token")
 
-	// For development, we'll simulate a valid user token
-	// In production, use proper token validation
-	if h.JwtAuth != nil {
-		_, err := jwtauth.VerifyToken(h.JwtAuth, accessToken)
-		if err != nil {
-			slog.Error("[ERROR] Token validation failed", "err", err)
-			return nil, fmt.Errorf("invalid or expired token")
-		}
+	// Validate the token using JwtAuth
+	if h.JwtAuth == nil {
+		return nil, fmt.Errorf("JWT authenticator not initialized")
 	}
 
-	// Return simulated claims for testing
-	claims := map[string]interface{}{
-		"sub":      "user-123456",
-		"username": "testuser",
-		"name":     "Test User",
-		"email":    "test@example.com",
+	// Verify the token and get the token object
+	token, err := jwtauth.VerifyToken(h.JwtAuth, accessToken)
+	if err != nil {
+		slog.Error("[ERROR] Token validation failed", "err", err)
+		return nil, fmt.Errorf("invalid or expired token")
+	}
+
+	// Extract claims from the token
+	claims, err := token.AsMap(r.Context())
+	if err != nil {
+		slog.Error("[ERROR] Failed to extract claims from token", "err", err)
+		return nil, fmt.Errorf("failed to extract claims from token: %w", err)
+	}
+
+	// Verify that required claims are present
+	if claims["sub"] == nil || claims["sub"] == "" {
+		slog.Error("[ERROR] Token missing required 'sub' claim")
+		return nil, fmt.Errorf("token missing required 'sub' claim")
 	}
 
 	slog.Info("[INFO] Token validation successful", "claims", claims)
@@ -250,21 +292,47 @@ func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Log the request details for debugging
 	log.Printf("[INFO] Token request received - Grant Type: %s", r.FormValue("grant_type"))
 
-	// Create a default session with claims and expiration times
+	// Extract user information from the request
+	// In a real implementation, you would validate the authorization code
+	// and retrieve the user information from your database
+	userID := "user-123456" // Default user ID for testing
+	
+	// Try to get the user ID from the authorization code if available
+	code := r.FormValue("code")
+	if code != "" {
+		// In a real implementation, you would look up the authorization code
+		// in your database and retrieve the associated user ID
+		slog.Info("[INFO] Processing authorization code", "code", code)
+		// For now, we'll continue using the default user ID
+	}
+	
+	// Set default user information
+	name := "Test User"
+	email := "user@example.com"
+	username := "testuser"
+	
+	// Set expiration times
+	now := time.Now()
+	accessExpiry := now.Add(1 * time.Hour)
+	refreshExpiry := now.Add(30 * 24 * time.Hour)
+	idTokenExpiry := now.Add(1 * time.Hour)
+	
+	// Create the session with all the information
 	session := &DefaultSession{
-		Subject: "user-123456", // This should match the subject from the authorization endpoint
+		Subject: userID,
 		Extra: map[string]interface{}{
-			"name":  "Test User",
-			"email": "user@example.com",
+			"name":  name,
+			"email": email,
 		},
 		ExpiresAt: map[fosite.TokenType]time.Time{
-			// Set token expiration times
-			fosite.AccessToken:  time.Now().Add(1 * time.Hour),
-			fosite.RefreshToken: time.Now().Add(30 * 24 * time.Hour),
-			fosite.IDToken:      time.Now().Add(1 * time.Hour),
+			fosite.AccessToken:  accessExpiry,
+			fosite.RefreshToken: refreshExpiry,
+			fosite.IDToken:      idTokenExpiry,
 		},
-		Username: "testuser",
+		Username: username,
 	}
+	
+	slog.Info("[INFO] Created token session", "subject", userID, "username", username, "expires", accessExpiry)
 
 	// Parse token request
 	ar, err := h.OAuth2Provider.NewAccessRequest(ctx, r, session)
