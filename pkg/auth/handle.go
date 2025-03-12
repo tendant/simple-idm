@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/tendant/simple-idm/auth"
-	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/client"
 )
 
 type Handle struct {
@@ -41,7 +41,7 @@ func (h Handle) PostToken(w http.ResponseWriter, r *http.Request) *Response {
 		response SuccessResponse
 	)
 
-	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
@@ -68,8 +68,8 @@ func (h Handle) PostToken(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	h.setTokenCookie(w, login.ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
-	h.setTokenCookie(w, login.REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
+	h.setTokenCookie(w, client.ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
+	h.setTokenCookie(w, client.REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
 
 	response.Result = "success"
 	return PostTokenJSON200Response(response)
@@ -87,7 +87,7 @@ func (h Handle) PutLoginPassword(w http.ResponseWriter, r *http.Request) *Respon
 			body: "Unable to parse request body",
 		}
 	}
-	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{

@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
-	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	"golang.org/x/exp/slog"
 )
@@ -39,7 +39,7 @@ func (h Handle) GetPasswordPolicy(w http.ResponseWriter, r *http.Request) *Respo
 // (PUT /password)
 func (h Handle) ChangePassword(w http.ResponseWriter, r *http.Request) *Response {
 
-	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
@@ -114,7 +114,7 @@ func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response
 // Get login 2FA methods
 // (GET /2fa)
 func (h Handle) Get2faMethods(w http.ResponseWriter, r *http.Request) *Response {
-	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
@@ -166,7 +166,7 @@ func (h Handle) Get2faMethods(w http.ResponseWriter, r *http.Request) *Response 
 // (POST /2fa/disable)
 func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
-	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
@@ -211,7 +211,7 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 // (POST /2fa/enable)
 func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
-	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
@@ -257,7 +257,7 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 // (POST /2fa/setup)
 func (h Handle) Post2faSetup(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
-	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
@@ -306,7 +306,7 @@ func (h Handle) Post2faSetup(w http.ResponseWriter, r *http.Request) *Response {
 func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 	//TODO: add check: can the user directly delete 2FA
 	var resp SuccessResponse
-	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{

@@ -13,6 +13,7 @@ import (
 	"github.com/tendant/chi-demo/app"
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/impersonate"
@@ -178,11 +179,11 @@ func main() {
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
 	server.R.Group(func(r chi.Router) {
-		r.Use(api.Verifier(tokenAuth))
+		r.Use(client.Verifier(tokenAuth))
 		r.Use(jwtauth.Authenticator(tokenAuth))
-		r.Use(api.AuthUserMiddleware)
+		r.Use(client.AuthUserMiddleware)
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
-			authUser, ok := r.Context().Value(api.AuthUserKey).(*api.AuthUser)
+			authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 			if !ok {
 				slog.Error("Failed getting AuthUser", "ok", ok)
 				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)

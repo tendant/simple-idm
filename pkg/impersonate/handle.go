@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/auth"
-	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/utils"
 )
 
@@ -58,7 +58,7 @@ func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue stri
 // Impersonate a user
 // (POST /impersonate)
 func (h Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Response {
-	authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{

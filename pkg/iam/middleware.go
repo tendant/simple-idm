@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/client"
 )
 
 // AdminRoleMiddleware checks if the authenticated user has the admin role
@@ -12,7 +12,7 @@ import (
 func AdminRoleMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the authenticated user from the context
-		authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+		authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 		if !ok {
 			slog.Error("Failed to get authenticated user from context")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
