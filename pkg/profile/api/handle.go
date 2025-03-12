@@ -1,4 +1,4 @@
-package profile
+package api
 
 import (
 	"encoding/json"
@@ -8,16 +8,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/client"
+	"github.com/tendant/simple-idm/pkg/profile"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	"golang.org/x/exp/slog"
 )
 
 type Handle struct {
-	profileService *ProfileService
+	profileService *profile.ProfileService
 	twoFaService   *twofa.TwoFaService
 }
 
-func NewHandle(profileService *ProfileService, twoFaService *twofa.TwoFaService) Handle {
+func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService) Handle {
 	return Handle{
 		profileService: profileService,
 		twoFaService:   twoFaService,
@@ -76,7 +77,7 @@ func (h Handle) ChangePassword(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Update password
-	err := h.profileService.UpdatePassword(r.Context(), UpdatePasswordParams{
+	err := h.profileService.UpdatePassword(r.Context(), profile.UpdatePasswordParams{
 		UserUuid:        userUuid,
 		CurrentPassword: data.CurrentPassword,
 		NewPassword:     data.NewPassword,

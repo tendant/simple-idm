@@ -3,4 +3,4 @@ echo "auto gen profile.gen.go at profile"
 # -o output file location
 # -p expected package name
 # yaml file
-goapi-gen -o profile.gen.go -p profile profile.yaml
+goapi-gen -o profile.gen.go -p api profile.yaml
