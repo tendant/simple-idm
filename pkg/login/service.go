@@ -232,12 +232,12 @@ func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.
 	return roles, err
 }
 
-func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (logindb.FindUserInfoWithRolesRow, error) {
+func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (UserInfo, error) {
 	slog.Debug("GetMe", "userUuid", userUuid)
 	userInfo, err := s.repository.FindUserInfoWithRoles(ctx, userUuid)
 	if err != nil {
 		slog.Error("Failed getting userinfo with roles", "err", err)
-		return logindb.FindUserInfoWithRolesRow{}, err
+		return UserInfo{}, err
 	}
 	return userInfo, err
 }
@@ -314,7 +314,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	return nil
 }
 
-func getUniqueEmailsFromUsers(mappedUsers []mapper.MappedUser) []DeliveryOption {
+func getUniqueEmailsFromUsers(mappedUsers []mapper.MappedUser) []MessageDeliveryOption {
 	// Use a map to track unique emails
 	emailMap := make(map[string]struct{})
 
@@ -326,9 +326,9 @@ func getUniqueEmailsFromUsers(mappedUsers []mapper.MappedUser) []DeliveryOption 
 	}
 
 	// Convert map keys to slice
-	options := make([]DeliveryOption, 0, len(emailMap))
+	options := make([]MessageDeliveryOption, 0, len(emailMap))
 	for email := range emailMap {
-		options = append(options, DeliveryOption{
+		options = append(options, MessageDeliveryOption{
 			HashedValue:  utils.HashEmail(email),
 			DisplayValue: utils.MaskEmail(email),
 		})
@@ -340,4 +340,19 @@ func getUniqueEmailsFromUsers(mappedUsers []mapper.MappedUser) []DeliveryOption 
 // GetPasswordPolicy returns the current password policy
 func (s *LoginService) GetPasswordPolicy() *PasswordPolicy {
 	return s.passwordManager.GetPolicy()
+}
+
+// GetRepository returns the login repository
+func (s *LoginService) GetRepository() LoginRepository {
+	return s.repository
+}
+
+// GetPasswordManager returns the password manager
+func (s *LoginService) GetPasswordManager() *PasswordManager {
+	return s.passwordManager
+}
+
+// FindUsernameByEmail finds a username by email address
+func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error) {
+	return s.repository.FindUsernameByEmail(ctx, email)
 }

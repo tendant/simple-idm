@@ -18,6 +18,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/impersonate"
 	"github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/logins"
 	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
@@ -165,20 +166,23 @@ func main() {
 	// authQueries := authDb.New(pool)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager)
-	loginHandle := login.NewHandle(loginService, *jwtService, login.WithTwoFactorService(twoFaService))
+	// Create a login service adapter
+	loginServiceAdapter := api.NewLoginService(loginService)
+	// Create a new handle with the adapter
+	loginHandle := api.NewHandle(loginServiceAdapter, *jwtService, api.WithTwoFactorService(twoFaService))
 
 	// authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
-	server.R.Mount("/auth", login.Handler(loginHandle))
+	server.R.Mount("/auth", api.Handler(loginHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
 	server.R.Group(func(r chi.Router) {
-		r.Use(login.Verifier(tokenAuth))
+		r.Use(api.Verifier(tokenAuth))
 		r.Use(jwtauth.Authenticator(tokenAuth))
-		r.Use(login.AuthUserMiddleware)
+		r.Use(api.AuthUserMiddleware)
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
-			authUser, ok := r.Context().Value(login.AuthUserKey).(*login.AuthUser)
+			authUser, ok := r.Context().Value(api.AuthUserKey).(*api.AuthUser)
 			if !ok {
 				slog.Error("Failed getting AuthUser", "ok", ok)
 				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)

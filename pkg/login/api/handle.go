@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/twofa"
@@ -637,20 +636,23 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// FIXME:hash/encode data.password, then write to database
-	registerParam := RegisterParam{}
-	copier.Copy(&registerParam, data)
+	registerParam := RegisterParam{
+		Email:    data.Email,
+		Name:     data.Name,
+		Password: data.Password,
+	}
 
-	// _, err = h.loginService.Create(r.Context(), registerParam)
-	// if err != nil {
-	// 	slog.Error("Failed to register user", "email", registerParam.Email, "err", err)
-	// 	return &Response{
-	// 		body: "Failed to register user",
-	// 		Code: http.StatusInternalServerError,
-	// 	}
-	// }
+	err = h.loginService.Create(r.Context(), registerParam)
+	if err != nil {
+		slog.Error("Failed to register user", "email", registerParam.Email, "err", err)
+		return &Response{
+			body: "Failed to register user",
+			Code: http.StatusInternalServerError,
+		}
+	}
 	return &Response{
-		Code: http.StatusNotImplemented,
-		body: "Not implemented",
+		Code: http.StatusOK,
+		body: "User registered successfully",
 	}
 }
 
@@ -710,7 +712,7 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	if body.Email != "" {
-		username, err := h.loginService.repository.FindUsernameByEmail(r.Context(), string(body.Email))
+		username, err := h.loginService.FindUsernameByEmail(r.Context(), string(body.Email))
 		if err != nil {
 			// Return 200 even if user not found to prevent email enumeration
 			slog.Info("Username not found for email", "email", body.Email)
@@ -787,7 +789,7 @@ func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response 
 // GetPasswordResetPolicy returns the current password policy
 func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request, params GetPasswordResetPolicyParams) *Response {
 	// validate token before returning policy
-	_, err := h.loginService.passwordManager.ValidateResetToken(r.Context(), params.Token)
+	_, err := h.loginService.GetPasswordManager().ValidateResetToken(r.Context(), params.Token)
 	if err != nil {
 		return &Response{
 			body: "Invalid or expired reset token",

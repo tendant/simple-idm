@@ -100,10 +100,10 @@ func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, l
 		}
 
 		// Update the password hash and version in the database
-		err = pm.repository.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
+		err = pm.repository.UpdateUserPasswordAndVersion(ctx, PasswordParams{
 			ID:              loginID,
 			Password:        []byte(newHash),
-			PasswordVersion: pgtype.Int4{Int32: int32(pm.currentVersion), Valid: true},
+			PasswordVersion: int32(pm.currentVersion),
 		})
 		if err != nil {
 			return false, fmt.Errorf("failed to update password hash: %w", err)
@@ -130,7 +130,7 @@ func (pm *PasswordManager) UpgradePasswordVersionIfNeeded(ctx context.Context, l
 // addPasswordToHistory adds a password to the password history table
 func (pm *PasswordManager) addPasswordToHistory(ctx context.Context, loginID uuid.UUID, passwordHash string, version PasswordVersion) error {
 	// Add the password to the history table
-	err := pm.repository.AddPasswordToHistory(ctx, logindb.AddPasswordToHistoryParams{
+	err := pm.repository.AddPasswordToHistory(ctx, PasswordToHistoryParams{
 		LoginID:         loginID,
 		PasswordHash:    []byte(passwordHash),
 		PasswordVersion: int32(version),
@@ -181,7 +181,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 	}
 
 	// Get the current password version
-	version, isValid, err := pm.repository.GetPasswordVersion(ctx, login.LoginID)
+	version, isValid, err := pm.repository.GetPasswordVersion(ctx, login.ID)
 	if err != nil || !isValid {
 		// If there's an error getting the version or it's not valid, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
@@ -199,8 +199,8 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 	}
 
 	// Now check against password history
-	passwordHistory, err := pm.repository.GetPasswordHistory(ctx, logindb.GetPasswordHistoryParams{
-		LoginID: login.LoginID,
+	passwordHistory, err := pm.repository.GetPasswordHistory(ctx, PasswordHistoryParams{
+		LoginID: login.ID,
 		Limit:   int32(pm.policyChecker.GetPolicy().HistoryCheckCount),
 	})
 	if err != nil {
@@ -249,10 +249,10 @@ func (pm *PasswordManager) InitPasswordReset(ctx context.Context, loginID uuid.U
 	}
 
 	// Store the token in the database
-	err = pm.repository.InitPasswordResetToken(ctx, logindb.InitPasswordResetTokenParams{
+	err = pm.repository.InitPasswordResetToken(ctx, PasswordResetTokenParams{
 		LoginID:  loginID,
 		Token:    resetToken,
-		ExpireAt: expireAt,
+		ExpireAt: time.Time(expireAt.Time),
 	})
 	if err != nil {
 		slog.Error("Failed to save reset token", "err", err)
@@ -322,10 +322,10 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	slog.Info("password hashed")
 
 	// Update password and version
-	err = pm.repository.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
+	err = pm.repository.UpdateUserPasswordAndVersion(ctx, PasswordParams{
 		ID:              tokenInfo.LoginID,
 		Password:        []byte(hashedPassword),
-		PasswordVersion: pgtype.Int4{Int32: int32(pm.currentVersion), Valid: true},
+		PasswordVersion: int32(pm.currentVersion),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
@@ -356,7 +356,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	slog.Info("User found", "user", login.Username)
 
 	// Get the password version
-	version, isValid, err := pm.repository.GetPasswordVersion(ctx, login.LoginID)
+	version, isValid, err := pm.repository.GetPasswordVersion(ctx, login.ID)
 	if err != nil || !isValid {
 		// If there's an error getting the version or it's not valid, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
@@ -406,10 +406,10 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	slog.Info("password hashed")
 
 	// Update the password hash and version in the database
-	err = pm.repository.UpdateUserPasswordAndVersion(ctx, logindb.UpdateUserPasswordAndVersionParams{
-		ID:              login.LoginID,
+	err = pm.repository.UpdateUserPasswordAndVersion(ctx, PasswordParams{
+		ID:              login.ID,
 		Password:        []byte(hashedPassword),
-		PasswordVersion: pgtype.Int4{Int32: int32(pm.currentVersion), Valid: true},
+		PasswordVersion: int32(pm.currentVersion),
 	})
 	if err != nil {
 		return err

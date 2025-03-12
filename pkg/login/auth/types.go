@@ -1,4 +1,4 @@
-package login
+package auth
 
 import (
 	"context"
@@ -11,12 +11,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// ExtraClaims holds additional user information in JWT claims
 type ExtraClaims struct {
 	Username string   `json:"usernmae,omitempty"`
 	Email    string   `json:"email,omitempty"`
 	Roles    []string `json:"roles,omitempty"`
 }
 
+// AuthUser represents an authenticated user
 type AuthUser struct {
 	UserId  string `json:"user_id,omitempty"`
 	LoginId string `json:"login_id,omitempty"`
@@ -44,13 +46,16 @@ func (k *contextKey) String() string {
 }
 
 var (
+	// AuthUserKey is the context key for the authenticated user
 	AuthUserKey = &contextKey{"AuthUser"}
 )
 
+// AuthzCheck represents an authorization check result
 type AuthzCheck struct {
 	IsAllowed bool
 }
 
+// LoadFromMap loads a struct from a map
 func LoadFromMap[T any](m map[string]interface{}, c *T) error {
 	data, err := json.Marshal(m)
 	if err == nil {
@@ -59,6 +64,9 @@ func LoadFromMap[T any](m map[string]interface{}, c *T) error {
 	return err
 }
 
+const ACCESS_TOKEN_NAME = "access_token"
+
+// AuthUserMiddleware extracts user information from JWT and adds it to the request context
 func AuthUserMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract token and claims from context
@@ -130,12 +138,14 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// Verifier returns a middleware that verifies JWT tokens
 func Verifier(ja *jwtauth.JWTAuth) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return jwtauth.Verify(ja, jwtauth.TokenFromHeader, TokenFromCookie)(next)
 	}
 }
 
+// TokenFromCookie extracts a JWT token from a cookie
 func TokenFromCookie(r *http.Request) string {
 	cookie, err := r.Cookie(ACCESS_TOKEN_NAME)
 	if err != nil {
