@@ -24,12 +24,11 @@ type PasswordManager struct {
 }
 
 // NewPasswordManager creates a new password manager with the specified policy
-func NewPasswordManager(queries *logindb.Queries, policyChecker PasswordPolicyChecker, currentVersion PasswordVersion) *PasswordManager {
+func NewPasswordManager(queries *logindb.Queries) *PasswordManager {
 	return &PasswordManager{
-		queries:        queries,
-		policyChecker:  policyChecker,
-		hasherFactory:  NewDefaultPasswordHasherFactory(currentVersion),
-		currentVersion: currentVersion,
+		queries:       queries,
+		policyChecker: NewDefaultPasswordPolicyChecker(nil, nil),
+		hasherFactory: NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
 	}
 }
 
