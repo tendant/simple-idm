@@ -18,7 +18,7 @@ import (
 )
 
 type LoginService struct {
-	queries             *logindb.Queries
+	repository          LoginRepository
 	notificationManager *notification.NotificationManager
 	userMapper          mapper.UserMapper
 	delegatedUserMapper mapper.DelegatedUserMapper
@@ -31,7 +31,7 @@ type LoginServiceOptions struct {
 }
 
 func NewLoginService(
-	queries *logindb.Queries,
+	repository LoginRepository,
 	notificationManager *notification.NotificationManager,
 	userMapper mapper.UserMapper,
 	delegatedUserMapper mapper.DelegatedUserMapper,
@@ -42,11 +42,12 @@ func NewLoginService(
 	if options != nil && options.PasswordManager != nil {
 		passwordManager = options.PasswordManager
 	} else {
-		passwordManager = NewPasswordManager(queries)
+		// Create a new password manager that uses the repository
+		passwordManager = NewPasswordManagerWithRepository(repository)
 	}
 
 	return &LoginService{
-		queries:             queries,
+		repository:          repository,
 		notificationManager: notificationManager,
 		userMapper:          userMapper,
 		delegatedUserMapper: delegatedUserMapper,
@@ -73,7 +74,7 @@ func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) 
 func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId uuid.UUID, password, hashedPassword string) (bool, error) {
 	// Get the password version
 	parsedLoginId := loginId
-	passwordVersion, err := s.queries.GetPasswordVersion(ctx, parsedLoginId)
+	passwordVersion, err := s.repository.GetPasswordVersion(ctx, parsedLoginId)
 	if err != nil {
 		// If there's an error getting the version, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
@@ -92,7 +93,7 @@ func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId uuid.
 
 func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.MappedUser, error) {
 	// Find user by username
-	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(username))
+	loginUser, err := s.repository.FindLoginByUsername(ctx, utils.ToNullString(username))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return []mapper.MappedUser{}, fmt.Errorf("invalid username or password")
@@ -136,7 +137,7 @@ func (s LoginService) Verify2FACode(ctx context.Context, loginId string, code st
 		return false, fmt.Errorf("invalid login id: %w", err)
 	}
 
-	_, err = s.queries.GetLoginById(ctx, loginUuid)
+	_, err = s.repository.GetLoginById(ctx, loginUuid)
 	if err != nil {
 		return false, fmt.Errorf("error getting login: %w", err)
 	}
@@ -228,13 +229,13 @@ func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 
 func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.NullString, error) {
 	slog.Debug("FindUserRoles", "params", uuid)
-	roles, err := s.queries.FindUserRolesByUserId(ctx, uuid)
+	roles, err := s.repository.FindUserRolesByUserId(ctx, uuid)
 	return roles, err
 }
 
 func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (logindb.FindUserInfoWithRolesRow, error) {
 	slog.Debug("GetMe", "userUuid", userUuid)
-	userInfo, err := s.queries.FindUserInfoWithRoles(ctx, userUuid)
+	userInfo, err := s.repository.FindUserInfoWithRoles(ctx, userUuid)
 	if err != nil {
 		slog.Error("Failed getting userinfo with roles", "err", err)
 		return logindb.FindUserInfoWithRolesRow{}, err
@@ -278,7 +279,7 @@ func (s LoginService) ChangePassword(ctx context.Context, userID, currentPasswor
 // InitPasswordReset generates a reset token and sends a reset email
 func (s *LoginService) InitPasswordReset(ctx context.Context, username string) error {
 	// Find user by username
-	loginUser, err := s.queries.FindLoginByUsername(ctx, utils.ToNullString(username))
+	loginUser, err := s.repository.FindLoginByUsername(ctx, utils.ToNullString(username))
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			slog.Warn("User not found")

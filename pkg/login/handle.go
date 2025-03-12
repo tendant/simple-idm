@@ -710,7 +710,7 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	if body.Email != "" {
-		username, err := h.loginService.queries.FindUsernameByEmail(r.Context(), string(body.Email))
+		username, err := h.loginService.repository.FindUsernameByEmail(r.Context(), string(body.Email))
 		if err != nil {
 			// Return 200 even if user not found to prevent email enumeration
 			slog.Info("Username not found for email", "email", body.Email)

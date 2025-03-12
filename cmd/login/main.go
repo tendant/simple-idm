@@ -151,7 +151,8 @@ func main() {
 	loginServiceOptions := &login.LoginServiceOptions{
 		PasswordManager: passwordManager,
 	}
-	loginService := login.NewLoginService(loginQueries, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
+	loginRepository := login.NewPostgresLoginRepository(loginQueries)
+	loginService := login.NewLoginService(loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
 
 	// jwt service
 	jwtService := auth.NewJwtServiceOptions(

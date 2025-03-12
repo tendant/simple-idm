@@ -74,8 +74,9 @@ func main() {
 
 	// Initialize login service with email
 	loginQueries := logindb.New(pool)
+	loginRepository := login.NewPostgresLoginRepository(loginQueries)
 	twofaQueries := twofadb.New(pool)
-	loginService := login.NewLoginService(loginQueries, nil, nil, nil, nil)
+	loginService := login.NewLoginService(loginRepository, nil, nil, nil, nil)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, nil)
 
