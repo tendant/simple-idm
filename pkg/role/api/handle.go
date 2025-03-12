@@ -120,7 +120,10 @@ func (h *Handle) GetIDUsers(w http.ResponseWriter, r *http.Request, uuidStr stri
 	for i, user := range users {
 		id := user.ID.String()
 		email := user.Email
-		name := user.Name.String
+		var name string
+		if user.NameValid {
+			name = user.Name
+		}
 
 		apiUsers[i] = struct {
 			Email *string `json:"email,omitempty"`
