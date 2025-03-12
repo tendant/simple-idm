@@ -11,14 +11,54 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+// ProfileRepository defines the interface for profile database operations
+type ProfileRepository interface {
+	// GetUserById retrieves a user by their ID
+	GetUserById(ctx context.Context, id uuid.UUID) (profiledb.GetUserByIdRow, error)
+	// FindUserByUsername finds users by their username
+	FindUserByUsername(ctx context.Context, username sql.NullString) ([]profiledb.FindUserByUsernameRow, error)
+	// UpdateUsername updates a user's username
+	UpdateUsername(ctx context.Context, arg profiledb.UpdateUsernameParams) error
+	// Additional methods can be added as needed
+}
+
+// PostgresProfileRepository implements ProfileRepository using profiledb.Queries
+type PostgresProfileRepository struct {
+	queries *profiledb.Queries
+}
+
+// NewPostgresProfileRepository creates a new PostgresProfileRepository
+func NewPostgresProfileRepository(queries *profiledb.Queries) *PostgresProfileRepository {
+	return &PostgresProfileRepository{
+		queries: queries,
+	}
+}
+
+// GetUserById implements ProfileRepository.GetUserById
+func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUID) (profiledb.GetUserByIdRow, error) {
+	return r.queries.GetUserById(ctx, id)
+}
+
+// FindUserByUsername implements ProfileRepository.FindUserByUsername
+func (r *PostgresProfileRepository) FindUserByUsername(ctx context.Context, username sql.NullString) ([]profiledb.FindUserByUsernameRow, error) {
+	return r.queries.FindUserByUsername(ctx, username)
+}
+
+// UpdateUsername implements ProfileRepository.UpdateUsername
+func (r *PostgresProfileRepository) UpdateUsername(ctx context.Context, arg profiledb.UpdateUsernameParams) error {
+	return r.queries.UpdateUsername(ctx, arg)
+}
+
+// ProfileService provides profile-related operations
 type ProfileService struct {
-	queries      *profiledb.Queries
+	repository   ProfileRepository
 	loginService *login.LoginService
 }
 
-func NewProfileService(queries *profiledb.Queries, loginService *login.LoginService) *ProfileService {
+// NewProfileService creates a new ProfileService
+func NewProfileService(repository ProfileRepository, loginService *login.LoginService) *ProfileService {
 	return &ProfileService{
-		queries:      queries,
+		repository:   repository,
 		loginService: loginService,
 	}
 }
@@ -32,7 +72,7 @@ type UpdateUsernameParams struct {
 // UpdateUsername updates a user's username after verifying their password
 func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUsernameParams) error {
 	// Get the user to verify they exist and check password
-	user, err := s.queries.GetUserById(ctx, params.UserId)
+	user, err := s.repository.GetUserById(ctx, params.UserId)
 	if err != nil {
 		slog.Error("Failed to find user", "uuid", params.UserId, "err", err)
 		return fmt.Errorf("user not found")
@@ -46,7 +86,7 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	}
 
 	// Check if the new username is already taken
-	existingUsers, err := s.queries.FindUserByUsername(ctx, sql.NullString{String: params.NewUsername, Valid: true})
+	existingUsers, err := s.repository.FindUserByUsername(ctx, sql.NullString{String: params.NewUsername, Valid: true})
 	if err != nil {
 		slog.Error("Failed to check username availability", "err", err)
 		return fmt.Errorf("internal error")
@@ -56,7 +96,7 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	}
 
 	// Update the username
-	err = s.queries.UpdateUsername(ctx, profiledb.UpdateUsernameParams{
+	err = s.repository.UpdateUsername(ctx, profiledb.UpdateUsernameParams{
 		ID:       user.LoginID.UUID,
 		Username: sql.NullString{String: params.NewUsername, Valid: true},
 	})
@@ -96,7 +136,7 @@ func (s *ProfileService) GetPasswordPolicy() *login.PasswordPolicy {
 // Disable2FA disables 2FA for a user after verifying their password and 2FA code
 // func (s ProfileService) Disable2FA(ctx context.Context, userUUID uuid.UUID, currentPassword string, code string) error {
 // 	// Get the user to verify password
-// 	user, err := s.queries.FindUserByUsername(ctx, utils.ToNullString(userUUID.String()))
+// 	user, err := s.repository.FindUserByUsername(ctx, utils.ToNullString(userUUID.String()))
 // 	if err != nil || len(user) == 0 {
 // 		return fmt.Errorf("user not found")
 // 	}
@@ -105,7 +145,7 @@ func (s *ProfileService) GetPasswordPolicy() *login.PasswordPolicy {
 // 	// TODO: Verify 2FA code using current secret
 
 // 	// Disable 2FA
-// 	return s.queries.Disable2FA(ctx, userUUID)
+// 	return s.repository.Disable2FA(ctx, userUUID)
 // }
 
 // Enable2FA enables 2FA for a user and generates backup codes
@@ -133,7 +173,7 @@ func (s *ProfileService) GetPasswordPolicy() *login.PasswordPolicy {
 // 		ID:      userUUID,
 // 	}
 
-// 	if err := s.queries.Enable2FA(ctx, params); err != nil {
+// 	if err := s.repository.Enable2FA(ctx, params); err != nil {
 // 		return nil, fmt.Errorf("failed to enable 2FA: %w", err)
 // 	}
 

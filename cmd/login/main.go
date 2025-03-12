@@ -204,7 +204,8 @@ func main() {
 		})
 
 		profileQueries := profiledb.New(pool)
-		profileService := profile.NewProfileService(profileQueries, loginService)
+		profileRepo := profile.NewPostgresProfileRepository(profileQueries)
+		profileService := profile.NewProfileService(profileRepo, loginService)
 		profileHandle := profile.NewHandle(profileService, twoFaService)
 		r.Mount("/profile", profile.Handler(profileHandle))
 

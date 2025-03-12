@@ -93,9 +93,10 @@ func TestUpdateUsername(t *testing.T) {
 	pool, cleanup := setupTestDatabase(t)
 	defer cleanup()
 
-	// Create queries and service
+	// Create repository and service
 	queries := profiledb.New(pool)
-	service := NewProfileService(queries, nil)
+	repository := NewPostgresProfileRepository(queries)
+	service := NewProfileService(repository, nil)
 
 	// Create a test user with a known password
 	ctx := context.Background()
@@ -189,9 +190,10 @@ func TestUpdatePassword(t *testing.T) {
 	pool, cleanup := setupTestDatabase(t)
 	defer cleanup()
 
-	// Create queries and service
+	// Create repository and service
 	queries := profiledb.New(pool)
-	service := NewProfileService(queries, nil)
+	repository := NewPostgresProfileRepository(queries)
+	service := NewProfileService(repository, nil)
 
 	// Create a test user with a known password
 	ctx := context.Background()
