@@ -109,7 +109,7 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 }
 
 type UpdatePasswordParams struct {
-	UserUuid        uuid.UUID
+	LoginID         uuid.UUID
 	CurrentPassword string
 	NewPassword     string
 }
@@ -118,12 +118,12 @@ type UpdatePasswordParams struct {
 func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswordParams) error {
 	err := s.loginService.ChangePassword(
 		ctx,
-		params.UserUuid.String(),
+		params.LoginID.String(),
 		params.CurrentPassword,
 		params.NewPassword,
 	)
 	if err != nil {
-		slog.Error("Failed to change password", "uuid", params.UserUuid, "err", err)
+		slog.Error("Failed to change password", "uuid", params.LoginID, "err", err)
 		return err
 	}
 	return nil

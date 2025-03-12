@@ -275,9 +275,9 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 }
 
 // ChangePassword changes a user's password after verifying the current password
-func (s LoginService) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+func (s LoginService) ChangePassword(ctx context.Context, loginID, currentPassword, newPassword string) error {
 	// Delegate to the password manager
-	return s.passwordManager.ChangePassword(ctx, userID, currentPassword, newPassword)
+	return s.passwordManager.ChangePassword(ctx, loginID, currentPassword, newPassword)
 }
 
 // InitPasswordReset generates a reset token and sends a reset email

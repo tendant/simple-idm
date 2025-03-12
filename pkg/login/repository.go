@@ -34,10 +34,10 @@ type PasswordResetToken struct {
 
 // UserInfo represents user information with roles
 type UserInfo struct {
-	Email string
-	Name  string
+	Email     string
+	Name      string
 	NameValid bool
-	Roles []string
+	Roles     []string
 }
 
 // UserWithRoles represents a user with their roles
@@ -103,7 +103,6 @@ type LoginRepository interface {
 	// Login operations
 	FindLoginByUsername(ctx context.Context, username string, usernameValid bool) (LoginEntity, error)
 	GetLoginById(ctx context.Context, id uuid.UUID) (LoginEntity, error)
-	GetLoginByUserId(ctx context.Context, id uuid.UUID) (LoginEntity, error)
 
 	// Password operations
 	GetPasswordVersion(ctx context.Context, id uuid.UUID) (int32, bool, error)
@@ -146,8 +145,6 @@ func NewPostgresLoginRepository(queries *logindb.Queries) *PostgresLoginReposito
 		queries: queries,
 	}
 }
-
-
 
 // FindLoginByUsername finds a login by username
 func (r *PostgresLoginRepository) FindLoginByUsername(ctx context.Context, username string, usernameValid bool) (LoginEntity, error) {
@@ -301,7 +298,7 @@ func (r *PostgresLoginRepository) GetPasswordHistory(ctx context.Context, arg Pa
 	if err != nil {
 		return nil, err
 	}
-	
+
 	history := make([]PasswordHistoryEntry, len(dbHistory))
 	for i, entry := range dbHistory {
 		history[i] = PasswordHistoryEntry{
@@ -321,14 +318,14 @@ func (r *PostgresLoginRepository) FindUserRolesByUserId(ctx context.Context, use
 	if err != nil {
 		return nil, err
 	}
-	
+
 	roles := make([]string, 0, len(sqlRoles))
 	for _, role := range sqlRoles {
 		if role.Valid {
 			roles = append(roles, role.String)
 		}
 	}
-	
+
 	return roles, nil
 }
 
@@ -338,7 +335,7 @@ func (r *PostgresLoginRepository) FindUserInfoWithRoles(ctx context.Context, id 
 	if err != nil {
 		return UserInfo{}, err
 	}
-	
+
 	// Convert roles from interface{} to []string
 	roles := []string{}
 	if rolesArr, ok := dbUserInfo.Roles.([]interface{}); ok {
@@ -348,12 +345,12 @@ func (r *PostgresLoginRepository) FindUserInfoWithRoles(ctx context.Context, id 
 			}
 		}
 	}
-	
+
 	return UserInfo{
-		Email: dbUserInfo.Email,
-		Name:  dbUserInfo.Name.String,
+		Email:     dbUserInfo.Email,
+		Name:      dbUserInfo.Name.String,
 		NameValid: dbUserInfo.Name.Valid,
-		Roles: roles,
+		Roles:     roles,
 	}, nil
 }
 
@@ -372,7 +369,7 @@ func (r *PostgresLoginRepository) GetUsersByLoginId(ctx context.Context, loginID
 	if err != nil {
 		return nil, err
 	}
-	
+
 	users := make([]UserWithRoles, len(dbUsers))
 	for i, user := range dbUsers {
 		// Convert roles from interface{} to []string
@@ -384,7 +381,7 @@ func (r *PostgresLoginRepository) GetUsersByLoginId(ctx context.Context, loginID
 				}
 			}
 		}
-		
+
 		users[i] = UserWithRoles{
 			ID:             user.ID,
 			Name:           user.Name.String,

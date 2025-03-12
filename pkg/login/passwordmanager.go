@@ -28,9 +28,10 @@ func NewPasswordManager(queries *logindb.Queries) *PasswordManager {
 	// Create a repository that wraps the queries
 	repository := NewPostgresLoginRepository(queries)
 	return &PasswordManager{
-		repository:    repository,
-		policyChecker: NewDefaultPasswordPolicyChecker(nil, nil),
-		hasherFactory: NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
+		repository:     repository,
+		policyChecker:  NewDefaultPasswordPolicyChecker(nil, nil),
+		hasherFactory:  NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
+		currentVersion: CurrentPasswordVersion,
 	}
 }
 
@@ -165,14 +166,14 @@ func (pm *PasswordManager) AuthenticateAndUpgrade(ctx context.Context, loginID u
 
 // CheckPasswordHistory verifies that a new password hasn't been used recently
 // Returns an error if the password has been used before
-func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, newPassword string) error {
+func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, loginID, newPassword string) error {
 	// If history checking is disabled or no policy checker, always pass
 	if pm.policyChecker.GetPolicy().HistoryCheckCount <= 0 {
 		return nil
 	}
 
 	// First check against the current password
-	login, err := pm.repository.GetLoginByUserId(ctx, utils.ParseUUID(userID))
+	login, err := pm.repository.GetLoginById(ctx, utils.ParseUUID(loginID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil // No user found, so no history to check against
@@ -344,9 +345,9 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 }
 
 // ChangePassword changes a user's password after verifying the current password
-func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentPassword, newPassword string) error {
 	// Get the current user info
-	login, err := pm.repository.GetLoginByUserId(ctx, utils.ParseUUID(userID))
+	login, err := pm.repository.GetLoginById(ctx, utils.ParseUUID(loginID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return errors.New("user not found")

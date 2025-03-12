@@ -137,7 +137,7 @@ func (r *PostgresIamRepository) GetUserWithRoles(ctx context.Context, id uuid.UU
 	roles := []Role{}
 	if len(dbUser.Roles) > 0 {
 		var dbRoles []struct {
-			ID interface{} `json:"id"`
+			ID   interface{} `json:"id"`
 			Name interface{} `json:"name"`
 		}
 		if err := json.Unmarshal(dbUser.Roles, &dbRoles); err != nil {
@@ -231,7 +231,7 @@ func (r *PostgresIamRepository) FindUsersWithRoles(ctx context.Context) ([]UserW
 		roles := []Role{}
 		if len(dbUser.Roles) > 0 {
 			var dbRoles []struct {
-				ID interface{} `json:"id"`
+				ID   interface{} `json:"id"`
 				Name interface{} `json:"name"`
 			}
 			if err := json.Unmarshal(dbUser.Roles, &dbRoles); err != nil {

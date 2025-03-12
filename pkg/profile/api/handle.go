@@ -49,9 +49,6 @@ func (h Handle) ChangePassword(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	// Get user UUID from context (assuming it's set by auth middleware)
-	userUuid := authUser.UserUuid
-
 	// Parse request body
 	var data ChangePasswordJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
@@ -78,7 +75,7 @@ func (h Handle) ChangePassword(w http.ResponseWriter, r *http.Request) *Response
 
 	// Update password
 	err := h.profileService.UpdatePassword(r.Context(), profile.UpdatePasswordParams{
-		UserUuid:        userUuid,
+		LoginID:         authUser.LoginID,
 		CurrentPassword: data.CurrentPassword,
 		NewPassword:     data.NewPassword,
 	})

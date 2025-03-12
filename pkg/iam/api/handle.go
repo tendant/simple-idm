@@ -73,12 +73,11 @@ func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 		if len(user.Roles) > 0 {
 			for _, role := range user.Roles {
 				idStr := role.ID.String()
-				nameStr := role.Name
 				roles = append(roles, struct {
 					Name *string `json:"name,omitempty"`
 					ID   *string `json:"id,omitempty"`
 				}{
-					Name: &nameStr,
+					Name: &role.Name,
 					ID:   &idStr,
 				})
 			}
@@ -100,7 +99,7 @@ func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 			Name:     namePtr,
 			Roles:    roles,
 			ID:       &idStr,
-			LoginID:  user.LoginID.String(),
+			LoginID:  getLoginIDString(user.LoginID),
 		})
 	}
 
@@ -108,6 +107,13 @@ func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 		Code: http.StatusOK,
 		body: response,
 	}
+}
+
+func getLoginIDString(loginID *uuid.UUID) string {
+	if loginID != nil {
+		return loginID.String()
+	}
+	return ""
 }
 
 // Create a new user
@@ -234,7 +240,7 @@ func (h Handle) GetID(w http.ResponseWriter, r *http.Request, id string) *Respon
 		Username: &user.Username,
 		Name:     namePtr,
 		ID:       &idStr,
-		LoginID:  user.LoginID.String(),
+		LoginID:  getLoginIDString(user.LoginID),
 	}
 
 	// Convert roles from domain model to response format
