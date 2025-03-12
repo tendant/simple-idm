@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/tendant/simple-idm/pkg/auth/db"
-	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/login"
 )
 

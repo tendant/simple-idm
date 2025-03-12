@@ -29,8 +29,10 @@ import (
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/profile"
+	profileapi "github.com/tendant/simple-idm/pkg/profile/api"
 	"github.com/tendant/simple-idm/pkg/profile/profiledb"
 	"github.com/tendant/simple-idm/pkg/role"
+	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
@@ -206,8 +208,8 @@ func main() {
 		profileQueries := profiledb.New(pool)
 		profileRepo := profile.NewPostgresProfileRepository(profileQueries)
 		profileService := profile.NewProfileService(profileRepo, loginService)
-		profileHandle := profile.NewHandle(profileService, twoFaService)
-		r.Mount("/profile", profile.Handler(profileHandle))
+		profileHandle := profileapi.NewHandle(profileService, twoFaService)
+		r.Mount("/profile", profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
 		// Initialize IAM repository and service
@@ -218,13 +220,13 @@ func main() {
 
 		// Initialize role service and routes
 		roleService := role.NewRoleService(roleQueries)
-		roleHandle := role.NewHandle(roleService)
+		roleHandle := roleapi.NewHandle(roleService)
 
 		// Create a secure handler for roles that uses the IAM admin middleware
 		roleRouter := chi.NewRouter()
 		roleRouter.Group(func(r chi.Router) {
 			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", role.Handler(roleHandle))
+			r.Mount("/", roleapi.Handler(roleHandle))
 		})
 		r.Mount("/idm/roles", roleRouter)
 

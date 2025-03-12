@@ -1,4 +1,4 @@
-package role
+package api
 
 import (
 	"encoding/json"
@@ -7,13 +7,14 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	rolepkg "github.com/tendant/simple-idm/pkg/role"
 )
 
 type Handle struct {
-	roleService *RoleService
+	roleService *rolepkg.RoleService
 }
 
-func NewHandle(roleService *RoleService) *Handle {
+func NewHandle(roleService *rolepkg.RoleService) *Handle {
 	return &Handle{
 		roleService: roleService,
 	}
@@ -59,9 +60,9 @@ func (h *Handle) GetID(w http.ResponseWriter, r *http.Request, uuidStr string) *
 		}
 	}
 
-	role, err := h.roleService.GetRole(r.Context(), roleUUID)
+	roleData, err := h.roleService.GetRole(r.Context(), roleUUID)
 	if err != nil {
-		if errors.Is(err, ErrRoleNotFound) {
+		if errors.Is(err, rolepkg.ErrRoleNotFound) {
 			return &Response{
 				Code: http.StatusNotFound,
 				body: fmt.Sprintf("role not found: %v", err),
@@ -73,8 +74,8 @@ func (h *Handle) GetID(w http.ResponseWriter, r *http.Request, uuidStr string) *
 		}
 	}
 
-	name := role.Name          // Create a new variable to get the address
-	uuidStr = role.ID.String() // Convert UUID to string
+	name := roleData.Name          // Create a new variable to get the address
+	uuidStr = roleData.ID.String() // Convert UUID to string
 
 	return GetIDJSON200Response(struct {
 		Name *string `json:"name,omitempty"`
@@ -97,7 +98,7 @@ func (h *Handle) GetIDUsers(w http.ResponseWriter, r *http.Request, uuidStr stri
 
 	users, err := h.roleService.GetRoleUsers(r.Context(), roleUUID)
 	if err != nil {
-		if errors.Is(err, ErrRoleNotFound) {
+		if errors.Is(err, rolepkg.ErrRoleNotFound) {
 			return &Response{
 				Code: http.StatusNotFound,
 				body: fmt.Sprintf("role not found: %v", err),
@@ -155,7 +156,7 @@ func (h *Handle) DeleteIDUsersUserID(w http.ResponseWriter, r *http.Request, uui
 
 	err = h.roleService.RemoveUserFromRole(r.Context(), roleUUID, userUUID)
 	if err != nil {
-		if errors.Is(err, ErrRoleNotFound) {
+		if errors.Is(err, rolepkg.ErrRoleNotFound) {
 			return &Response{
 				Code: http.StatusNotFound,
 				body: fmt.Sprintf("role not found: %v", err),
@@ -240,7 +241,7 @@ func (h *Handle) PutID(w http.ResponseWriter, r *http.Request, uuidStr string) *
 
 	err = h.roleService.UpdateRole(r.Context(), roleUUID, *requestBody.Name)
 	if err != nil {
-		if errors.Is(err, ErrRoleNotFound) {
+		if errors.Is(err, rolepkg.ErrRoleNotFound) {
 			return &Response{
 				Code: http.StatusNotFound,
 				body: fmt.Sprintf("role not found: %v", err),
@@ -273,13 +274,13 @@ func (h *Handle) DeleteID(w http.ResponseWriter, r *http.Request, uuidStr string
 
 	err = h.roleService.DeleteRole(r.Context(), roleUUID)
 	if err != nil {
-		if errors.Is(err, ErrRoleNotFound) {
+		if errors.Is(err, rolepkg.ErrRoleNotFound) {
 			return &Response{
 				Code: http.StatusNotFound,
 				body: fmt.Sprintf("role not found: %v", err),
 			}
 		}
-		if errors.Is(err, ErrRoleHasUsers) {
+		if errors.Is(err, rolepkg.ErrRoleHasUsers) {
 			return &Response{
 				Code: http.StatusBadRequest,
 				body: "Cannot delete role that has users assigned. Please remove all users from the role first.",
