@@ -3,7 +3,9 @@ package iam
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
@@ -14,16 +16,16 @@ import (
 // IamRepository defines the interface for IAM operations
 type IamRepository interface {
 	// User operations
-	CreateUser(ctx context.Context, arg iamdb.CreateUserParams) (iamdb.User, error)
-	GetUserWithRoles(ctx context.Context, id uuid.UUID) (iamdb.GetUserWithRolesRow, error)
-	FindUsersWithRoles(ctx context.Context) ([]iamdb.FindUsersWithRolesRow, error)
-	UpdateUser(ctx context.Context, arg iamdb.UpdateUserParams) (iamdb.User, error)
-	UpdateUserLoginID(ctx context.Context, arg iamdb.UpdateUserLoginIDParams) (iamdb.User, error)
+	CreateUser(ctx context.Context, params CreateUserParams) (User, error)
+	GetUserWithRoles(ctx context.Context, id uuid.UUID) (UserWithRoles, error)
+	FindUsersWithRoles(ctx context.Context) ([]UserWithRoles, error)
+	UpdateUser(ctx context.Context, params UpdateUserParams) (User, error)
+	UpdateUserLoginID(ctx context.Context, userID uuid.UUID, loginID *uuid.UUID) (User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
 	DeleteUserRoles(ctx context.Context, userID uuid.UUID) error
 
 	// Role operations
-	CreateUserRole(ctx context.Context, arg iamdb.CreateUserRoleParams) (iamdb.UserRole, error)
+	CreateUserRole(ctx context.Context, params UserRoleParams) error
 }
 
 // PostgresIamRepository implements IamRepository using iamdb.Queries
@@ -39,28 +41,353 @@ func NewPostgresIamRepository(queries *iamdb.Queries) *PostgresIamRepository {
 }
 
 // CreateUser creates a new user
-func (r *PostgresIamRepository) CreateUser(ctx context.Context, arg iamdb.CreateUserParams) (iamdb.User, error) {
-	return r.queries.CreateUser(ctx, arg)
+func (r *PostgresIamRepository) CreateUser(ctx context.Context, params CreateUserParams) (User, error) {
+	// Convert domain model to iamdb model
+	var nullName sql.NullString
+	if params.Name != "" {
+		nullName = sql.NullString{String: params.Name, Valid: true}
+	}
+
+	var nullLoginID uuid.NullUUID
+	if params.LoginID != nil {
+		nullLoginID = uuid.NullUUID{UUID: *params.LoginID, Valid: true}
+	}
+
+	// Call the database
+	dbUser, err := r.queries.CreateUser(ctx, iamdb.CreateUserParams{
+		Email:   params.Email,
+		Name:    nullName,
+		LoginID: nullLoginID,
+	})
+	if err != nil {
+		return User{}, err
+	}
+
+	// Convert back to domain model
+	var loginID *uuid.UUID
+	if dbUser.LoginID.Valid {
+		id := dbUser.LoginID.UUID
+		loginID = &id
+	}
+
+	var deletedAt *time.Time
+	if dbUser.DeletedAt.Valid {
+		dt := dbUser.DeletedAt.Time
+		deletedAt = &dt
+	}
+
+	var createdBy string
+	if dbUser.CreatedBy.Valid {
+		createdBy = dbUser.CreatedBy.String
+	}
+
+	var name string
+	if dbUser.Name.Valid {
+		name = dbUser.Name.String
+	}
+
+	return User{
+		ID:             dbUser.ID,
+		CreatedAt:      dbUser.CreatedAt,
+		LastModifiedAt: dbUser.LastModifiedAt,
+		DeletedAt:      deletedAt,
+		CreatedBy:      createdBy,
+		Email:          dbUser.Email,
+		Name:           name,
+		LoginID:        loginID,
+	}, nil
 }
 
 // GetUserWithRoles gets a user with their roles
-func (r *PostgresIamRepository) GetUserWithRoles(ctx context.Context, id uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
-	return r.queries.GetUserWithRoles(ctx, id)
+func (r *PostgresIamRepository) GetUserWithRoles(ctx context.Context, id uuid.UUID) (UserWithRoles, error) {
+	// Call the database
+	dbUser, err := r.queries.GetUserWithRoles(ctx, id)
+	if err != nil {
+		return UserWithRoles{}, err
+	}
+
+	// Convert to domain model
+	var loginID *uuid.UUID
+	if dbUser.LoginID.Valid {
+		id := dbUser.LoginID.UUID
+		loginID = &id
+	}
+
+	var deletedAt *time.Time
+	if dbUser.DeletedAt.Valid {
+		dt := dbUser.DeletedAt.Time
+		deletedAt = &dt
+	}
+
+	var createdBy string
+	if dbUser.CreatedBy.Valid {
+		createdBy = dbUser.CreatedBy.String
+	}
+
+	var name string
+	if dbUser.Name.Valid {
+		name = dbUser.Name.String
+	}
+
+	var username string
+	if dbUser.Username.Valid {
+		username = dbUser.Username.String
+	}
+
+	// Parse roles from JSON
+	roles := []Role{}
+	if len(dbUser.Roles) > 0 {
+		var dbRoles []struct {
+			UUID interface{} `json:"uuid"`
+			Name interface{} `json:"name"`
+		}
+		if err := json.Unmarshal(dbUser.Roles, &dbRoles); err != nil {
+			return UserWithRoles{}, fmt.Errorf("failed to unmarshal roles: %w", err)
+		}
+
+		for _, r := range dbRoles {
+			// Skip null roles
+			if r.UUID == nil || r.Name == nil {
+				continue
+			}
+
+			uuidStr, ok := r.UUID.(string)
+			if !ok {
+				continue
+			}
+
+			roleID, err := uuid.Parse(uuidStr)
+			if err != nil {
+				continue
+			}
+
+			name, ok := r.Name.(string)
+			if !ok {
+				continue
+			}
+
+			roles = append(roles, Role{
+				ID:   roleID,
+				Name: name,
+			})
+		}
+	}
+
+	return UserWithRoles{
+		User: User{
+			ID:             dbUser.ID,
+			CreatedAt:      dbUser.CreatedAt,
+			LastModifiedAt: dbUser.LastModifiedAt,
+			DeletedAt:      deletedAt,
+			CreatedBy:      createdBy,
+			Email:          dbUser.Email,
+			Name:           name,
+			LoginID:        loginID,
+			Username:       username,
+		},
+		Roles: roles,
+	}, nil
 }
 
 // FindUsersWithRoles finds all users with their roles
-func (r *PostgresIamRepository) FindUsersWithRoles(ctx context.Context) ([]iamdb.FindUsersWithRolesRow, error) {
-	return r.queries.FindUsersWithRoles(ctx)
+func (r *PostgresIamRepository) FindUsersWithRoles(ctx context.Context) ([]UserWithRoles, error) {
+	// Call the database
+	dbUsers, err := r.queries.FindUsersWithRoles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to domain models
+	users := make([]UserWithRoles, 0, len(dbUsers))
+	for _, dbUser := range dbUsers {
+		// Convert to domain model
+		var loginID *uuid.UUID
+		if dbUser.LoginID.Valid {
+			id := dbUser.LoginID.UUID
+			loginID = &id
+		}
+
+		var deletedAt *time.Time
+		if dbUser.DeletedAt.Valid {
+			dt := dbUser.DeletedAt.Time
+			deletedAt = &dt
+		}
+
+		var createdBy string
+		if dbUser.CreatedBy.Valid {
+			createdBy = dbUser.CreatedBy.String
+		}
+
+		var name string
+		if dbUser.Name.Valid {
+			name = dbUser.Name.String
+		}
+
+		var username string
+		if dbUser.Username.Valid {
+			username = dbUser.Username.String
+		}
+
+		// Parse roles from JSON
+		roles := []Role{}
+		if len(dbUser.Roles) > 0 {
+			var dbRoles []struct {
+				UUID interface{} `json:"uuid"`
+				Name interface{} `json:"name"`
+			}
+			if err := json.Unmarshal(dbUser.Roles, &dbRoles); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal roles: %w", err)
+			}
+
+			for _, r := range dbRoles {
+				// Skip null roles
+				if r.UUID == nil || r.Name == nil {
+					continue
+				}
+
+				uuidStr, ok := r.UUID.(string)
+				if !ok {
+					continue
+				}
+
+				roleID, err := uuid.Parse(uuidStr)
+				if err != nil {
+					continue
+				}
+
+				name, ok := r.Name.(string)
+				if !ok {
+					continue
+				}
+
+				roles = append(roles, Role{
+					ID:   roleID,
+					Name: name,
+				})
+			}
+		}
+
+		users = append(users, UserWithRoles{
+			User: User{
+				ID:             dbUser.ID,
+				CreatedAt:      dbUser.CreatedAt,
+				LastModifiedAt: dbUser.LastModifiedAt,
+				DeletedAt:      deletedAt,
+				CreatedBy:      createdBy,
+				Email:          dbUser.Email,
+				Name:           name,
+				LoginID:        loginID,
+				Username:       username,
+			},
+			Roles: roles,
+		})
+	}
+
+	return users, nil
 }
 
 // UpdateUser updates a user
-func (r *PostgresIamRepository) UpdateUser(ctx context.Context, arg iamdb.UpdateUserParams) (iamdb.User, error) {
-	return r.queries.UpdateUser(ctx, arg)
+func (r *PostgresIamRepository) UpdateUser(ctx context.Context, params UpdateUserParams) (User, error) {
+	// Convert domain model to iamdb model
+	var nullName sql.NullString
+	if params.Name != "" {
+		nullName = sql.NullString{String: params.Name, Valid: true}
+	}
+
+	// Call the database
+	dbUser, err := r.queries.UpdateUser(ctx, iamdb.UpdateUserParams{
+		ID:   params.ID,
+		Name: nullName,
+	})
+	if err != nil {
+		return User{}, err
+	}
+
+	// Convert back to domain model
+	var loginID *uuid.UUID
+	if dbUser.LoginID.Valid {
+		id := dbUser.LoginID.UUID
+		loginID = &id
+	}
+
+	var deletedAt *time.Time
+	if dbUser.DeletedAt.Valid {
+		dt := dbUser.DeletedAt.Time
+		deletedAt = &dt
+	}
+
+	var createdBy string
+	if dbUser.CreatedBy.Valid {
+		createdBy = dbUser.CreatedBy.String
+	}
+
+	var name string
+	if dbUser.Name.Valid {
+		name = dbUser.Name.String
+	}
+
+	return User{
+		ID:             dbUser.ID,
+		CreatedAt:      dbUser.CreatedAt,
+		LastModifiedAt: dbUser.LastModifiedAt,
+		DeletedAt:      deletedAt,
+		CreatedBy:      createdBy,
+		Email:          dbUser.Email,
+		Name:           name,
+		LoginID:        loginID,
+	}, nil
 }
 
 // UpdateUserLoginID updates a user's login ID
-func (r *PostgresIamRepository) UpdateUserLoginID(ctx context.Context, arg iamdb.UpdateUserLoginIDParams) (iamdb.User, error) {
-	return r.queries.UpdateUserLoginID(ctx, arg)
+func (r *PostgresIamRepository) UpdateUserLoginID(ctx context.Context, userID uuid.UUID, loginID *uuid.UUID) (User, error) {
+	// Convert to iamdb model
+	var nullLoginID uuid.NullUUID
+	if loginID != nil {
+		nullLoginID = uuid.NullUUID{UUID: *loginID, Valid: true}
+	}
+
+	// Call the database
+	dbUser, err := r.queries.UpdateUserLoginID(ctx, iamdb.UpdateUserLoginIDParams{
+		ID:      userID,
+		LoginID: nullLoginID,
+	})
+	if err != nil {
+		return User{}, err
+	}
+
+	// Convert back to domain model
+	var resultLoginID *uuid.UUID
+	if dbUser.LoginID.Valid {
+		id := dbUser.LoginID.UUID
+		resultLoginID = &id
+	}
+
+	var deletedAt *time.Time
+	if dbUser.DeletedAt.Valid {
+		dt := dbUser.DeletedAt.Time
+		deletedAt = &dt
+	}
+
+	var createdBy string
+	if dbUser.CreatedBy.Valid {
+		createdBy = dbUser.CreatedBy.String
+	}
+
+	var name string
+	if dbUser.Name.Valid {
+		name = dbUser.Name.String
+	}
+
+	return User{
+		ID:             dbUser.ID,
+		CreatedAt:      dbUser.CreatedAt,
+		LastModifiedAt: dbUser.LastModifiedAt,
+		DeletedAt:      deletedAt,
+		CreatedBy:      createdBy,
+		Email:          dbUser.Email,
+		Name:           name,
+		LoginID:        resultLoginID,
+	}, nil
 }
 
 // DeleteUser deletes a user
@@ -74,8 +401,13 @@ func (r *PostgresIamRepository) DeleteUserRoles(ctx context.Context, userID uuid
 }
 
 // CreateUserRole creates a user-role association
-func (r *PostgresIamRepository) CreateUserRole(ctx context.Context, arg iamdb.CreateUserRoleParams) (iamdb.UserRole, error) {
-	return r.queries.CreateUserRole(ctx, arg)
+func (r *PostgresIamRepository) CreateUserRole(ctx context.Context, params UserRoleParams) error {
+	// Convert domain model to iamdb model
+	_, err := r.queries.CreateUserRole(ctx, iamdb.CreateUserRoleParams{
+		UserID: params.UserID,
+		RoleID: params.RoleID,
+	})
+	return err
 }
 
 // IamService provides IAM operations
@@ -97,7 +429,7 @@ func NewIamServiceWithQueries(queries *iamdb.Queries) *IamService {
 	return NewIamService(repo)
 }
 
-func (s *IamService) CreateUser(ctx context.Context, email, username, name string, roleIds []uuid.UUID, loginID string) (iamdb.GetUserWithRolesRow, error) {
+func (s *IamService) CreateUser(ctx context.Context, email, username, name string, roleIds []uuid.UUID, loginID string) (UserWithRoles, error) {
 	// Validate email
 	if email == "" {
 		return iamdb.GetUserWithRolesRow{}, fmt.Errorf("email is required")
@@ -149,11 +481,11 @@ func (s *IamService) CreateUser(ctx context.Context, email, username, name strin
 	return userWithRoles, nil
 }
 
-func (s *IamService) FindUsers(ctx context.Context) ([]iamdb.FindUsersWithRolesRow, error) {
+func (s *IamService) FindUsers(ctx context.Context) ([]UserWithRoles, error) {
 	return s.repo.FindUsersWithRoles(ctx)
 }
 
-func (s *IamService) GetUser(ctx context.Context, userId uuid.UUID) (iamdb.GetUserWithRolesRow, error) {
+func (s *IamService) GetUser(ctx context.Context, userId uuid.UUID) (UserWithRoles, error) {
 	return s.repo.GetUserWithRoles(ctx, userId)
 }
 
