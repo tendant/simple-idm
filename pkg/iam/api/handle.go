@@ -1,4 +1,4 @@
-package iam
+package api
 
 import (
 	"encoding/json"
@@ -6,14 +6,15 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/iam"
 	"golang.org/x/exp/slog"
 )
 
 type Handle struct {
-	iamService *IamService
+	iamService *iam.IamService
 }
 
-func NewHandle(iamService *IamService) Handle {
+func NewHandle(iamService *iam.IamService) Handle {
 	return Handle{
 		iamService: iamService,
 	}

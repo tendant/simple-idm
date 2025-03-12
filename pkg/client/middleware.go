@@ -1,10 +1,8 @@
-package iam
+package client
 
 import (
 	"log/slog"
 	"net/http"
-
-	"github.com/tendant/simple-idm/pkg/client"
 )
 
 // AdminRoleMiddleware checks if the authenticated user has the admin role
@@ -12,7 +10,7 @@ import (
 func AdminRoleMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get the authenticated user from the context
-		authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+		authUser, ok := r.Context().Value(AuthUserKey).(*AuthUser)
 		if !ok {
 			slog.Error("Failed to get authenticated user from context")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -29,7 +27,7 @@ func AdminRoleMiddleware(next http.Handler) http.Handler {
 		}
 
 		if !hasAdminRole {
-			slog.Warn("User attempted to access admin-only resource without admin role", 
+			slog.Warn("User attempted to access admin-only resource without admin role",
 				"userId", authUser.UserId,
 				"roles", authUser.ExtraClaims.Roles)
 			http.Error(w, "Forbidden: Admin role required", http.StatusForbidden)
