@@ -30,6 +30,17 @@ export interface TwoFactorMethod {
   display_name?: string;
 }
 
+export interface ProfileTwoFactorMethod {
+  two_factor_id: string;
+  type: string;
+  enabled: boolean;
+}
+
+export interface ProfileTwoFactorMethods {
+  count: number;
+  methods: ProfileTwoFactorMethod[];
+}
+
 export interface User {
   id: string;
   email: string;
@@ -136,5 +147,29 @@ export const twoFactorApi = {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.message || `Failed to delete ${twofaType} 2FA method`);
     }
+  },
+
+  setup2FAMethod: async (twofaType: string): Promise<any> => {
+    const response = await apiClient.post('/profile/2fa/setup', {
+      twofa_type: twofaType
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || `Failed to setup ${twofaType} 2FA method`);
+    }
+    
+    return await response.json().catch(() => ({}));
+  },
+  
+  get2FAMethods: async (): Promise<ProfileTwoFactorMethods> => {
+    const response = await apiClient.get('/profile/2fa');
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || 'Failed to get 2FA methods');
+    }
+    
+    return await response.json();
   }
 };

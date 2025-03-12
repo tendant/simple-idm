@@ -40,7 +40,7 @@ const Logins: Component = () => {
         <div class="sm:flex-auto">
           <h1 class="text-2xl font-semibold text-gray-12">User Logins</h1>
           <p class="mt-2 text-sm text-gray-9">
-            A list of all user logins in the system including their username, email, and 2FA status.
+            A list of all user logins in the system including their username, status, and password change information.
           </p>
         </div>
         <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
@@ -79,9 +79,7 @@ const Logins: Component = () => {
                     <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-11 sm:pl-6">
                       Username
                     </th>
-                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
-                      2FA Enabled
-                    </th>
+                    {/* 2FA Enabled column removed */}
                     <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
                       Password Last Changed
                     </th>
@@ -94,14 +92,14 @@ const Logins: Component = () => {
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-6">
-                  <Show when={!loading()} fallback={<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>}>
+                  <Show when={!loading()} fallback={<tr><td colspan="4" class="text-center py-4">Loading...</td></tr>}>
                     {logins().length === 0 ? (
                       <tr>
-                        <td colspan="5" class="text-center py-4 text-sm text-gray-9">No logins found</td>
+                        <td colspan="4" class="text-center py-4 text-sm text-gray-9">No logins found</td>
                       </tr>
                     ) : (
                       logins().map((login) => (
-                        <tr key={login.id}>
+                        <tr data-key={login.id}>
                           <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
                             <a
                               href={`/logins/${login.id}/detail`}
@@ -114,17 +112,7 @@ const Logins: Component = () => {
                               {login.username}
                             </a>
                           </td>
-                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                            {login.two_factor_enabled ? (
-                              <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                                Enabled
-                              </span>
-                            ) : (
-                              <span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                                Disabled
-                              </span>
-                            )}
-                          </td>
+                          {/* 2FA Enabled column cell removed */}
                           <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
                             {login.password_last_changed ? new Date(login.password_last_changed).toLocaleDateString() : '-'}
                           </td>

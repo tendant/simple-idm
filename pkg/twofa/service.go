@@ -161,6 +161,7 @@ func (s TwoFaService) FindTwoFAsByLoginId(ctx context.Context, loginId uuid.UUID
 	return res, nil
 }
 
+// CreateTwoFactor create a new 2FA record with enabled as true
 func (s TwoFaService) CreateTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error {
 	// Validate twoFactorType
 	err := ValidateTwoFactorType(twoFactorType)

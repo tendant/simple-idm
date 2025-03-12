@@ -18,7 +18,8 @@ type ExtraClaims struct {
 }
 
 type AuthUser struct {
-	UserId string `json:"user_id,omitempty"`
+	UserId  string `json:"user_id,omitempty"`
+	LoginId string `json:"login_id,omitempty"`
 	// For backward compatibility, we still need to support UserUuid, also it is convenient to have it as a uuid.UUID
 	UserUuid    uuid.UUID
 	ExtraClaims ExtraClaims `json:"extra_claims,omitempty"`

@@ -1,6 +1,7 @@
-import { Component, createSignal, Show } from 'solid-js';
+import { Component, createSignal, Show, createEffect, For } from 'solid-js';
 import { useApi } from '../lib/hooks/useApi';
 import { extractErrorDetails } from '../lib/api';
+import { twoFactorApi, ProfileTwoFactorMethod } from '../api/twoFactor';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -16,11 +17,34 @@ const Settings: Component = () => {
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal<string | null>(null);
   const [twoFactorEnabled, setTwoFactorEnabled] = createSignal(false);
-  const [qrCode, setQrCode] = createSignal<string | null>(null);
   const [backupCodes, setBackupCodes] = createSignal<string[] | null>(null);
   const [twoFactorCode, setTwoFactorCode] = createSignal('');
+  const [twoFactorType, setTwoFactorType] = createSignal<string>('email');
+  const [isAddingMethod, setIsAddingMethod] = createSignal(false);
+  const [isLoading, setIsLoading] = createSignal(false);
+  const [twoFactorMethods, setTwoFactorMethods] = createSignal<ProfileTwoFactorMethod[]>([]);
+  const [isLoadingMethods, setIsLoadingMethods] = createSignal(false);
 
   const { request } = useApi();
+
+  const fetch2FAMethods = async () => {
+    setIsLoadingMethods(true);
+    try {
+      const data = await twoFactorApi.get2FAMethods();
+      setTwoFactorMethods(data.methods || []);
+      setTwoFactorEnabled(data.methods && data.methods.length > 0);
+    } catch (err) {
+      const errorDetails = extractErrorDetails(err);
+      setError(errorDetails.message || 'Failed to fetch 2FA methods');
+    } finally {
+      setIsLoadingMethods(false);
+    }
+  };
+
+  // Fetch 2FA methods when component mounts
+  createEffect(() => {
+    fetch2FAMethods();
+  });
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -146,75 +170,190 @@ const Settings: Component = () => {
           </CardHeader>
           <CardContent>
               
-              <Show when={!twoFactorEnabled()}>
-                <div class="space-y-4">
-                  <p class="text-sm text-gray-600">
-                    Two-factor authentication adds an extra layer of security to your account.
-                    When enabled, you'll need to enter both your password and a code from your
-                    authenticator app when signing in.
-                  </p>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        const data = await request('/profile/2fa/setup', {
-                          method: 'POST'
-                        });
-                        if (data) {
-                          setQrCode(data.qrCode);
-                        }
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : 'Failed to setup 2FA');
-                      }
-                    }}
-                  >
-                    Setup 2FA
-                  </Button>
+              <div class="space-y-4">
+                <p class="text-sm text-gray-600">
+                  Two-factor authentication adds an extra layer of security to your account.
+                  When enabled, you'll need to enter both your password and a verification code
+                  when signing in.
+                </p>
+                  
+                  <Show when={isAddingMethod()}>
+                    <div class="space-y-4 p-4 border rounded-md">
+                      <h3 class="font-medium">Add 2FA Method</h3>
+                      <div class="space-y-2">
+                        <Label for="twofa-type">Authentication Type</Label>
+                        <div class="relative">
+                          <select 
+                            id="twofa-type"
+                            class="w-full h-10 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            value={twoFactorType()}
+                            onChange={(e) => setTwoFactorType(e.target.value)}
+                          >
+                            <option value="email">Email</option>
+                            <option value="sms">SMS</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div class="flex space-x-2">
+                        <Button
+                          onClick={async () => {
+                            setError(null);
+                            setSuccess(null);
+                            setIsLoading(true);
+                            try {
+                              await twoFactorApi.setup2FAMethod(twoFactorType());
+                              setSuccess(`${twoFactorType().toUpperCase()} 2FA method added successfully`);
+                              setTwoFactorEnabled(true);
+                              setIsAddingMethod(false);
+                              fetch2FAMethods();
+                            } catch (err) {
+                              const errorDetails = extractErrorDetails(err);
+                              setError(errorDetails.message || `Failed to setup ${twoFactorType()} 2FA method`);
+                            } finally {
+                              setIsLoading(false);
+                            }
+                          }}
+                          disabled={isLoading()}
+                        >
+                          {isLoading() ? 'Adding...' : 'Add Method'}
+                        </Button>
+                        <Button 
+                          variant="outline"
+                          onClick={() => setIsAddingMethod(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </Show>
+                  
+                  <Show when={isLoadingMethods()}>
+                    <div class="py-4 text-center">
+                      <p class="text-sm text-gray-500">Loading 2FA methods...</p>
+                    </div>
+                  </Show>
+                  
+                  <Show when={!isLoadingMethods() && twoFactorMethods().length > 0}>
+                    <div class="mt-6">
+                      <h3 class="font-medium mb-2">Your 2FA Methods</h3>
+                      <div class="border rounded-md divide-y">
+                        <For each={twoFactorMethods()}>
+                          {(method) => (
+                            <div class="p-4 flex justify-between items-center">
+                              <div>
+                                <div class="font-medium capitalize">{method.type}</div>
+                                <div class="text-sm text-gray-500">
+                                  Status: {method.enabled ? (
+                                    <span class="text-green-600 font-medium">Enabled</span>
+                                  ) : (
+                                    <span class="text-red-600 font-medium">Disabled</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div class="flex space-x-2">
+                                <button
+                                  onClick={async () => {
+                                    setError(null);
+                                    setSuccess(null);
+                                    setIsLoading(true);
+                                    try {
+                                      await request(`/profile/2fa/${method.enabled ? 'disable' : 'enable'}`, {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                          twofa_type: method.type
+                                        })
+                                      });
+                                      setSuccess(`${method.type} 2FA method ${method.enabled ? 'disabled' : 'enabled'} successfully`);
+                                      fetch2FAMethods();
+                                    } catch (err) {
+                                      const errorDetails = extractErrorDetails(err);
+                                      setError(errorDetails.message || `Failed to ${method.enabled ? 'disable' : 'enable'} ${method.type} 2FA method`);
+                                    } finally {
+                                      setIsLoading(false);
+                                    }
+                                  }}
+                                  class={`px-3 py-1 rounded-md text-sm font-medium ${method.enabled 
+                                    ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                    : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                                >
+                                  {method.enabled ? 'Disable' : 'Enable'}
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (confirm(`Are you sure you want to delete this ${method.type} 2FA method?`)) {
+                                      setError(null);
+                                      setSuccess(null);
+                                      setIsLoading(true);
+                                      try {
+                                        await request('/profile/2fa/delete', {
+                                          method: 'POST',
+                                          headers: {
+                                            'Content-Type': 'application/json',
+                                          },
+                                          body: JSON.stringify({
+                                            twofa_type: method.type,
+                                            twofa_id: method.two_factor_id
+                                          })
+                                        });
+                                        setSuccess(`${method.type} 2FA method deleted successfully`);
+                                        fetch2FAMethods();
+                                      } catch (err) {
+                                        const errorDetails = extractErrorDetails(err);
+                                        setError(errorDetails.message || `Failed to delete ${method.type} 2FA method`);
+                                      } finally {
+                                        setIsLoading(false);
+                                      }
+                                    }
+                                  }}
+                                  class="px-3 py-1 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                >
+                                  <div class="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                      
+                      <Show when={!isAddingMethod()}>
+                        <div class="mt-4 flex justify-end">
+                          <button
+                            onClick={() => setIsAddingMethod(true)}
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            Add 2FA Method
+                          </button>
+                        </div>
+                      </Show>
+                    </div>
+                  </Show>
+                  
+                  <Show when={!isLoadingMethods() && twoFactorMethods().length === 0 && !isAddingMethod()}>
+                    <div class="py-4 border rounded-md text-center">
+                      <p class="text-sm text-gray-500 mb-4">You don't have any 2FA methods set up yet.</p>
+                      
+                      <div class="flex justify-center">
+                        <button
+                          onClick={() => setIsAddingMethod(true)}
+                          class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          Add 2FA Method
+                        </button>
+                      </div>
+                    </div>
+                  </Show>
                 </div>
-              </Show>
 
-              <Show when={qrCode() && !twoFactorEnabled()}>
-                <div class="mt-4 space-y-4">
-                  <img src={qrCode()} alt="2FA QR Code" class="w-48 h-48" />
-                  <p class="text-sm text-gray-600">
-                    Scan this QR code with your authenticator app, then enter the code below to enable 2FA.
-                  </p>
-                  <div class="space-y-2">
-                    <Label for="2fa-code">Authentication Code</Label>
-                    <Input
-                      id="2fa-code"
-                      type="text"
-                      value={twoFactorCode()}
-                      onInput={(e) => setTwoFactorCode(e.currentTarget.value)}
-                      required
-                    />
-                  </div>
-                  <Button
-                    onClick={async () => {
-                      try {
-                        const data = await request('/profile/2fa/enable', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                          },
-                          body: JSON.stringify({
-                            code: twoFactorCode()
-                          }),
-                        });
-                        if (data) {
-                          setBackupCodes(data.backupCodes);
-                          setTwoFactorEnabled(true);
-                          setQrCode(null);
-                          setSuccess('2FA enabled successfully');
-                        }
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : 'Failed to enable 2FA');
-                      }
-                    }}
-                  >
-                    Enable 2FA
-                  </Button>
-                </div>
-              </Show>
+              {/* QR code section removed as TOTP is not supported */}
 
               <Show when={backupCodes()}>
                 <div class="mt-4 space-y-4">
@@ -231,47 +370,7 @@ const Settings: Component = () => {
                 </div>
               </Show>
 
-              <Show when={twoFactorEnabled()}>
-                <div class="space-y-4">
-                  <p class="text-sm text-gray-600">
-                    Two-factor authentication is enabled. You'll need to enter a code from your
-                    authenticator app when signing in.
-                  </p>
-                  <div class="space-y-2">
-                    <Label for="disable-2fa-code">Enter Code to Disable 2FA</Label>
-                    <Input
-                      id="disable-2fa-code"
-                      type="text"
-                      value={twoFactorCode()}
-                      onInput={(e) => setTwoFactorCode(e.currentTarget.value)}
-                      required
-                    />
-                  </div>
-                  <Button
-                    variant="destructive"
-                    onClick={async () => {
-                      try {
-                        await request('/profile/2fa/disable', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                          },
-                          body: JSON.stringify({
-                            code: twoFactorCode()
-                          }),
-                        });
-                        setTwoFactorEnabled(false);
-                        setTwoFactorCode('');
-                        setSuccess('2FA disabled successfully');
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : 'Failed to disable 2FA');
-                      }
-                    }}
-                  >
-                    Disable 2FA
-                  </Button>
-                </div>
-              </Show>
+              {/* Removed the "Enter Code to Disable 2FA" block as requested */}
           </CardContent>
         </Card>
       </TabsContent>

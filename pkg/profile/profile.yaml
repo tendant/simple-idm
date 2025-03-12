@@ -122,70 +122,154 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PasswordPolicyResponse"
+  /2fa:
+    get:
+      operationId: get_2fa_methods
+      summary: Get login 2FA methods
+      responses:
+        "200":
+          description: 2FA method found successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFactorMethods"
+        "404":
+          description: Login 2fa methods not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Login 2fa methods not found"
   /2fa/setup:
     post:
-      summary: Generate 2FA secret and QR code
-      security:
-        - BearerAuth: []
+      summary: Create a new 2FA method
+      operationId: post_2fa_setup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - twofa_type
       responses:
-        "200":
-          description: 2FA setup information generated successfully
+        "201":
+          description: 2FA method created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TwoFactorSetup"
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "409":
+          description: 2FA method already exists
+        "500":
+          description: Internal server error
   /2fa/enable:
     post:
-      summary: Enable 2FA for the user
-      security:
-        - BearerAuth: []
+      summary: Enable an existing 2FA method
+      operationId: post_2fa_enable
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TwoFactorEnable"
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - twofa_type
       responses:
         "200":
-          description: 2FA enabled successfully
+          description: 2FA method enabled successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "2FA enabled successfully"
-                  backupCodes:
-                    type: array
-                    items:
-                      type: string
-                    description: One-time use backup codes
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: 2FA method not found
+        "500":
+          description: Internal server error
   /2fa/disable:
     post:
-      summary: Disable 2FA for the user
-      security:
-        - BearerAuth: []
+      summary: Disable an existing 2FA method
+      operationId: post_2fa_disable
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TwoFactorDisable"
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - twofa_type
       responses:
         "200":
-          description: 2FA disabled successfully
+          description: 2FA method disabled successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "2FA disabled successfully"
-
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: 2FA method not found
+        "500":
+          description: Internal server error
+  /2fa/delete:
+    post:
+      summary: Delete a 2FA method
+      operationId: delete_2fa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_id:
+                  type: string
+                  format: uuid
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - twofa_type
+      responses:
+        "200":
+          description: 2FA method deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: 2FA method not found
+        "500":
+          description: Internal server error
 components:
   schemas:
+    SuccessResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        result:
+          type: string
     Error:
       type: object
       properties:
@@ -264,6 +348,32 @@ components:
         expiration_days:
           type: integer
           description: Number of days until password expires
+    TwoFactorMethods:
+      type: object
+      properties:
+        methods:
+          type: array
+          items:
+            $ref: "#/components/schemas/TwoFactorMethod"
+        count:
+          type: integer
+      required:
+        - methods
+        - count
+    TwoFactorMethod:
+      x-go-optional-value: true
+      type: object
+      properties:
+        two_factor_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+        enabled:
+          type: boolean
+      required:
+        - type
+        - enabled
   securitySchemes:
     BearerAuth:
       type: http
