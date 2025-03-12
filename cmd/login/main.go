@@ -208,8 +208,9 @@ func main() {
 		r.Mount("/profile", profile.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
-		// Initialize user service and handle
-		iamService := iam.NewIamService(iamQueries)
+		// Initialize IAM repository and service
+		iamRepo := iam.NewPostgresIamRepository(iamQueries)
+		iamService := iam.NewIamService(iamRepo)
 		userHandle := iam.NewHandle(iamService)
 		r.Mount("/idm/users", iam.SecureHandler(userHandle))
 

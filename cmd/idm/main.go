@@ -62,7 +62,8 @@ func main() {
 	}
 
 	// iamQueries := iamdb.New(pool)
-	// iamService := iam.NewIamService(iamQueries)
+	// iamRepo := iam.NewPostgresIamRepository(iamQueries)
+	// iamService := iam.NewIamService(iamRepo)
 	// iamHandler := iam.NewHandle(iamService)
 	// iam.Routes(myApp.R, iamHandler)
 
