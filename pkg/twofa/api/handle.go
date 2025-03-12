@@ -1,4 +1,4 @@
-package twofa
+package api
 
 import (
 	"log/slog"
@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/mapper"
+	"github.com/tendant/simple-idm/pkg/twofa"
 )
 
 const (
@@ -18,20 +20,41 @@ const (
 	REFRESH_TOKEN_NAME = "refresh_token"
 )
 
-type JwtService interface {
-	ParseTokenStr(tokenStr string) (*jwt.Token, error)
-	CreateAccessToken(claimData interface{}) (auth.IdmToken, error)
-	CreateRefreshToken(claimData interface{}) (auth.IdmToken, error)
+// TwoFaHandler returns a http.Handler for twofa API
+func TwoFaHandler(h *Handle) http.Handler {
+	r := chi.NewRouter()
+
+	// Mount the API endpoints
+	r.Post("/send", func(w http.ResponseWriter, r *http.Request) {
+		h.Post2faSend(w, r)
+	})
+	r.Post("/validate", func(w http.ResponseWriter, r *http.Request) {
+		h.Post2faValidate(w, r)
+	})
+	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
+		h.Post2faCreate(w, r)
+	})
+	r.Post("/enable", func(w http.ResponseWriter, r *http.Request) {
+		h.Post2faEnable(w, r)
+	})
+	r.Post("/disable", func(w http.ResponseWriter, r *http.Request) {
+		h.Post2faDisable(w, r)
+	})
+	r.Post("/delete", func(w http.ResponseWriter, r *http.Request) {
+		h.Delete2fa(w, r)
+	})
+
+	return r
 }
 
 type Handle struct {
-	twoFaService *TwoFaService
+	twoFaService twofa.TwoFactorService
 	jwtService   auth.Jwt
 	userMapper   mapper.UserMapper
 }
 
-func NewHandle(twoFaService *TwoFaService, jwtService auth.Jwt, userMapper mapper.UserMapper) Handle {
-	return Handle{
+func NewHandle(twoFaService twofa.TwoFactorService, jwtService auth.Jwt, userMapper mapper.UserMapper) *Handle {
+	return &Handle{
 		twoFaService: twoFaService,
 		jwtService:   jwtService,
 		userMapper:   userMapper,
@@ -324,7 +347,7 @@ func (h Handle) Post2faCreate(w http.ResponseWriter, r *http.Request) *Response 
 	}
 
 	// Create new 2FA method
-	err = h.twoFaService.CreateTwoFactor(r.Context(), loginId, string(data.TwofaType))
+	err = h.twoFaService.EnableTwoFactor(r.Context(), loginId, string(data.TwofaType))
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
@@ -440,7 +463,7 @@ func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	err = h.twoFaService.DeleteTwoFactor(r.Context(), DeleteTwoFactorParams{
+	err = h.twoFaService.DeleteTwoFactor(r.Context(), twofa.DeleteTwoFactorParams{
 		LoginId:       loginId,
 		TwoFactorId:   twofaId,
 		TwoFactorType: string(data.TwofaType),

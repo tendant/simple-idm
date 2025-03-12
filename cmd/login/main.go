@@ -35,6 +35,7 @@ import (
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/tendant/simple-idm/pkg/twofa"
+	twofaapi "github.com/tendant/simple-idm/pkg/twofa/api"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 )
 
@@ -251,8 +252,8 @@ func main() {
 		r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
 
 		// Initialize two factor authentication service and routes
-		twoFaHandle := twofa.NewHandle(twoFaService, *jwtService, userMapper)
-		r.Mount("/idm/2fa", twofa.Handler(twoFaHandle))
+		twoFaHandle := twofaapi.NewHandle(twoFaService, *jwtService, userMapper)
+		r.Mount("/idm/2fa", twofaapi.TwoFaHandler(twoFaHandle))
 	})
 
 	app.RoutesHealthzReady(server.R)
