@@ -438,13 +438,14 @@ func (h *Handle) UserInfoEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Perform token introspection (capture all 3 return values)
 	tokenType, accessRequest, err := h.OAuth2Provider.IntrospectToken(ctx, token, fosite.AccessToken, &DefaultSession{})
 	if err != nil {
-		log.Printf("[ERROR] Token introspection failed: %v", err)
+		slog.Error("Token introspection failed", "error", err)
 		http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 		return
 	}
 
 	// Ensure the token is an access token
 	if tokenType != fosite.AccessToken {
+		slog.Error("Invalid token type", "expected", fosite.AccessToken, "got", tokenType)
 		http.Error(w, "Invalid token type", http.StatusUnauthorized)
 		return
 	}
@@ -452,20 +453,52 @@ func (h *Handle) UserInfoEndpoint(w http.ResponseWriter, r *http.Request) {
 	// Extract the session (OIDC user info)
 	session, ok := accessRequest.GetSession().(*DefaultSession)
 	if !ok {
+		slog.Error("Invalid session data type", "sessionType", fmt.Sprintf("%T", accessRequest.GetSession()))
 		http.Error(w, "Invalid session data", http.StatusInternalServerError)
 		return
 	}
 
-	// Mock user info (Replace with real database lookup)
-	userInfo := map[string]string{
-		"sub":   session.Subject,
-		"name":  "John Doe",
-		"email": "john.doe@example.com",
+	// Get the subject (user ID) from the session
+	userID := session.GetSubject()
+	if userID == "" {
+		slog.Error("Empty subject in token")
+		http.Error(w, "Invalid token: missing subject", http.StatusUnauthorized)
+		return
 	}
 
-	// Respond with user info
+	// Initialize userInfo with required fields
+	userInfo := map[string]interface{}{
+		"sub": userID,
+	}
+
+	// Add username if available
+	if username := session.GetUsername(); username != "" {
+		userInfo["preferred_username"] = username
+	}
+
+	// Add extra claims from the session if available
+	if session.Extra != nil {
+		for key, value := range session.Extra {
+			// Don't override the subject claim
+			if key != "sub" {
+				userInfo[key] = value
+			}
+		}
+	}
+
+	// Set standard OIDC response headers
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(userInfo)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+
+	// Encode and send the response
+	if err := json.NewEncoder(w).Encode(userInfo); err != nil {
+		slog.Error("Failed to encode user info response", "error", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("UserInfo endpoint response sent successfully", "userID", userID)
 }
 
 func (h *Handle) JwksEndpoint(w http.ResponseWriter, r *http.Request) {
