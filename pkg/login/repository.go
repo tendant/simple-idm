@@ -5,42 +5,116 @@ import (
 	"database/sql"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 )
+
+// Domain models for the login repository
+
+// LoginEntity represents a user login record in the domain model
+type LoginEntity struct {
+	ID              uuid.UUID
+	Username        sql.NullString
+	Password        []byte
+	PasswordVersion int32
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// PasswordResetToken represents a password reset token
+type PasswordResetToken struct {
+	ID      uuid.UUID
+	LoginID uuid.UUID
+}
+
+// UserInfo represents user information with roles
+type UserInfo struct {
+	Email string
+	Name  sql.NullString
+	Roles []string
+}
+
+// UserWithRoles represents a user with their roles
+type UserWithRoles struct {
+	ID             uuid.UUID
+	Name           sql.NullString
+	Email          string
+	CreatedAt      time.Time
+	LastModifiedAt time.Time
+	Roles          []string
+}
+
+// PasswordHistoryEntry represents a password history entry
+type PasswordHistoryEntry struct {
+	ID              uuid.UUID
+	LoginID         uuid.UUID
+	PasswordHash    []byte
+	PasswordVersion int32
+	CreatedAt       time.Time
+}
+
+// PasswordParams represents parameters for password operations
+type PasswordParams struct {
+	Password        []byte
+	ID              uuid.UUID
+	Username        sql.NullString
+	PasswordVersion int32
+}
+
+// PasswordHistoryParams represents parameters for password history operations
+type PasswordHistoryParams struct {
+	LoginID uuid.UUID
+	Limit   int32
+}
+
+// PasswordResetTokenParams represents parameters for password reset token operations
+type PasswordResetTokenParams struct {
+	LoginID  uuid.UUID
+	Token    string
+	ExpireAt time.Time
+}
+
+// PasswordToHistoryParams represents parameters for adding a password to history
+type PasswordToHistoryParams struct {
+	LoginID         uuid.UUID
+	PasswordHash    []byte
+	PasswordVersion int32
+}
 
 // LoginRepository defines the interface for login-related database operations
 type LoginRepository interface {
 	// Login operations
-	FindLoginByUsername(ctx context.Context, username sql.NullString) (logindb.FindLoginByUsernameRow, error)
-	GetLoginById(ctx context.Context, id uuid.UUID) (logindb.GetLoginByIdRow, error)
-	GetLoginByUserId(ctx context.Context, id uuid.UUID) (logindb.GetLoginByUserIdRow, error)
+	FindLoginByUsername(ctx context.Context, username sql.NullString) (LoginEntity, error)
+	GetLoginById(ctx context.Context, id uuid.UUID) (LoginEntity, error)
+	GetLoginByUserId(ctx context.Context, id uuid.UUID) (LoginEntity, error)
 
 	// Password operations
 	GetPasswordVersion(ctx context.Context, id uuid.UUID) (int32, bool, error)
-	ResetPassword(ctx context.Context, arg logindb.ResetPasswordParams) error
-	ResetPasswordById(ctx context.Context, arg logindb.ResetPasswordByIdParams) error
-	UpdateUserPassword(ctx context.Context, arg logindb.UpdateUserPasswordParams) error
-	UpdateUserPasswordAndVersion(ctx context.Context, arg logindb.UpdateUserPasswordAndVersionParams) error
+	ResetPassword(ctx context.Context, arg PasswordParams) error
+	ResetPasswordById(ctx context.Context, arg PasswordParams) error
+	UpdateUserPassword(ctx context.Context, arg PasswordParams) error
+	UpdateUserPasswordAndVersion(ctx context.Context, arg PasswordParams) error
 
 	// Password reset token operations
-	InitPasswordResetToken(ctx context.Context, arg logindb.InitPasswordResetTokenParams) error
-	ValidatePasswordResetToken(ctx context.Context, token string) (logindb.ValidatePasswordResetTokenRow, error)
+	InitPasswordResetToken(ctx context.Context, arg PasswordResetTokenParams) error
+	ValidatePasswordResetToken(ctx context.Context, token string) (PasswordResetToken, error)
 	MarkPasswordResetTokenUsed(ctx context.Context, token string) error
 	ExpirePasswordResetToken(ctx context.Context, loginID uuid.UUID) error
 	InitPasswordByUsername(ctx context.Context, username sql.NullString) (uuid.UUID, error)
 
 	// Password history operations
-	AddPasswordToHistory(ctx context.Context, arg logindb.AddPasswordToHistoryParams) error
-	GetPasswordHistory(ctx context.Context, arg logindb.GetPasswordHistoryParams) ([]logindb.GetPasswordHistoryRow, error)
+	AddPasswordToHistory(ctx context.Context, arg PasswordToHistoryParams) error
+	GetPasswordHistory(ctx context.Context, arg PasswordHistoryParams) ([]PasswordHistoryEntry, error)
 
 	// User operations
 	FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]sql.NullString, error)
-	FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (logindb.FindUserInfoWithRolesRow, error)
+	FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (UserInfo, error)
 	FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error)
-	GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) ([]logindb.GetUsersByLoginIdRow, error)
+	GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) ([]UserWithRoles, error)
 
 	// Transaction support
 	WithTx(tx interface{}) LoginRepository
@@ -66,18 +140,51 @@ func NewPostgresLoginRepository(queries *logindb.Queries) *PostgresLoginReposito
 }
 
 // FindLoginByUsername finds a login by username
-func (r *PostgresLoginRepository) FindLoginByUsername(ctx context.Context, username sql.NullString) (logindb.FindLoginByUsernameRow, error) {
-	return r.queries.FindLoginByUsername(ctx, username)
+func (r *PostgresLoginRepository) FindLoginByUsername(ctx context.Context, username sql.NullString) (LoginEntity, error) {
+	dbLogin, err := r.queries.FindLoginByUsername(ctx, username)
+	if err != nil {
+		return LoginEntity{}, err
+	}
+	return LoginEntity{
+		ID:              dbLogin.ID,
+		Username:        dbLogin.Username,
+		Password:        dbLogin.Password,
+		PasswordVersion: dbLogin.PasswordVersion.Int32,
+		CreatedAt:       dbLogin.CreatedAt,
+		UpdatedAt:       dbLogin.UpdatedAt,
+	}, nil
 }
 
 // GetLoginById gets a login by ID
-func (r *PostgresLoginRepository) GetLoginById(ctx context.Context, id uuid.UUID) (logindb.GetLoginByIdRow, error) {
-	return r.queries.GetLoginById(ctx, id)
+func (r *PostgresLoginRepository) GetLoginById(ctx context.Context, id uuid.UUID) (LoginEntity, error) {
+	dbLogin, err := r.queries.GetLoginById(ctx, id)
+	if err != nil {
+		return LoginEntity{}, err
+	}
+	return LoginEntity{
+		ID:              dbLogin.LoginID,
+		Username:        dbLogin.Username,
+		Password:        dbLogin.Password,
+		PasswordVersion: 0, // Not returned by this query
+		CreatedAt:       dbLogin.CreatedAt,
+		UpdatedAt:       dbLogin.UpdatedAt,
+	}, nil
 }
 
 // GetLoginByUserId gets a login by user ID
-func (r *PostgresLoginRepository) GetLoginByUserId(ctx context.Context, id uuid.UUID) (logindb.GetLoginByUserIdRow, error) {
-	return r.queries.GetLoginByUserId(ctx, id)
+func (r *PostgresLoginRepository) GetLoginByUserId(ctx context.Context, id uuid.UUID) (LoginEntity, error) {
+	dbLogin, err := r.queries.GetLoginByUserId(ctx, id)
+	if err != nil {
+		return LoginEntity{}, err
+	}
+	return LoginEntity{
+		ID:              dbLogin.LoginID,
+		Username:        dbLogin.Username,
+		Password:        dbLogin.Password,
+		PasswordVersion: 0, // Not returned by this query
+		CreatedAt:       dbLogin.CreatedAt,
+		UpdatedAt:       dbLogin.UpdatedAt,
+	}, nil
 }
 
 // GetPasswordVersion gets the password version for a login
@@ -87,33 +194,62 @@ func (r *PostgresLoginRepository) GetPasswordVersion(ctx context.Context, id uui
 }
 
 // ResetPassword resets a password by username
-func (r *PostgresLoginRepository) ResetPassword(ctx context.Context, arg logindb.ResetPasswordParams) error {
-	return r.queries.ResetPassword(ctx, arg)
+func (r *PostgresLoginRepository) ResetPassword(ctx context.Context, arg PasswordParams) error {
+	dbArg := logindb.ResetPasswordParams{
+		Password: arg.Password,
+		Username: arg.Username,
+	}
+	return r.queries.ResetPassword(ctx, dbArg)
 }
 
 // ResetPasswordById resets a password by login ID
-func (r *PostgresLoginRepository) ResetPasswordById(ctx context.Context, arg logindb.ResetPasswordByIdParams) error {
-	return r.queries.ResetPasswordById(ctx, arg)
+func (r *PostgresLoginRepository) ResetPasswordById(ctx context.Context, arg PasswordParams) error {
+	dbArg := logindb.ResetPasswordByIdParams{
+		Password: arg.Password,
+		ID:       arg.ID,
+	}
+	return r.queries.ResetPasswordById(ctx, dbArg)
 }
 
 // UpdateUserPassword updates a user's password
-func (r *PostgresLoginRepository) UpdateUserPassword(ctx context.Context, arg logindb.UpdateUserPasswordParams) error {
-	return r.queries.UpdateUserPassword(ctx, arg)
+func (r *PostgresLoginRepository) UpdateUserPassword(ctx context.Context, arg PasswordParams) error {
+	dbArg := logindb.UpdateUserPasswordParams{
+		Password: arg.Password,
+		ID:       arg.ID,
+	}
+	return r.queries.UpdateUserPassword(ctx, dbArg)
 }
 
 // UpdateUserPasswordAndVersion updates a user's password and version
-func (r *PostgresLoginRepository) UpdateUserPasswordAndVersion(ctx context.Context, arg logindb.UpdateUserPasswordAndVersionParams) error {
-	return r.queries.UpdateUserPasswordAndVersion(ctx, arg)
+func (r *PostgresLoginRepository) UpdateUserPasswordAndVersion(ctx context.Context, arg PasswordParams) error {
+	dbArg := logindb.UpdateUserPasswordAndVersionParams{
+		Password:        arg.Password,
+		ID:              arg.ID,
+		PasswordVersion: pgtype.Int4{Int32: arg.PasswordVersion, Valid: true},
+	}
+	return r.queries.UpdateUserPasswordAndVersion(ctx, dbArg)
 }
 
 // InitPasswordResetToken initializes a password reset token
-func (r *PostgresLoginRepository) InitPasswordResetToken(ctx context.Context, arg logindb.InitPasswordResetTokenParams) error {
-	return r.queries.InitPasswordResetToken(ctx, arg)
+func (r *PostgresLoginRepository) InitPasswordResetToken(ctx context.Context, arg PasswordResetTokenParams) error {
+	dbArg := logindb.InitPasswordResetTokenParams{
+		LoginID:  arg.LoginID,
+		Token:    arg.Token,
+		ExpireAt: pgtype.Timestamptz{Time: arg.ExpireAt, Valid: true},
+	}
+	return r.queries.InitPasswordResetToken(ctx, dbArg)
 }
 
 // ValidatePasswordResetToken validates a password reset token
-func (r *PostgresLoginRepository) ValidatePasswordResetToken(ctx context.Context, token string) (logindb.ValidatePasswordResetTokenRow, error) {
-	return r.queries.ValidatePasswordResetToken(ctx, token)
+func (r *PostgresLoginRepository) ValidatePasswordResetToken(ctx context.Context, token string) (PasswordResetToken, error) {
+	dbToken, err := r.queries.ValidatePasswordResetToken(ctx, token)
+	if err != nil {
+		return PasswordResetToken{}, err
+	}
+	return PasswordResetToken{
+		ID:      dbToken.ID,
+		LoginID: dbToken.LoginID,
+	}, nil
 }
 
 // MarkPasswordResetTokenUsed marks a password reset token as used
@@ -132,13 +268,37 @@ func (r *PostgresLoginRepository) InitPasswordByUsername(ctx context.Context, us
 }
 
 // AddPasswordToHistory adds a password to the history
-func (r *PostgresLoginRepository) AddPasswordToHistory(ctx context.Context, arg logindb.AddPasswordToHistoryParams) error {
-	return r.queries.AddPasswordToHistory(ctx, arg)
+func (r *PostgresLoginRepository) AddPasswordToHistory(ctx context.Context, arg PasswordToHistoryParams) error {
+	dbArg := logindb.AddPasswordToHistoryParams{
+		LoginID:         arg.LoginID,
+		PasswordHash:    arg.PasswordHash,
+		PasswordVersion: arg.PasswordVersion,
+	}
+	return r.queries.AddPasswordToHistory(ctx, dbArg)
 }
 
 // GetPasswordHistory gets the password history for a login
-func (r *PostgresLoginRepository) GetPasswordHistory(ctx context.Context, arg logindb.GetPasswordHistoryParams) ([]logindb.GetPasswordHistoryRow, error) {
-	return r.queries.GetPasswordHistory(ctx, arg)
+func (r *PostgresLoginRepository) GetPasswordHistory(ctx context.Context, arg PasswordHistoryParams) ([]PasswordHistoryEntry, error) {
+	dbArg := logindb.GetPasswordHistoryParams{
+		LoginID: arg.LoginID,
+		Limit:   arg.Limit,
+	}
+	dbHistory, err := r.queries.GetPasswordHistory(ctx, dbArg)
+	if err != nil {
+		return nil, err
+	}
+	
+	history := make([]PasswordHistoryEntry, len(dbHistory))
+	for i, entry := range dbHistory {
+		history[i] = PasswordHistoryEntry{
+			ID:              entry.ID,
+			LoginID:         entry.LoginID,
+			PasswordHash:    entry.PasswordHash,
+			PasswordVersion: entry.PasswordVersion,
+			CreatedAt:       entry.CreatedAt,
+		}
+	}
+	return history, nil
 }
 
 // FindUserRolesByUserId finds user roles by user ID
@@ -147,8 +307,27 @@ func (r *PostgresLoginRepository) FindUserRolesByUserId(ctx context.Context, use
 }
 
 // FindUserInfoWithRoles finds user info with roles
-func (r *PostgresLoginRepository) FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (logindb.FindUserInfoWithRolesRow, error) {
-	return r.queries.FindUserInfoWithRoles(ctx, id)
+func (r *PostgresLoginRepository) FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (UserInfo, error) {
+	dbUserInfo, err := r.queries.FindUserInfoWithRoles(ctx, id)
+	if err != nil {
+		return UserInfo{}, err
+	}
+	
+	// Convert roles from interface{} to []string
+	roles := []string{}
+	if rolesArr, ok := dbUserInfo.Roles.([]interface{}); ok {
+		for _, role := range rolesArr {
+			if roleStr, ok := role.(string); ok {
+				roles = append(roles, roleStr)
+			}
+		}
+	}
+	
+	return UserInfo{
+		Email: dbUserInfo.Email,
+		Name:  dbUserInfo.Name,
+		Roles: roles,
+	}, nil
 }
 
 // FindUsernameByEmail finds a username by email
@@ -157,8 +336,34 @@ func (r *PostgresLoginRepository) FindUsernameByEmail(ctx context.Context, email
 }
 
 // GetUsersByLoginId gets users by login ID
-func (r *PostgresLoginRepository) GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) ([]logindb.GetUsersByLoginIdRow, error) {
-	return r.queries.GetUsersByLoginId(ctx, loginID)
+func (r *PostgresLoginRepository) GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) ([]UserWithRoles, error) {
+	dbUsers, err := r.queries.GetUsersByLoginId(ctx, loginID)
+	if err != nil {
+		return nil, err
+	}
+	
+	users := make([]UserWithRoles, len(dbUsers))
+	for i, user := range dbUsers {
+		// Convert roles from interface{} to []string
+		roles := []string{}
+		if rolesArr, ok := user.Roles.([]interface{}); ok {
+			for _, role := range rolesArr {
+				if roleStr, ok := role.(string); ok {
+					roles = append(roles, roleStr)
+				}
+			}
+		}
+		
+		users[i] = UserWithRoles{
+			ID:             user.ID,
+			Name:           user.Name,
+			Email:          user.Email,
+			CreatedAt:      user.CreatedAt,
+			LastModifiedAt: user.LastModifiedAt,
+			Roles:          roles,
+		}
+	}
+	return users, nil
 }
 
 // WithTx returns a new repository with the given transaction
