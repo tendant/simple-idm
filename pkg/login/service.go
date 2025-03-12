@@ -27,7 +27,7 @@ type LoginService struct {
 
 // LoginServiceOptions contains optional parameters for creating a LoginService
 type LoginServiceOptions struct {
-	PasswordPolicy *PasswordPolicy
+	PasswordManager *PasswordManager
 }
 
 func NewLoginService(
@@ -37,19 +37,13 @@ func NewLoginService(
 	delegatedUserMapper mapper.DelegatedUserMapper,
 	options *LoginServiceOptions,
 ) *LoginService {
-	// Use provided policy or default
-	var policy *PasswordPolicy
-	if options != nil && options.PasswordPolicy != nil {
-		policy = options.PasswordPolicy
+	var passwordManager *PasswordManager
+	// Use provided password manager if available
+	if options != nil && options.PasswordManager != nil {
+		passwordManager = options.PasswordManager
 	} else {
-		policy = DefaultPasswordPolicy()
+		passwordManager = NewPasswordManager(queries)
 	}
-
-	// Create the policy checker
-	policyChecker := NewDefaultPasswordPolicyChecker(policy, nil)
-
-	// Create password manager with the policy checker
-	passwordManager := NewPasswordManager(queries, policyChecker, CurrentPasswordVersion)
 
 	return &LoginService{
 		queries:             queries,
