@@ -18,7 +18,8 @@ import (
 // LoginEntity represents a user login record in the domain model
 type LoginEntity struct {
 	ID              uuid.UUID
-	Username        sql.NullString
+	Username        string
+	UsernameValid   bool
 	Password        []byte
 	PasswordVersion int32
 	CreatedAt       time.Time
@@ -34,14 +35,16 @@ type PasswordResetToken struct {
 // UserInfo represents user information with roles
 type UserInfo struct {
 	Email string
-	Name  sql.NullString
+	Name  string
+	NameValid bool
 	Roles []string
 }
 
 // UserWithRoles represents a user with their roles
 type UserWithRoles struct {
 	ID             uuid.UUID
-	Name           sql.NullString
+	Name           string
+	NameValid      bool
 	Email          string
 	CreatedAt      time.Time
 	LastModifiedAt time.Time
@@ -61,7 +64,8 @@ type PasswordHistoryEntry struct {
 type PasswordParams struct {
 	Password        []byte
 	ID              uuid.UUID
-	Username        sql.NullString
+	Username        string
+	UsernameValid   bool
 	PasswordVersion int32
 }
 
@@ -88,7 +92,7 @@ type PasswordToHistoryParams struct {
 // LoginRepository defines the interface for login-related database operations
 type LoginRepository interface {
 	// Login operations
-	FindLoginByUsername(ctx context.Context, username sql.NullString) (LoginEntity, error)
+	FindLoginByUsername(ctx context.Context, username string, usernameValid bool) (LoginEntity, error)
 	GetLoginById(ctx context.Context, id uuid.UUID) (LoginEntity, error)
 	GetLoginByUserId(ctx context.Context, id uuid.UUID) (LoginEntity, error)
 
@@ -104,17 +108,17 @@ type LoginRepository interface {
 	ValidatePasswordResetToken(ctx context.Context, token string) (PasswordResetToken, error)
 	MarkPasswordResetTokenUsed(ctx context.Context, token string) error
 	ExpirePasswordResetToken(ctx context.Context, loginID uuid.UUID) error
-	InitPasswordByUsername(ctx context.Context, username sql.NullString) (uuid.UUID, error)
+	InitPasswordByUsername(ctx context.Context, username string, usernameValid bool) (uuid.UUID, error)
 
 	// Password history operations
 	AddPasswordToHistory(ctx context.Context, arg PasswordToHistoryParams) error
 	GetPasswordHistory(ctx context.Context, arg PasswordHistoryParams) ([]PasswordHistoryEntry, error)
 
 	// User operations
-	FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]sql.NullString, error)
+	FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]string, error)
 	FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (UserInfo, error)
-	FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error)
-	GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) ([]UserWithRoles, error)
+	FindUsernameByEmail(ctx context.Context, email string) (string, bool, error)
+	GetUsersByLoginId(ctx context.Context, loginID uuid.UUID, loginIDValid bool) ([]UserWithRoles, error)
 
 	// Transaction support
 	WithTx(tx interface{}) LoginRepository
@@ -142,14 +146,16 @@ func NewPostgresLoginRepository(queries *logindb.Queries) *PostgresLoginReposito
 
 
 // FindLoginByUsername finds a login by username
-func (r *PostgresLoginRepository) FindLoginByUsername(ctx context.Context, username sql.NullString) (LoginEntity, error) {
-	dbLogin, err := r.queries.FindLoginByUsername(ctx, username)
+func (r *PostgresLoginRepository) FindLoginByUsername(ctx context.Context, username string, usernameValid bool) (LoginEntity, error) {
+	sqlUsername := sql.NullString{String: username, Valid: usernameValid}
+	dbLogin, err := r.queries.FindLoginByUsername(ctx, sqlUsername)
 	if err != nil {
 		return LoginEntity{}, err
 	}
 	return LoginEntity{
 		ID:              dbLogin.ID,
-		Username:        dbLogin.Username,
+		Username:        dbLogin.Username.String,
+		UsernameValid:   dbLogin.Username.Valid,
 		Password:        dbLogin.Password,
 		PasswordVersion: dbLogin.PasswordVersion.Int32,
 		CreatedAt:       dbLogin.CreatedAt,
@@ -165,7 +171,8 @@ func (r *PostgresLoginRepository) GetLoginById(ctx context.Context, id uuid.UUID
 	}
 	return LoginEntity{
 		ID:              dbLogin.LoginID,
-		Username:        dbLogin.Username,
+		Username:        dbLogin.Username.String,
+		UsernameValid:   dbLogin.Username.Valid,
 		Password:        dbLogin.Password,
 		PasswordVersion: 0, // Not returned by this query
 		CreatedAt:       dbLogin.CreatedAt,
@@ -181,7 +188,8 @@ func (r *PostgresLoginRepository) GetLoginByUserId(ctx context.Context, id uuid.
 	}
 	return LoginEntity{
 		ID:              dbLogin.LoginID,
-		Username:        dbLogin.Username,
+		Username:        dbLogin.Username.String,
+		UsernameValid:   dbLogin.Username.Valid,
 		Password:        dbLogin.Password,
 		PasswordVersion: 0, // Not returned by this query
 		CreatedAt:       dbLogin.CreatedAt,
@@ -199,7 +207,7 @@ func (r *PostgresLoginRepository) GetPasswordVersion(ctx context.Context, id uui
 func (r *PostgresLoginRepository) ResetPassword(ctx context.Context, arg PasswordParams) error {
 	dbArg := logindb.ResetPasswordParams{
 		Password: arg.Password,
-		Username: arg.Username,
+		Username: sql.NullString{String: arg.Username, Valid: arg.UsernameValid},
 	}
 	return r.queries.ResetPassword(ctx, dbArg)
 }
@@ -265,8 +273,8 @@ func (r *PostgresLoginRepository) ExpirePasswordResetToken(ctx context.Context, 
 }
 
 // InitPasswordByUsername initializes a password reset by username
-func (r *PostgresLoginRepository) InitPasswordByUsername(ctx context.Context, username sql.NullString) (uuid.UUID, error) {
-	return r.queries.InitPasswordByUsername(ctx, username)
+func (r *PostgresLoginRepository) InitPasswordByUsername(ctx context.Context, username string, usernameValid bool) (uuid.UUID, error) {
+	return r.queries.InitPasswordByUsername(ctx, sql.NullString{String: username, Valid: usernameValid})
 }
 
 // AddPasswordToHistory adds a password to the history
@@ -304,8 +312,20 @@ func (r *PostgresLoginRepository) GetPasswordHistory(ctx context.Context, arg Pa
 }
 
 // FindUserRolesByUserId finds user roles by user ID
-func (r *PostgresLoginRepository) FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]sql.NullString, error) {
-	return r.queries.FindUserRolesByUserId(ctx, userID)
+func (r *PostgresLoginRepository) FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	sqlRoles, err := r.queries.FindUserRolesByUserId(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	
+	roles := make([]string, 0, len(sqlRoles))
+	for _, role := range sqlRoles {
+		if role.Valid {
+			roles = append(roles, role.String)
+		}
+	}
+	
+	return roles, nil
 }
 
 // FindUserInfoWithRoles finds user info with roles
@@ -327,19 +347,24 @@ func (r *PostgresLoginRepository) FindUserInfoWithRoles(ctx context.Context, id 
 	
 	return UserInfo{
 		Email: dbUserInfo.Email,
-		Name:  dbUserInfo.Name,
+		Name:  dbUserInfo.Name.String,
+		NameValid: dbUserInfo.Name.Valid,
 		Roles: roles,
 	}, nil
 }
 
 // FindUsernameByEmail finds a username by email
-func (r *PostgresLoginRepository) FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error) {
-	return r.queries.FindUsernameByEmail(ctx, email)
+func (r *PostgresLoginRepository) FindUsernameByEmail(ctx context.Context, email string) (string, bool, error) {
+	sqlUsername, err := r.queries.FindUsernameByEmail(ctx, email)
+	if err != nil {
+		return "", false, err
+	}
+	return sqlUsername.String, sqlUsername.Valid, nil
 }
 
 // GetUsersByLoginId gets users by login ID
-func (r *PostgresLoginRepository) GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) ([]UserWithRoles, error) {
-	dbUsers, err := r.queries.GetUsersByLoginId(ctx, loginID)
+func (r *PostgresLoginRepository) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID, loginIDValid bool) ([]UserWithRoles, error) {
+	dbUsers, err := r.queries.GetUsersByLoginId(ctx, uuid.NullUUID{UUID: loginID, Valid: loginIDValid})
 	if err != nil {
 		return nil, err
 	}
@@ -358,7 +383,8 @@ func (r *PostgresLoginRepository) GetUsersByLoginId(ctx context.Context, loginID
 		
 		users[i] = UserWithRoles{
 			ID:             user.ID,
-			Name:           user.Name,
+			Name:           user.Name.String,
+			NameValid:      user.Name.Valid,
 			Email:          user.Email,
 			CreatedAt:      user.CreatedAt,
 			LastModifiedAt: user.LastModifiedAt,

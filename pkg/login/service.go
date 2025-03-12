@@ -2,7 +2,6 @@ package login
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -92,7 +91,9 @@ func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId uuid.
 
 func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.MappedUser, error) {
 	// Find user by username
-	loginUser, err := s.repository.FindLoginByUsername(ctx, utils.ToNullString(username))
+	usernameStr := username
+	usernameValid := username != ""
+	loginUser, err := s.repository.FindLoginByUsername(ctx, usernameStr, usernameValid)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return []mapper.MappedUser{}, fmt.Errorf("invalid username or password")
@@ -226,7 +227,7 @@ func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 	return nil
 }
 
-func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]sql.NullString, error) {
+func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]string, error) {
 	slog.Debug("FindUserRoles", "params", uuid)
 	roles, err := s.repository.FindUserRolesByUserId(ctx, uuid)
 	return roles, err
@@ -278,7 +279,8 @@ func (s LoginService) ChangePassword(ctx context.Context, userID, currentPasswor
 // InitPasswordReset generates a reset token and sends a reset email
 func (s *LoginService) InitPasswordReset(ctx context.Context, username string) error {
 	// Find user by username
-	loginUser, err := s.repository.FindLoginByUsername(ctx, utils.ToNullString(username))
+	usernameValid := username != ""
+	loginUser, err := s.repository.FindLoginByUsername(ctx, username, usernameValid)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			slog.Warn("User not found")
@@ -353,6 +355,6 @@ func (s *LoginService) GetPasswordManager() *PasswordManager {
 }
 
 // FindUsernameByEmail finds a username by email address
-func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error) {
+func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (string, bool, error) {
 	return s.repository.FindUsernameByEmail(ctx, email)
 }

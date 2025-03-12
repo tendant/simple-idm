@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/login"
@@ -82,7 +81,7 @@ func (s *LoginService) EmailVerify(ctx context.Context, email string) error {
 }
 
 // FindUserRoles finds roles for a user
-func (s *LoginService) FindUserRoles(ctx context.Context, userID uuid.UUID) ([]sql.NullString, error) {
+func (s *LoginService) FindUserRoles(ctx context.Context, userID uuid.UUID) ([]string, error) {
 	return s.domainService.FindUserRoles(ctx, userID)
 }
 
@@ -107,7 +106,7 @@ func (s *LoginService) SendUsernameEmail(ctx context.Context, email, username st
 }
 
 // FindUsernameByEmail finds a username by email address
-func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error) {
+func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (string, bool, error) {
 	return s.domainService.FindUsernameByEmail(ctx, email)
 }
 

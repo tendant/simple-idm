@@ -714,8 +714,8 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	if body.Email != "" {
-		username, err := h.loginService.FindUsernameByEmail(r.Context(), string(body.Email))
-		if err != nil {
+		username, valid, err := h.loginService.FindUsernameByEmail(r.Context(), string(body.Email))
+		if err != nil || !valid {
 			// Return 200 even if user not found to prevent email enumeration
 			slog.Info("Username not found for email", "email", body.Email)
 			return &Response{
@@ -728,7 +728,7 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 		}
 
 		// TODO: Send email with username
-		err = h.loginService.SendUsernameEmail(r.Context(), string(body.Email), username.String)
+		err = h.loginService.SendUsernameEmail(r.Context(), string(body.Email), username)
 		if err != nil {
 			slog.Error("Failed to send username email", "err", err, "email", body.Email)
 			// Still return 200 to prevent email enumeration
