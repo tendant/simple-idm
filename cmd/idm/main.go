@@ -9,6 +9,7 @@ import (
 	utils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
@@ -80,8 +81,8 @@ func main() {
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, nil)
 
-	loginHandler := login.NewHandle(loginService, *jwtService, login.WithTwoFactorService(twoFaService))
-	myApp.R.Mount("/auth", login.Handler(loginHandler))
+	loginHandler := api.NewHandle(loginService, *jwtService, api.WithTwoFactorService(twoFaService))
+	myApp.R.Mount("/auth", api.Handler(loginHandler))
 
 	myApp.Run()
 
