@@ -122,30 +122,38 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For development/testing purposes, we'll use a simulated user
-	// In production, you would implement proper authentication with the login API
+	// Validate user token
 	userClaims, err := h.ValidateUserToken(r)
 	var userID string
 	if err != nil {
 		slog.Warn("[WARNING] ValidateUserToken: ", "err", err)
-		// For testing, use a default user ID
-		userID = "user-123456"
-		slog.Info("[INFO] Using default user for testing", "userID", userID)
+		// Redirect to login page if not authenticated
+		slog.Info("[INFO] Redirecting to login page")
+		loginURL := fmt.Sprintf("/login?redirect=%s", url.QueryEscape(r.URL.String()))
+		http.Redirect(w, r, loginURL, http.StatusFound)
+		return
 	} else {
 		// Extract user ID from claims
 		if sub, ok := userClaims["sub"].(string); ok {
+			if sub == "" {
+				slog.Error("[ERROR] Empty subject claim in token")
+				http.Error(w, "Invalid token: empty subject", http.StatusUnauthorized)
+				return
+			}
 			userID = sub
+			slog.Info("[INFO] User is authenticated", "userID", userID)
 		} else {
-			userID = "user-123456"
+			slog.Error("[ERROR] Missing subject claim in token")
+			http.Error(w, "Invalid token: missing subject", http.StatusUnauthorized)
+			return
 		}
-		slog.Info("[INFO] User is authenticated", "userID", userID)
 	}
 
 	// Create a session for the user with claims and expiration times
 	session := &DefaultSession{
 		Subject: userID,
 		Extra: map[string]interface{}{
-			"name": "Test User",
+			"name":  "Test User",
 			"email": "test@example.com",
 		},
 		ExpiresAt: map[fosite.TokenType]time.Time{
@@ -213,7 +221,7 @@ func (h *Handle) ValidateUserToken(r *http.Request) (map[string]interface{}, err
 	}
 
 	slog.Info("[INFO] Validating token")
-	
+
 	// For development, we'll simulate a valid user token
 	// In production, use proper token validation
 	if h.JwtAuth != nil {
@@ -223,15 +231,15 @@ func (h *Handle) ValidateUserToken(r *http.Request) (map[string]interface{}, err
 			return nil, fmt.Errorf("invalid or expired token")
 		}
 	}
-	
+
 	// Return simulated claims for testing
 	claims := map[string]interface{}{
-		"sub": "user-123456",
+		"sub":      "user-123456",
 		"username": "testuser",
-		"name": "Test User",
-		"email": "test@example.com",
+		"name":     "Test User",
+		"email":    "test@example.com",
 	}
-	
+
 	slog.Info("[INFO] Token validation successful", "claims", claims)
 	return claims, nil
 }
