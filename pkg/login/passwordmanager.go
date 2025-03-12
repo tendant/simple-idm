@@ -28,9 +28,10 @@ func NewPasswordManager(queries *logindb.Queries) *PasswordManager {
 	// Create a repository that wraps the queries
 	repository := NewPostgresLoginRepository(queries)
 	return &PasswordManager{
-		repository:    repository,
-		policyChecker: NewDefaultPasswordPolicyChecker(nil, nil),
-		hasherFactory: NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
+		repository:     repository,
+		policyChecker:  NewDefaultPasswordPolicyChecker(nil, nil),
+		hasherFactory:  NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
+		currentVersion: CurrentPasswordVersion,
 	}
 }
 
