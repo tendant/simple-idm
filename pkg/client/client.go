@@ -64,8 +64,6 @@ func LoadFromMap[T any](m map[string]interface{}, c *T) error {
 	return err
 }
 
-
-
 func AuthUserMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract token and claims from context
@@ -137,24 +135,16 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// Verifier is a middleware that verifies JWT tokens from various sources
 func Verifier(ja *jwtauth.JWTAuth) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return jwtauth.Verify(ja, jwtauth.TokenFromHeader, func(r *http.Request) string {
-			cookie, err := r.Cookie(ACCESS_TOKEN_NAME)
-			if err != nil {
-				return ""
-			}
-			return cookie.Value
-		})(next)
+		return jwtauth.Verify(ja, jwtauth.TokenFromHeader, TokenFromCookie)(next)
 	}
 }
 
-// TokenFromCookie extracts a JWT token from a cookie
-func TokenFromCookie(r *http.Request, name string) (string, error) {
-	cookie, err := r.Cookie(name)
+func TokenFromCookie(r *http.Request) string {
+	cookie, err := r.Cookie(ACCESS_TOKEN_NAME)
 	if err != nil {
-		return "", err
+		return ""
 	}
-	return cookie.Value, nil
+	return cookie.Value
 }
