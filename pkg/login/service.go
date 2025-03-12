@@ -17,6 +17,7 @@ import (
 
 type LoginService struct {
 	repository          LoginRepository
+	userRepository      UserRepository
 	notificationManager *notification.NotificationManager
 	userMapper          mapper.UserMapper
 	delegatedUserMapper mapper.DelegatedUserMapper
@@ -30,6 +31,7 @@ type LoginServiceOptions struct {
 
 func NewLoginService(
 	repository LoginRepository,
+	userRepository UserRepository,
 	notificationManager *notification.NotificationManager,
 	userMapper mapper.UserMapper,
 	delegatedUserMapper mapper.DelegatedUserMapper,
@@ -46,6 +48,7 @@ func NewLoginService(
 
 	return &LoginService{
 		repository:          repository,
+		userRepository:      userRepository,
 		notificationManager: notificationManager,
 		userMapper:          userMapper,
 		delegatedUserMapper: delegatedUserMapper,
@@ -64,6 +67,7 @@ type LoginResponse struct {
 }
 
 func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.MappedUser, error) {
+	// Using the userMapper directly as it already implements the repository call internally
 	return s.userMapper.GetUsers(ctx, loginID)
 }
 
@@ -229,13 +233,13 @@ func (s LoginService) EmailVerify(ctx context.Context, param string) error {
 
 func (s LoginService) FindUserRoles(ctx context.Context, uuid uuid.UUID) ([]string, error) {
 	slog.Debug("FindUserRoles", "params", uuid)
-	roles, err := s.repository.FindUserRolesByUserId(ctx, uuid)
+	roles, err := s.userRepository.FindUserRolesByUserId(ctx, uuid)
 	return roles, err
 }
 
 func (s LoginService) GetMe(ctx context.Context, userUuid uuid.UUID) (UserInfo, error) {
 	slog.Debug("GetMe", "userUuid", userUuid)
-	userInfo, err := s.repository.FindUserInfoWithRoles(ctx, userUuid)
+	userInfo, err := s.userRepository.FindUserInfoWithRoles(ctx, userUuid)
 	if err != nil {
 		slog.Error("Failed getting userinfo with roles", "err", err)
 		return UserInfo{}, err
@@ -356,5 +360,5 @@ func (s *LoginService) GetPasswordManager() *PasswordManager {
 
 // FindUsernameByEmail finds a username by email address
 func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (string, bool, error) {
-	return s.repository.FindUsernameByEmail(ctx, email)
+	return s.userRepository.FindUsernameByEmail(ctx, email)
 }

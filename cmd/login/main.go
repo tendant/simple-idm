@@ -154,7 +154,8 @@ func main() {
 		PasswordManager: passwordManager,
 	}
 	loginRepository := login.NewPostgresLoginRepository(loginQueries)
-	loginService := login.NewLoginService(loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
+	// Use the same repository instance for both LoginRepository and UserRepository interfaces
+	loginService := login.NewLoginService(loginRepository, loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
 
 	// jwt service
 	jwtService := auth.NewJwtServiceOptions(

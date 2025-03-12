@@ -89,6 +89,15 @@ type PasswordToHistoryParams struct {
 	PasswordVersion int32
 }
 
+// UserRepository defines the interface for user-related database operations
+type UserRepository interface {
+	// User operations
+	FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]string, error)
+	FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (UserInfo, error)
+	FindUsernameByEmail(ctx context.Context, email string) (string, bool, error)
+	GetUsersByLoginId(ctx context.Context, loginID uuid.UUID, loginIDValid bool) ([]UserWithRoles, error)
+}
+
 // LoginRepository defines the interface for login-related database operations
 type LoginRepository interface {
 	// Login operations
@@ -114,17 +123,11 @@ type LoginRepository interface {
 	AddPasswordToHistory(ctx context.Context, arg PasswordToHistoryParams) error
 	GetPasswordHistory(ctx context.Context, arg PasswordHistoryParams) ([]PasswordHistoryEntry, error)
 
-	// User operations
-	FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]string, error)
-	FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (UserInfo, error)
-	FindUsernameByEmail(ctx context.Context, email string) (string, bool, error)
-	GetUsersByLoginId(ctx context.Context, loginID uuid.UUID, loginIDValid bool) ([]UserWithRoles, error)
-
 	// Transaction support
 	WithTx(tx interface{}) LoginRepository
 }
 
-// PostgresLoginRepository implements LoginRepository using PostgreSQL
+// PostgresLoginRepository implements LoginRepository and UserRepository using PostgreSQL
 type PostgresLoginRepository struct {
 	queries *logindb.Queries
 }
@@ -133,6 +136,7 @@ type PostgresLoginRepository struct {
 // while hiding the pgx implementation details
 type PostgresLoginRepositoryAdapter interface {
 	LoginRepository
+	UserRepository
 	WithPgxTx(tx pgx.Tx) LoginRepository
 }
 
