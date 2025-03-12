@@ -636,14 +636,15 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// FIXME:hash/encode data.password, then write to database
-	registerParam := RegisterParam{
+	// Convert to domain RegisterParam type
+	registerParam := login.RegisterParam{
 		Email:    data.Email,
 		Name:     data.Name,
 		Password: data.Password,
 	}
 
-	err = h.loginService.Create(r.Context(), registerParam)
+	// Domain service returns user and error
+	_, err = h.loginService.Create(r.Context(), registerParam)
 	if err != nil {
 		slog.Error("Failed to register user", "email", registerParam.Email, "err", err)
 		return &Response{

@@ -167,10 +167,8 @@ func main() {
 	// authQueries := authDb.New(pool)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager)
-	// Create a login service adapter
-	loginServiceAdapter := api.NewLoginService(loginService)
-	// Create a new handle with the adapter
-	loginHandle := api.NewHandle(loginServiceAdapter, *jwtService, api.WithTwoFactorService(twoFaService))
+	// Create a new handle with the domain login service directly
+	loginHandle := api.NewHandle(loginService, *jwtService, api.WithTwoFactorService(twoFaService))
 
 	// authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
