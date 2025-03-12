@@ -22,6 +22,67 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Config holds all configuration options for the OIDC provider
+type Config struct {
+	// PrivateKeyPath is the path to the RSA private key used for signing ID tokens
+	PrivateKeyPath string
+
+	// ClientID is the OAuth2 client ID
+	ClientID string
+
+	// ClientSecret is the OAuth2 client secret
+	ClientSecret string
+
+	// RedirectURIs is a list of allowed redirect URIs for the client
+	RedirectURIs []string
+
+	// ResponseTypes is a list of allowed response types for the client
+	ResponseTypes []string
+
+	// GrantTypes is a list of allowed grant types for the client
+	GrantTypes []string
+
+	// Scopes is a list of allowed scopes for the client
+	Scopes []string
+
+	// AccessTokenLifespan is the lifespan of access tokens
+	AccessTokenLifespan time.Duration
+
+	// AuthorizeCodeLifespan is the lifespan of authorization codes
+	AuthorizeCodeLifespan time.Duration
+
+	// IDTokenLifespan is the lifespan of ID tokens
+	IDTokenLifespan time.Duration
+
+	// GlobalSecret is the secret used for signing tokens
+	GlobalSecret string
+
+	// SendDebugMessagesToClients indicates whether to send debug messages to clients
+	SendDebugMessagesToClients bool
+
+	// AllowedPromptValues is a list of allowed prompt values
+	AllowedPromptValues []string
+}
+
+// DefaultConfig returns a default configuration
+func DefaultConfig() *Config {
+	return &Config{
+		PrivateKeyPath:            "../../pkg/oidc/sample/keys/private.pem",
+		ClientID:                  "myclient",
+		ClientSecret:              "mysecret",
+		RedirectURIs:              []string{"http://localhost:3000/oauth2/callback"},
+		ResponseTypes:             []string{"code", "token", "id_token"},
+		GrantTypes:                []string{"authorization_code", "implicit", "refresh_token"},
+		Scopes:                    []string{"openid", "profile", "email"},
+		AccessTokenLifespan:       time.Hour,
+		AuthorizeCodeLifespan:     time.Minute * 10,
+		IDTokenLifespan:           time.Hour,
+		GlobalSecret:              "some-very-long-secret-at-least-32-characters",
+		SendDebugMessagesToClients: true,
+		AllowedPromptValues:       []string{"login", "none", "consent", "select_account"},
+	}
+}
+
 type Handle struct {
 	// JWT Auth for validating user login tokens
 	JwtAuth *jwtauth.JWTAuth
@@ -31,10 +92,13 @@ type Handle struct {
 
 	// RSA Private Key for signing ID tokens
 	PrivateKey *rsa.PrivateKey
+
+	// Configuration for the OIDC provider
+	Config *Config
 }
 
-func loadPrivateKey() (*rsa.PrivateKey, error) {
-	keyData, err := os.ReadFile("../../pkg/oidc/sample/keys/private.pem")
+func loadPrivateKey(keyPath string) (*rsa.PrivateKey, error) {
+	keyData, err := os.ReadFile(keyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -65,49 +129,56 @@ func loadPrivateKey() (*rsa.PrivateKey, error) {
 	return rsaKey, nil
 }
 
+// NewHandle creates a new Handle with default configuration
 func NewHandle(jwtAuth *jwtauth.JWTAuth) *Handle {
+	return NewHandleWithConfig(jwtAuth, DefaultConfig())
+}
+
+// NewHandleWithConfig creates a new Handle with the provided configuration
+func NewHandleWithConfig(jwtAuth *jwtauth.JWTAuth, config *Config) *Handle {
 	// Generate RSA Key for signing ID Tokens
-	privateKey, err := loadPrivateKey()
+	privateKey, err := loadPrivateKey(config.PrivateKeyPath)
 	if err != nil {
-		slog.Error("Could not load RSA Private Key:", "err", err)
+		slog.Error("Could not load RSA Private Key:", "err", err, "path", config.PrivateKeyPath)
 	}
 
 	// In-memory OAuth2 storage (Replace with a database in production)
 	store := storage.NewExampleStore()
 
 	// Hash the client secret using bcrypt
-	hashedSecret, err := bcrypt.GenerateFromPassword([]byte("mysecret"), bcrypt.DefaultCost)
+	hashedSecret, err := bcrypt.GenerateFromPassword([]byte(config.ClientSecret), bcrypt.DefaultCost)
 	if err != nil {
 		slog.Error("Could not hash client secret:", "err", err)
 	}
 
 	// Register a client with a bcrypt hashed secret
-	store.Clients["myclient"] = &fosite.DefaultClient{
-		ID:            "myclient",
+	store.Clients[config.ClientID] = &fosite.DefaultClient{
+		ID:            config.ClientID,
 		Secret:        hashedSecret, // Bcrypt hashed secret
-		RedirectURIs:  []string{"http://localhost:3000/oauth2/callback"},
-		ResponseTypes: []string{"code", "token", "id_token"},
-		GrantTypes:    []string{"authorization_code", "implicit", "refresh_token"},
-		Scopes:        []string{"openid", "profile", "email"},
+		RedirectURIs:  config.RedirectURIs,
+		ResponseTypes: config.ResponseTypes,
+		GrantTypes:    config.GrantTypes,
+		Scopes:        config.Scopes,
 	}
 
 	// Fosite Config
-	config := &fosite.Config{
-		AccessTokenLifespan:        time.Hour,
-		AuthorizeCodeLifespan:      time.Minute * 10,
-		IDTokenLifespan:            time.Hour,
-		GlobalSecret:               []byte("some-very-long-secret-at-least-32-characters"),
-		SendDebugMessagesToClients: true, // Helpful for debugging
-		AllowedPromptValues:        []string{"login", "none", "consent", "select_account"},
+	fositeConfig := &fosite.Config{
+		AccessTokenLifespan:        config.AccessTokenLifespan,
+		AuthorizeCodeLifespan:      config.AuthorizeCodeLifespan,
+		IDTokenLifespan:            config.IDTokenLifespan,
+		GlobalSecret:               []byte(config.GlobalSecret),
+		SendDebugMessagesToClients: config.SendDebugMessagesToClients,
+		AllowedPromptValues:        config.AllowedPromptValues,
 	}
 
 	// Create a provider with all enabled handlers
-	oauth2Provider := compose.ComposeAllEnabled(config, store, privateKey)
+	oauth2Provider := compose.ComposeAllEnabled(fositeConfig, store, privateKey)
 
 	return &Handle{
 		OAuth2Provider: oauth2Provider,
 		PrivateKey:     privateKey,
 		JwtAuth:        jwtAuth,
+		Config:         config,
 	}
 }
 
