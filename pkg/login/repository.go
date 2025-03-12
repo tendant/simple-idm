@@ -3,10 +3,11 @@ package login
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"reflect"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 )
 
@@ -16,31 +17,31 @@ type LoginRepository interface {
 	FindLoginByUsername(ctx context.Context, username sql.NullString) (logindb.FindLoginByUsernameRow, error)
 	GetLoginById(ctx context.Context, id uuid.UUID) (logindb.GetLoginByIdRow, error)
 	GetLoginByUserId(ctx context.Context, id uuid.UUID) (logindb.GetLoginByUserIdRow, error)
-	
+
 	// Password operations
-	GetPasswordVersion(ctx context.Context, id uuid.UUID) (pgtype.Int4, error)
+	GetPasswordVersion(ctx context.Context, id uuid.UUID) (int32, bool, error)
 	ResetPassword(ctx context.Context, arg logindb.ResetPasswordParams) error
 	ResetPasswordById(ctx context.Context, arg logindb.ResetPasswordByIdParams) error
 	UpdateUserPassword(ctx context.Context, arg logindb.UpdateUserPasswordParams) error
 	UpdateUserPasswordAndVersion(ctx context.Context, arg logindb.UpdateUserPasswordAndVersionParams) error
-	
+
 	// Password reset token operations
 	InitPasswordResetToken(ctx context.Context, arg logindb.InitPasswordResetTokenParams) error
 	ValidatePasswordResetToken(ctx context.Context, token string) (logindb.ValidatePasswordResetTokenRow, error)
 	MarkPasswordResetTokenUsed(ctx context.Context, token string) error
 	ExpirePasswordResetToken(ctx context.Context, loginID uuid.UUID) error
 	InitPasswordByUsername(ctx context.Context, username sql.NullString) (uuid.UUID, error)
-	
+
 	// Password history operations
 	AddPasswordToHistory(ctx context.Context, arg logindb.AddPasswordToHistoryParams) error
 	GetPasswordHistory(ctx context.Context, arg logindb.GetPasswordHistoryParams) ([]logindb.GetPasswordHistoryRow, error)
-	
+
 	// User operations
 	FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]sql.NullString, error)
 	FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (logindb.FindUserInfoWithRolesRow, error)
 	FindUsernameByEmail(ctx context.Context, email string) (sql.NullString, error)
 	GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) ([]logindb.GetUsersByLoginIdRow, error)
-	
+
 	// Transaction support
 	WithTx(tx interface{}) LoginRepository
 }
@@ -48,6 +49,13 @@ type LoginRepository interface {
 // PostgresLoginRepository implements LoginRepository using PostgreSQL
 type PostgresLoginRepository struct {
 	queries *logindb.Queries
+}
+
+// PostgresLoginRepositoryAdapter adapts the PostgresLoginRepository to the LoginRepository interface
+// while hiding the pgx implementation details
+type PostgresLoginRepositoryAdapter interface {
+	LoginRepository
+	WithPgxTx(tx pgx.Tx) LoginRepository
 }
 
 // NewPostgresLoginRepository creates a new PostgreSQL-based login repository
@@ -73,8 +81,9 @@ func (r *PostgresLoginRepository) GetLoginByUserId(ctx context.Context, id uuid.
 }
 
 // GetPasswordVersion gets the password version for a login
-func (r *PostgresLoginRepository) GetPasswordVersion(ctx context.Context, id uuid.UUID) (pgtype.Int4, error) {
-	return r.queries.GetPasswordVersion(ctx, id)
+func (r *PostgresLoginRepository) GetPasswordVersion(ctx context.Context, id uuid.UUID) (int32, bool, error) {
+	version, err := r.queries.GetPasswordVersion(ctx, id)
+	return version.Int32, version.Valid, err
 }
 
 // ResetPassword resets a password by username
@@ -154,10 +163,28 @@ func (r *PostgresLoginRepository) GetUsersByLoginId(ctx context.Context, loginID
 
 // WithTx returns a new repository with the given transaction
 func (r *PostgresLoginRepository) WithTx(tx interface{}) LoginRepository {
-	if pgxTx, ok := tx.(pgx.Tx); ok {
-		return &PostgresLoginRepository{
-			queries: r.queries.WithTx(pgxTx),
-		}
+	// Check if the transaction is nil
+	if tx == nil {
+		return r
 	}
-	return r
+
+	// Try to convert the interface to a pgx.Tx
+	pgxTx, ok := tx.(pgx.Tx)
+	if !ok {
+		// If it's not a pgx.Tx, log a warning and return the original repository
+		fmt.Printf("Warning: Unsupported transaction type: %v\n", reflect.TypeOf(tx))
+		return r
+	}
+
+	// Use the pgx.Tx with the queries
+	return &PostgresLoginRepository{
+		queries: r.queries.WithTx(pgxTx),
+	}
+}
+
+// WithPgxTx returns a new repository with the given pgx transaction
+func (r *PostgresLoginRepository) WithPgxTx(tx pgx.Tx) LoginRepository {
+	return &PostgresLoginRepository{
+		queries: r.queries.WithTx(tx),
+	}
 }

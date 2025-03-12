@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/notice"
@@ -74,11 +73,11 @@ func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) 
 func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId uuid.UUID, password, hashedPassword string) (bool, error) {
 	// Get the password version
 	parsedLoginId := loginId
-	passwordVersion, err := s.repository.GetPasswordVersion(ctx, parsedLoginId)
-	if err != nil {
-		// If there's an error getting the version, assume version 1
+	version, isValid, err := s.repository.GetPasswordVersion(ctx, parsedLoginId)
+	if err != nil || !isValid {
+		// If there's an error getting the version or it's not valid, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
-		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
+		version = 1
 	}
 
 	// Verify password and upgrade if needed
@@ -87,7 +86,7 @@ func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId uuid.
 		loginId,
 		password,
 		hashedPassword,
-		PasswordVersion(passwordVersion.Int32),
+		PasswordVersion(version),
 	)
 }
 

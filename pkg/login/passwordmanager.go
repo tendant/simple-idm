@@ -181,15 +181,15 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, userID, new
 	}
 
 	// Get the current password version
-	passwordVersion, err := pm.repository.GetPasswordVersion(ctx, login.LoginID)
-	if err != nil {
-		// If there's an error getting the version, assume version 1
+	version, isValid, err := pm.repository.GetPasswordVersion(ctx, login.LoginID)
+	if err != nil || !isValid {
+		// If there's an error getting the version or it's not valid, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
-		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
+		version = 1
 	}
 
 	// Check if the new password matches the current password
-	match, err := pm.VerifyPasswordWithVersion(newPassword, string(login.Password), PasswordVersion(passwordVersion.Int32))
+	match, err := pm.VerifyPasswordWithVersion(newPassword, string(login.Password), PasswordVersion(version))
 	if err != nil {
 		return fmt.Errorf("error checking against current password: %w", err)
 	}
@@ -301,10 +301,10 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 		}
 
 		// Store the old password in history
-		passwordVersion, err := pm.repository.GetPasswordVersion(ctx, tokenInfo.LoginID)
-		if err == nil {
+		version, isValid, err := pm.repository.GetPasswordVersion(ctx, tokenInfo.LoginID)
+		if err == nil && isValid {
 			// Only add to history if we could get the version
-			err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID, string(login.Password), PasswordVersion(passwordVersion.Int32))
+			err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID, string(login.Password), PasswordVersion(version))
 			if err != nil {
 				// Log but continue
 				slog.Error("Failed to add password to history", "error", err)
@@ -356,17 +356,17 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, userID, currentPa
 	slog.Info("User found", "user", login.Username)
 
 	// Get the password version
-	passwordVersion, err := pm.repository.GetPasswordVersion(ctx, login.LoginID)
-	if err != nil {
-		// If there's an error getting the version, assume version 1
+	version, isValid, err := pm.repository.GetPasswordVersion(ctx, login.LoginID)
+	if err != nil || !isValid {
+		// If there's an error getting the version or it's not valid, assume version 1
 		slog.Warn("Could not get password version, assuming version 1", "error", err)
-		passwordVersion = pgtype.Int4{Int32: 1, Valid: true}
+		version = 1
 	}
 
-	slog.Info("Password version", "version", passwordVersion.Int32)
+	slog.Info("Password version", "version", version)
 
 	// Verify the current password
-	match, err := pm.VerifyPasswordWithVersion(currentPassword, string(login.Password), PasswordVersion(passwordVersion.Int32))
+	match, err := pm.VerifyPasswordWithVersion(currentPassword, string(login.Password), PasswordVersion(version))
 	if err != nil {
 		return err
 	}
