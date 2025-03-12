@@ -218,8 +218,9 @@ func main() {
 		userHandle := iamapi.NewHandle(iamService)
 		r.Mount("/idm/users", iamapi.SecureHandler(userHandle))
 
-		// Initialize role service and routes
-		roleService := role.NewRoleService(roleQueries)
+		// Initialize role repository and service
+		roleRepo := role.NewPostgresRoleRepository(roleQueries)
+		roleService := role.NewRoleService(roleRepo)
 		roleHandle := roleapi.NewHandle(roleService)
 
 		// Create a secure handler for roles that uses the IAM admin middleware
