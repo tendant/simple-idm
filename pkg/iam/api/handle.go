@@ -60,9 +60,9 @@ func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 
 	for _, user := range users {
 		idStr := user.ID.String()
-		namePtr := &user.Name.String
-		if !user.Name.Valid {
-			namePtr = nil
+		var namePtr *string
+		if user.Name != "" {
+			namePtr = &user.Name
 		}
 
 		// Handle roles
@@ -71,9 +71,16 @@ func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 			ID   *string `json:"id,omitempty"`
 		}
 		if len(user.Roles) > 0 {
-			err := json.Unmarshal(user.Roles, &roles)
-			if err != nil {
-				slog.Error("Failed to unmarshal roles", "err", err)
+			for _, role := range user.Roles {
+				idStr := role.ID.String()
+				nameStr := role.Name
+				roles = append(roles, struct {
+					Name *string `json:"name,omitempty"`
+					ID   *string `json:"id,omitempty"`
+				}{
+					Name: &nameStr,
+					ID:   &idStr,
+				})
 			}
 		}
 
@@ -89,11 +96,11 @@ func (h Handle) Get(w http.ResponseWriter, r *http.Request) *Response {
 			LoginID string  `json:"login_id,omitempty"`
 		}{
 			Email:    &user.Email,
-			Username: &user.Username.String,
+			Username: &user.Username,
 			Name:     namePtr,
 			Roles:    roles,
 			ID:       &idStr,
-			LoginID:  user.LoginID.UUID.String(),
+			LoginID:  user.LoginID.String(),
 		})
 	}
 
@@ -134,9 +141,9 @@ func (h Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	idStr := user.ID.String()
-	namePtr := &user.Name.String
-	if !user.Name.Valid {
-		namePtr = nil
+	var namePtr *string
+	if user.Name != "" {
+		namePtr = &user.Name
 	}
 	// Username field removed as it doesn't exist in the struct
 	// usernamePtr := &user.Username.String
@@ -160,16 +167,20 @@ func (h Handle) Post(w http.ResponseWriter, r *http.Request) *Response {
 		ID:   &idStr,
 	}
 
-	// Unmarshal roles from []byte
+	// Convert roles from domain model to response format
 	var roles []struct {
 		Name *string `json:"name,omitempty"`
 		ID   *string `json:"id,omitempty"`
 	}
-	if err := json.Unmarshal(user.Roles, &roles); err != nil {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: map[string]string{"error": "Failed to unmarshal roles"},
-		}
+	for _, role := range user.Roles {
+		idStr := role.ID.String()
+		roles = append(roles, struct {
+			Name *string `json:"name,omitempty"`
+			ID   *string `json:"id,omitempty"`
+		}{
+			Name: &role.Name,
+			ID:   &idStr,
+		})
 	}
 	response.Roles = roles
 
@@ -199,9 +210,9 @@ func (h Handle) GetID(w http.ResponseWriter, r *http.Request, id string) *Respon
 	}
 
 	idStr := user.ID.String()
-	namePtr := &user.Name.String
-	if !user.Name.Valid {
-		namePtr = nil
+	var namePtr *string
+	if user.Name != "" {
+		namePtr = &user.Name
 	}
 	// Username field removed as it doesn't exist in the struct
 	// usernamePtr := &user.Username.String
@@ -220,22 +231,26 @@ func (h Handle) GetID(w http.ResponseWriter, r *http.Request, id string) *Respon
 		LoginID string  `json:"login_id,omitempty"`
 	}{
 		Email:    &user.Email,
-		Username: &user.Username.String,
+		Username: &user.Username,
 		Name:     namePtr,
 		ID:       &idStr,
-		LoginID:  user.LoginID.UUID.String(),
+		LoginID:  user.LoginID.String(),
 	}
 
-	// Unmarshal roles from []byte
+	// Convert roles from domain model to response format
 	var roles []struct {
 		Name *string `json:"name,omitempty"`
 		ID   *string `json:"id,omitempty"`
 	}
-	if err := json.Unmarshal(user.Roles, &roles); err != nil {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: map[string]string{"error": "Failed to unmarshal roles"},
-		}
+	for _, role := range user.Roles {
+		idStr := role.ID.String()
+		roles = append(roles, struct {
+			Name *string `json:"name,omitempty"`
+			ID   *string `json:"id,omitempty"`
+		}{
+			Name: &role.Name,
+			ID:   &idStr,
+		})
 	}
 	responseUser.Roles = roles
 
@@ -291,9 +306,9 @@ func (h Handle) PutID(w http.ResponseWriter, r *http.Request, id string) *Respon
 	}
 
 	idStrPtr := user.ID.String()
-	namePtr := &user.Name.String
-	if !user.Name.Valid {
-		namePtr = nil
+	var namePtr *string
+	if user.Name != "" {
+		namePtr = &user.Name
 	}
 	// Username field removed as it doesn't exist in the struct
 	// usernamePtr := &user.Username.String
@@ -316,16 +331,20 @@ func (h Handle) PutID(w http.ResponseWriter, r *http.Request, id string) *Respon
 		ID:   &idStrPtr,
 	}
 
-	// Unmarshal roles from []byte
+	// Convert roles from domain model to response format
 	var roles []struct {
 		Name *string `json:"name,omitempty"`
 		ID   *string `json:"id,omitempty"`
 	}
-	if err := json.Unmarshal(user.Roles, &roles); err != nil {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: map[string]string{"error": "Failed to unmarshal roles"},
-		}
+	for _, role := range user.Roles {
+		idStr := role.ID.String()
+		roles = append(roles, struct {
+			Name *string `json:"name,omitempty"`
+			ID   *string `json:"id,omitempty"`
+		}{
+			Name: &role.Name,
+			ID:   &idStr,
+		})
 	}
 	responseUser.Roles = roles
 

@@ -15,11 +15,12 @@ import (
 	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/iam"
+	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/impersonate"
 	"github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 	"github.com/tendant/simple-idm/pkg/login"
-	"github.com/tendant/simple-idm/pkg/login/api"
+	loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/logins"
 	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
@@ -169,11 +170,11 @@ func main() {
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager)
 	// Create a new handle with the domain login service directly
-	loginHandle := api.NewHandle(loginService, *jwtService, api.WithTwoFactorService(twoFaService))
+	loginHandle := loginapi.NewHandle(loginService, *jwtService, loginapi.WithTwoFactorService(twoFaService))
 
 	// authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
-	server.R.Mount("/auth", api.Handler(loginHandle))
+	server.R.Mount("/auth", loginapi.Handler(loginHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
@@ -211,8 +212,8 @@ func main() {
 		// Initialize IAM repository and service
 		iamRepo := iam.NewPostgresIamRepository(iamQueries)
 		iamService := iam.NewIamService(iamRepo)
-		userHandle := iam.NewHandle(iamService)
-		r.Mount("/idm/users", iam.SecureHandler(userHandle))
+		userHandle := iamapi.NewHandle(iamService)
+		r.Mount("/idm/users", iamapi.SecureHandler(userHandle))
 
 		// Initialize role service and routes
 		roleService := role.NewRoleService(roleQueries)
@@ -221,7 +222,7 @@ func main() {
 		// Create a secure handler for roles that uses the IAM admin middleware
 		roleRouter := chi.NewRouter()
 		roleRouter.Group(func(r chi.Router) {
-			r.Use(iam.AdminRoleMiddleware)
+			r.Use(client.AdminRoleMiddleware)
 			r.Mount("/", role.Handler(roleHandle))
 		})
 		r.Mount("/idm/roles", roleRouter)
@@ -235,7 +236,7 @@ func main() {
 		loginsHandle := logins.NewHandle(loginsService, twoFaService)
 		loginsRouter := chi.NewRouter()
 		loginsRouter.Group(func(r chi.Router) {
-			r.Use(iam.AdminRoleMiddleware)
+			r.Use(client.AdminRoleMiddleware)
 			r.Mount("/", logins.Handler(loginsHandle))
 		})
 		r.Mount("/idm/logins", loginsRouter)
