@@ -10,7 +10,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/auth"
-	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/twofa"
@@ -429,17 +428,50 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 // Get a list of users associated with the current login
 // (GET /users)
 func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response {
-	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
-	if !ok {
-		slog.Error("Failed getting AuthUser", "ok", ok)
+	// Get bearer token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
 		return &Response{
-			body: http.StatusText(http.StatusUnauthorized),
 			Code: http.StatusUnauthorized,
+			body: "Missing or invalid Authorization header",
+		}
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// Parse and validate token
+	token, err := h.jwtService.ParseTokenStr(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
 		}
 	}
 
-	// Get user UUID from context (assuming it's set by auth middleware)
-	loginIdStr := authUser.LoginId
+	// Get claims from token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid token claims",
+		}
+	}
+
+	// Extract login_id from custom_claims
+	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid custom claims format",
+		}
+	}
+
+	loginIdStr, ok := customClaims["login_id"].(string)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Missing or invalid login_id in token",
+		}
+	}
 
 	loginId, err := uuid.Parse(loginIdStr)
 	if err != nil {
