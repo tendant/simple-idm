@@ -20,7 +20,7 @@ import (
 
 type TwoFactorService interface {
 	GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) (string, error)
-	SendTwoFaNotification(ctx context.Context, loginId uuid.UUID, twoFactorType, hashedDeliveryOption string) error
+	SendTwoFaNotification(ctx context.Context, loginId, userId uuid.UUID, twoFactorType, hashedDeliveryOption string) error
 	FindTwoFAsByLoginId(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error)
 	FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]string, error)
 	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
