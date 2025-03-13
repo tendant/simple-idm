@@ -26,7 +26,7 @@ type TwoFactorService interface {
 	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
 	DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error
-	SendTwofaPasscodeEmail(ctx context.Context, email, passcode string) error
+	SendTwofaPasscodeEmail(ctx context.Context, email, passcode string, userId uuid.UUID) error
 	Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error)
 }
 
@@ -95,7 +95,7 @@ func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid
 }
 
 // InitTwoFa generate a two factor passcode and send a notification email
-func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId uuid.UUID, twoFactorType, hashedDeliveryOption string) error {
+func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId, userId uuid.UUID, twoFactorType, hashedDeliveryOption string) error {
 	// get or create the 2fa secret for the login
 	secret, err := s.GetTwoFactorSecretByLoginId(ctx, loginId, twoFactorType)
 	if err != nil {
@@ -119,7 +119,7 @@ func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId uuid.UU
 	}
 
 	// send the passcode by email
-	err = s.SendTwofaPasscodeEmail(ctx, emailToUse, passcode)
+	err = s.SendTwofaPasscodeEmail(ctx, emailToUse, passcode, userId)
 	if err != nil {
 		return fmt.Errorf("failed to send 2FA passcode: %w", err)
 	}
@@ -286,7 +286,8 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 	return nil
 }
 
-func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcode string) error {
+func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcode string, userId uuid.UUID) error {
+	// TODO: use userId to send email to users
 	data := map[string]string{
 		"TwofaPasscode": passcode,
 	}
