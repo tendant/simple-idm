@@ -149,7 +149,7 @@ func TestInitTwoFa(t *testing.T) {
 	queries := twofadb.New(dbPool)
 	service := NewTwoFaService(queries, notificationManager)
 
-	err = service.SendTwoFaNotification(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email", "admin@example.com")
+	err = service.SendTwoFaNotification(context.Background(), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), uuid.MustParse("cf9eca06-ecd3-4fd8-a291-a78d4f340ce8"), "email", "admin@example.com")
 	require.NoError(t, err)
 }
 
