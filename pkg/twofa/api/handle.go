@@ -144,7 +144,15 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	err = h.twoFaService.SendTwoFaNotification(r.Context(), loginId, data.TwofaType, data.DeliveryOption)
+	userId, err := uuid.Parse(data.UserID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid user_id format",
+		}
+	}
+
+	err = h.twoFaService.SendTwoFaNotification(r.Context(), loginId, userId, data.TwofaType, data.DeliveryOption)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
