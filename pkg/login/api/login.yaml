@@ -397,14 +397,27 @@ components:
           type: string
         email:
           type: string
-        twoFactorEnabled:
-          type: boolean
-          description: Whether 2FA is enabled for this user
+        tenant_uuid:
+          type: string
+          format: uuid
+        dept_uuid:
+          type: string
+          format: uuid
+        tenant_name:
+          type: string
+        dept_name:
+          type: string
+        role:
+          type: string
       required:
         - id
         - name
         - email
-        - twoFactorEnabled
+        - tenant_uuid
+        - dept_uuid
+        - tenant_name
+        - dept_name
+        - role
     PasswordReset:
       type: object
       x-go-optional-value: true
