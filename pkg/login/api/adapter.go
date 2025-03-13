@@ -7,6 +7,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/twofa"
+	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 // LoginService is an adapter for the domain login service
@@ -132,8 +133,8 @@ func getUniqueEmailsFromUsers(mappedUsers []mapper.MappedUser) []DeliveryOption 
 		if ok && email != "" && !emailMap[email] {
 			emailMap[email] = true
 			deliveryOptions = append(deliveryOptions, DeliveryOption{
-				DisplayValue: email,
-				HashedValue:  email, // In a real implementation, this would be hashed
+				DisplayValue: utils.MaskEmail(email),
+				HashedValue:  utils.HashEmail(email),
 			})
 		}
 	}
