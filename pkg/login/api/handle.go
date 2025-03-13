@@ -95,17 +95,10 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		email, _ := mu.ExtraClaims["email"].(string)
 		name := mu.DisplayName
 
-		// Check if 2FA is enabled
-		twoFactorEnabled := false
-		if enabled, ok := mu.ExtraClaims["two_factor_enabled"].(bool); ok {
-			twoFactorEnabled = enabled
-		}
-
 		apiUsers[i] = User{
-			ID:               mu.UserId,
-			Name:             name,
-			Email:            email,
-			TwoFactorEnabled: twoFactorEnabled,
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
 		}
 	}
 
@@ -432,6 +425,88 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 }
 
+// Get a list of users associated with the current login
+// (GET /users)
+func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response {
+	// Get bearer token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Missing or invalid Authorization header",
+		}
+	}
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// Parse and validate token
+	token, err := h.jwtService.ParseTokenStr(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
+		}
+	}
+
+	// Get claims from token
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid token claims",
+		}
+	}
+
+	// Extract login_id from custom_claims
+	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid custom claims format",
+		}
+	}
+
+	loginIdStr, ok := customClaims["login_id"].(string)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Missing or invalid login_id in token",
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
+	if err != nil {
+		slog.Error("Failed to get users by login ID", "err", err)
+		return &Response{
+			body: "Failed to get users by login ID",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	var res []User
+	for _, user := range users {
+		res = append(res, User{
+			DeptName:   user.DeptName,
+			DeptUUID:   user.DeptUuid.String(),
+			TenantName: user.TenantName,
+			TenantUUID: user.TenantUuid.String(),
+			ID:         user.UserId,
+			Name:       user.DisplayName,
+			Role:       user.Role,
+			Email:      user.Email,
+		})
+	}
+
+	return FindUsersWithLoginJSON200Response(res)
+}
+
 // PostMobileLogin handles mobile login requests
 // (POST /mobile/login)
 func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response {
@@ -556,10 +631,9 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
-			ID:               mu.UserId,
-			Name:             name,
-			Email:            email,
-			TwoFactorEnabled: false, // TODO: Add 2FA support
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
 		}
 	}
 
@@ -788,10 +862,9 @@ func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response 
 			Message: "2FA verification successful",
 			Status:  "success",
 			User: User{
-				Email:            "user@example.com",
-				Name:             "User Name",
-				TwoFactorEnabled: true,
-				ID:               "user-uuid",
+				Email: "user@example.com",
+				Name:  "User Name",
+				ID:    "user-uuid",
 			},
 		},
 		Code: http.StatusOK,

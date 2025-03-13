@@ -15,6 +15,11 @@ type MappedUser struct {
 	Email       string                 `json:"email,omitempty"`
 	DisplayName string                 `json:"display_name,omitempty"`
 	ExtraClaims map[string]interface{} `json:"extra_claims,omitempty"`
+	TenantUuid  uuid.UUID              `json:"tenant_uuid,omitempty"`
+	DeptUuid    uuid.UUID              `json:"dept_uuid,omitempty"`
+	TenantName  string                 `json:"tenant_name,omitempty"`
+	DeptName    string                 `json:"dept_name,omitempty"`
+	Role        string                 `json:"role,omitempty"`
 }
 
 type UserMapper interface {
@@ -43,7 +48,6 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]M
 	}
 	users, err := m.queries.GetUsersByLoginId(ctx, uuid.NullUUID{UUID: loginID, Valid: true})
 	if err != nil {
-		slog.Error("error getting mapped users", "error", err)
 		return nil, fmt.Errorf("error getting users: %w", err)
 	}
 
@@ -53,7 +57,6 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]M
 		// Convert roles from interface{} to []string
 		roles, ok := user.Roles.([]interface{})
 		if !ok {
-			slog.Error("invalid roles format")
 			return nil, fmt.Errorf("invalid roles format")
 		}
 

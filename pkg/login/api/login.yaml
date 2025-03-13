@@ -265,6 +265,19 @@ paths:
                   message:
                     type: string
                     example: "Not authorized to switch to this user"
+  /users:
+    get:
+      summary: Get a list of users associated with the current login
+      operationId: find_users_with_login
+      responses:
+        "200":
+          description: Successfully retrieved users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
 
   /2fa/verify:
     post:
@@ -400,14 +413,27 @@ components:
           type: string
         email:
           type: string
-        twoFactorEnabled:
-          type: boolean
-          description: Whether 2FA is enabled for this user
+        tenant_uuid:
+          type: string
+          format: uuid
+        dept_uuid:
+          type: string
+          format: uuid
+        tenant_name:
+          type: string
+        dept_name:
+          type: string
+        role:
+          type: string
       required:
         - id
         - name
         - email
-        - twoFactorEnabled
+        - tenant_uuid
+        - dept_uuid
+        - tenant_name
+        - dept_name
+        - role
     PasswordReset:
       type: object
       x-go-optional-value: true
