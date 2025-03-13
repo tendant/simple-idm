@@ -26,6 +26,7 @@ import (
 type DeliveryOption struct {
 	DisplayValue string `json:"display_value,omitempty"`
 	HashedValue  string `json:"hashed_value,omitempty"`
+	UserID       string `json:"user_id,omitempty"`
 }
 
 // EmailVerifyRequest defines model for EmailVerifyRequest.

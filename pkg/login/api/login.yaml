@@ -332,6 +332,9 @@ components:
           type: string
         display_value:
           type: string
+        user_id:
+          type: string
+          format: uuid
     SelectUserRequiredResponse:
       x-go-optional-value: true
       type: object

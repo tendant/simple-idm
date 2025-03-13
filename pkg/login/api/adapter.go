@@ -133,6 +133,7 @@ func getUniqueEmailsFromUsers(mappedUsers []mapper.MappedUser) []DeliveryOption 
 		if ok && email != "" && !emailMap[email] {
 			emailMap[email] = true
 			deliveryOptions = append(deliveryOptions, DeliveryOption{
+				UserID:       user.UserId,
 				DisplayValue: utils.MaskEmail(email),
 				HashedValue:  utils.HashEmail(email),
 			})
