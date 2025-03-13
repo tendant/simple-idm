@@ -359,6 +359,15 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		}
 	}
 
+	loginId, ok := customClaims["login_id"].(string)
+	if !ok {
+		slog.Error("missing or invalid login_id in claims")
+		return &Response{
+			body: "Unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
 	// Initialize empty roles slice
 	var roles []string
 
@@ -390,6 +399,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 
 	// Create the MappedUser object
 	mappedUser := mapper.MappedUser{
+		LoginID:     loginId,
 		UserId:      userId,
 		DisplayName: displayName,
 		ExtraClaims: customClaims["extra_claims"].(map[string]interface{}),
