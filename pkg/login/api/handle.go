@@ -95,17 +95,10 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		email, _ := mu.ExtraClaims["email"].(string)
 		name := mu.DisplayName
 
-		// Check if 2FA is enabled
-		twoFactorEnabled := false
-		if enabled, ok := mu.ExtraClaims["two_factor_enabled"].(bool); ok {
-			twoFactorEnabled = enabled
-		}
-
 		apiUsers[i] = User{
-			ID:               mu.UserId,
-			Name:             name,
-			Email:            email,
-			TwoFactorEnabled: twoFactorEnabled,
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
 		}
 	}
 
@@ -556,10 +549,9 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
-			ID:               mu.UserId,
-			Name:             name,
-			Email:            email,
-			TwoFactorEnabled: false, // TODO: Add 2FA support
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
 		}
 	}
 
@@ -788,10 +780,9 @@ func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response 
 			Message: "2FA verification successful",
 			Status:  "success",
 			User: User{
-				Email:            "user@example.com",
-				Name:             "User Name",
-				TwoFactorEnabled: true,
-				ID:               "user-uuid",
+				Email: "user@example.com",
+				Name:  "User Name",
+				ID:    "user-uuid",
 			},
 		},
 		Code: http.StatusOK,
