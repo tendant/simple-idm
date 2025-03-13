@@ -265,6 +265,19 @@ paths:
                   message:
                     type: string
                     example: "Not authorized to switch to this user"
+  /users:
+    get:
+      summary: Get a list of users associated with the current login
+      operationId: find_users_with_login
+      responses:
+        "200":
+          description: Successfully retrieved users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
 
   /2fa/verify:
     post:
