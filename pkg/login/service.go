@@ -318,11 +318,20 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 		return err
 	}
 
-	// Send reset email
+	// Track emails that have already been sent to
+	sentEmails := make(map[string]bool)
+
+	// Send password reset email to each user
 	for _, user := range users {
 		if user.Email == "" {
 			continue
 		}
+
+		// Skip if we've already sent to this email
+		if sentEmails[user.Email] {
+			continue
+		}
+
 		err = s.SendPasswordResetEmail(ctx, SendPasswordResetEmailParams{
 			Email:      user.Email,
 			UserId:     user.UserId,
@@ -331,6 +340,9 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 		if err != nil {
 			slog.Error("Error sending password reset email", "err", err, "user", user.UserId)
 		}
+
+		// Mark this email as sent
+		sentEmails[user.Email] = true
 	}
 
 	return nil
