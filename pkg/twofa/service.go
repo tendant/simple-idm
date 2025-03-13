@@ -290,6 +290,7 @@ func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcod
 	// TODO: use userId to send email to users
 	data := map[string]string{
 		"TwofaPasscode": passcode,
+		"UserId":        userId.String(),
 	}
 	return s.notificationManager.Send(notice.TwofaCodeNotice, notification.NotificationData{
 		To:   email,
