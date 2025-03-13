@@ -10,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/twofa"
@@ -423,6 +424,55 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		Code: http.StatusOK,
 		body: "",
 	}
+}
+
+// Get a list of users associated with the current login
+// (GET /users)
+func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response {
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Get user UUID from context (assuming it's set by auth middleware)
+	loginIdStr := authUser.LoginId
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
+	if err != nil {
+		slog.Error("Failed to get users by login ID", "err", err)
+		return &Response{
+			body: "Failed to get users by login ID",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	var res []User
+	for _, user := range users {
+		res = append(res, User{
+			DeptName:   user.DeptName,
+			DeptUUID:   user.DeptUuid.String(),
+			TenantName: user.TenantName,
+			TenantUUID: user.TenantUuid.String(),
+			ID:         user.UserId,
+			Name:       user.DisplayName,
+			Role:       user.Role,
+			Email:      user.Email,
+		})
+	}
+
+	return FindUsersWithLoginJSON200Response(res)
 }
 
 // PostMobileLogin handles mobile login requests
