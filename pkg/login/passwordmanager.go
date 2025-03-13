@@ -147,10 +147,12 @@ func (pm *PasswordManager) AuthenticateAndUpgrade(ctx context.Context, loginID u
 	// First verify the password with the known version
 	valid, err := pm.VerifyPasswordWithVersion(password, currentHash, currentVersion)
 	if err != nil {
+		slog.Error("Failed to verify password", "error", err)
 		return false, err
 	}
 
 	if !valid {
+		slog.Error("Invalid password")
 		return false, nil
 	}
 
