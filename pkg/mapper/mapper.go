@@ -43,6 +43,7 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]M
 	}
 	users, err := m.queries.GetUsersByLoginId(ctx, uuid.NullUUID{UUID: loginID, Valid: true})
 	if err != nil {
+		slog.Error("error getting mapped users", "error", err)
 		return nil, fmt.Errorf("error getting users: %w", err)
 	}
 
@@ -52,6 +53,7 @@ func (m DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]M
 		// Convert roles from interface{} to []string
 		roles, ok := user.Roles.([]interface{})
 		if !ok {
+			slog.Error("invalid roles format")
 			return nil, fmt.Errorf("invalid roles format")
 		}
 

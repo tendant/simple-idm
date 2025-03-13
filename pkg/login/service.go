@@ -100,24 +100,29 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 	loginUser, err := s.repository.FindLoginByUsername(ctx, usernameStr, usernameValid)
 	if err != nil {
 		if err == pgx.ErrNoRows {
+			slog.Error("no login found with username: %s", username)
 			return []mapper.MappedUser{}, fmt.Errorf("invalid username or password")
 		}
+		slog.Error("error finding login with username: %s", username)
 		return []mapper.MappedUser{}, fmt.Errorf("error finding user: %w", err)
 	}
 
 	// Verify password
 	valid, err := s.CheckPasswordByLoginId(ctx, loginUser.ID, password, string(loginUser.Password))
 	if err != nil {
+		slog.Error("error checking password: %w", err)
 		return []mapper.MappedUser{}, fmt.Errorf("error checking password: %w", err)
 	}
 
 	if !valid {
+		slog.Error("invalid username or password from check password by login id")
 		return []mapper.MappedUser{}, fmt.Errorf("invalid username or password")
 	}
 
 	// Get user info with roles
 	users, err := s.userMapper.GetUsers(ctx, loginUser.ID)
 	if err != nil {
+		slog.Error("error getting mapped users: %w", err)
 		return []mapper.MappedUser{}, fmt.Errorf("error getting user roles: %w", err)
 	}
 	res := LoginResponse{
