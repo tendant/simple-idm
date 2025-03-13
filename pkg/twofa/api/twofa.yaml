@@ -19,9 +19,13 @@ paths:
                   type: string
                 delivery_option:
                   type: string
+                user_id:
+                  type: string
+                  format: uuid
               required:
                 - twofa_type
                 - delivery_option
+                - user_id
       responses:
         "200":
           description: 2fa initiated successfully
