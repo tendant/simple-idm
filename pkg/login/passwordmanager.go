@@ -39,9 +39,10 @@ func NewPasswordManager(queries *logindb.Queries) *PasswordManager {
 // NewPasswordManagerWithRepository creates a new password manager with the specified repository
 func NewPasswordManagerWithRepository(repository LoginRepository) *PasswordManager {
 	return &PasswordManager{
-		repository:    repository,
-		policyChecker: NewDefaultPasswordPolicyChecker(nil, nil),
-		hasherFactory: NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
+		repository:     repository,
+		policyChecker:  NewDefaultPasswordPolicyChecker(nil, nil),
+		hasherFactory:  NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
+		currentVersion: CurrentPasswordVersion,
 	}
 }
 
