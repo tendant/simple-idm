@@ -30,7 +30,7 @@ type User struct {
 
 	// Embedded types containing standard and additional claims
 	UserInfo    UserInfo               // Standard OIDC claims
-	Extraclaims map[string]interface{} // Organization-specific and additional claims (interface type)
+	ExtraClaims map[string]interface{} // Organization-specific and additional claims (interface type)
 
 }
 

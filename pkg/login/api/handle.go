@@ -627,7 +627,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	apiUsers := make([]User, len(users))
 	for i, mu := range users {
 		// Extract email and name from custom claims
-		email, _ := mu.Extraclaims["email"].(string)
+		email, _ := mu.ExtraClaims["email"].(string)
 		name := mu.DisplayName
 
 		apiUsers[i] = User{

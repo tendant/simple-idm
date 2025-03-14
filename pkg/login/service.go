@@ -255,7 +255,7 @@ func (s LoginService) FindUserRoles(ctx context.Context, userID uuid.UUID) ([]st
 
 	// Extract roles from user's Extraclaims
 	roles := []string{}
-	if roleVal, ok := user.Extraclaims["role"]; ok {
+	if roleVal, ok := user.ExtraClaims["role"]; ok {
 		if roleStr, ok := roleVal.(string); ok {
 			roles = append(roles, roleStr)
 		} else if roleArr, ok := roleVal.([]string); ok {
@@ -289,7 +289,7 @@ func (s LoginService) GetMe(ctx context.Context, userID uuid.UUID) (UserInfo, er
 // Helper method to extract roles from User object
 func (s LoginService) extractRolesFromUser(user mapper.User) []string {
 	roles := []string{}
-	if roleVal, ok := user.Extraclaims["role"]; ok {
+	if roleVal, ok := user.ExtraClaims["role"]; ok {
 		if roleStr, ok := roleVal.(string); ok {
 			roles = append(roles, roleStr)
 		} else if roleArr, ok := roleVal.([]string); ok {
