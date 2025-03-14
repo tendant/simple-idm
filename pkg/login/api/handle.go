@@ -96,7 +96,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
-			ID:    mu.UserId,
+			ID:    mu.UserID,
 			Name:  name,
 			Email: email,
 		}
@@ -166,7 +166,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		for i, mu := range idmUsers {
 			email, _ := mu.ExtraClaims["email"].(string)
 			name := mu.DisplayName
-			id := mu.UserId
+			id := mu.UserID
 
 			apiUsers[i] = User{
 				ID:    id,
@@ -393,7 +393,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	// Create the MappedUser object
 	mappedUser := mapper.MappedUser{
 		LoginID:     loginId,
-		UserId:      userId,
+		UserID:      userId,
 		DisplayName: displayName,
 		ExtraClaims: customClaims["extra_claims"].(map[string]interface{}),
 	}
@@ -497,7 +497,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 			DeptUUID:   user.DeptUuid.String(),
 			TenantName: user.TenantName,
 			TenantUUID: user.TenantUuid.String(),
-			ID:         user.UserId,
+			ID:         user.UserID,
 			Name:       user.DisplayName,
 			Role:       user.Role,
 			Email:      user.Email,
@@ -586,7 +586,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	var targetUser mapper.MappedUser
 	found := false
 	for _, user := range users {
-		if user.UserId == data.UserID {
+		if user.UserID == data.UserID {
 			targetUser = user
 			found = true
 			break
@@ -627,11 +627,11 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	apiUsers := make([]User, len(users))
 	for i, mu := range users {
 		// Extract email and name from custom claims
-		email, _ := mu.ExtraClaims["email"].(string)
+		email, _ := mu.Extraclaims["email"].(string)
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
-			ID:    mu.UserId,
+			ID:    mu.UserID,
 			Name:  name,
 			Email: email,
 		}
