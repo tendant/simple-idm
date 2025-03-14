@@ -13,7 +13,7 @@ import (
 )
 
 type (
-	GetUserById struct {
+	User struct {
 		ID             uuid.UUID `json:"id"`
 		Email          string    `json:"email"`
 		CreatedAt      time.Time `json:"created_at"`
@@ -37,9 +37,9 @@ type (
 // ProfileRepository defines the interface for profile database operations
 type ProfileRepository interface {
 	// GetUserById retrieves a user by their ID
-	GetUserById(ctx context.Context, id uuid.UUID) (GetUserById, error)
+	GetUserById(ctx context.Context, id uuid.UUID) (User, error)
 	// FindUserByUsername finds users by their username
-	FindUserByUsername(ctx context.Context, username string) ([]FindUserByUsername, error)
+	FindUserByUsername(ctx context.Context, username string) ([]User, error)
 	// UpdateUsername updates a user's username
 	UpdateUsername(ctx context.Context, arg UpdateUsernameParam) error
 	// Additional methods can be added as needed
@@ -58,8 +58,8 @@ func NewPostgresProfileRepository(queries *profiledb.Queries) *PostgresProfileRe
 }
 
 // GetUserById implements ProfileRepository.GetUserById
-func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUID) (GetUserById, error) {
-	var res GetUserById
+func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
+	var res User
 	row, err := r.queries.GetUserById(ctx, id)
 	if err != nil {
 		slog.Error("Failed to get user", "err", err)
@@ -72,22 +72,21 @@ func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUI
 	res.LastModifiedAt = row.LastModifiedAt
 	res.LoginID = row.LoginID.UUID
 	res.Username = row.Username.String
-	res.Password = row.Password
 
 	return res, nil
 }
 
 // FindUserByUsername implements ProfileRepository.FindUserByUsername
-func (r *PostgresProfileRepository) FindUserByUsername(ctx context.Context, username string) ([]FindUserByUsername, error) {
+func (r *PostgresProfileRepository) FindUserByUsername(ctx context.Context, username string) ([]User, error) {
 	rows, err := r.queries.FindUserByUsername(ctx, utils.ToNullString(username))
 	if err != nil {
 		slog.Error("Failed to find user", "err", err)
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
 
-	var res []FindUserByUsername
+	var res []User
 	for _, row := range rows {
-		res = append(res, FindUserByUsername{
+		res = append(res, User{
 			ID:       row.ID,
 			Username: row.Username.String,
 		})
