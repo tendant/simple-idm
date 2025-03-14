@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/login"
@@ -11,10 +12,22 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+type (
+	GetUserById struct {
+		ID             uuid.UUID `json:"id"`
+		Email          string    `json:"email"`
+		CreatedAt      time.Time `json:"created_at"`
+		LastModifiedAt time.Time `json:"last_modified_at"`
+		LoginID        uuid.UUID `json:"login_id"`
+		Username       string    `json:"username"`
+		Password       []byte    `json:"password"`
+	}
+)
+
 // ProfileRepository defines the interface for profile database operations
 type ProfileRepository interface {
 	// GetUserById retrieves a user by their ID
-	GetUserById(ctx context.Context, id uuid.UUID) (profiledb.GetUserByIdRow, error)
+	GetUserById(ctx context.Context, id uuid.UUID) (GetUserById, error)
 	// FindUserByUsername finds users by their username
 	FindUserByUsername(ctx context.Context, username sql.NullString) ([]profiledb.FindUserByUsernameRow, error)
 	// UpdateUsername updates a user's username
@@ -35,8 +48,23 @@ func NewPostgresProfileRepository(queries *profiledb.Queries) *PostgresProfileRe
 }
 
 // GetUserById implements ProfileRepository.GetUserById
-func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUID) (profiledb.GetUserByIdRow, error) {
-	return r.queries.GetUserById(ctx, id)
+func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUID) (GetUserById, error) {
+	var res GetUserById
+	row, err := r.queries.GetUserById(ctx, id)
+	if err != nil {
+		slog.Error("Failed to get user", "err", err)
+		return res, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	res.ID = row.ID
+	res.Email = row.Email
+	res.CreatedAt = row.CreatedAt
+	res.LastModifiedAt = row.LastModifiedAt
+	res.LoginID = row.LoginID.UUID
+	res.Username = row.Username.String
+	res.Password = row.Password
+
+	return res, nil
 }
 
 // FindUserByUsername implements ProfileRepository.FindUserByUsername
