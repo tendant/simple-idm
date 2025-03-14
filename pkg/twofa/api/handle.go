@@ -3,14 +3,13 @@ package api
 import (
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/auth"
+	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/twofa"
 )
@@ -91,56 +90,24 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// FIXME: read the login id from session cookies
-	// Get bearer token from Authorization header
-	authHeader := r.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
 			Code: http.StatusUnauthorized,
-			body: "Missing or invalid Authorization header",
-		}
-	}
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-
-	// Parse and validate token
-	token, err := h.jwtService.ParseTokenStr(tokenStr)
-	if err != nil {
-		return &Response{
-			Code: http.StatusUnauthorized,
-			body: "Invalid access token",
 		}
 	}
 
-	// Get claims from token
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid token claims",
-		}
-	}
-
-	// Extract login_id from custom_claims
-	customClaims, ok := claims["custom_claims"].(map[string]interface{})
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid custom claims format",
-		}
-	}
-
-	loginIdStr, ok := customClaims["login_id"].(string)
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Missing or invalid login_id in token",
-		}
-	}
+	// Get user UUID from context (assuming it's set by auth middleware)
+	loginIdStr := authUser.LoginId
 
 	loginId, err := uuid.Parse(loginIdStr)
 	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid login_id format in token",
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
 		}
 	}
 
@@ -168,56 +135,24 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
 
-	// Get bearer token from Authorization header
-	authHeader := r.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
 			Code: http.StatusUnauthorized,
-			body: "Missing or invalid Authorization header",
-		}
-	}
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-
-	// Parse and validate token
-	token, err := h.jwtService.ParseTokenStr(tokenStr)
-	if err != nil {
-		return &Response{
-			Code: http.StatusUnauthorized,
-			body: "Invalid access token",
 		}
 	}
 
-	// Get claims from token
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid token claims",
-		}
-	}
-
-	// Extract login_id from custom_claims
-	customClaims, ok := claims["custom_claims"].(map[string]interface{})
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid custom claims format",
-		}
-	}
-
-	loginIdStr, ok := customClaims["login_id"].(string)
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Missing or invalid login_id in token",
-		}
-	}
+	// Get user UUID from context (assuming it's set by auth middleware)
+	loginIdStr := authUser.LoginId
 
 	loginId, err := uuid.Parse(loginIdStr)
 	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid login_id format in token",
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
 		}
 	}
 
@@ -278,7 +213,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 
 		// Create temp token with the custom claims for user selection
-		tempToken, err := h.jwtService.CreateTempToken(customClaims)
+		tempToken, err := h.jwtService.CreateTempToken(authUser)
 		if err != nil {
 			slog.Error("Failed to create temp token", "loginIdStr", loginIdStr, "err", err)
 			return &Response{
@@ -298,7 +233,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	// Single user case - proceed with normal flow
 
-	userData := customClaims
+	userData := authUser
 
 	// Create access token
 	accessToken, err := h.jwtService.CreateAccessToken(userData)
