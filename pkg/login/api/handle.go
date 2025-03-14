@@ -588,7 +588,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	found := false
 	for _, user := range users {
 		if user.UserID == data.UserID {
-			targetUser = user
+			targetUser = mapper.ToMappedUser(user)
 			found = true
 			break
 		}
