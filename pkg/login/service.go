@@ -17,7 +17,7 @@ import (
 
 type LoginService struct {
 	repository          LoginRepository
-	userRepository      mapper.UserRepository
+	userRepository      UserRepository
 	notificationManager *notification.NotificationManager
 	userMapper          mapper.UserMapper
 	delegatedUserMapper mapper.DelegatedUserMapper
@@ -31,7 +31,7 @@ type LoginServiceOptions struct {
 
 func NewLoginService(
 	repository LoginRepository,
-	userRepository mapper.UserRepository,
+	userRepository UserRepository,
 	notificationManager *notification.NotificationManager,
 	userMapper mapper.UserMapper,
 	delegatedUserMapper mapper.DelegatedUserMapper,
