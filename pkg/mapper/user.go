@@ -29,8 +29,8 @@ type User struct {
 	DisplayName string `json:"display_name,omitempty"` // Legacy display name (maps to preferred_name)
 
 	// Embedded types containing standard and additional claims
-	UserInfo    UserInfo               // Standard OIDC claims
-	ExtraClaims map[string]interface{} // Organization-specific and additional claims (interface type)
+	UserInfo    UserInfo               `json:"user_info,omitempty"`    // Standard OIDC claims
+	ExtraClaims map[string]interface{} `json:"extra_claims,omitempty"` // Organization-specific and additional claims (interface type)
 
 }
 

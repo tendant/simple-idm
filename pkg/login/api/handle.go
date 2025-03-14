@@ -142,7 +142,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 				twoFactorMethods = append(twoFactorMethods, curMethod)
 			}
 
-			tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+			tempToken, err := h.jwtService.CreateTempToken(mapper.ToMappedUser(tokenUser))
 			if err != nil {
 				slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
 			}
@@ -176,7 +176,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 
 		// Create temp token with the custom claims for user selection
-		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
+		tempToken, err := h.jwtService.CreateTempToken(mapper.ToMappedUser(tokenUser))
 		if err != nil {
 			slog.Error("Failed to create temp token", "err", err)
 			return &Response{
@@ -195,7 +195,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Create JWT tokens
-	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
+	accessToken, err := h.jwtService.CreateAccessToken(mapper.ToMappedUser(tokenUser))
 	if err != nil {
 		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
 		return &Response{
@@ -204,7 +204,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	refreshToken, err := h.jwtService.CreateRefreshToken(tokenUser)
+	refreshToken, err := h.jwtService.CreateRefreshToken(mapper.ToMappedUser(tokenUser))
 	if err != nil {
 		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
 		return &Response{
@@ -681,7 +681,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	// Create JWT tokens
 	tokenUser := idmUsers[0]
 
-	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
+	accessToken, err := h.jwtService.CreateAccessToken(mapper.ToMappedUser(tokenUser))
 	if err != nil {
 		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
 		return &Response{
@@ -690,7 +690,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	refreshToken, err := h.jwtService.CreateRefreshToken(tokenUser)
+	refreshToken, err := h.jwtService.CreateRefreshToken(mapper.ToMappedUser(tokenUser))
 	if err != nil {
 		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
 		return &Response{
