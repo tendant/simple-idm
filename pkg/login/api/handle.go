@@ -393,7 +393,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	// Create the MappedUser object
 	mappedUser := mapper.MappedUser{
 		LoginID:     loginId,
-		UserID:      userId,
+		UserId:      userId,
 		DisplayName: displayName,
 		ExtraClaims: customClaims["extra_claims"].(map[string]interface{}),
 	}
