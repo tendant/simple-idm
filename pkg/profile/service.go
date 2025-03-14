@@ -28,6 +28,11 @@ type (
 		ID       uuid.UUID `json:"id"`
 		Username string    `json:"username"`
 	}
+
+	UpdateUsernameParam struct {
+		ID       uuid.UUID `json:"id"`
+		Username string    `json:"username"`
+	}
 )
 
 // ProfileRepository defines the interface for profile database operations
@@ -37,7 +42,7 @@ type ProfileRepository interface {
 	// FindUserByUsername finds users by their username
 	FindUserByUsername(ctx context.Context, username string) ([]FindUserByUsername, error)
 	// UpdateUsername updates a user's username
-	UpdateUsername(ctx context.Context, arg profiledb.UpdateUsernameParams) error
+	UpdateUsername(ctx context.Context, arg UpdateUsernameParam) error
 	// Additional methods can be added as needed
 }
 
@@ -92,8 +97,16 @@ func (r *PostgresProfileRepository) FindUserByUsername(ctx context.Context, user
 }
 
 // UpdateUsername implements ProfileRepository.UpdateUsername
-func (r *PostgresProfileRepository) UpdateUsername(ctx context.Context, arg profiledb.UpdateUsernameParams) error {
-	return r.queries.UpdateUsername(ctx, arg)
+func (r *PostgresProfileRepository) UpdateUsername(ctx context.Context, arg UpdateUsernameParam) error {
+	err := r.queries.UpdateUsername(ctx, profiledb.UpdateUsernameParams{
+		ID:       arg.ID,
+		Username: utils.ToNullString(arg.Username),
+	})
+	if err != nil {
+		slog.Error("Failed to update username", "err", err)
+		return fmt.Errorf("failed to update username: %w", err)
+	}
+	return nil
 }
 
 // ProfileService provides profile-related operations
