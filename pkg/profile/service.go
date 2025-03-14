@@ -2,7 +2,6 @@ package profile
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -146,7 +145,7 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	}
 
 	// Check if the new username is already taken
-	existingUsers, err := s.repository.FindUserByUsername(ctx, sql.NullString{String: params.NewUsername, Valid: true})
+	existingUsers, err := s.repository.FindUserByUsername(ctx, params.NewUsername)
 	if err != nil {
 		slog.Error("Failed to check username availability", "err", err)
 		return fmt.Errorf("internal error")
@@ -156,9 +155,9 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	}
 
 	// Update the username
-	err = s.repository.UpdateUsername(ctx, profiledb.UpdateUsernameParams{
-		ID:       user.LoginID.UUID,
-		Username: sql.NullString{String: params.NewUsername, Valid: true},
+	err = s.repository.UpdateUsername(ctx, UpdateUsernameParam{
+		ID:       user.LoginID,
+		Username: params.NewUsername,
 	})
 	if err != nil {
 		slog.Error("Failed to update username", "uuid", params.UserId, "err", err)
