@@ -39,3 +39,72 @@ type UserRepository interface {
 	GetUserByUserID(ctx context.Context, userID uuid.UUID) (User, error)
 	FindUsernamesByEmail(ctx context.Context, email string) ([]string, error)
 }
+
+// ToMappedUser converts a User struct to a MappedUser struct
+func (u User) ToMappedUser() MappedUser {
+	// Extract role from user's ExtraClaims
+	role := ""
+	if roleVal, ok := u.ExtraClaims["role"]; ok {
+		if roleStr, ok := roleVal.(string); ok {
+			role = roleStr
+		}
+	}
+	
+	// Extract tenant and department information from ExtraClaims
+	var tenantUuid uuid.UUID
+	var deptUuid uuid.UUID
+	tenantName := ""
+	deptName := ""
+	
+	if tenantUuidVal, ok := u.ExtraClaims["tenant_uuid"]; ok {
+		if tenantUuidStr, ok := tenantUuidVal.(string); ok {
+			parsedUuid, err := uuid.Parse(tenantUuidStr)
+			if err == nil {
+				tenantUuid = parsedUuid
+			}
+		}
+	}
+	
+	if deptUuidVal, ok := u.ExtraClaims["dept_uuid"]; ok {
+		if deptUuidStr, ok := deptUuidVal.(string); ok {
+			parsedUuid, err := uuid.Parse(deptUuidStr)
+			if err == nil {
+				deptUuid = parsedUuid
+			}
+		}
+	}
+	
+	if tenantNameVal, ok := u.ExtraClaims["tenant_name"]; ok {
+		if tnStr, ok := tenantNameVal.(string); ok {
+			tenantName = tnStr
+		}
+	}
+	
+	if deptNameVal, ok := u.ExtraClaims["dept_name"]; ok {
+		if dnStr, ok := deptNameVal.(string); ok {
+			deptName = dnStr
+		}
+	}
+	
+	return MappedUser{
+		UserId:      u.UserID,
+		LoginID:     u.LoginID,
+		Email:       u.UserInfo.Email,
+		DisplayName: u.DisplayName,
+		ExtraClaims: u.ExtraClaims,
+		TenantUuid:  tenantUuid,
+		DeptUuid:    deptUuid,
+		TenantName:  tenantName,
+		DeptName:    deptName,
+		Role:        role,
+	}
+}
+
+// ToMappedUsers converts a slice of User structs to a slice of MappedUser structs
+func ToMappedUsers(users []User) []MappedUser {
+	mappedUsers := make([]MappedUser, 0, len(users))
+	for _, user := range users {
+		mappedUsers = append(mappedUsers, user.ToMappedUser())
+	}
+	return mappedUsers
+}
