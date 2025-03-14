@@ -147,7 +147,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 				slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
 			}
 
-			h.setTokenCookie(w, REFRESH_TOKEN_NAME, tempToken.Token, tempToken.Expiry)
+			h.setTokenCookie(w, ACCESS_TOKEN_NAME, tempToken.Token, tempToken.Expiry)
 			twoFARequiredResp := TwoFactorRequiredResponse{
 				TempToken:        tempToken.Token,
 				TwoFactorMethods: twoFactorMethods,
