@@ -38,9 +38,10 @@ func NewPasswordManager(queries *logindb.Queries) *PasswordManager {
 // NewPasswordManagerWithRepository creates a new password manager with the specified repository
 func NewPasswordManagerWithRepository(repository LoginRepository) *PasswordManager {
 	return &PasswordManager{
-		repository:    repository,
-		policyChecker: NewDefaultPasswordPolicyChecker(nil, nil),
-		hasherFactory: NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
+		repository:     repository,
+		policyChecker:  NewDefaultPasswordPolicyChecker(nil, nil),
+		hasherFactory:  NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
+		currentVersion: CurrentPasswordVersion,
 	}
 }
 
@@ -353,6 +354,13 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	}
 	slog.Info("Token marked as used")
 
+	err = pm.repository.UpdatePasswordResetRequired(ctx, tokenInfo.LoginID, false)
+	if err != nil {
+		slog.Error("Failed to update password reset required", "err", err)
+		return err
+	}
+	slog.Info("Updated password reset required to false")
+
 	return nil
 }
 
@@ -433,6 +441,13 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 		return err
 	}
 	slog.Info("Updated password and version")
+
+	err = pm.repository.UpdatePasswordResetRequired(ctx, login.ID, false)
+	if err != nil {
+		slog.Error("Failed to update password reset required", "err", err)
+		return err
+	}
+	slog.Info("Updated password reset required to false")
 
 	return nil
 }

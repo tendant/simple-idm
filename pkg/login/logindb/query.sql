@@ -21,6 +21,11 @@ SELECT id
 FROM login
 WHERE username = $1;
 
+-- name: UpdatePasswordResetRequired :exec
+UPDATE login
+SET password_reset_required = $2
+WHERE id = $1;
+
 -- name: FindEmailByEmail :one
 SELECT u.email
 FROM users u

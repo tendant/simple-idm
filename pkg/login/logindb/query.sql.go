@@ -462,6 +462,22 @@ func (q *Queries) ResetPasswordById(ctx context.Context, arg ResetPasswordByIdPa
 	return err
 }
 
+const updatePasswordResetRequired = `-- name: UpdatePasswordResetRequired :exec
+UPDATE login
+SET password_reset_required = $2
+WHERE id = $1
+`
+
+type UpdatePasswordResetRequiredParams struct {
+	ID                    uuid.UUID    `json:"id"`
+	PasswordResetRequired sql.NullBool `json:"password_reset_required"`
+}
+
+func (q *Queries) UpdatePasswordResetRequired(ctx context.Context, arg UpdatePasswordResetRequiredParams) error {
+	_, err := q.db.Exec(ctx, updatePasswordResetRequired, arg.ID, arg.PasswordResetRequired)
+	return err
+}
+
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE login
 SET password = $1,
