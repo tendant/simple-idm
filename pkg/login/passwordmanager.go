@@ -242,6 +242,7 @@ func (pm *PasswordManager) InitPasswordReset(ctx context.Context, loginID uuid.U
 	expireAt := pgtype.Timestamptz{}
 	err := expireAt.Scan(time.Now().UTC().Add(24 * time.Hour))
 	if err != nil {
+		slog.Error("Failed to create expiry time", "err", err)
 		return "", fmt.Errorf("failed to create expiry time: %w", err)
 	}
 
@@ -270,6 +271,7 @@ func (pm *PasswordManager) ValidateResetToken(ctx context.Context, token string)
 	// Validate token and get user info
 	tokenInfo, err := pm.repository.ValidatePasswordResetToken(ctx, token)
 	if err != nil {
+		slog.Error("Failed to validate reset token", "err", err)
 		return "", fmt.Errorf("invalid or expired reset token")
 	}
 
@@ -281,12 +283,14 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	// Validate token and get user info
 	tokenInfo, err := pm.repository.ValidatePasswordResetToken(ctx, token)
 	if err != nil {
+		slog.Error("Failed to validate reset token", "err", err)
 		return errors.New("invalid or expired reset token")
 	}
 	slog.Info("token validated")
 
 	// Check if the new password meets complexity requirements
 	if err := pm.CheckPasswordComplexity(newPassword); err != nil {
+		slog.Error("Failed to check password complexity", "err", err)
 		return err
 	}
 	slog.Info("Password complexity checked")
@@ -294,12 +298,14 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	// Get current password and version for history
 	login, err := pm.repository.GetLoginById(ctx, tokenInfo.LoginID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		slog.Error("Failed to get current password", "err", err)
 		return fmt.Errorf("failed to get current password: %w", err)
 	}
 
 	// If we found the login, check password history
 	if err == nil && pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
 		if err := pm.CheckPasswordHistory(ctx, tokenInfo.LoginID.String(), newPassword); err != nil {
+			slog.Error("Failed to check password history", "err", err)
 			return err
 		}
 
@@ -313,13 +319,16 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 				slog.Error("Failed to add password to history", "error", err)
 			}
 		}
+		slog.Info("password version", "version", version)
 	}
 
 	slog.Info("Password history checked")
 
 	// Hash the new password using the current version
+	slog.Info("Password Version in Password Manager", "version", pm.currentVersion)
 	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
 	if err != nil {
+		slog.Error("Failed to hash password", "err", err)
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 	slog.Info("password hashed")
@@ -331,6 +340,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 		PasswordVersion: int32(pm.currentVersion),
 	})
 	if err != nil {
+		slog.Error("Failed to update password", "err", err)
 		return fmt.Errorf("failed to update password: %w", err)
 	}
 	slog.Info("Password updated")
@@ -371,9 +381,11 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 	// Verify the current password
 	match, err := pm.VerifyPasswordWithVersion(currentPassword, string(login.Password), PasswordVersion(version))
 	if err != nil {
+		slog.Error("Failed to verify password", "err", err)
 		return err
 	}
 	if !match {
+		slog.Error("Current password is incorrect")
 		return errors.New("current password is incorrect")
 	}
 
@@ -381,6 +393,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 
 	// Check if the new password meets complexity requirements
 	if err := pm.CheckPasswordComplexity(newPassword); err != nil {
+		slog.Error("Failed to check password complexity", "err", err)
 		return err
 	}
 	slog.Info("New password is valid")
@@ -403,6 +416,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 	// Hash the new password using the current version
 	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
 	if err != nil {
+		slog.Error("Failed to hash password", "err", err)
 		return err
 	}
 
@@ -415,6 +429,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 		PasswordVersion: int32(pm.currentVersion),
 	})
 	if err != nil {
+		slog.Error("Failed to update password and version", "err", err)
 		return err
 	}
 	slog.Info("Updated password and version")
