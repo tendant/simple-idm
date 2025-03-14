@@ -46,12 +46,12 @@ func NewLoginService(domainService *login.LoginService) *LoginService {
 }
 
 // Login authenticates a user and returns user information
-func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.MappedUser, error) {
+func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.User, error) {
 	return s.domainService.Login(ctx, username, password)
 }
 
 // GetUsersByLoginId returns users associated with a login ID
-func (s *LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.MappedUser, error) {
+func (s *LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
 	return s.domainService.GetUsersByLoginId(ctx, loginID)
 }
 
@@ -124,21 +124,23 @@ func (s *LoginService) GetRepository() login.LoginRepository {
 // Using DeliveryOption from generated code
 
 // Helper function to get unique emails from users
-func getUniqueEmailsFromUsers(mappedUsers []mapper.MappedUser) []DeliveryOption {
+func getUniqueEmailsFromUsers(users []mapper.User) []DeliveryOption {
 	emailMap := make(map[string]bool)
 	var deliveryOptions []DeliveryOption
 
-	for _, user := range mappedUsers {
-		if emailMap[user.Email] {
+	for _, user := range users {
+		// Get email from UserInfo
+		email := user.UserInfo.Email
+		if emailMap[email] || email == "" {
 			continue
 		}
 
 		deliveryOptions = append(deliveryOptions, DeliveryOption{
-			UserID:       user.UserId,
-			DisplayValue: utils.MaskEmail(user.Email),
-			HashedValue:  utils.HashEmail(user.Email),
+			UserID:       user.UserID,
+			DisplayValue: utils.MaskEmail(email),
+			HashedValue:  utils.HashEmail(email),
 		})
-		emailMap[user.Email] = true
+		emailMap[email] = true
 	}
 
 	return deliveryOptions
