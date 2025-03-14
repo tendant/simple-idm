@@ -125,7 +125,8 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
         
         const request: TwoFactorSendRequest = {
           twofa_type: method.type,
-          delivery_option: option.hashed_value
+          delivery_option: option.hashed_value,
+          user_id: option.user_id // Include the user_id from the delivery option
         };
         
         const token = tempToken();

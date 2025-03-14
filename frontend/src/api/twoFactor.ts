@@ -4,6 +4,7 @@ export interface TwoFactorSendRequest {
   email?: string;
   twofa_type: string;
   delivery_option?: string;
+  user_id?: string;
 }
 
 export interface TwoFactorVerifyRequest {
@@ -22,6 +23,7 @@ export interface UserData {
 export interface DeliveryOption {
   display_value: string;
   hashed_value: string;
+  user_id?: string;
 }
 
 export interface TwoFactorMethod {
