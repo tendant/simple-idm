@@ -117,6 +117,7 @@ type LoginRepository interface {
 	MarkPasswordResetTokenUsed(ctx context.Context, token string) error
 	ExpirePasswordResetToken(ctx context.Context, loginID uuid.UUID) error
 	InitPasswordByUsername(ctx context.Context, username string, usernameValid bool) (uuid.UUID, error)
+	UpdatePasswordResetRequired(ctx context.Context, loginID uuid.UUID, required sql.NullBool) error
 
 	// Password history operations
 	AddPasswordToHistory(ctx context.Context, arg PasswordToHistoryParams) error
@@ -276,6 +277,13 @@ func (r *PostgresLoginRepository) ExpirePasswordResetToken(ctx context.Context, 
 // InitPasswordByUsername initializes a password reset by username
 func (r *PostgresLoginRepository) InitPasswordByUsername(ctx context.Context, username string, usernameValid bool) (uuid.UUID, error) {
 	return r.queries.InitPasswordByUsername(ctx, sql.NullString{String: username, Valid: usernameValid})
+}
+
+func (r *PostgresLoginRepository) UpdatePasswordResetRequired(ctx context.Context, loginID uuid.UUID, required sql.NullBool) error {
+	return r.queries.UpdatePasswordResetRequired(ctx, logindb.UpdatePasswordResetRequiredParams{
+		ID:                    loginID,
+		PasswordResetRequired: required,
+	})
 }
 
 // AddPasswordToHistory adds a password to the history
