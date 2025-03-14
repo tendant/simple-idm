@@ -489,15 +489,16 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 			Code: http.StatusInternalServerError,
 		}
 	}
+	mappedUsers := mapper.ToMappedUsers(users)
 
 	var res []User
-	for _, user := range users {
+	for _, user := range mappedUsers {
 		res = append(res, User{
 			DeptName:   user.DeptName,
 			DeptUUID:   user.DeptUuid.String(),
 			TenantName: user.TenantName,
 			TenantUUID: user.TenantUuid.String(),
-			ID:         user.UserID,
+			ID:         user.UserId,
 			Name:       user.DisplayName,
 			Role:       user.Role,
 			Email:      user.Email,
