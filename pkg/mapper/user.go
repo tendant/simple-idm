@@ -108,3 +108,53 @@ func ToMappedUsers(users []User) []MappedUser {
 	}
 	return mappedUsers
 }
+
+// FromMappedUser converts a MappedUser struct to a User struct
+func FromMappedUser(mu MappedUser) User {
+	// Create UserInfo from MappedUser fields
+	userInfo := UserInfo{
+		Email: mu.Email,
+	}
+	
+	// Create a new User
+	user := User{
+		UserID:      mu.UserId,
+		LoginID:     mu.LoginID,
+		DisplayName: mu.DisplayName,
+		UserInfo:    userInfo,
+		ExtraClaims: mu.ExtraClaims,
+	}
+	
+	// Add additional fields to ExtraClaims if they're not empty
+	if mu.Role != "" {
+		user.ExtraClaims["role"] = mu.Role
+	}
+	
+	// Add tenant and department info to ExtraClaims
+	if mu.TenantUuid != uuid.Nil {
+		user.ExtraClaims["tenant_uuid"] = mu.TenantUuid.String()
+	}
+	
+	if mu.DeptUuid != uuid.Nil {
+		user.ExtraClaims["dept_uuid"] = mu.DeptUuid.String()
+	}
+	
+	if mu.TenantName != "" {
+		user.ExtraClaims["tenant_name"] = mu.TenantName
+	}
+	
+	if mu.DeptName != "" {
+		user.ExtraClaims["dept_name"] = mu.DeptName
+	}
+	
+	return user
+}
+
+// FromMappedUsers converts a slice of MappedUser structs to a slice of User structs
+func FromMappedUsers(mappedUsers []MappedUser) []User {
+	users := make([]User, 0, len(mappedUsers))
+	for _, mu := range mappedUsers {
+		users = append(users, FromMappedUser(mu))
+	}
+	return users
+}
