@@ -41,7 +41,7 @@ type UserRepository interface {
 }
 
 // ToMappedUser converts a User struct to a MappedUser struct
-func (u User) ToMappedUser() MappedUser {
+func ToMappedUser(u User) MappedUser {
 	// Extract role from user's ExtraClaims
 	role := ""
 	if roleVal, ok := u.ExtraClaims["role"]; ok {
@@ -49,13 +49,13 @@ func (u User) ToMappedUser() MappedUser {
 			role = roleStr
 		}
 	}
-	
+
 	// Extract tenant and department information from ExtraClaims
 	var tenantUuid uuid.UUID
 	var deptUuid uuid.UUID
 	tenantName := ""
 	deptName := ""
-	
+
 	if tenantUuidVal, ok := u.ExtraClaims["tenant_uuid"]; ok {
 		if tenantUuidStr, ok := tenantUuidVal.(string); ok {
 			parsedUuid, err := uuid.Parse(tenantUuidStr)
@@ -64,7 +64,7 @@ func (u User) ToMappedUser() MappedUser {
 			}
 		}
 	}
-	
+
 	if deptUuidVal, ok := u.ExtraClaims["dept_uuid"]; ok {
 		if deptUuidStr, ok := deptUuidVal.(string); ok {
 			parsedUuid, err := uuid.Parse(deptUuidStr)
@@ -73,19 +73,19 @@ func (u User) ToMappedUser() MappedUser {
 			}
 		}
 	}
-	
+
 	if tenantNameVal, ok := u.ExtraClaims["tenant_name"]; ok {
 		if tnStr, ok := tenantNameVal.(string); ok {
 			tenantName = tnStr
 		}
 	}
-	
+
 	if deptNameVal, ok := u.ExtraClaims["dept_name"]; ok {
 		if dnStr, ok := deptNameVal.(string); ok {
 			deptName = dnStr
 		}
 	}
-	
+
 	return MappedUser{
 		UserId:      u.UserID,
 		LoginID:     u.LoginID,
@@ -104,7 +104,7 @@ func (u User) ToMappedUser() MappedUser {
 func ToMappedUsers(users []User) []MappedUser {
 	mappedUsers := make([]MappedUser, 0, len(users))
 	for _, user := range users {
-		mappedUsers = append(mappedUsers, user.ToMappedUser())
+		mappedUsers = append(mappedUsers, ToMappedUser(user))
 	}
 	return mappedUsers
 }
@@ -115,7 +115,7 @@ func FromMappedUser(mu MappedUser) User {
 	userInfo := UserInfo{
 		Email: mu.Email,
 	}
-	
+
 	// Create a new User
 	user := User{
 		UserID:      mu.UserId,
@@ -124,29 +124,29 @@ func FromMappedUser(mu MappedUser) User {
 		UserInfo:    userInfo,
 		ExtraClaims: mu.ExtraClaims,
 	}
-	
+
 	// Add additional fields to ExtraClaims if they're not empty
 	if mu.Role != "" {
 		user.ExtraClaims["role"] = mu.Role
 	}
-	
+
 	// Add tenant and department info to ExtraClaims
 	if mu.TenantUuid != uuid.Nil {
 		user.ExtraClaims["tenant_uuid"] = mu.TenantUuid.String()
 	}
-	
+
 	if mu.DeptUuid != uuid.Nil {
 		user.ExtraClaims["dept_uuid"] = mu.DeptUuid.String()
 	}
-	
+
 	if mu.TenantName != "" {
 		user.ExtraClaims["tenant_name"] = mu.TenantName
 	}
-	
+
 	if mu.DeptName != "" {
 		user.ExtraClaims["dept_name"] = mu.DeptName
 	}
-	
+
 	return user
 }
 
