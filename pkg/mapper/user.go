@@ -1,7 +1,6 @@
 package mapper
 
 import (
-	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,12 +31,6 @@ type User struct {
 	UserInfo    UserInfo               // Standard OIDC claims
 	ExtraClaims map[string]interface{} // Organization-specific and additional claims (interface type)
 
-}
-
-type UserRepository interface {
-	FindUsersByLoginID(ctx context.Context, loginID uuid.UUID) ([]User, error)
-	GetUserByUserID(ctx context.Context, userID uuid.UUID) (User, error)
-	FindUsernamesByEmail(ctx context.Context, email string) ([]string, error)
 }
 
 // ToMappedUser converts a User struct to a MappedUser struct
