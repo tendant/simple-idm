@@ -129,15 +129,16 @@ func getUniqueEmailsFromUsers(mappedUsers []mapper.MappedUser) []DeliveryOption 
 	var deliveryOptions []DeliveryOption
 
 	for _, user := range mappedUsers {
-		email, ok := user.ExtraClaims["email"].(string)
-		if ok && email != "" && !emailMap[email] {
-			emailMap[email] = true
-			deliveryOptions = append(deliveryOptions, DeliveryOption{
-				UserID:       user.UserId,
-				DisplayValue: utils.MaskEmail(email),
-				HashedValue:  utils.HashEmail(email),
-			})
+		if emailMap[user.Email] {
+			continue
 		}
+
+		deliveryOptions = append(deliveryOptions, DeliveryOption{
+			UserID:       user.UserId,
+			DisplayValue: utils.MaskEmail(user.Email),
+			HashedValue:  utils.HashEmail(user.Email),
+		})
+		emailMap[user.Email] = true
 	}
 
 	return deliveryOptions
