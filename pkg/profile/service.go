@@ -13,7 +13,7 @@ import (
 )
 
 type (
-	User struct {
+	Profile struct {
 		ID             uuid.UUID `json:"id"`
 		Email          string    `json:"email"`
 		CreatedAt      time.Time `json:"created_at"`
@@ -37,9 +37,9 @@ type (
 // ProfileRepository defines the interface for profile database operations
 type ProfileRepository interface {
 	// GetUserById retrieves a user by their ID
-	GetUserById(ctx context.Context, id uuid.UUID) (User, error)
+	GetUserById(ctx context.Context, id uuid.UUID) (Profile, error)
 	// FindUserByUsername finds users by their username
-	FindUserByUsername(ctx context.Context, username string) ([]User, error)
+	FindUserByUsername(ctx context.Context, username string) ([]Profile, error)
 	// UpdateUsername updates a user's username
 	UpdateUsername(ctx context.Context, arg UpdateUsernameParam) error
 	// Additional methods can be added as needed
@@ -58,8 +58,8 @@ func NewPostgresProfileRepository(queries *profiledb.Queries) *PostgresProfileRe
 }
 
 // GetUserById implements ProfileRepository.GetUserById
-func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
-	var res User
+func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUID) (Profile, error) {
+	var res Profile
 	row, err := r.queries.GetUserById(ctx, id)
 	if err != nil {
 		slog.Error("Failed to get user", "err", err)
@@ -77,16 +77,16 @@ func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUI
 }
 
 // FindUserByUsername implements ProfileRepository.FindUserByUsername
-func (r *PostgresProfileRepository) FindUserByUsername(ctx context.Context, username string) ([]User, error) {
+func (r *PostgresProfileRepository) FindUserByUsername(ctx context.Context, username string) ([]Profile, error) {
 	rows, err := r.queries.FindUserByUsername(ctx, utils.ToNullString(username))
 	if err != nil {
 		slog.Error("Failed to find user", "err", err)
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
 
-	var res []User
+	var res []Profile
 	for _, row := range rows {
-		res = append(res, User{
+		res = append(res, Profile{
 			ID:       row.ID,
 			Username: row.Username.String,
 		})
