@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -353,6 +354,13 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	}
 	slog.Info("Token marked as used")
 
+	err = pm.repository.UpdatePasswordResetRequired(ctx, tokenInfo.LoginID, sql.NullBool{Bool: false, Valid: true})
+	if err != nil {
+		slog.Error("Failed to update password reset required", "err", err)
+		return err
+	}
+	slog.Info("Updated password reset required to false")
+
 	return nil
 }
 
@@ -433,6 +441,13 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 		return err
 	}
 	slog.Info("Updated password and version")
+
+	err = pm.repository.UpdatePasswordResetRequired(ctx, login.ID, sql.NullBool{Bool: false, Valid: true})
+	if err != nil {
+		slog.Error("Failed to update password reset required", "err", err)
+		return err
+	}
+	slog.Info("Updated password reset required to false")
 
 	return nil
 }
