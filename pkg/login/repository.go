@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/mapper"
 )
 
 // Domain models for the login repository
@@ -91,11 +92,9 @@ type PasswordToHistoryParams struct {
 
 // UserRepository defines the interface for user-related database operations
 type UserRepository interface {
-	// User operations
-	FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]string, error)
-	FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (UserInfo, error)
-	FindUsernameByEmail(ctx context.Context, email string) (string, bool, error)
-	GetUsersByLoginId(ctx context.Context, loginID uuid.UUID, loginIDValid bool) ([]UserWithRoles, error)
+	FindUsersByLoginID(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error)
+	GetUserByUserID(ctx context.Context, userID uuid.UUID) (mapper.User, error)
+	FindUsernamesByEmail(ctx context.Context, email string) ([]string, error)
 }
 
 // LoginRepository defines the interface for login-related database operations
