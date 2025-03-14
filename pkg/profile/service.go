@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/profile/profiledb"
+	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
 )
 
@@ -22,6 +23,11 @@ type (
 		Username       string    `json:"username"`
 		Password       []byte    `json:"password"`
 	}
+
+	FindUserByUsername struct {
+		ID       uuid.UUID `json:"id"`
+		Username string    `json:"username"`
+	}
 )
 
 // ProfileRepository defines the interface for profile database operations
@@ -29,7 +35,7 @@ type ProfileRepository interface {
 	// GetUserById retrieves a user by their ID
 	GetUserById(ctx context.Context, id uuid.UUID) (GetUserById, error)
 	// FindUserByUsername finds users by their username
-	FindUserByUsername(ctx context.Context, username sql.NullString) ([]profiledb.FindUserByUsernameRow, error)
+	FindUserByUsername(ctx context.Context, username string) ([]FindUserByUsername, error)
 	// UpdateUsername updates a user's username
 	UpdateUsername(ctx context.Context, arg profiledb.UpdateUsernameParams) error
 	// Additional methods can be added as needed
@@ -68,8 +74,21 @@ func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUI
 }
 
 // FindUserByUsername implements ProfileRepository.FindUserByUsername
-func (r *PostgresProfileRepository) FindUserByUsername(ctx context.Context, username sql.NullString) ([]profiledb.FindUserByUsernameRow, error) {
-	return r.queries.FindUserByUsername(ctx, username)
+func (r *PostgresProfileRepository) FindUserByUsername(ctx context.Context, username string) ([]FindUserByUsername, error) {
+	rows, err := r.queries.FindUserByUsername(ctx, utils.ToNullString(username))
+	if err != nil {
+		slog.Error("Failed to find user", "err", err)
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	var res []FindUserByUsername
+	for _, row := range rows {
+		res = append(res, FindUserByUsername{
+			ID:       row.ID,
+			Username: row.Username.String,
+		})
+	}
+	return res, nil
 }
 
 // UpdateUsername implements ProfileRepository.UpdateUsername
