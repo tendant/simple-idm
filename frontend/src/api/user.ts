@@ -8,6 +8,7 @@ export interface LoginRequest {
 export interface DeliveryOption {
   display_value: string;
   hashed_value: string;
+  user_id?: string;
 }
 
 export interface TwoFactorMethod {
