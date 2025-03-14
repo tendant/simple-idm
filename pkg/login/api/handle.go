@@ -96,7 +96,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
-			ID:    mu.UserId,
+			ID:    mu.UserID,
 			Name:  name,
 			Email: email,
 		}
@@ -166,7 +166,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		for i, mu := range idmUsers {
 			email, _ := mu.ExtraClaims["email"].(string)
 			name := mu.DisplayName
-			id := mu.UserId
+			id := mu.UserID
 
 			apiUsers[i] = User{
 				ID:    id,
@@ -489,9 +489,10 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 			Code: http.StatusInternalServerError,
 		}
 	}
+	mappedUsers := mapper.ToMappedUsers(users)
 
 	var res []User
-	for _, user := range users {
+	for _, user := range mappedUsers {
 		res = append(res, User{
 			DeptName:   user.DeptName,
 			DeptUUID:   user.DeptUuid.String(),
@@ -586,8 +587,8 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	var targetUser mapper.MappedUser
 	found := false
 	for _, user := range users {
-		if user.UserId == data.UserID {
-			targetUser = user
+		if user.UserID == data.UserID {
+			targetUser = mapper.ToMappedUser(user)
 			found = true
 			break
 		}
@@ -631,7 +632,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
-			ID:    mu.UserId,
+			ID:    mu.UserID,
 			Name:  name,
 			Email: email,
 		}

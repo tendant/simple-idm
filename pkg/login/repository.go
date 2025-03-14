@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/mapper"
 )
 
 // Domain models for the login repository
@@ -90,13 +91,6 @@ type PasswordToHistoryParams struct {
 }
 
 // UserRepository defines the interface for user-related database operations
-type UserRepository interface {
-	// User operations
-	FindUserRolesByUserId(ctx context.Context, userID uuid.UUID) ([]string, error)
-	FindUserInfoWithRoles(ctx context.Context, id uuid.UUID) (UserInfo, error)
-	FindUsernameByEmail(ctx context.Context, email string) (string, bool, error)
-	GetUsersByLoginId(ctx context.Context, loginID uuid.UUID, loginIDValid bool) ([]UserWithRoles, error)
-}
 
 // LoginRepository defines the interface for login-related database operations
 type LoginRepository interface {
@@ -136,7 +130,7 @@ type PostgresLoginRepository struct {
 // while hiding the pgx implementation details
 type PostgresLoginRepositoryAdapter interface {
 	LoginRepository
-	UserRepository
+	mapper.UserRepository
 	WithPgxTx(tx pgx.Tx) LoginRepository
 }
 
@@ -430,4 +424,94 @@ func (r *PostgresLoginRepository) WithPgxTx(tx pgx.Tx) LoginRepository {
 	return &PostgresLoginRepository{
 		queries: r.queries.WithTx(tx),
 	}
+}
+
+// FindUsersByLoginID implements UserRepository.FindUsersByLoginID
+func (r *PostgresLoginRepository) FindUsersByLoginID(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
+	// Get users with roles using existing method
+	usersWithRoles, err := r.GetUsersByLoginId(ctx, loginID, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert UserWithRoles to mapper.User
+	users := make([]mapper.User, len(usersWithRoles))
+	for i, userWithRoles := range usersWithRoles {
+		// Create ExtraClaims map
+		extraClaims := make(map[string]interface{})
+
+		// Add roles to ExtraClaims
+		extraClaims["roles"] = userWithRoles.Roles
+
+		// Create UserInfo
+		userInfo := mapper.UserInfo{
+			Email: userWithRoles.Email,
+		}
+
+		// Create User
+		users[i] = mapper.User{
+			UserID:      userWithRoles.ID.String(),
+			LoginID:     loginID.String(),
+			DisplayName: userWithRoles.Name,
+			UserInfo:    userInfo,
+			ExtraClaims: extraClaims,
+		}
+	}
+
+	return users, nil
+}
+
+// GetUserByUserID implements UserRepository.GetUserByUserID
+func (r *PostgresLoginRepository) GetUserByUserID(ctx context.Context, userID uuid.UUID) (mapper.User, error) {
+	// Get user info with roles
+	userInfo, err := r.FindUserInfoWithRoles(ctx, userID)
+	if err != nil {
+		return mapper.User{}, err
+	}
+
+	// Get login information
+	loginEntity, err := r.GetLoginByUserId(ctx, userID)
+	if err != nil {
+		return mapper.User{}, err
+	}
+
+	// Create ExtraClaims map
+	extraClaims := make(map[string]interface{})
+
+	// Add roles to ExtraClaims
+	extraClaims["roles"] = userInfo.Roles
+
+	// Create mapper.UserInfo
+	mapperUserInfo := mapper.UserInfo{
+		Email: userInfo.Email,
+	}
+
+	// Create User
+	user := mapper.User{
+		UserID:      userID.String(),
+		LoginID:     loginEntity.ID.String(),
+		DisplayName: userInfo.Name,
+		UserInfo:    mapperUserInfo,
+		ExtraClaims: extraClaims,
+	}
+
+	return user, nil
+}
+
+// FindUsernamesByEmail implements UserRepository.FindUsernamesByEmail
+func (r *PostgresLoginRepository) FindUsernamesByEmail(ctx context.Context, email string) ([]string, error) {
+	// We only have FindUsernameByEmail which returns a single username
+	// So we'll use that and return a slice with one element
+	username, valid, err := r.FindUsernameByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+
+	if !valid {
+		// No username found for this email
+		return []string{}, nil
+	}
+
+	// Return a slice with the single username
+	return []string{username}, nil
 }
