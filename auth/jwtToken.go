@@ -11,8 +11,10 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/token"
 )
 
+// Jwt implements the token.TokenService interface
 type Jwt struct {
 	Secret          string
 	CoookieHttpOnly bool
@@ -96,31 +98,32 @@ func encodeSegment(seg []byte) string {
 	return base64.RawURLEncoding.EncodeToString(seg)
 }
 
-type Token struct {
-	AccessToken  string
-	RefreshToken string
-}
+// Claims struct for JWT claims
 type Claims struct {
 	CustomClaims interface{} `json:"custom_claims,inline"`
 	jwt.RegisteredClaims
 }
 
-func (j Jwt) CreateToken(user string) (Token, error) {
+// CreateToken implements token.TokenService
+func (j Jwt) CreateToken(user string) (token.Token, error) {
 	accessToken, err := j.CreateAccessToken(user)
 	if err != nil {
 		slog.Error("Failed create access token!", "err", err)
-		return Token{}, err
+		return token.Token{}, err
 	}
 	refreshToken, err := j.CreateRefreshToken(user)
 	if err != nil {
 		slog.Error("Failed create refresh token!", "err", err)
-		return Token{}, err
+		return token.Token{}, err
 	}
-	return Token{
+	return token.Token{
 		AccessToken:  accessToken.Token,
 		RefreshToken: refreshToken.Token,
 	}, nil
 }
+
+// Ensure Jwt implements token.TokenService
+var _ token.TokenService = (*Jwt)(nil)
 
 func (j Jwt) ParseTokenStr(tokenStr string) (*jwt.Token, error) {
 	signingKey := []byte(j.Secret)
@@ -149,12 +152,8 @@ func LoadFromMap[T any](c *T, m map[string]interface{}) error {
 	return err
 }
 
-type IdmToken struct {
-	Token  string
-	Expiry time.Time
-}
-
-func (j Jwt) CreateAccessToken(claimData interface{}) (IdmToken, error) {
+// CreateAccessToken implements token.TokenService
+func (j Jwt) CreateAccessToken(claimData interface{}) (token.IdmToken, error) {
 	claims := Claims{
 		claimData,
 		jwt.RegisteredClaims{
@@ -169,10 +168,11 @@ func (j Jwt) CreateAccessToken(claimData interface{}) (IdmToken, error) {
 		},
 	}
 	accessToken, err := j.CreateTokenStr(claims)
-	return IdmToken{Token: accessToken, Expiry: claims.ExpiresAt.Time}, err
+	return token.IdmToken{Token: accessToken, Expiry: claims.ExpiresAt.Time}, err
 }
 
-func (j Jwt) CreateRefreshToken(claimData interface{}) (IdmToken, error) {
+// CreateRefreshToken implements token.TokenService
+func (j Jwt) CreateRefreshToken(claimData interface{}) (token.IdmToken, error) {
 	claims := Claims{
 		claimData,
 		jwt.RegisteredClaims{
@@ -187,9 +187,10 @@ func (j Jwt) CreateRefreshToken(claimData interface{}) (IdmToken, error) {
 		},
 	}
 	refreshToken, err := j.CreateTokenStr(claims)
-	return IdmToken{Token: refreshToken, Expiry: claims.ExpiresAt.Time}, err
+	return token.IdmToken{Token: refreshToken, Expiry: claims.ExpiresAt.Time}, err
 }
 
+// CreatePasswordResetToken implements token.TokenService
 func (j Jwt) CreatePasswordResetToken(claimData interface{}) (string, error) {
 	claims := Claims{
 		claimData,
@@ -208,7 +209,8 @@ func (j Jwt) CreatePasswordResetToken(claimData interface{}) (string, error) {
 	return pwdResetToken, err
 }
 
-func (j Jwt) CreateLogoutToken(claimData interface{}) (IdmToken, error) {
+// CreateLogoutToken implements token.TokenService
+func (j Jwt) CreateLogoutToken(claimData interface{}) (token.IdmToken, error) {
 	claims := Claims{
 		claimData,
 		jwt.RegisteredClaims{
@@ -223,10 +225,11 @@ func (j Jwt) CreateLogoutToken(claimData interface{}) (IdmToken, error) {
 		},
 	}
 	accessToken, err := j.CreateTokenStr(claims)
-	return IdmToken{Token: accessToken, Expiry: claims.ExpiresAt.Time}, err
+	return token.IdmToken{Token: accessToken, Expiry: claims.ExpiresAt.Time}, err
 }
 
-func (j Jwt) CreateTempToken(claimData interface{}) (IdmToken, error) {
+// CreateTempToken implements token.TokenService
+func (j Jwt) CreateTempToken(claimData interface{}) (token.IdmToken, error) {
 	claims := Claims{
 		claimData,
 		jwt.RegisteredClaims{
@@ -241,7 +244,7 @@ func (j Jwt) CreateTempToken(claimData interface{}) (IdmToken, error) {
 		},
 	}
 	tempToken, err := j.CreateTokenStr(claims)
-	return IdmToken{Token: tempToken, Expiry: claims.ExpiresAt.Time}, err
+	return token.IdmToken{Token: tempToken, Expiry: claims.ExpiresAt.Time}, err
 }
 
 func (j Jwt) ValidateRefreshToken(tokenString string) (jwt.MapClaims, error) {
