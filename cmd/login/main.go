@@ -138,7 +138,7 @@ func main() {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
 
-	userMapper := mapper.NewDefaultUserMapper(mapperQueries)
+	userMapper := mapper.NewUserMapper(mapperQueries)
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Create a password policy based on the environment
@@ -159,7 +159,7 @@ func main() {
 	}
 	loginRepository := login.NewPostgresLoginRepository(loginQueries)
 	// Use the same repository instance for both LoginRepository and UserRepository interfaces
-	loginService := login.NewLoginService(loginRepository, loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
+	loginService := login.NewLoginService(loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
 
 	// jwt service
 	jwtService := auth.NewJwtServiceOptions(
