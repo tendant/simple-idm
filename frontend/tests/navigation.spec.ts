@@ -15,7 +15,7 @@ test.describe('Navigation Component', () => {
     });
     
     // Mock the users API response for the default page
-    await page.route('/idm/users', async (route) => {
+    await page.route('**/idm/users', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -41,7 +41,7 @@ test.describe('Navigation Component', () => {
 
   test('should navigate to Users page', async ({ page }) => {
     // Mock the users API response
-    await page.route('/idm/users', async (route) => {
+    await page.route('**/idm/users', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -55,7 +55,7 @@ test.describe('Navigation Component', () => {
 
   test('should navigate to Roles page', async ({ page }) => {
     // Mock the roles API response
-    await page.route('/idm/roles', async (route) => {
+    await page.route('**/idm/roles', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -69,7 +69,7 @@ test.describe('Navigation Component', () => {
 
   test('should navigate to Logins page', async ({ page }) => {
     // Mock the logins API response
-    await page.route('/idm/logins', async (route) => {
+    await page.route('**/idm/logins', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -88,7 +88,7 @@ test.describe('Navigation Component', () => {
 
   test('should logout when clicking the logout button', async ({ page }) => {
     // Mock the logout API response
-    await page.route('/auth/logout', async (route) => {
+    await page.route('**/auth/logout', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -109,7 +109,7 @@ test.describe('Navigation Component', () => {
 
   test('should handle failed logout gracefully', async ({ page }) => {
     // Mock a failed logout API response
-    await page.route('/auth/logout', async (route) => {
+    await page.route('**/auth/logout', async (route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',

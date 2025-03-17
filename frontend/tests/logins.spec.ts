@@ -118,7 +118,7 @@ test.describe('Logins Page', () => {
 
   test('should show error when delete fails', async ({ page }) => {
     // Mock the delete API response to fail
-    await page.route('/idm/logins/2', async (route) => {
+    await page.route('**/idm/logins/2', async (route) => {
       if (route.request().method() === 'DELETE') {
         await route.fulfill({
           status: 500,
