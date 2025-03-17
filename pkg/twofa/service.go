@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
@@ -33,12 +34,14 @@ type TwoFactorService interface {
 type TwoFaService struct {
 	queries             *twofadb.Queries
 	notificationManager *notification.NotificationManager
+	userMapper          mapper.UserMapper
 }
 
-func NewTwoFaService(queries *twofadb.Queries, notificationManager *notification.NotificationManager) *TwoFaService {
+func NewTwoFaService(queries *twofadb.Queries, notificationManager *notification.NotificationManager, userMapper mapper.UserMapper) *TwoFaService {
 	return &TwoFaService{
 		queries:             queries,
 		notificationManager: notificationManager,
+		userMapper:          userMapper,
 	}
 }
 
