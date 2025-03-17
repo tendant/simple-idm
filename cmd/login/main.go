@@ -171,7 +171,7 @@ func main() {
 	// auth queries
 	// authQueries := authDb.New(pool)
 
-	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager)
+	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
 	loginHandle := loginapi.NewHandle(loginService, *jwtService, loginapi.WithTwoFactorService(twoFaService))
 
