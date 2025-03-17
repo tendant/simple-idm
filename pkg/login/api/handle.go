@@ -185,6 +185,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			}
 		}
 
+		h.setTokenCookie(w, ACCESS_TOKEN_NAME, tempToken.Token, tempToken.Expiry)
 		// Return 202 response with users to select from
 		return PostLoginJSON202Response(SelectUserRequiredResponse{
 			Status:    "select_user_required",
