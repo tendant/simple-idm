@@ -22,21 +22,22 @@ type BackupCode struct {
 }
 
 type GooseDbVersion struct {
-	ID        int32     `json:"id"`
-	VersionID int64     `json:"version_id"`
-	IsApplied bool      `json:"is_applied"`
-	Tstamp    time.Time `json:"tstamp"`
+	ID        int32        `json:"id"`
+	VersionID int64        `json:"version_id"`
+	IsApplied bool         `json:"is_applied"`
+	Tstamp    sql.NullTime `json:"tstamp"`
 }
 
 type Login struct {
-	ID              uuid.UUID      `json:"id"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
-	DeletedAt       sql.NullTime   `json:"deleted_at"`
-	CreatedBy       sql.NullString `json:"created_by"`
-	Password        []byte         `json:"password"`
-	Username        sql.NullString `json:"username"`
-	PasswordVersion pgtype.Int4    `json:"password_version"`
+	ID                    uuid.UUID      `json:"id"`
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+	DeletedAt             sql.NullTime   `json:"deleted_at"`
+	CreatedBy             sql.NullString `json:"created_by"`
+	Password              []byte         `json:"password"`
+	Username              sql.NullString `json:"username"`
+	PasswordVersion       pgtype.Int4    `json:"password_version"`
+	PasswordResetRequired pgtype.Bool    `json:"password_reset_required"`
 }
 
 type Login2fa struct {

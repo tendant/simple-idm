@@ -413,26 +413,12 @@ components:
           type: string
         email:
           type: string
-        tenant_uuid:
-          type: string
-          format: uuid
-        dept_uuid:
-          type: string
-          format: uuid
-        tenant_name:
-          type: string
-        dept_name:
-          type: string
         role:
           type: string
       required:
         - id
         - name
         - email
-        - tenant_uuid
-        - dept_uuid
-        - tenant_name
-        - dept_name
         - role
     PasswordReset:
       type: object

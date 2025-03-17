@@ -96,7 +96,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
-			ID:    mu.UserID,
+			ID:    mu.UserId,
 			Name:  name,
 			Email: email,
 		}
@@ -142,7 +142,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 				twoFactorMethods = append(twoFactorMethods, curMethod)
 			}
 
-			tempToken, err := h.jwtService.CreateTempToken(mapper.ToMappedUser(tokenUser))
+			tempToken, err := h.jwtService.CreateTempToken(tokenUser)
 			if err != nil {
 				slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
 			}
@@ -166,7 +166,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		for i, mu := range idmUsers {
 			email, _ := mu.ExtraClaims["email"].(string)
 			name := mu.DisplayName
-			id := mu.UserID
+			id := mu.UserId
 
 			apiUsers[i] = User{
 				ID:    id,
@@ -176,7 +176,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 
 		// Create temp token with the custom claims for user selection
-		tempToken, err := h.jwtService.CreateTempToken(mapper.ToMappedUser(tokenUser))
+		tempToken, err := h.jwtService.CreateTempToken(tokenUser)
 		if err != nil {
 			slog.Error("Failed to create temp token", "err", err)
 			return &Response{
@@ -196,7 +196,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Create JWT tokens
-	accessToken, err := h.jwtService.CreateAccessToken(mapper.ToMappedUser(tokenUser))
+	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
 		return &Response{
@@ -205,7 +205,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	refreshToken, err := h.jwtService.CreateRefreshToken(mapper.ToMappedUser(tokenUser))
+	refreshToken, err := h.jwtService.CreateRefreshToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
 		return &Response{
@@ -490,19 +490,14 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 			Code: http.StatusInternalServerError,
 		}
 	}
-	mappedUsers := mapper.ToMappedUsers(users)
 
 	var res []User
-	for _, user := range mappedUsers {
+	for _, user := range users {
 		res = append(res, User{
-			DeptName:   user.DeptName,
-			DeptUUID:   user.DeptUuid.String(),
-			TenantName: user.TenantName,
-			TenantUUID: user.TenantUuid.String(),
-			ID:         user.UserId,
-			Name:       user.DisplayName,
-			Role:       user.Role,
-			Email:      user.Email,
+			ID:    user.UserId,
+			Name:  user.DisplayName,
+			Role:  user.Roles[0],
+			Email: user.Email,
 		})
 	}
 
@@ -588,8 +583,8 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	var targetUser mapper.MappedUser
 	found := false
 	for _, user := range users {
-		if user.UserID == data.UserID {
-			targetUser = mapper.ToMappedUser(user)
+		if user.UserId == data.UserID {
+			targetUser = user
 			found = true
 			break
 		}
@@ -633,7 +628,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
-			ID:    mu.UserID,
+			ID:    mu.UserId,
 			Name:  name,
 			Email: email,
 		}
@@ -682,7 +677,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	// Create JWT tokens
 	tokenUser := idmUsers[0]
 
-	accessToken, err := h.jwtService.CreateAccessToken(mapper.ToMappedUser(tokenUser))
+	accessToken, err := h.jwtService.CreateAccessToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
 		return &Response{
@@ -691,7 +686,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	refreshToken, err := h.jwtService.CreateRefreshToken(mapper.ToMappedUser(tokenUser))
+	refreshToken, err := h.jwtService.CreateRefreshToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
 		return &Response{
