@@ -11,7 +11,6 @@ import (
 type User struct {
 	UserId      string                 `json:"user_id,omitempty"`
 	LoginID     string                 `json:"login_id,omitempty"`
-	Email       string                 `json:"email,omitempty"`
 	DisplayName string                 `json:"display_name,omitempty"`
 	ExtraClaims map[string]interface{} `json:"extra_claims,omitempty"`
 	UserInfo    UserInfo               `json:"user_info,omitempty"`
