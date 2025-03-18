@@ -9,9 +9,11 @@ import (
 
 // Default token expiration times
 const (
-	DefaultAccessTokenExpiry  = 1 * time.Minute
-	DefaultRefreshTokenExpiry = 15 * time.Minute
-	DefaultTempTokenExpiry    = 5 * time.Minute
+	DefaultAccessTokenExpiry     = 1 * time.Minute
+	DefaultRefreshTokenExpiry    = 15 * time.Minute
+	DefaultTempTokenExpiry       = 5 * time.Minute
+	DefaultPasswordResetExpiry   = 30 * time.Minute
+	DefaultLogoutTokenExpiry     = -1 * time.Minute // Negative to make it immediately expired
 )
 
 // IdmToken represents a token with its expiry time
@@ -120,6 +122,114 @@ func (s *RefreshTokenService) CreateToken(claimData interface{}) (Claims, error)
 	return claims, nil
 }
 
+// PasswordResetTokenService implements TokenService for password reset tokens
+type PasswordResetTokenService struct {
+	Config BaseTokenConfig
+}
+
+// NewPasswordResetTokenService creates a new PasswordResetTokenService
+func NewPasswordResetTokenService() *PasswordResetTokenService {
+	config := NewBaseTokenConfig(
+		"simple-idm",
+		"simple-idm",
+		DefaultPasswordResetExpiry,
+		[]string{"public"},
+	)
+	return &PasswordResetTokenService{Config: config}
+}
+
+// CreateToken implements TokenService for password reset tokens
+func (s *PasswordResetTokenService) CreateToken(claimData interface{}) (Claims, error) {
+	claims := Claims{
+		CustomClaims: claimData,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(s.Config.Expiry)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			NotBefore: jwt.NewNumericDate(time.Now().UTC().Add(-5 * time.Minute)),
+			Issuer:    s.Config.Issuer,
+			Subject:   s.Config.Subject,
+			ID:        uuid.New().String(),
+			Audience:  s.Config.Audience,
+		},
+	}
+
+	// We're not generating the token string here anymore, just returning the claims
+	return claims, nil
+}
+
+// LogoutTokenService implements TokenService for logout tokens
+type LogoutTokenService struct {
+	Config BaseTokenConfig
+}
+
+// NewLogoutTokenService creates a new LogoutTokenService
+func NewLogoutTokenService() *LogoutTokenService {
+	config := NewBaseTokenConfig(
+		"simple-idm",
+		"simple-idm",
+		DefaultLogoutTokenExpiry,
+		[]string{"public"},
+	)
+	return &LogoutTokenService{Config: config}
+}
+
+// CreateToken implements TokenService for logout tokens
+func (s *LogoutTokenService) CreateToken(claimData interface{}) (Claims, error) {
+	claims := Claims{
+		CustomClaims: claimData,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(s.Config.Expiry)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			NotBefore: jwt.NewNumericDate(time.Now().UTC().Add(-5 * time.Minute)),
+			Issuer:    s.Config.Issuer,
+			Subject:   s.Config.Subject,
+			ID:        uuid.New().String(),
+			Audience:  s.Config.Audience,
+		},
+	}
+
+	// We're not generating the token string here anymore, just returning the claims
+	return claims, nil
+}
+
+// TempTokenService implements TokenService for temporary tokens (e.g., 2FA)
+type TempTokenService struct {
+	Config BaseTokenConfig
+}
+
+// NewTempTokenService creates a new TempTokenService
+func NewTempTokenService() *TempTokenService {
+	config := NewBaseTokenConfig(
+		"simple-idm",
+		"simple-idm",
+		DefaultTempTokenExpiry,
+		[]string{"2fa"},
+	)
+	return &TempTokenService{Config: config}
+}
+
+// CreateToken implements TokenService for temporary tokens
+func (s *TempTokenService) CreateToken(claimData interface{}) (Claims, error) {
+	claims := Claims{
+		CustomClaims: claimData,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(s.Config.Expiry)),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+			NotBefore: jwt.NewNumericDate(time.Now().UTC()),
+			Issuer:    s.Config.Issuer,
+			Subject:   s.Config.Subject,
+			ID:        uuid.New().String(),
+			Audience:  s.Config.Audience,
+		},
+	}
+
+	// We're not generating the token string here anymore, just returning the claims
+	return claims, nil
+}
+
 // Ensure implementations satisfy the interface
 var _ TokenService = (*AccessTokenService)(nil)
 var _ TokenService = (*RefreshTokenService)(nil)
+var _ TokenService = (*PasswordResetTokenService)(nil)
+var _ TokenService = (*LogoutTokenService)(nil)
+var _ TokenService = (*TempTokenService)(nil)
