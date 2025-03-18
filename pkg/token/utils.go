@@ -3,6 +3,7 @@ package token
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -59,4 +60,24 @@ func signingString(t *jwt.Token) (string, error) {
 }
 func encodeSegment(seg []byte) string {
 	return base64.RawURLEncoding.EncodeToString(seg)
+}
+
+func ParseTokenStr(secret string, tokenStr string) (*jwt.Token, error) {
+	signingKey := []byte(secret)
+	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		return signingKey, nil
+	})
+	if err != nil {
+		slog.Error("Failed parse JWT string!", "err", err)
+		return token, err
+	}
+
+	// Since we don't have a LoadFromMap function or Claims struct defined,
+	// we'll just return the token if it's valid
+	if token.Valid {
+		return token, nil
+	}
+
+	slog.Error("Failed parse token claims!", "err", "token invalid")
+	return token, fmt.Errorf("failed_parse_token_claims")
 }
