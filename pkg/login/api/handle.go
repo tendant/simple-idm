@@ -34,6 +34,11 @@ func NewHandle(loginService *login.LoginService, jwtService stoken.JwtConfig, op
 		jwtService.Secret,
 		stoken.WithCookieHttpOnly(jwtService.CookieHttpOnly),
 		stoken.WithCookieSecure(jwtService.CookieSecure),
+		stoken.WithAccessTokenService(jwtService.AccessTokenService),
+		stoken.WithRefreshTokenService(jwtService.RefreshTokenService),
+		stoken.WithPasswordResetTokenService(jwtService.PasswordResetTokenService),
+		stoken.WithLogoutTokenService(jwtService.LogoutTokenService),
+		stoken.WithTempTokenService(jwtService.TempTokenService),
 	)
 
 	h := Handle{
