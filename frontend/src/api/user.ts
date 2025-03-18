@@ -75,6 +75,7 @@ export interface User {
     id?: string;
     name?: string;
   }> | null;
+  role_ids?: string[]; // Added for form handling
   twoFactorEnabled?: boolean;
 }
 
@@ -117,17 +118,47 @@ export const userApi = {
       role_ids: user.role_ids?.map(id => id) || []
     };
     
-    const response = await apiClient.post('/idm/users', payload);
+    try {
+      const response = await apiClient.post('/idm/users', payload);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      if (errorData && errorData.message) {
-        throw new Error(errorData.message);
+      if (!response.ok) {
+        // Try to parse the error response
+        const errorData = await response.json().catch(() => null);
+        
+        // Handle specific error cases based on status code
+        if (response.status === 400) {
+          if (errorData?.message?.includes('username')) {
+            throw new Error(`Username error: ${errorData.message}`);
+          } else if (errorData?.message?.includes('email')) {
+            throw new Error(`Email error: ${errorData.message}`);
+          } else if (errorData?.message?.includes('password')) {
+            throw new Error(`Password error: ${errorData.message}`);
+          } else if (errorData?.message) {
+            throw new Error(errorData.message);
+          }
+          throw new Error('Invalid user data provided');
+        } else if (response.status === 409) {
+          throw new Error('A user with this username or email already exists');
+        } else if (response.status === 403) {
+          throw new Error('You do not have permission to create users');
+        } else if (response.status === 500) {
+          throw new Error('Server error occurred while creating user');
+        }
+        
+        // Generic error with message if available
+        if (errorData && errorData.message) {
+          throw new Error(errorData.message);
+        }
+        throw new Error(`Failed to create user (Status: ${response.status})`);
       }
-      throw new Error('Failed to create user');
-    }
 
-    return response.json();
+      return response.json();
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('An unexpected error occurred while creating user');
+    }
   },
 
   updateUser: async (id: string, user: UpdateUserRequest): Promise<User> => {

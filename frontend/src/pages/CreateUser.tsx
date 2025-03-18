@@ -1,4 +1,4 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { userApi } from '../api/user';
 import { loginApi } from '../api/login';
@@ -8,6 +8,8 @@ const CreateUser: Component = () => {
   const navigate = useNavigate();
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
+  const [success, setSuccess] = createSignal(false);
+  const [createdUser, setCreatedUser] = createSignal<string | null>(null);
 
   const handleSubmit = async (data: { 
     username?: string; 
@@ -18,30 +20,54 @@ const CreateUser: Component = () => {
   }) => {
     setLoading(true);
     setError(null);
+    setSuccess(false);
+    setCreatedUser(null);
     
     try {
       // First create the login if we have a password
       let loginId = null;
-      if (data.password) {
-        const newLogin = await loginApi.createLogin({
-          username: data.username!,
-          email: data.email,
-          password: data.password,
-        });
-        loginId = newLogin.id;
+      try {
+        if (data.password) {
+          const newLogin = await loginApi.createLogin({
+            username: data.username!,
+            email: data.email,
+            password: data.password,
+          });
+          loginId = newLogin.id;
+        }
+      } catch (loginErr) {
+        // If login creation fails, throw a more specific error
+        const errorMsg = loginErr instanceof Error ? loginErr.message : 'Failed to create login';
+        throw new Error(`Login creation failed: ${errorMsg}`);
       }
       
       // Then create the user with the login ID if available
-      const newUser = await userApi.createUser({
-        username: data.username!,
-        email: data.email!,
-        name: data.name,
-        role_ids: data.role_ids,
-        login_id: loginId,
-        password: data.password || '',
-      });
-      
-      navigate('/users');
+      try {
+        const newUser = await userApi.createUser({
+          username: data.username!,
+          email: data.email!,
+          name: data.name,
+          role_ids: data.role_ids,
+          login_id: loginId,
+          password: data.password || '',
+        });
+        
+        // Set success state and store created username
+        setSuccess(true);
+        setCreatedUser(newUser.username || data.username || 'new user');
+        
+        // Redirect after a short delay to show success message
+        setTimeout(() => {
+          navigate('/users');
+        }, 2000);
+      } catch (userErr) {
+        // If user creation fails but login was created, we should handle this case
+        // Ideally, we would delete the login that was created, but for now we'll just show an error
+        if (loginId) {
+          throw new Error(`User creation failed but login was created. Error: ${userErr instanceof Error ? userErr.message : 'Unknown error'}`);
+        }
+        throw userErr;
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user and login');
     } finally {
@@ -68,6 +94,7 @@ const CreateUser: Component = () => {
         </div>
       </div>
 
+      {/* Error message */}
       {error() && (
         <div class="mt-4 rounded-lg bg-red-50 p-4">
           <div class="flex">
@@ -78,17 +105,44 @@ const CreateUser: Component = () => {
             </div>
             <div class="ml-3">
               <h3 class="text-sm font-medium text-red-800">{error()}</h3>
+              <div class="mt-2 text-sm text-red-700">
+                <p>Please correct the errors and try again.</p>
+              </div>
             </div>
           </div>
         </div>
       )}
+      
+      {/* Success message */}
+      <Show when={success()}>
+        <div class="mt-4 rounded-lg bg-green-50 p-4">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-green-800">User created successfully</h3>
+              <div class="mt-2 text-sm text-green-700">
+                <p>User {createdUser()} has been created. Redirecting to users list...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Show>
 
       <div class="mt-8 max-w-xl">
         <UserForm 
           onSubmit={handleSubmit} 
           submitLabel={loading() ? "Creating..." : "Create User"} 
-          loading={loading()}
+          loading={loading() || success()}
         />
+        
+        <div class="mt-6 text-sm text-gray-9">
+          <p>* Required fields</p>
+          <p class="mt-2">Note: Creating a user will also create an associated login if a password is provided.</p>
+        </div>
       </div>
     </div>
   );

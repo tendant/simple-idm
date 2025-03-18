@@ -24,6 +24,7 @@ export interface TwoFactorMethods {
 export interface CreateLoginRequest {
   username: string;
   password: string;
+  email?: string; // Added to support email in login creation
 }
 
 export interface UpdateLoginRequest {

@@ -1,4 +1,4 @@
-import { Component, createSignal, createResource, For, Show } from 'solid-js';
+import { Component, createSignal, createResource, For, Show, createEffect } from 'solid-js';
 import type { User } from '../api/user';
 import { roleApi, type Role } from '../api/role';
 import { loginApi, type Login } from '../api/login';
@@ -28,6 +28,16 @@ const UserForm: Component<Props> = (props) => {
   const [selectedLogin, setSelectedLogin] = createSignal<string>(props.initialData?.login_id || '');
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(props.loading || false);
+  
+  // Field-specific validation errors
+  const [usernameError, setUsernameError] = createSignal<string | null>(null);
+  const [emailError, setEmailError] = createSignal<string | null>(null);
+  const [passwordError, setPasswordError] = createSignal<string | null>(null);
+  
+  // Update loading state when props change
+  createEffect(() => {
+    setLoading(props.loading || false);
+  });
 
   // Fetch available roles
   const [roles] = createResource<Role[]>(async () => {
@@ -49,9 +59,54 @@ const UserForm: Component<Props> = (props) => {
     }
   });
 
+  // Validate form fields
+  const validateForm = () => {
+    let isValid = true;
+    
+    // Reset all errors
+    setUsernameError(null);
+    setEmailError(null);
+    setPasswordError(null);
+    setError(null);
+    
+    // Username validation
+    if (!username()) {
+      setUsernameError('Username is required');
+      isValid = false;
+    } else if (username().length < 3) {
+      setUsernameError('Username must be at least 3 characters');
+      isValid = false;
+    }
+    
+    // Email validation
+    if (!email()) {
+      setEmailError('Email is required');
+      isValid = false;
+    } else if (!/^\S+@\S+\.\S+$/.test(email())) {
+      setEmailError('Please enter a valid email address');
+      isValid = false;
+    }
+    
+    // Password validation (only for new users)
+    if (!props.initialData && !password()) {
+      setPasswordError('Password is required');
+      isValid = false;
+    } else if (!props.initialData && password().length < 8) {
+      setPasswordError('Password must be at least 8 characters');
+      isValid = false;
+    }
+    
+    return isValid;
+  };
+
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
-    setError(null);
+    
+    // Validate form before submission
+    if (!validateForm()) {
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -64,7 +119,19 @@ const UserForm: Component<Props> = (props) => {
         login_id: selectedLogin() || undefined,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save user');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to save user';
+      
+      // Handle field-specific errors
+      if (errorMsg.includes('Username error')) {
+        setUsernameError(errorMsg.replace('Username error: ', ''));
+      } else if (errorMsg.includes('Email error')) {
+        setEmailError(errorMsg.replace('Email error: ', ''));
+      } else if (errorMsg.includes('Password error')) {
+        setPasswordError(errorMsg.replace('Password error: ', ''));
+      } else {
+        // General error
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -99,7 +166,7 @@ const UserForm: Component<Props> = (props) => {
 
       <div>
         <label for="username" class="block text-sm font-medium text-gray-11">
-          Username
+          Username <span class="text-red-600">*</span>
         </label>
         <div class="mt-1">
           <input
@@ -108,16 +175,23 @@ const UserForm: Component<Props> = (props) => {
             id="username"
             required
             value={username()}
-            onInput={(e) => setUsername(e.currentTarget.value)}
-            class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            onInput={(e) => {
+              setUsername(e.currentTarget.value);
+              setUsernameError(null);
+            }}
+            class={`block w-full appearance-none rounded-lg border ${usernameError() ? 'border-red-500' : 'border-gray-7'} px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
             disabled={!!props.initialData}
+            placeholder="Enter username (min 3 characters)"
           />
+          {usernameError() && (
+            <p class="mt-1 text-sm text-red-600">{usernameError()}</p>
+          )}
         </div>
       </div>
 
       <div>
         <label for="email" class="block text-sm font-medium text-gray-11">
-          Email
+          Email <span class="text-red-600">*</span>
         </label>
         <div class="mt-1">
           <input
@@ -126,10 +200,17 @@ const UserForm: Component<Props> = (props) => {
             id="email"
             required
             value={email()}
-            onInput={(e) => setEmail(e.currentTarget.value)}
-            class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            onInput={(e) => {
+              setEmail(e.currentTarget.value);
+              setEmailError(null);
+            }}
+            class={`block w-full appearance-none rounded-lg border ${emailError() ? 'border-red-500' : 'border-gray-7'} px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
             disabled={!!props.initialData}
+            placeholder="Enter a valid email address"
           />
+          {emailError() && (
+            <p class="mt-1 text-sm text-red-600">{emailError()}</p>
+          )}
         </div>
       </div>
 
@@ -152,7 +233,7 @@ const UserForm: Component<Props> = (props) => {
       {!props.initialData && (
         <div>
           <label for="password" class="block text-sm font-medium text-gray-11">
-            Password
+            Password <span class="text-red-600">*</span>
           </label>
           <div class="mt-1">
             <input
@@ -161,10 +242,20 @@ const UserForm: Component<Props> = (props) => {
               id="password"
               required
               value={password()}
-              onInput={(e) => setPassword(e.currentTarget.value)}
-              class="block w-full appearance-none rounded-lg border border-gray-7 px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onInput={(e) => {
+                setPassword(e.currentTarget.value);
+                setPasswordError(null);
+              }}
+              class={`block w-full appearance-none rounded-lg border ${passwordError() ? 'border-red-500' : 'border-gray-7'} px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
+              placeholder="Enter password (min 8 characters)"
             />
+            {passwordError() && (
+              <p class="mt-1 text-sm text-red-600">{passwordError()}</p>
+            )}
           </div>
+          <p class="mt-1 text-xs text-gray-9">
+            Password should be at least 8 characters and include a mix of letters, numbers, and special characters for better security.
+          </p>
         </div>
       )}
 
