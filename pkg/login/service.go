@@ -60,13 +60,13 @@ type LoginParams struct {
 }
 
 type LoginResponse struct {
-	Users   []mapper.MappedUser
+	Users   []mapper.User
 	LoginId uuid.UUID
 }
 
-func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.MappedUser, error) {
+func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
 	// Get users from repository
-	users, err := s.userMapper.GetUsers(ctx, loginID)
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
 	if err != nil {
 		slog.Error("Failed to find users by login ID", "err", err)
 		return nil, err
@@ -98,7 +98,7 @@ func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId uuid.
 	)
 }
 
-func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.MappedUser, error) {
+func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.User, error) {
 	// Find user by username
 	usernameStr := username
 	usernameValid := username != ""
@@ -106,29 +106,29 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			slog.Error("no login found with username: %s", username)
-			return []mapper.MappedUser{}, fmt.Errorf("invalid username or password")
+			return []mapper.User{}, fmt.Errorf("invalid username or password")
 		}
 		slog.Error("error finding login with username: %s", username)
-		return []mapper.MappedUser{}, fmt.Errorf("error finding user: %w", err)
+		return []mapper.User{}, fmt.Errorf("error finding user: %w", err)
 	}
 
 	// Verify password
 	valid, err := s.CheckPasswordByLoginId(ctx, loginUser.ID, password, string(loginUser.Password))
 	if err != nil {
 		slog.Error("error checking password: %w", err)
-		return []mapper.MappedUser{}, fmt.Errorf("error checking password: %w", err)
+		return []mapper.User{}, fmt.Errorf("error checking password: %w", err)
 	}
 
 	if !valid {
 		slog.Error("invalid username or password from check password by login id")
-		return []mapper.MappedUser{}, fmt.Errorf("invalid username or password")
+		return []mapper.User{}, fmt.Errorf("invalid username or password")
 	}
 
 	// Get users associated with this login ID using the UserRepository
-	users, err := s.userMapper.GetUsers(ctx, loginUser.ID)
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginUser.ID)
 	if err != nil {
 		slog.Error("error getting users by login ID", "err", err)
-		return []mapper.MappedUser{}, fmt.Errorf("error getting user information: %w", err)
+		return []mapper.User{}, fmt.Errorf("error getting user information: %w", err)
 	}
 
 	res := LoginResponse{
@@ -285,7 +285,7 @@ func (s LoginService) GetMe(ctx context.Context, userID uuid.UUID) (UserInfo, er
 }
 
 // Helper method to extract roles from User object
-func (s LoginService) extractRolesFromUser(user mapper.MappedUser) []string {
+func (s LoginService) extractRolesFromUser(user mapper.User) []string {
 	roles := []string{}
 	if roleVal, ok := user.ExtraClaims["role"]; ok {
 		if roleStr, ok := roleVal.(string); ok {
@@ -352,7 +352,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	}
 
 	// Get user info with roles
-	users, err := s.userMapper.GetUsers(ctx, loginUser.ID)
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginUser.ID)
 	if err != nil || len(users) == 0 {
 		return fmt.Errorf("error finding user info: %w", err)
 	}
@@ -393,7 +393,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 	return nil
 }
 
-func getUniqueEmailsFromUsers(users []mapper.MappedUser) []MessageDeliveryOption {
+func getUniqueEmailsFromUsers(users []mapper.User) []MessageDeliveryOption {
 	// Use a map to track unique emails
 	emailMap := make(map[string]struct{})
 

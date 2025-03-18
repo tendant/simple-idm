@@ -46,12 +46,12 @@ func NewLoginService(domainService *login.LoginService) *LoginService {
 }
 
 // Login authenticates a user and returns user information
-func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.MappedUser, error) {
+func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.User, error) {
 	return s.domainService.Login(ctx, username, password)
 }
 
 // GetUsersByLoginId returns users associated with a login ID
-func (s *LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.MappedUser, error) {
+func (s *LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
 	return s.domainService.GetUsersByLoginId(ctx, loginID)
 }
 
@@ -124,7 +124,7 @@ func (s *LoginService) GetRepository() login.LoginRepository {
 // Using DeliveryOption from generated code
 
 // Helper function to get unique emails from users
-func getUniqueEmailsFromUsers(users []mapper.MappedUser) []DeliveryOption {
+func getUniqueEmailsFromUsers(users []mapper.User) []DeliveryOption {
 	emailMap := make(map[string]bool)
 	var deliveryOptions []DeliveryOption
 
