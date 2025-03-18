@@ -275,7 +275,7 @@ func (s LoginService) GetMe(ctx context.Context, userID uuid.UUID) (UserInfo, er
 
 	// Convert User to UserInfo
 	userInfo := UserInfo{
-		Email:     user.Email,
+		Email:     user.UserInfo.Email,
 		Name:      user.DisplayName,
 		NameValid: user.DisplayName != "",
 		Roles:     user.Roles,
@@ -368,17 +368,17 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 
 	// Send password reset email to each user
 	for _, user := range users {
-		if user.Email == "" {
+		if user.UserInfo.Email == "" {
 			continue
 		}
 
 		// Skip if we've already sent to this email
-		if sentEmails[user.Email] {
+		if sentEmails[user.UserInfo.Email] {
 			continue
 		}
 
 		err = s.SendPasswordResetEmail(ctx, SendPasswordResetEmailParams{
-			Email:      user.Email,
+			Email:      user.UserInfo.Email,
 			UserId:     user.UserId,
 			ResetToken: resetToken,
 		})
@@ -387,7 +387,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 		}
 
 		// Mark this email as sent
-		sentEmails[user.Email] = true
+		sentEmails[user.UserInfo.Email] = true
 	}
 
 	return nil
@@ -400,8 +400,8 @@ func getUniqueEmailsFromUsers(users []mapper.User) []MessageDeliveryOption {
 	// Collect emails from users
 	for _, user := range users {
 		// Get email from UserInfo
-		if user.Email != "" {
-			emailMap[user.Email] = struct{}{}
+		if user.UserInfo.Email != "" {
+			emailMap[user.UserInfo.Email] = struct{}{}
 		}
 	}
 

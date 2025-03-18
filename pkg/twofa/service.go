@@ -359,8 +359,8 @@ func (s TwoFaService) GetPlaintextEmailByHash(ctx context.Context, loginID uuid.
 	}
 
 	for _, user := range users {
-		if utils.HashEmail(user.Email) == hashedEmail {
-			return user.Email, nil
+		if utils.HashEmail(user.UserInfo.Email) == hashedEmail {
+			return user.UserInfo.Email, nil
 		}
 	}
 

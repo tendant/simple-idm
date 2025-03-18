@@ -130,7 +130,7 @@ func getUniqueEmailsFromUsers(users []mapper.User) []DeliveryOption {
 
 	for _, user := range users {
 		// Get email from UserInfo
-		email := user.Email
+		email := user.UserInfo.Email
 		if emailMap[email] || email == "" {
 			continue
 		}
