@@ -151,8 +151,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			}
 
 			// Create temp token using the token package
-			tempTokenService := stoken.NewTempTokenService()
-			tempClaims, err := tempTokenService.CreateToken(tokenUser)
+			tempClaims, err := h.jwtConfig.TempTokenService.CreateToken(tokenUser)
 			if err != nil {
 				slog.Error("Failed to create temp token claims", "loginUuid", loginID, "error", err)
 				return &Response{
@@ -206,8 +205,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 		// Create temp token with the custom claims for user selection
 		// Create temp token using the token package
-		tempTokenService := stoken.NewTempTokenService()
-		tempClaims, err := tempTokenService.CreateToken(tokenUser)
+		tempClaims, err := h.jwtConfig.TempTokenService.CreateToken(tokenUser)
 		if err != nil {
 			slog.Error("Failed to create temp token claims", "err", err)
 			return &Response{
@@ -243,8 +241,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	// Create JWT tokens using the token package
 	// Create access token
-	accessTokenService := stoken.NewAccessTokenService()
-	accessClaims, err := accessTokenService.CreateToken(tokenUser)
+	accessClaims, err := h.jwtConfig.AccessTokenService.CreateToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -269,8 +266,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Create refresh token using the token package
-	refreshTokenService := stoken.NewRefreshTokenService()
-	refreshClaims, err := refreshTokenService.CreateToken(tokenUser)
+	refreshClaims, err := h.jwtConfig.RefreshTokenService.CreateToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -480,8 +476,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	// Create access token using the token package
-	accessTokenService := stoken.NewAccessTokenService()
-	accessClaims, err := accessTokenService.CreateToken(mappedUser)
+	accessClaims, err := h.jwtConfig.AccessTokenService.CreateToken(mappedUser)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "err", err)
 		return &Response{
@@ -506,8 +501,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	// Create refresh token using the token package
-	refreshTokenService := stoken.NewRefreshTokenService()
-	refreshClaims, err := refreshTokenService.CreateToken(mappedUser)
+	refreshClaims, err := h.jwtConfig.RefreshTokenService.CreateToken(mappedUser)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "err", err)
 		return &Response{
@@ -713,8 +707,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 
 	// Create new JWT tokens for the target user
 	// Create access token using the token package
-	accessTokenService := stoken.NewAccessTokenService()
-	accessClaims, err := accessTokenService.CreateToken(targetUser)
+	accessClaims, err := h.jwtConfig.AccessTokenService.CreateToken(targetUser)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "user", targetUser, "err", err)
 		return &Response{
@@ -739,8 +732,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Create refresh token using the token package
-	refreshTokenService := stoken.NewRefreshTokenService()
-	refreshClaims, err := refreshTokenService.CreateToken(targetUser)
+	refreshClaims, err := h.jwtConfig.RefreshTokenService.CreateToken(targetUser)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "user", targetUser, "err", err)
 		return &Response{
@@ -826,8 +818,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	tokenUser := idmUsers[0]
 
 	// Create access token using the token package
-	accessTokenService := stoken.NewAccessTokenService()
-	accessClaims, err := accessTokenService.CreateToken(tokenUser)
+	accessClaims, err := h.jwtConfig.AccessTokenService.CreateToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -852,8 +843,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Create refresh token using the token package
-	refreshTokenService := stoken.NewRefreshTokenService()
-	refreshClaims, err := refreshTokenService.CreateToken(tokenUser)
+	refreshClaims, err := h.jwtConfig.RefreshTokenService.CreateToken(tokenUser)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -951,8 +941,7 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 
 func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 	// Create logout token using the token package
-	logoutTokenService := stoken.NewLogoutTokenService()
-	logoutClaims, err := logoutTokenService.CreateToken(stoken.Claims{})
+	logoutClaims, err := h.jwtConfig.LogoutTokenService.CreateToken(stoken.Claims{})
 	if err != nil {
 		slog.Error("Failed to create logout token claims", "err", err)
 		return &Response{
