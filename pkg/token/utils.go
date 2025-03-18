@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -80,4 +81,29 @@ func ParseTokenStr(secret string, tokenStr string) (*jwt.Token, error) {
 
 	slog.Error("Failed parse token claims!", "err", "token invalid")
 	return token, fmt.Errorf("failed_parse_token_claims")
+}
+
+func ValidateRefreshToken(secret string, tokenString string) (jwt.MapClaims, error) {
+	// Parse the token
+	token, err := ParseTokenStr(secret, tokenString)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token: %v", err)
+	}
+
+	// Validate the token
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		// Check expiration
+		if exp, ok := claims["exp"].(float64); ok {
+			if time.Now().Unix() > int64(exp) {
+				return nil, fmt.Errorf("token has expired")
+			}
+		} else {
+			return nil, fmt.Errorf("invalid expiration claim")
+		}
+
+		return claims, nil
+	}
+
+	return nil, fmt.Errorf("invalid token")
 }
