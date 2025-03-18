@@ -9,7 +9,7 @@ import (
 
 // Default token expiration times
 const (
-	DefaultAccessTokenExpiry   = 1 * time.Minute
+	DefaultAccessTokenExpiry   = 5 * time.Minute
 	DefaultRefreshTokenExpiry  = 15 * time.Minute
 	DefaultTempTokenExpiry     = 5 * time.Minute
 	DefaultPasswordResetExpiry = 30 * time.Minute
