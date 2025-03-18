@@ -182,7 +182,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	// 2FA validation successful, create access and refresh tokens
 	// Extract user data from claims to use for token creation
-	idmUsers, err := h.userMapper.GetUsers(r.Context(), loginId)
+	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,

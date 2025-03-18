@@ -352,7 +352,7 @@ func (s TwoFaService) Validate2faPasscode(ctx context.Context, loginId uuid.UUID
 }
 
 func (s TwoFaService) GetPlaintextEmailByHash(ctx context.Context, loginID uuid.UUID, hashedEmail string) (string, error) {
-	users, err := s.userMapper.GetUsers(ctx, loginID)
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
 	if err != nil {
 		slog.Error("Failed to get users by login ID", "loginID", loginID, "error", err)
 		return "", fmt.Errorf("error getting users: %w", err)
