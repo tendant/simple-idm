@@ -1,6 +1,7 @@
 package token
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -27,6 +28,7 @@ type Claims struct {
 type TokenService interface {
 	// CreateToken creates a new token for a user
 	CreateToken(claimData interface{}) (Claims, error)
+	SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error)
 }
 
 // BaseTokenConfig provides common configuration for token services
@@ -83,6 +85,22 @@ func (s *AccessTokenService) CreateToken(claimData interface{}) (Claims, error) 
 	return claims, nil
 }
 
+// SetTokenCookie sets a cookie with the access token
+func (s *AccessTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+	tokenCookie := &http.Cookie{
+		Name:     "access_token",
+		Path:     "/",
+		Value:    tokenStr,
+		Expires:  expiry,
+		HttpOnly: true,                 // Make the cookie HttpOnly
+		Secure:   true,                 // Ensure it's sent over HTTPS
+		SameSite: http.SameSiteLaxMode, // Prevent CSRF
+	}
+
+	http.SetCookie(w, tokenCookie)
+	return Claims{}, nil
+}
+
 // RefreshTokenService implements TokenService for refresh tokens
 type RefreshTokenService struct {
 	Config BaseTokenConfig
@@ -117,6 +135,22 @@ func (s *RefreshTokenService) CreateToken(claimData interface{}) (Claims, error)
 
 	// We're not generating the token string here anymore, just returning the claims
 	return claims, nil
+}
+
+// SetTokenCookie sets a cookie with the refresh token
+func (s *RefreshTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+	tokenCookie := &http.Cookie{
+		Name:     "refresh_token",
+		Path:     "/",
+		Value:    tokenStr,
+		Expires:  expiry,
+		HttpOnly: true,                 // Make the cookie HttpOnly
+		Secure:   true,                 // Ensure it's sent over HTTPS
+		SameSite: http.SameSiteLaxMode, // Prevent CSRF
+	}
+
+	http.SetCookie(w, tokenCookie)
+	return Claims{}, nil
 }
 
 // PasswordResetTokenService implements TokenService for password reset tokens
@@ -155,6 +189,22 @@ func (s *PasswordResetTokenService) CreateToken(claimData interface{}) (Claims, 
 	return claims, nil
 }
 
+// SetTokenCookie sets a cookie with the password reset token
+func (s *PasswordResetTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+	tokenCookie := &http.Cookie{
+		Name:     "access_token",
+		Path:     "/",
+		Value:    tokenStr,
+		Expires:  expiry,
+		HttpOnly: true,                 // Make the cookie HttpOnly
+		Secure:   true,                 // Ensure it's sent over HTTPS
+		SameSite: http.SameSiteLaxMode, // Prevent CSRF
+	}
+
+	http.SetCookie(w, tokenCookie)
+	return Claims{}, nil
+}
+
 // LogoutTokenService implements TokenService for logout tokens
 type LogoutTokenService struct {
 	Config BaseTokenConfig
@@ -191,6 +241,34 @@ func (s *LogoutTokenService) CreateToken(claimData interface{}) (Claims, error) 
 	return claims, nil
 }
 
+// SetTokenCookie sets a cookie with the logout token
+func (s *LogoutTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+
+	accessCookie := &http.Cookie{
+		Name:     "access_token",
+		Path:     "/",
+		Value:    "",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, accessCookie)
+
+	refreshCookie := &http.Cookie{
+		Name:     "refresh_token",
+		Path:     "/",
+		Value:    "",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, refreshCookie)
+
+	return Claims{}, nil
+}
+
 // TempTokenService implements TokenService for temporary tokens (e.g., 2FA)
 type TempTokenService struct {
 	Config BaseTokenConfig
@@ -225,6 +303,22 @@ func (s *TempTokenService) CreateToken(claimData interface{}) (Claims, error) {
 
 	// We're not generating the token string here anymore, just returning the claims
 	return claims, nil
+}
+
+// SetTokenCookie sets a cookie with the temporary token
+func (s *TempTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+	tokenCookie := &http.Cookie{
+		Name:     "temp_token",
+		Path:     "/",
+		Value:    tokenStr,
+		Expires:  expiry,
+		HttpOnly: true,                 // Make the cookie HttpOnly
+		Secure:   true,                 // Ensure it's sent over HTTPS
+		SameSite: http.SameSiteLaxMode, // Prevent CSRF
+	}
+
+	http.SetCookie(w, tokenCookie)
+	return Claims{}, nil
 }
 
 // Ensure implementations satisfy the interface
