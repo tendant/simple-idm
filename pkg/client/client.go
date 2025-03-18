@@ -21,7 +21,7 @@ type AuthUser struct {
 	UserId  string `json:"user_id,omitempty"`
 	LoginId string `json:"login_id,omitempty"`
 	// For backward compatibility, we still need to support UserUuid, also it is convenient to have it as a uuid.UUID
-	UserUuid    uuid.UUID
+	UserUuid uuid.UUID
 	// LoginID as UUID for direct use (parsed from LoginId string)
 	LoginID     uuid.UUID
 	ExtraClaims ExtraClaims `json:"extra_claims,omitempty"`
@@ -79,7 +79,7 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 		authUser := new(AuthUser)
 
 		// Process custom claims if they exist
-		if customClaimsRaw, exists := claims["custom_claims"]; exists {
+		if customClaimsRaw, exists := claims["extra_claims"]; exists {
 			customClaims, ok := customClaimsRaw.(map[string]interface{})
 			if !ok {
 				http.Error(w, "invalid custom claims format", http.StatusUnauthorized)
@@ -126,7 +126,7 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 		} else {
 			authUser.UserUuid = userUUID
 		}
-		
+
 		// Parse login UUID if present
 		if authUser.LoginId != "" {
 			loginUUID, err := uuid.Parse(authUser.LoginId)
