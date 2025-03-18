@@ -11,6 +11,7 @@ import (
 	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/mapper"
+	"github.com/tendant/simple-idm/pkg/token"
 	"github.com/tendant/simple-idm/pkg/twofa"
 )
 
@@ -48,14 +49,16 @@ func TwoFaHandler(h *Handle) http.Handler {
 
 type Handle struct {
 	twoFaService twofa.TwoFactorService
-	jwtService   auth.Jwt
+	jwtConfig    *token.JwtConfig
 	userMapper   mapper.UserMapper
 }
 
-func NewHandle(twoFaService twofa.TwoFactorService, jwtService auth.Jwt, userMapper mapper.UserMapper) *Handle {
+func NewHandle(twoFaService twofa.TwoFactorService, jwtConfig token.JwtConfig, userMapper mapper.UserMapper) *Handle {
+	// Create JwtConfig from jwtService
+
 	return &Handle{
 		twoFaService: twoFaService,
-		jwtService:   jwtService,
+		jwtConfig:    &jwtConfig,
 		userMapper:   userMapper,
 	}
 }
@@ -67,9 +70,9 @@ func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue stri
 		Path:     "/",
 		Value:    tokenValue,
 		Expires:  expire,
-		HttpOnly: true,                 // Make the cookie HttpOnly
-		Secure:   true,                 // Ensure it's sent over HTTPS
-		SameSite: http.SameSiteLaxMode, // Prevent CSRF
+		HttpOnly: h.jwtConfig.CoookieHttpOnly, // Make the cookie HttpOnly
+		Secure:   h.jwtConfig.CookieSecure,    // Ensure it's sent over HTTPS
+		SameSite: http.SameSiteLaxMode,        // Prevent CSRF
 	}
 
 	http.SetCookie(w, tokenCookie)
@@ -213,13 +216,30 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 
 		// Create temp token with the custom claims for user selection
-		tempToken, err := h.jwtService.CreateTempToken(authUser)
+		// Create temp token using the token package
+		tempTokenService := token.NewTempTokenService()
+		tempClaims, err := tempTokenService.CreateToken(authUser)
+		if err != nil {
+			slog.Error("Failed to create temp token claims", "loginIdStr", loginIdStr, "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to create temp token claims",
+			}
+		}
+
+		// Convert claims to token string using token package
+		tempTokenStr, err := token.CreateTokenStr(h.jwtConfig.Secret, tempClaims)
 		if err != nil {
 			slog.Error("Failed to create temp token", "loginIdStr", loginIdStr, "err", err)
 			return &Response{
 				Code: http.StatusInternalServerError,
 				body: "Failed to create temp token",
 			}
+		}
+
+		tempToken := auth.IdmToken{
+			Token:  tempTokenStr,
+			Expiry: tempClaims.ExpiresAt.Time,
 		}
 
 		// Return 202 response with users to select from
@@ -235,8 +255,19 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	userData := authUser
 
-	// Create access token
-	accessToken, err := h.jwtService.CreateAccessToken(userData)
+	// Create access token using the token package
+	accessTokenService := token.NewAccessTokenService()
+	accessClaims, err := accessTokenService.CreateToken(userData)
+	if err != nil {
+		slog.Error("Failed to create access token claims", "userData", userData, "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create access token claims",
+		}
+	}
+
+	// Convert claims to token string using token package
+	accessTokenStr, err := token.CreateTokenStr(h.jwtConfig.Secret, accessClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "userData", userData, "err", err)
 		return &Response{
@@ -245,14 +276,35 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	// Create refresh token
-	refreshToken, err := h.jwtService.CreateRefreshToken(userData)
+	accessToken := auth.IdmToken{
+		Token:  accessTokenStr,
+		Expiry: accessClaims.ExpiresAt.Time,
+	}
+
+	// Create refresh token using the token package
+	refreshTokenService := token.NewRefreshTokenService()
+	refreshClaims, err := refreshTokenService.CreateToken(userData)
+	if err != nil {
+		slog.Error("Failed to create refresh token claims", "userData", userData, "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create refresh token claims",
+		}
+	}
+
+	// Convert claims to token string using token package
+	refreshTokenStr, err := token.CreateTokenStr(h.jwtConfig.Secret, refreshClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "userData", userData, "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to create refresh token",
 		}
+	}
+
+	refreshToken := auth.IdmToken{
+		Token:  refreshTokenStr,
+		Expiry: refreshClaims.ExpiresAt.Time,
 	}
 
 	// Set cookies
