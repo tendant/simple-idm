@@ -236,6 +236,17 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 			}
 		}
 
+		// Set temp token cookie using token service
+		err = h.jwtConfig.TempTokenService.SetTokenCookie(w, tempTokenStr, tempClaims.ExpiresAt.Time)
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to set temp token cookie",
+			}
+		}
+
+		// Create IdmToken for response
 		tempToken := auth.IdmToken{
 			Token:  tempTokenStr,
 			Expiry: tempClaims.ExpiresAt.Time,
@@ -304,9 +315,24 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		Expiry: refreshClaims.ExpiresAt.Time,
 	}
 
-	// Set cookies
-	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
-	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
+	// Set cookies using token services
+	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry)
+	if err != nil {
+		slog.Error("Failed to set access token cookie", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to set access token cookie",
+		}
+	}
+
+	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry)
+	if err != nil {
+		slog.Error("Failed to set refresh token cookie", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to set refresh token cookie",
+		}
+	}
 
 	// Include tokens in response
 	resp.Result = "success"
