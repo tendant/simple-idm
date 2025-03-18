@@ -24,13 +24,11 @@ const (
 
 type Handle struct {
 	loginService     *login.LoginService
-	jwtService       auth.Jwt
 	twoFactorService twofa.TwoFactorService
-	jwtSecret        string
 	jwtConfig        *stoken.JwtConfig
 }
 
-func NewHandle(loginService *login.LoginService, jwtService auth.Jwt, opts ...Option) Handle {
+func NewHandle(loginService *login.LoginService, jwtService stoken.JwtConfig, opts ...Option) Handle {
 	// Create JwtConfig from jwtService
 	jwtConfig := stoken.NewJwtConfig(
 		jwtService.Secret,
@@ -40,8 +38,6 @@ func NewHandle(loginService *login.LoginService, jwtService auth.Jwt, opts ...Op
 
 	h := Handle{
 		loginService: loginService,
-		jwtService:   jwtService,
-		jwtSecret:    jwtService.Secret,
 		jwtConfig:    jwtConfig,
 	}
 	for _, opt := range opts {
