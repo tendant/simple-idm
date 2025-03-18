@@ -413,7 +413,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	// Safely extract custom claims
-	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	customClaims, ok := claims[stoken.ExtraClaimKey].(map[string]interface{})
 	if !ok {
 		slog.Error("invalid custom claims format")
 		return &Response{
@@ -572,7 +572,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	}
 
 	// Extract login_id from custom_claims
-	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	customClaims, ok := claims[stoken.ExtraClaimKey].(map[string]interface{})
 	if !ok {
 		return &Response{
 			Code: http.StatusInternalServerError,
@@ -659,7 +659,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Extract login_id from custom_claims
-	customClaims, ok := claims["custom_claims"].(map[string]interface{})
+	customClaims, ok := claims[stoken.ExtraClaimKey].(map[string]interface{})
 	if !ok {
 		return &Response{
 			Code: http.StatusInternalServerError,
@@ -952,7 +952,7 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 	// Create logout token using the token package
 	logoutTokenService := stoken.NewLogoutTokenService()
-	logoutClaims, err := logoutTokenService.CreateToken(auth.Claims{})
+	logoutClaims, err := logoutTokenService.CreateToken(stoken.Claims{})
 	if err != nil {
 		slog.Error("Failed to create logout token claims", "err", err)
 		return &Response{
