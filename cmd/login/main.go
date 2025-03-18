@@ -34,6 +34,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/role"
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
+	"github.com/tendant/simple-idm/pkg/token"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	twofaapi "github.com/tendant/simple-idm/pkg/twofa/api"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
@@ -168,12 +169,18 @@ func main() {
 		auth.WithCookieSecure(config.JwtConfig.CookieSecure),
 	)
 
+	jwtConfig := token.NewJwtConfig(
+		config.JwtConfig.JwtSecret,
+		token.WithCookieHttpOnly(config.JwtConfig.CookieHttpOnly),
+		token.WithCookieSecure(config.JwtConfig.CookieSecure),
+	)
+
 	// auth queries
 	// authQueries := authDb.New(pool)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
-	loginHandle := loginapi.NewHandle(loginService, *jwtService, loginapi.WithTwoFactorService(twoFaService))
+	loginHandle := loginapi.NewHandle(loginService, *jwtConfig, loginapi.WithTwoFactorService(twoFaService))
 
 	// authHandle := authpkg.NewHandle(*jwtService, authLoginService)
 
