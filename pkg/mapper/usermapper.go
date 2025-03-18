@@ -58,18 +58,21 @@ func (m *DefaultUserMapper) FindUsersByLoginID(ctx context.Context, loginID uuid
 
 		// Create custom claims
 		extraClaims := map[string]interface{}{
-			"email":    user.Email,
 			"username": "", // Placeholder for username
 			"roles":    strRoles,
+		}
+
+		userInfo := UserInfo{
+			Email: user.Email,
 		}
 
 		mappedUsers = append(mappedUsers, User{
 			UserId:      user.ID.String(),
 			LoginID:     loginID.String(),
-			Email:       user.Email,
+			UserInfo:    userInfo,
 			DisplayName: user.Name.String,
 			ExtraClaims: extraClaims,
-			Roles:       strRoles, // Assuming first role is primary
+			Roles:       strRoles,
 		})
 	}
 
@@ -103,18 +106,21 @@ func (m *DefaultUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUI
 
 	// Create custom claims
 	extraClaims := map[string]interface{}{
-		"email":    user.Email,
 		"username": "", // Placeholder for username
 		"roles":    strRoles,
+	}
+
+	userInfo := UserInfo{
+		Email: user.Email,
 	}
 
 	return User{
 		UserId:      user.ID.String(),
 		LoginID:     "", // This would need to be populated from a separate query
-		Email:       user.Email,
 		DisplayName: user.Name.String,
 		ExtraClaims: extraClaims,
-		Roles:       strRoles, // Assuming first role is primary
+		UserInfo:    userInfo,
+		Roles:       strRoles,
 	}, nil
 }
 

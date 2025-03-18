@@ -497,7 +497,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 			ID:    user.UserId,
 			Name:  user.DisplayName,
 			Role:  user.Roles[0],
-			Email: user.Email,
+			Email: user.UserInfo.Email,
 		})
 	}
 
