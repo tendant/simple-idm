@@ -52,9 +52,9 @@ func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue stri
 		Path:     "/",
 		Value:    tokenValue,
 		Expires:  expire,
-		HttpOnly: h.jwtService.CoookieHttpOnly, // Make the cookie HttpOnly
-		Secure:   h.jwtService.CookieSecure,    // Ensure it’s sent over HTTPS
-		SameSite: http.SameSiteLaxMode,         // Prevent CSRF
+		HttpOnly: h.jwtConfig.CoookieHttpOnly, // Make the cookie HttpOnly
+		Secure:   h.jwtConfig.CookieSecure,    // Ensure it’s sent over HTTPS
+		SameSite: http.SameSiteLaxMode,        // Prevent CSRF
 	}
 
 	http.SetCookie(w, tokenCookie)
@@ -162,7 +162,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			}
 
 			// Convert claims to token string using token package
-			tempTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, tempClaims)
+			tempTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, tempClaims)
 			if err != nil {
 				slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
 				return &Response{
@@ -217,7 +217,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 
 		// Convert claims to token string using token package
-		tempTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, tempClaims)
+		tempTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, tempClaims)
 		if err != nil {
 			slog.Error("Failed to create temp token", "err", err)
 			return &Response{
@@ -254,7 +254,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Convert claims to token string using token package
-	accessTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, accessClaims)
+	accessTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, accessClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
 		return &Response{
@@ -280,7 +280,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Convert claims to token string using token package
-	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, refreshClaims)
+	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, refreshClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
 		return &Response{
@@ -403,7 +403,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		}
 	}
 
-	claims, err := stoken.ValidateRefreshToken(h.jwtSecret, cookie.Value)
+	claims, err := stoken.ValidateRefreshToken(h.jwtConfig.Secret, cookie.Value)
 	if err != nil {
 		slog.Error("Invalid Refresh Token Cookie", "err", err)
 		return &Response{
@@ -491,7 +491,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	// Convert claims to token string using token package
-	accessTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, accessClaims)
+	accessTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, accessClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "err", err)
 		return &Response{
@@ -517,7 +517,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	// Convert claims to token string using token package
-	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, refreshClaims)
+	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, refreshClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "err", err)
 		return &Response{
@@ -554,7 +554,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
 	// Parse and validate token
-	token, err := stoken.ParseTokenStr(h.jwtSecret, tokenStr)
+	token, err := stoken.ParseTokenStr(h.jwtConfig.Secret, tokenStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -641,7 +641,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
 	// Parse and validate token
-	token, err := stoken.ParseTokenStr(h.jwtSecret, tokenStr)
+	token, err := stoken.ParseTokenStr(h.jwtConfig.Secret, tokenStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -724,7 +724,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Convert claims to token string using token package
-	accessTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, accessClaims)
+	accessTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, accessClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "user", targetUser, "err", err)
 		return &Response{
@@ -750,7 +750,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Convert claims to token string using token package
-	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, refreshClaims)
+	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, refreshClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "user", targetUser, "err", err)
 		return &Response{
@@ -837,7 +837,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Convert claims to token string using token package
-	accessTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, accessClaims)
+	accessTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, accessClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
 		return &Response{
@@ -863,7 +863,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Convert claims to token string using token package
-	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, refreshClaims)
+	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, refreshClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
 		return &Response{
@@ -962,7 +962,7 @@ func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Convert claims to token string using token package
-	logoutTokenStr, err := stoken.CreateTokenStr(h.jwtSecret, logoutClaims)
+	logoutTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, logoutClaims)
 	if err != nil {
 		slog.Error("Failed to create logout token", "err", err)
 		return &Response{
