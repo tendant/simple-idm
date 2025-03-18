@@ -2,9 +2,14 @@ package token
 
 // JwtConfig holds JWT service configuration
 type JwtConfig struct {
-	Secret         string
-	CookieHttpOnly bool
-	CookieSecure   bool
+	Secret                    string
+	CookieHttpOnly            bool
+	CookieSecure              bool
+	AccessTokenService        TokenService
+	RefreshTokenService       TokenService
+	PasswordResetTokenService TokenService
+	LogoutTokenService        TokenService
+	TempTokenService          TokenService
 }
 
 // JwtOption defines a function type for configuring JwtConfig
