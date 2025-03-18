@@ -9,22 +9,16 @@ import (
 
 // Default token expiration times
 const (
-	DefaultAccessTokenExpiry     = 1 * time.Minute
-	DefaultRefreshTokenExpiry    = 15 * time.Minute
-	DefaultTempTokenExpiry       = 5 * time.Minute
-	DefaultPasswordResetExpiry   = 30 * time.Minute
-	DefaultLogoutTokenExpiry     = -1 * time.Minute // Negative to make it immediately expired
+	DefaultAccessTokenExpiry   = 5 * time.Minute
+	DefaultRefreshTokenExpiry  = 15 * time.Minute
+	DefaultTempTokenExpiry     = 5 * time.Minute
+	DefaultPasswordResetExpiry = 30 * time.Minute
+	DefaultLogoutTokenExpiry   = -1 * time.Minute // Negative to make it immediately expired
 )
-
-// IdmToken represents a token with its expiry time
-type IdmToken struct {
-	Token  string
-	Expiry time.Time
-}
 
 // Claims struct for JWT claims
 type Claims struct {
-	CustomClaims interface{} `json:"custom_claims,inline"`
+	ExtraClaims interface{} `json:"extra_claims,inline"`
 	jwt.RegisteredClaims
 }
 
@@ -71,7 +65,7 @@ func NewAccessTokenService() *AccessTokenService {
 // CreateToken implements TokenService for access tokens
 func (s *AccessTokenService) CreateToken(claimData interface{}) (Claims, error) {
 	claims := Claims{
-		CustomClaims: claimData,
+		ExtraClaims: claimData,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(s.Config.Expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
@@ -106,7 +100,7 @@ func NewRefreshTokenService() *RefreshTokenService {
 // CreateToken implements TokenService for refresh tokens
 func (s *RefreshTokenService) CreateToken(claimData interface{}) (Claims, error) {
 	claims := Claims{
-		CustomClaims: claimData,
+		ExtraClaims: claimData,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(s.Config.Expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
@@ -141,7 +135,7 @@ func NewPasswordResetTokenService() *PasswordResetTokenService {
 // CreateToken implements TokenService for password reset tokens
 func (s *PasswordResetTokenService) CreateToken(claimData interface{}) (Claims, error) {
 	claims := Claims{
-		CustomClaims: claimData,
+		ExtraClaims: claimData,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(s.Config.Expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
@@ -176,7 +170,7 @@ func NewLogoutTokenService() *LogoutTokenService {
 // CreateToken implements TokenService for logout tokens
 func (s *LogoutTokenService) CreateToken(claimData interface{}) (Claims, error) {
 	claims := Claims{
-		CustomClaims: claimData,
+		ExtraClaims: claimData,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(s.Config.Expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
@@ -211,7 +205,7 @@ func NewTempTokenService() *TempTokenService {
 // CreateToken implements TokenService for temporary tokens
 func (s *TempTokenService) CreateToken(claimData interface{}) (Claims, error) {
 	claims := Claims{
-		CustomClaims: claimData,
+		ExtraClaims: claimData,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(s.Config.Expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),

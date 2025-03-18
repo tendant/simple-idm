@@ -2,9 +2,9 @@ package token
 
 // JwtConfig holds JWT service configuration
 type JwtConfig struct {
-	Secret          string
-	CoookieHttpOnly bool
-	CookieSecure    bool
+	Secret         string
+	CookieHttpOnly bool
+	CookieSecure   bool
 }
 
 // JwtOption defines a function type for configuring JwtConfig
@@ -13,7 +13,7 @@ type JwtOption func(*JwtConfig)
 // WithCookieHttpOnly sets the HttpOnly flag for cookies
 func WithCookieHttpOnly(httpOnly bool) JwtOption {
 	return func(config *JwtConfig) {
-		config.CoookieHttpOnly = httpOnly
+		config.CookieHttpOnly = httpOnly
 	}
 }
 
