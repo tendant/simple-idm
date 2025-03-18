@@ -217,8 +217,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 		// Create temp token with the custom claims for user selection
 		// Create temp token using the token package
-		tempTokenService := token.NewTempTokenService()
-		tempClaims, err := tempTokenService.CreateToken(authUser)
+		tempClaims, err := h.jwtConfig.TempTokenService.CreateToken(authUser)
 		if err != nil {
 			slog.Error("Failed to create temp token claims", "loginIdStr", loginIdStr, "err", err)
 			return &Response{
@@ -256,8 +255,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	userData := authUser
 
 	// Create access token using the token package
-	accessTokenService := token.NewAccessTokenService()
-	accessClaims, err := accessTokenService.CreateToken(userData)
+	accessClaims, err := h.jwtConfig.AccessTokenService.CreateToken(userData)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "userData", userData, "err", err)
 		return &Response{
@@ -282,8 +280,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Create refresh token using the token package
-	refreshTokenService := token.NewRefreshTokenService()
-	refreshClaims, err := refreshTokenService.CreateToken(userData)
+	refreshClaims, err := h.jwtConfig.RefreshTokenService.CreateToken(userData)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "userData", userData, "err", err)
 		return &Response{
