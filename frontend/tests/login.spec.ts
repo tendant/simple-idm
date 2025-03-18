@@ -5,7 +5,7 @@ test.describe('Login Page', () => {
     // Set up API mocking before navigating
     await page.route('**/auth/login', async (route) => {
       const requestData = JSON.parse(route.request().postData() || '{}');
-      if (requestData.username === 'admin' && requestData.password === 'pwd') {
+      if (requestData.username === 'admin' && requestData.password === 'Password123!') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -92,7 +92,7 @@ test.describe('Login Page', () => {
     
     // Fill in valid credentials
     await page.getByLabel('Username').fill('admin');
-    await page.getByLabel('Password').fill('pwd');
+    await page.getByLabel('Password').fill('Password123!');
     
     // Submit the form
     await page.getByRole('button', { name: 'Sign in' }).click();
