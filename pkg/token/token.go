@@ -28,7 +28,7 @@ type Claims struct {
 type TokenService interface {
 	// CreateToken creates a new token for a user
 	CreateToken(claimData interface{}) (Claims, error)
-	SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error)
+	SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error
 }
 
 // BaseTokenConfig provides common configuration for token services
@@ -86,7 +86,7 @@ func (s *AccessTokenService) CreateToken(claimData interface{}) (Claims, error) 
 }
 
 // SetTokenCookie sets a cookie with the access token
-func (s *AccessTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+func (s *AccessTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 	tokenCookie := &http.Cookie{
 		Name:     "access_token",
 		Path:     "/",
@@ -98,7 +98,7 @@ func (s *AccessTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr stri
 	}
 
 	http.SetCookie(w, tokenCookie)
-	return Claims{}, nil
+	return nil
 }
 
 // RefreshTokenService implements TokenService for refresh tokens
@@ -138,7 +138,7 @@ func (s *RefreshTokenService) CreateToken(claimData interface{}) (Claims, error)
 }
 
 // SetTokenCookie sets a cookie with the refresh token
-func (s *RefreshTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+func (s *RefreshTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 	tokenCookie := &http.Cookie{
 		Name:     "refresh_token",
 		Path:     "/",
@@ -150,7 +150,7 @@ func (s *RefreshTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr str
 	}
 
 	http.SetCookie(w, tokenCookie)
-	return Claims{}, nil
+	return nil
 }
 
 // PasswordResetTokenService implements TokenService for password reset tokens
@@ -190,7 +190,7 @@ func (s *PasswordResetTokenService) CreateToken(claimData interface{}) (Claims, 
 }
 
 // SetTokenCookie sets a cookie with the password reset token
-func (s *PasswordResetTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+func (s *PasswordResetTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 	tokenCookie := &http.Cookie{
 		Name:     "access_token",
 		Path:     "/",
@@ -202,7 +202,7 @@ func (s *PasswordResetTokenService) SetTokenCookie(w http.ResponseWriter, tokenS
 	}
 
 	http.SetCookie(w, tokenCookie)
-	return Claims{}, nil
+	return nil
 }
 
 // LogoutTokenService implements TokenService for logout tokens
@@ -242,7 +242,7 @@ func (s *LogoutTokenService) CreateToken(claimData interface{}) (Claims, error) 
 }
 
 // SetTokenCookie sets a cookie with the logout token
-func (s *LogoutTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+func (s *LogoutTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 
 	accessCookie := &http.Cookie{
 		Name:     "access_token",
@@ -266,7 +266,7 @@ func (s *LogoutTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr stri
 	}
 	http.SetCookie(w, refreshCookie)
 
-	return Claims{}, nil
+	return nil
 }
 
 // TempTokenService implements TokenService for temporary tokens (e.g., 2FA)
@@ -306,7 +306,7 @@ func (s *TempTokenService) CreateToken(claimData interface{}) (Claims, error) {
 }
 
 // SetTokenCookie sets a cookie with the temporary token
-func (s *TempTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) (Claims, error) {
+func (s *TempTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 	tokenCookie := &http.Cookie{
 		Name:     "temp_token",
 		Path:     "/",
@@ -318,7 +318,7 @@ func (s *TempTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string
 	}
 
 	http.SetCookie(w, tokenCookie)
-	return Claims{}, nil
+	return nil
 }
 
 // Ensure implementations satisfy the interface
