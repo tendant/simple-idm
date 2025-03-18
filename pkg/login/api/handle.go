@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -333,11 +332,6 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 	if err != nil {
 		// Log the error but return 200 to prevent username enumeration
 		slog.Error("Failed to init password reset for username", "err", err, "username", body.Username)
-		return &Response{
-			body:        http.StatusText(http.StatusInternalServerError),
-			Code:        http.StatusInternalServerError,
-			contentType: "html/text",
-		}
 	}
 
 	return &Response{
@@ -542,15 +536,16 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 // Get a list of users associated with the current login
 // (GET /users)
 func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response {
-	// Get bearer token from Authorization header
-	authHeader := r.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
+	// Get token from cookie instead of Authorization header
+	cookie, err := r.Cookie(ACCESS_TOKEN_NAME)
+	if err != nil {
+		slog.Error("No Access Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			body: "Missing or invalid Authorization header",
+			body: "Missing access token cookie",
 		}
 	}
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	tokenStr := cookie.Value
 
 	// Parse and validate token
 	token, err := stoken.ParseTokenStr(h.jwtConfig.Secret, tokenStr)
@@ -629,15 +624,16 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	// Get bearer token from Authorization header
-	authHeader := r.Header.Get("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
+	// Get token from cookie instead of Authorization header
+	cookie, err := r.Cookie(ACCESS_TOKEN_NAME)
+	if err != nil {
+		slog.Error("No Access Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			body: "Missing or invalid Authorization header",
+			body: "Missing access token cookie",
 		}
 	}
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	tokenStr := cookie.Value
 
 	// Parse and validate token
 	token, err := stoken.ParseTokenStr(h.jwtConfig.Secret, tokenStr)
