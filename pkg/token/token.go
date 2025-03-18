@@ -1,7 +1,6 @@
 package token
 
 import (
-	"log/slog"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -30,12 +29,11 @@ type Claims struct {
 // TokenService defines the interface for token operations
 type TokenService interface {
 	// CreateToken creates a new token for a user
-	CreateToken(claimData interface{}) (IdmToken, error)
+	CreateToken(claimData interface{}) (Claims, error)
 }
 
 // BaseTokenConfig provides common configuration for token services
 type BaseTokenConfig struct {
-	Secret   string
 	Issuer   string
 	Subject  string
 	Expiry   time.Duration
@@ -43,9 +41,8 @@ type BaseTokenConfig struct {
 }
 
 // NewBaseTokenConfig creates a new BaseTokenConfig with the given parameters
-func NewBaseTokenConfig(secret, issuer, subject string, expiry time.Duration, audience []string) BaseTokenConfig {
+func NewBaseTokenConfig(issuer, subject string, expiry time.Duration, audience []string) BaseTokenConfig {
 	return BaseTokenConfig{
-		Secret:   secret,
 		Issuer:   issuer,
 		Subject:  subject,
 		Expiry:   expiry,
@@ -59,9 +56,8 @@ type AccessTokenService struct {
 }
 
 // NewAccessTokenService creates a new AccessTokenService
-func NewAccessTokenService(secret string) *AccessTokenService {
+func NewAccessTokenService() *AccessTokenService {
 	config := NewBaseTokenConfig(
-		secret,
 		"simple-idm",
 		"simple-idm",
 		DefaultAccessTokenExpiry,
@@ -71,7 +67,7 @@ func NewAccessTokenService(secret string) *AccessTokenService {
 }
 
 // CreateToken implements TokenService for access tokens
-func (s *AccessTokenService) CreateToken(claimData interface{}) (IdmToken, error) {
+func (s *AccessTokenService) CreateToken(claimData interface{}) (Claims, error) {
 	claims := Claims{
 		CustomClaims: claimData,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -85,16 +81,8 @@ func (s *AccessTokenService) CreateToken(claimData interface{}) (IdmToken, error
 		},
 	}
 
-	tokenStr, err := CreateTokenStr(s.Config.Secret, claims)
-	if err != nil {
-		slog.Error("Failed to create access token", "err", err)
-		return IdmToken{}, err
-	}
-
-	return IdmToken{
-		Token:  tokenStr,
-		Expiry: claims.ExpiresAt.Time,
-	}, nil
+	// We're not generating the token string here anymore, just returning the claims
+	return claims, nil
 }
 
 // RefreshTokenService implements TokenService for refresh tokens
@@ -103,9 +91,8 @@ type RefreshTokenService struct {
 }
 
 // NewRefreshTokenService creates a new RefreshTokenService
-func NewRefreshTokenService(secret string) *RefreshTokenService {
+func NewRefreshTokenService() *RefreshTokenService {
 	config := NewBaseTokenConfig(
-		secret,
 		"simple-idm",
 		"simple-idm",
 		DefaultRefreshTokenExpiry,
@@ -115,7 +102,7 @@ func NewRefreshTokenService(secret string) *RefreshTokenService {
 }
 
 // CreateToken implements TokenService for refresh tokens
-func (s *RefreshTokenService) CreateToken(claimData interface{}) (IdmToken, error) {
+func (s *RefreshTokenService) CreateToken(claimData interface{}) (Claims, error) {
 	claims := Claims{
 		CustomClaims: claimData,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -129,16 +116,8 @@ func (s *RefreshTokenService) CreateToken(claimData interface{}) (IdmToken, erro
 		},
 	}
 
-	tokenStr, err := CreateTokenStr(s.Config.Secret, claims)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "err", err)
-		return IdmToken{}, err
-	}
-
-	return IdmToken{
-		Token:  tokenStr,
-		Expiry: claims.ExpiresAt.Time,
-	}, nil
+	// We're not generating the token string here anymore, just returning the claims
+	return claims, nil
 }
 
 // Ensure implementations satisfy the interface
