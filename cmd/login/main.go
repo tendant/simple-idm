@@ -173,6 +173,11 @@ func main() {
 		config.JwtConfig.JwtSecret,
 		token.WithCookieHttpOnly(config.JwtConfig.CookieHttpOnly),
 		token.WithCookieSecure(config.JwtConfig.CookieSecure),
+		token.WithAccessTokenService(token.NewAccessTokenService()),
+		token.WithRefreshTokenService(token.NewRefreshTokenService()),
+		token.WithPasswordResetTokenService(token.NewPasswordResetTokenService()),
+		token.WithLogoutTokenService(token.NewLogoutTokenService()),
+		token.WithTempTokenService(token.NewTempTokenService()),
 	)
 
 	// auth queries
