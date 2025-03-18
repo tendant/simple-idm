@@ -11,8 +11,8 @@ import (
 
 // UserMapper interface combines user mapping and repository operations
 type UserMapper interface {
-	GetUsers(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error)
-	GetUserByUserID(ctx context.Context, userID uuid.UUID) (MappedUser, error)
+	FindUsersByLoginID(ctx context.Context, loginID uuid.UUID) ([]User, error)
+	GetUserByUserID(ctx context.Context, userID uuid.UUID) (User, error)
 	FindUsernamesByEmail(ctx context.Context, email string) ([]string, error)
 }
 
@@ -22,77 +22,14 @@ type DefaultUserMapper struct {
 }
 
 // NewUserMapper creates a new DefaultUserMapper with the given repository
-func NewUserMapper(queries *mapperdb.Queries) *DefaultUserMapper {
+func NewDefaultUserMapper(queries *mapperdb.Queries) *DefaultUserMapper {
 	return &DefaultUserMapper{
 		queries: queries,
 	}
 }
 
-// FindUsersByLoginID delegates to the repository
-// func (m *DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]User, error) {
-// 	if m.repository != nil {
-// 		return m.repository.GetUsers(ctx, loginID)
-// 	}
-// 	// Fallback implementation using queries if repository is not set
-// 	return nil, fmt.Errorf("repository not set")
-// }
-
-// GetUserByUserID delegates to the repository
-func (m *DefaultUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUID) (MappedUser, error) {
-	if m.queries == nil {
-		slog.Warn("DefaultUserRepository queries is nil")
-		return MappedUser{}, fmt.Errorf("queries not initialized")
-	}
-
-	user, err := m.queries.GetUserById(ctx, userID)
-	if err != nil {
-		return MappedUser{}, fmt.Errorf("error getting user: %w", err)
-	}
-
-	// Convert roles from interface{} to []string
-	roles, ok := user.Roles.([]interface{})
-	if !ok {
-		return MappedUser{}, fmt.Errorf("invalid roles format")
-	}
-
-	strRoles := make([]string, 0, len(roles))
-	for _, r := range roles {
-		if str, ok := r.(string); ok {
-			strRoles = append(strRoles, str)
-		}
-	}
-
-	// Create custom claims
-	extraClaims := map[string]interface{}{
-		"email":    user.Email,
-		"username": "", // Placeholder for username
-		"roles":    strRoles,
-	}
-
-	return MappedUser{
-		UserId:      user.ID.String(),
-		LoginID:     "", // This would need to be populated from a separate query
-		Email:       user.Email,
-		DisplayName: user.Name.String,
-		ExtraClaims: extraClaims,
-		Roles:       strRoles, // Assuming first role is primary
-	}, nil
-}
-
-// FindUsernamesByEmail delegates to the repository
-func (m *DefaultUserMapper) FindUsernamesByEmail(ctx context.Context, email string) ([]string, error) {
-	if m.queries == nil {
-		slog.Warn("DefaultUserRepository queries is nil")
-		return nil, fmt.Errorf("queries not initialized")
-	}
-
-	// This would need to be implemented based on your database schema
-	// For now, returning a placeholder implementation
-	return []string{}, nil
-}
-
 // GetUsers implements the original UserMapper method
-func (m *DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]MappedUser, error) {
+func (m *DefaultUserMapper) FindUsersByLoginID(ctx context.Context, loginID uuid.UUID) ([]User, error) {
 	if m.queries == nil {
 		slog.Warn("DefaultUserRepository queries is nil")
 		return nil, nil
@@ -104,7 +41,7 @@ func (m *DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]
 	}
 
 	// Map users to MappedUser
-	mappedUsers := make([]MappedUser, 0, len(users))
+	mappedUsers := make([]User, 0, len(users))
 	for _, user := range users {
 		// Convert roles from interface{} to []string
 		roles, ok := user.Roles.([]interface{})
@@ -121,20 +58,80 @@ func (m *DefaultUserMapper) GetUsers(ctx context.Context, loginID uuid.UUID) ([]
 
 		// Create custom claims
 		extraClaims := map[string]interface{}{
-			"email":    user.Email,
 			"username": "", // Placeholder for username
 			"roles":    strRoles,
 		}
 
-		mappedUsers = append(mappedUsers, MappedUser{
+		userInfo := UserInfo{
+			Email: user.Email,
+		}
+
+		mappedUsers = append(mappedUsers, User{
 			UserId:      user.ID.String(),
 			LoginID:     loginID.String(),
-			Email:       user.Email,
+			UserInfo:    userInfo,
 			DisplayName: user.Name.String,
 			ExtraClaims: extraClaims,
-			Roles:       strRoles, // Assuming first role is primary
+			Roles:       strRoles,
 		})
 	}
 
 	return mappedUsers, nil
+}
+
+// GetUserByUserID delegates to the repository
+func (m *DefaultUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUID) (User, error) {
+	if m.queries == nil {
+		slog.Warn("DefaultUserRepository queries is nil")
+		return User{}, fmt.Errorf("queries not initialized")
+	}
+
+	user, err := m.queries.GetUserById(ctx, userID)
+	if err != nil {
+		return User{}, fmt.Errorf("error getting user: %w", err)
+	}
+
+	// Convert roles from interface{} to []string
+	roles, ok := user.Roles.([]interface{})
+	if !ok {
+		return User{}, fmt.Errorf("invalid roles format")
+	}
+
+	strRoles := make([]string, 0, len(roles))
+	for _, r := range roles {
+		if str, ok := r.(string); ok {
+			strRoles = append(strRoles, str)
+		}
+	}
+
+	// Create custom claims
+	extraClaims := map[string]interface{}{
+		"username": "", // Placeholder for username
+		"roles":    strRoles,
+	}
+
+	userInfo := UserInfo{
+		Email: user.Email,
+	}
+
+	return User{
+		UserId:      user.ID.String(),
+		LoginID:     "", // This would need to be populated from a separate query
+		DisplayName: user.Name.String,
+		ExtraClaims: extraClaims,
+		UserInfo:    userInfo,
+		Roles:       strRoles,
+	}, nil
+}
+
+// FindUsernamesByEmail delegates to the repository
+func (m *DefaultUserMapper) FindUsernamesByEmail(ctx context.Context, email string) ([]string, error) {
+	if m.queries == nil {
+		slog.Warn("DefaultUserRepository queries is nil")
+		return nil, fmt.Errorf("queries not initialized")
+	}
+
+	// This would need to be implemented based on your database schema
+	// For now, returning a placeholder implementation
+	return []string{}, nil
 }

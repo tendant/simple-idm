@@ -392,7 +392,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	displayName, _ := customClaims["name"].(string)
 
 	// Create the MappedUser object
-	mappedUser := mapper.MappedUser{
+	mappedUser := mapper.User{
 		LoginID:     loginId,
 		UserId:      userId,
 		DisplayName: displayName,
@@ -497,7 +497,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 			ID:    user.UserId,
 			Name:  user.DisplayName,
 			Role:  user.Roles[0],
-			Email: user.Email,
+			Email: user.UserInfo.Email,
 		})
 	}
 
@@ -580,7 +580,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Check if the requested user is in the list
-	var targetUser mapper.MappedUser
+	var targetUser mapper.User
 	found := false
 	for _, user := range users {
 		if user.UserId == data.UserID {

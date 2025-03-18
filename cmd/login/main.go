@@ -138,7 +138,7 @@ func main() {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
 
-	userMapper := mapper.NewUserMapper(mapperQueries)
+	userMapper := mapper.NewDefaultUserMapper(mapperQueries)
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Create a password policy based on the environment
