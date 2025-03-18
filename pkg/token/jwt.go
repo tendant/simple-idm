@@ -29,9 +29,46 @@ func WithCookieSecure(secure bool) JwtOption {
 	}
 }
 
+// WithAccessTokenService sets the AccessTokenService
+func WithAccessTokenService(service TokenService) JwtOption {
+	return func(config *JwtConfig) {
+		config.AccessTokenService = service
+	}
+}
+
+// WithRefreshTokenService sets the RefreshTokenService
+func WithRefreshTokenService(service TokenService) JwtOption {
+	return func(config *JwtConfig) {
+		config.RefreshTokenService = service
+	}
+}
+
+// WithPasswordResetTokenService sets the PasswordResetTokenService
+func WithPasswordResetTokenService(service TokenService) JwtOption {
+	return func(config *JwtConfig) {
+		config.PasswordResetTokenService = service
+	}
+}
+
+// WithLogoutTokenService sets the LogoutTokenService
+func WithLogoutTokenService(service TokenService) JwtOption {
+	return func(config *JwtConfig) {
+		config.LogoutTokenService = service
+	}
+}
+
+// WithTempTokenService sets the TempTokenService
+func WithTempTokenService(service TokenService) JwtOption {
+	return func(config *JwtConfig) {
+		config.TempTokenService = service
+	}
+}
+
 // NewJwtConfig creates a new JwtConfig with the given secret and options
 func NewJwtConfig(secret string, opts ...JwtOption) *JwtConfig {
-	config := &JwtConfig{Secret: secret}
+	config := &JwtConfig{
+		Secret: secret,
+	}
 
 	for _, opt := range opts {
 		opt(config)
