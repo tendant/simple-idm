@@ -3,12 +3,10 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	stoken "github.com/tendant/simple-idm/pkg/token"
@@ -17,6 +15,8 @@ import (
 )
 
 const (
+	// These constants are duplicated from the token package
+	// Consider using stoken.ACCESS_TOKEN_NAME and stoken.REFRESH_TOKEN_NAME instead
 	ACCESS_TOKEN_NAME  = "access_token"
 	REFRESH_TOKEN_NAME = "refresh_token"
 )
@@ -28,16 +28,12 @@ type Handle struct {
 }
 
 func NewHandle(loginService *login.LoginService, jwtService stoken.JwtConfig, opts ...Option) Handle {
-	// Create JwtConfig from jwtService
+	// Create TokenConfig from jwtService
 	jwtConfig := stoken.NewJwtConfig(
 		jwtService.Secret,
 		stoken.WithCookieHttpOnly(jwtService.CookieHttpOnly),
 		stoken.WithCookieSecure(jwtService.CookieSecure),
-		stoken.WithAccessTokenService(jwtService.AccessTokenService),
-		stoken.WithRefreshTokenService(jwtService.RefreshTokenService),
-		stoken.WithPasswordResetTokenService(jwtService.PasswordResetTokenService),
-		stoken.WithLogoutTokenService(jwtService.LogoutTokenService),
-		stoken.WithTempTokenService(jwtService.TempTokenService),
+		stoken.WithTokenGenerator(jwtService.TokenGenerator),
 	)
 
 	h := Handle{
@@ -48,20 +44,6 @@ func NewHandle(loginService *login.LoginService, jwtService stoken.JwtConfig, op
 		opt(&h)
 	}
 	return h
-}
-
-func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue string, expire time.Time) {
-	tokenCookie := &http.Cookie{
-		Name:     tokenName,
-		Path:     "/",
-		Value:    tokenValue,
-		Expires:  expire,
-		HttpOnly: h.jwtConfig.CookieHttpOnly, // Make the cookie HttpOnly
-		Secure:   h.jwtConfig.CookieSecure,   // Ensure it’s sent over HTTPS
-		SameSite: http.SameSiteLaxMode,       // Prevent CSRF
-	}
-
-	http.SetCookie(w, tokenCookie)
 }
 
 // Login a user
@@ -99,6 +81,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	// Get the first user
 	tokenUser := idmUsers[0]
+
+	slog.Info("post login token user extra claim", "extra claim", tokenUser.ExtraClaims)
 
 	// Convert mapped users to API users
 	apiUsers := make([]User, len(idmUsers))
@@ -154,42 +138,22 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 				twoFactorMethods = append(twoFactorMethods, curMethod)
 			}
 
-			// Create temp token using the token package
-			tempClaims, err := h.jwtConfig.TempTokenService.CreateToken(tokenUser)
+			// Create temp token using the token package and set cookie in one operation
+			tempTokenStr, err := h.jwtConfig.GenerateAndSetTempCookie(
+				w,
+				stoken.APPLICATION_NAME,
+				tokenUser.ExtraClaims,
+			)
 			if err != nil {
-				slog.Error("Failed to create temp token claims", "loginUuid", loginID, "error", err)
+				slog.Error("Failed to create and set temp token", "loginUuid", loginID, "error", err)
 				return &Response{
-					body: "Failed to create temp token claims",
+					body: "Failed to create and set temp token",
 					Code: http.StatusInternalServerError,
 				}
 			}
 
-			// Convert claims to token string using token package
-			tempTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, tempClaims)
-			if err != nil {
-				slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
-				return &Response{
-					body: "Failed to create temp token",
-					Code: http.StatusInternalServerError,
-				}
-			}
-
-			tempToken := auth.IdmToken{
-				Token:  tempTokenStr,
-				Expiry: tempClaims.ExpiresAt.Time,
-			}
-
-			// Convert to token.IdmToken and set cookie using TempTokenService
-			err = h.jwtConfig.TempTokenService.SetTokenCookie(w, tempToken.Token, tempToken.Expiry)
-			if err != nil {
-				slog.Error("Failed to set temp token cookie", "err", err)
-				return &Response{
-					body: "Failed to set temp token cookie",
-					Code: http.StatusInternalServerError,
-				}
-			}
 			twoFARequiredResp := TwoFactorRequiredResponse{
-				TempToken:        tempToken.Token,
+				TempToken:        tempTokenStr,
 				TwoFactorMethods: twoFactorMethods,
 				Status:           "2fa_required",
 				Message:          "2FA verification required",
@@ -202,133 +166,59 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	if len(idmUsers) > 1 {
-		apiUsers := make([]User, len(idmUsers))
-		for i, mu := range idmUsers {
-			email, _ := mu.ExtraClaims["email"].(string)
-			name := mu.DisplayName
-			id := mu.UserId
-
-			apiUsers[i] = User{
-				ID:    id,
-				Email: email,
-				Name:  name,
-			}
-		}
-
 		// Create temp token with the custom claims for user selection
-		// Create temp token using the token package
-		tempClaims, err := h.jwtConfig.TempTokenService.CreateToken(tokenUser)
+		// Create temp token using the token package and set cookie in one operation
+		tempTokenStr, err := h.jwtConfig.GenerateAndSetTempCookie(
+			w,
+			stoken.APPLICATION_NAME,
+			h.prepareTokenClaims(tokenUser),
+		)
 		if err != nil {
-			slog.Error("Failed to create temp token claims", "err", err)
+			slog.Error("Failed to create and set temp token", "loginUuid", loginID, "error", err)
 			return &Response{
-				Code: http.StatusInternalServerError,
-				body: "Failed to create temp token claims",
-			}
-		}
-
-		// Convert claims to token string using token package
-		tempTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, tempClaims)
-		if err != nil {
-			slog.Error("Failed to create temp token", "err", err)
-			return &Response{
-				Code: http.StatusInternalServerError,
-				body: "Failed to create temp token",
-			}
-		}
-
-		tempToken := auth.IdmToken{
-			Token:  tempTokenStr,
-			Expiry: tempClaims.ExpiresAt.Time,
-		}
-
-		// Convert to token.IdmToken and set cookie using TempTokenService
-		err = h.jwtConfig.TempTokenService.SetTokenCookie(w, tempToken.Token, tempToken.Expiry)
-		if err != nil {
-			slog.Error("Failed to set temp token cookie", "err", err)
-			return &Response{
-				body: "Failed to set temp token cookie",
+				body: "Failed to create and set temp token",
 				Code: http.StatusInternalServerError,
 			}
 		}
+
 		// Return 202 response with users to select from
 		return PostLoginJSON202Response(SelectUserRequiredResponse{
 			Status:    "select_user_required",
 			Message:   "Multiple users found, please select one",
-			TempToken: tempToken.Token,
+			TempToken: tempTokenStr,
 			Users:     apiUsers,
 		})
 	}
 
 	// Create JWT tokens using the token package
-	// Create access token
-	accessClaims, err := h.jwtConfig.AccessTokenService.CreateToken(tokenUser)
+	// Create access token and set cookie in one operation
+	_, err = h.jwtConfig.GenerateAndSetAccessCookie(
+		w,
+		stoken.APPLICATION_NAME,
+		h.prepareTokenClaims(tokenUser),
+	)
 	if err != nil {
-		slog.Error("Failed to create access token claims", "user", tokenUser, "err", err)
+		slog.Error("Failed to create and set access token", "user", tokenUser, "err", err)
 		return &Response{
-			body: "Failed to create access token claims",
+			body: "Failed to create and set access token",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	// Convert claims to token string using token package
-	accessTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, accessClaims)
+	_, err = h.jwtConfig.GenerateAndSetRefreshCookie(
+		w,
+		stoken.APPLICATION_NAME,
+		h.prepareTokenClaims(tokenUser),
+	)
 	if err != nil {
-		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
+		slog.Error("Failed to create and set refresh token", "user", tokenUser, "err", err)
 		return &Response{
-			body: "Failed to create access token",
+			body: "Failed to create and set refresh token",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	accessToken := auth.IdmToken{
-		Token:  accessTokenStr,
-		Expiry: accessClaims.ExpiresAt.Time,
-	}
-
-	// Create refresh token using the token package
-	refreshClaims, err := h.jwtConfig.RefreshTokenService.CreateToken(tokenUser)
-	if err != nil {
-		slog.Error("Failed to create refresh token claims", "user", tokenUser, "err", err)
-		return &Response{
-			body: "Failed to create refresh token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Convert claims to token string using token package
-	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, refreshClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
-		return &Response{
-			body: "Failed to create refresh token",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	refreshToken := auth.IdmToken{
-		Token:  refreshTokenStr,
-		Expiry: refreshClaims.ExpiresAt.Time,
-	}
-
-	// Set cookies using token services
-	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry)
-	if err != nil {
-		slog.Error("Failed to set access token cookie", "err", err)
-		return &Response{
-			body: "Failed to set access token cookie",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry)
-	if err != nil {
-		slog.Error("Failed to set refresh token cookie", "err", err)
-		return &Response{
-			body: "Failed to set refresh token cookie",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
+	// Return response with user data
 	response := Login{
 		Status:  "success",
 		Message: "Login successful",
@@ -429,7 +319,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		}
 	}
 
-	claims, err := stoken.ValidateRefreshToken(h.jwtConfig.Secret, cookie.Value)
+	claims, err := h.jwtConfig.TokenGenerator.ParseToken(cookie.Value)
 	if err != nil {
 		slog.Error("Invalid Refresh Token Cookie", "err", err)
 		return &Response{
@@ -438,8 +328,27 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		}
 	}
 
+	// Extract claims from the token
+	mapClaims, ok := claims.Claims.(jwt.MapClaims)
+	if !ok {
+		slog.Error("invalid claims format")
+		return &Response{
+			body: "Unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
 	// Safely extract custom claims
-	customClaims, ok := claims[stoken.ExtraClaimKey].(map[string]interface{})
+	extraClaimsObj, ok := mapClaims["extra_claims"]
+	if !ok {
+		slog.Error("missing extra_claims in token")
+		return &Response{
+			body: "Unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	customClaims, ok := extraClaimsObj.(map[string]interface{})
 	if !ok {
 		slog.Error("invalid custom claims format")
 		return &Response{
@@ -502,82 +411,41 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		LoginID:     loginId,
 		UserId:      userId,
 		DisplayName: displayName,
-		ExtraClaims: customClaims["extra_claims"].(map[string]interface{}),
+		ExtraClaims: customClaims,
 	}
 
-	// Create access token using the token package
-	accessClaims, err := h.jwtConfig.AccessTokenService.CreateToken(mappedUser)
+	// Create JWT tokens
+	accessTokenStr, err := h.jwtConfig.GenerateAndSetAccessCookie(
+		w,
+		stoken.APPLICATION_NAME,
+		h.prepareTokenClaims(mappedUser),
+	)
 	if err != nil {
-		slog.Error("Failed to create access token claims", "err", err)
+		slog.Error("Failed to create and set access token", "err", err)
 		return &Response{
-			body: "Failed to create access token claims",
+			body: "Failed to create and set access token",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	// Convert claims to token string using token package
-	accessTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, accessClaims)
+	refreshTokenStr, err := h.jwtConfig.GenerateAndSetRefreshCookie(
+		w,
+		stoken.APPLICATION_NAME,
+		h.prepareTokenClaims(mappedUser),
+	)
 	if err != nil {
-		slog.Error("Failed to create access token", "err", err)
+		slog.Error("Failed to create and set refresh token", "err", err)
 		return &Response{
-			body: "Failed to create access token",
+			body: "Failed to create and set refresh token",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	accessToken := auth.IdmToken{
-		Token:  accessTokenStr,
-		Expiry: accessClaims.ExpiresAt.Time,
-	}
-
-	// Create refresh token using the token package
-	refreshClaims, err := h.jwtConfig.RefreshTokenService.CreateToken(mappedUser)
-	if err != nil {
-		slog.Error("Failed to create refresh token claims", "err", err)
-		return &Response{
-			body: "Failed to create refresh token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Convert claims to token string using token package
-	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, refreshClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "err", err)
-		return &Response{
-			body: "Failed to create refresh token",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	refreshToken := auth.IdmToken{
-		Token:  refreshTokenStr,
-		Expiry: refreshClaims.ExpiresAt.Time,
-	}
-
-	// Set cookies using token services
-	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry)
-	if err != nil {
-		slog.Error("Failed to set access token cookie", "err", err)
-		return &Response{
-			body: "Failed to set access token cookie",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry)
-	if err != nil {
-		slog.Error("Failed to set refresh token cookie", "err", err)
-		return &Response{
-			body: "Failed to set refresh token cookie",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	return &Response{
-		Code: http.StatusOK,
-		body: "",
-	}
+	// Return tokens in response
+	return PostTokenRefreshJSON200Response(Tokens{
+		AccessToken:  accessTokenStr,
+		RefreshToken: refreshTokenStr,
+	})
 }
 
 // Get a list of users associated with the current login
@@ -595,7 +463,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	tokenStr := cookie.Value
 
 	// Parse and validate token
-	token, err := stoken.ParseTokenStr(h.jwtConfig.Secret, tokenStr)
+	claims, err := h.jwtConfig.TokenGenerator.ParseToken(tokenStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -603,33 +471,45 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 		}
 	}
 
-	// Get claims from token
-	claims, ok := token.Claims.(jwt.MapClaims)
+	// Extract claims from the token
+	mapClaims, ok := claims.Claims.(jwt.MapClaims)
 	if !ok {
+		slog.Error("invalid claims format")
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid token claims",
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
 		}
 	}
 
-	// Extract login_id from custom_claims
-	customClaims, ok := claims[stoken.ExtraClaimKey].(map[string]interface{})
+	// Safely extract custom claims
+	extraClaimsObj, ok := mapClaims["extra_claims"]
 	if !ok {
+		slog.Error("missing extra_claims in token")
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid custom claims format",
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
 		}
 	}
 
-	loginIdStr, ok := customClaims["login_id"].(string)
+	customClaims, ok := extraClaimsObj.(map[string]interface{})
 	if !ok {
+		slog.Error("invalid custom claims format")
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Missing or invalid login_id in token",
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
 		}
 	}
 
-	loginId, err := uuid.Parse(loginIdStr)
+	// Extract login_id from extra claims
+	loginId, ok := customClaims["login_id"].(string)
+	if !ok {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid token claims: missing login_id",
+		}
+	}
+
+	loginIdUuid, err := uuid.Parse(loginId)
 	if err != nil {
 		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
@@ -637,7 +517,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 			Code: http.StatusBadRequest,
 		}
 	}
-	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
+	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginIdUuid)
 	if err != nil {
 		slog.Error("Failed to get users by login ID", "err", err)
 		return &Response{
@@ -683,7 +563,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	tokenStr := cookie.Value
 
 	// Parse and validate token
-	token, err := stoken.ParseTokenStr(h.jwtConfig.Secret, tokenStr)
+	claims, err := h.jwtConfig.TokenGenerator.ParseToken(tokenStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -691,24 +571,38 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	// Get claims from token
-	claims, ok := token.Claims.(jwt.MapClaims)
+	slog.Info("claims fromparse token", "claims", claims)
+
+	// Extract claims from the token
+	mapClaims, ok := claims.Claims.(jwt.MapClaims)
 	if !ok {
+		slog.Error("invalid claims format")
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid token claims",
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
 		}
 	}
 
-	// Extract login_id from custom_claims
-	customClaims, ok := claims[stoken.ExtraClaimKey].(map[string]interface{})
+	// Safely extract custom claims
+	extraClaimsObj, ok := mapClaims["extra_claims"]
 	if !ok {
+		slog.Error("missing extra_claims in token")
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid custom claims format",
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
 		}
 	}
 
+	customClaims, ok := extraClaimsObj.(map[string]interface{})
+	if !ok {
+		slog.Error("invalid custom claims format")
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid access token",
+		}
+	}
+
+	// Extract login_id from custom claims
 	loginIdStr, ok := customClaims["login_id"].(string)
 	if !ok {
 		return &Response{
@@ -754,71 +648,28 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Create new JWT tokens for the target user
-	// Create access token using the token package
-	accessClaims, err := h.jwtConfig.AccessTokenService.CreateToken(targetUser)
+	_, err = h.jwtConfig.GenerateAndSetAccessCookie(
+		w,
+		stoken.APPLICATION_NAME,
+		h.prepareTokenClaims(targetUser),
+	)
 	if err != nil {
-		slog.Error("Failed to create access token claims", "user", targetUser, "err", err)
+		slog.Error("Failed to create and set access token", "user", targetUser, "err", err)
 		return &Response{
-			body: "Failed to create access token claims",
+			body: "Failed to create and set access token",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	// Convert claims to token string using token package
-	accessTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, accessClaims)
+	_, err = h.jwtConfig.GenerateAndSetRefreshCookie(
+		w,
+		stoken.APPLICATION_NAME,
+		h.prepareTokenClaims(targetUser),
+	)
 	if err != nil {
-		slog.Error("Failed to create access token", "user", targetUser, "err", err)
+		slog.Error("Failed to create and set refresh token", "user", targetUser, "err", err)
 		return &Response{
-			body: "Failed to create access token",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	accessToken := auth.IdmToken{
-		Token:  accessTokenStr,
-		Expiry: accessClaims.ExpiresAt.Time,
-	}
-
-	// Create refresh token using the token package
-	refreshClaims, err := h.jwtConfig.RefreshTokenService.CreateToken(targetUser)
-	if err != nil {
-		slog.Error("Failed to create refresh token claims", "user", targetUser, "err", err)
-		return &Response{
-			body: "Failed to create refresh token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Convert claims to token string using token package
-	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, refreshClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "user", targetUser, "err", err)
-		return &Response{
-			body: "Failed to create refresh token",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	refreshToken := auth.IdmToken{
-		Token:  refreshTokenStr,
-		Expiry: refreshClaims.ExpiresAt.Time,
-	}
-
-	// Set cookies using token services
-	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry)
-	if err != nil {
-		slog.Error("Failed to set access token cookie", "err", err)
-		return &Response{
-			body: "Failed to set access token cookie",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry)
-	if err != nil {
-		slog.Error("Failed to set refresh token cookie", "err", err)
-		return &Response{
-			body: "Failed to set refresh token cookie",
+			body: "Failed to create and set refresh token",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -880,54 +731,30 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	// Create JWT tokens
 	tokenUser := idmUsers[0]
 
-	// Create access token using the token package
-	accessClaims, err := h.jwtConfig.AccessTokenService.CreateToken(tokenUser)
+	accessTokenStr, err := h.jwtConfig.GenerateAndSetAccessCookie(
+		w,
+		stoken.APPLICATION_NAME,
+		h.prepareTokenClaims(tokenUser),
+	)
 	if err != nil {
-		slog.Error("Failed to create access token claims", "user", tokenUser, "err", err)
+		slog.Error("Failed to create and set access token", "user", tokenUser, "err", err)
 		return &Response{
-			body: "Failed to create access token claims",
+			body: "Failed to create and set access token",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	// Convert claims to token string using token package
-	accessTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, accessClaims)
+	refreshTokenStr, err := h.jwtConfig.GenerateAndSetRefreshCookie(
+		w,
+		stoken.APPLICATION_NAME,
+		h.prepareTokenClaims(tokenUser),
+	)
 	if err != nil {
-		slog.Error("Failed to create access token", "user", tokenUser, "err", err)
+		slog.Error("Failed to create and set refresh token", "user", tokenUser, "err", err)
 		return &Response{
-			body: "Failed to create access token",
+			body: "Failed to create and set refresh token",
 			Code: http.StatusInternalServerError,
 		}
-	}
-
-	accessToken := auth.IdmToken{
-		Token:  accessTokenStr,
-		Expiry: accessClaims.ExpiresAt.Time,
-	}
-
-	// Create refresh token using the token package
-	refreshClaims, err := h.jwtConfig.RefreshTokenService.CreateToken(tokenUser)
-	if err != nil {
-		slog.Error("Failed to create refresh token claims", "user", tokenUser, "err", err)
-		return &Response{
-			body: "Failed to create refresh token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Convert claims to token string using token package
-	refreshTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, refreshClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "user", tokenUser, "err", err)
-		return &Response{
-			body: "Failed to create refresh token",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	refreshToken := auth.IdmToken{
-		Token:  refreshTokenStr,
-		Expiry: refreshClaims.ExpiresAt.Time,
 	}
 
 	// Return tokens in response
@@ -935,8 +762,8 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 	}{
-		AccessToken:  accessToken.Token,
-		RefreshToken: refreshToken.Token,
+		AccessToken:  accessTokenStr,
+		RefreshToken: refreshTokenStr,
 	})
 }
 
@@ -1003,44 +830,32 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 }
 
 func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
-	// Create logout token using the token package
-	logoutClaims, err := h.jwtConfig.LogoutTokenService.CreateToken(stoken.Claims{})
+	// Create logout token for access_token cookie
+	_, err := h.jwtConfig.GenerateAndSetLogoutCookie(w, ACCESS_TOKEN_NAME)
 	if err != nil {
-		slog.Error("Failed to create logout token claims", "err", err)
+		slog.Error("Failed to create and set logout token", "err", err)
 		return &Response{
-			body: "Failed to create logout token claims",
+			body: "Failed to create and set logout token",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	// Convert claims to token string using token package
-	logoutTokenStr, err := stoken.CreateTokenStr(h.jwtConfig.Secret, logoutClaims)
+	// Create logout token for refresh_token cookie
+	_, err = h.jwtConfig.GenerateAndSetLogoutCookie(w, REFRESH_TOKEN_NAME)
 	if err != nil {
-		slog.Error("Failed to create logout token", "err", err)
+		slog.Error("Failed to create and set logout token", "err", err)
 		return &Response{
-			body: "Failed to create logout token",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	logoutToken := auth.IdmToken{
-		Token:  logoutTokenStr,
-		Expiry: logoutClaims.ExpiresAt.Time,
-	}
-
-	// Convert to token.IdmToken and set cookies using token services
-	// Use LogoutTokenService to set both access and refresh token cookies
-	err = h.jwtConfig.LogoutTokenService.SetTokenCookie(w, logoutToken.Token, logoutToken.Expiry)
-	if err != nil {
-		slog.Error("Failed to set logout token cookie", "err", err)
-		return &Response{
-			body: "Failed to set logout token cookie",
+			body: "Failed to create and set logout token",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
 	return &Response{
-		Code: http.StatusOK,
+		body: map[string]string{
+			"message": "Logout successful",
+		},
+		Code:        http.StatusOK,
+		contentType: "application/json",
 	}
 }
 
@@ -1156,4 +971,22 @@ func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request, p
 	}
 
 	return GetPasswordResetPolicyJSON200Response(response)
+}
+
+// prepareTokenClaims prepares a structured claims object for token generation
+func (h Handle) prepareTokenClaims(user mapper.User) map[string]interface{} {
+	return map[string]interface{}{
+		"user_id":      user.UserId,
+		"login_id":     user.LoginID,
+		"display_name": user.DisplayName,
+		"extra_claims": map[string]interface{}{
+			"roles":    user.Roles,
+			"username": user.UserInfo.PreferredUsername,
+			"user_info": map[string]interface{}{
+				"email":      user.UserInfo.Email,
+				"updated_at": user.UserInfo.UpdatedAt,
+			},
+		},
+		"roles": user.Roles,
+	}
 }
