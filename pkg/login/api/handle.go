@@ -180,7 +180,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			}
 
 			// Convert to token.IdmToken and set cookie using TempTokenService
-			err = h.jwtConfig.TempTokenService.SetTokenCookie(w, tempToken.Token, tempToken.Expiry)
+			err = h.jwtConfig.TempTokenService.SetTokenCookie(w, tempToken.Token, tempToken.Expiry, ACCESS_TOKEN_NAME)
 			if err != nil {
 				slog.Error("Failed to set temp token cookie", "err", err)
 				return &Response{
@@ -242,7 +242,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 
 		// Convert to token.IdmToken and set cookie using TempTokenService
-		err = h.jwtConfig.TempTokenService.SetTokenCookie(w, tempToken.Token, tempToken.Expiry)
+		err = h.jwtConfig.TempTokenService.SetTokenCookie(w, tempToken.Token, tempToken.Expiry, ACCESS_TOKEN_NAME)
 		if err != nil {
 			slog.Error("Failed to set temp token cookie", "err", err)
 			return &Response{
@@ -311,7 +311,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Set cookies using token services
-	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry)
+	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry, ACCESS_TOKEN_NAME)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
@@ -320,7 +320,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry)
+	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry, REFRESH_TOKEN_NAME)
 	if err != nil {
 		slog.Error("Failed to set refresh token cookie", "err", err)
 		return &Response{
@@ -556,7 +556,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	// Set cookies using token services
-	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry)
+	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry, ACCESS_TOKEN_NAME)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
@@ -565,7 +565,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		}
 	}
 
-	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry)
+	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry, REFRESH_TOKEN_NAME)
 	if err != nil {
 		slog.Error("Failed to set refresh token cookie", "err", err)
 		return &Response{
@@ -805,7 +805,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Set cookies using token services
-	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry)
+	err = h.jwtConfig.AccessTokenService.SetTokenCookie(w, accessToken.Token, accessToken.Expiry, ACCESS_TOKEN_NAME)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
@@ -814,7 +814,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry)
+	err = h.jwtConfig.RefreshTokenService.SetTokenCookie(w, refreshToken.Token, refreshToken.Expiry, REFRESH_TOKEN_NAME)
 	if err != nil {
 		slog.Error("Failed to set refresh token cookie", "err", err)
 		return &Response{
@@ -1030,7 +1030,8 @@ func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 
 	// Convert to token.IdmToken and set cookies using token services
 	// Use LogoutTokenService to set both access and refresh token cookies
-	err = h.jwtConfig.LogoutTokenService.SetTokenCookie(w, logoutToken.Token, logoutToken.Expiry)
+	err = h.jwtConfig.LogoutTokenService.SetTokenCookie(w, logoutToken.Token, logoutToken.Expiry, ACCESS_TOKEN_NAME)
+	err = h.jwtConfig.LogoutTokenService.SetTokenCookie(w, logoutToken.Token, logoutToken.Expiry, REFRESH_TOKEN_NAME)
 	if err != nil {
 		slog.Error("Failed to set logout token cookie", "err", err)
 		return &Response{
