@@ -17,10 +17,20 @@ const (
 	DefaultLogoutTokenExpiry   = -1 * time.Minute // Negative to make it immediately expired
 )
 
+// Token name constants
+const (
+	ACCESS_TOKEN_NAME          = "access_token"
+	REFRESH_TOKEN_NAME         = "refresh_token"
+	TEMP_TOKEN_NAME            = "temp_token"
+	PASSWORD_RESET_TOKEN_NAME  = "password_reset_token"
+	LOGOUT_TOKEN_NAME          = "logout_token"
+	APPLICATION_NAME           = "simple-idm"
+)
+
 // Claims struct for JWT claims
 type Claims struct {
-	ExtraClaims  interface{} `json:"extra_claims,inline"`
-	CustomClaims interface{} `json:"custom_claims,inline"`
+	ExtraClaims  interface{} `json:"extra_claims"`
+	CustomClaims interface{} `json:"custom_claims"`
 	jwt.RegisteredClaims
 }
 
@@ -57,8 +67,8 @@ type AccessTokenService struct {
 // NewAccessTokenService creates a new AccessTokenService
 func NewAccessTokenService() *AccessTokenService {
 	config := NewBaseTokenConfig(
-		"simple-idm",
-		"simple-idm",
+		APPLICATION_NAME,
+		APPLICATION_NAME,
 		DefaultAccessTokenExpiry,
 		[]string{"public"},
 	)
@@ -88,7 +98,7 @@ func (s *AccessTokenService) CreateToken(claimData interface{}) (Claims, error) 
 // SetTokenCookie sets a cookie with the access token
 func (s *AccessTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 	tokenCookie := &http.Cookie{
-		Name:     "access_token",
+		Name:     ACCESS_TOKEN_NAME,
 		Path:     "/",
 		Value:    tokenStr,
 		Expires:  expiry,
@@ -109,8 +119,8 @@ type RefreshTokenService struct {
 // NewRefreshTokenService creates a new RefreshTokenService
 func NewRefreshTokenService() *RefreshTokenService {
 	config := NewBaseTokenConfig(
-		"simple-idm",
-		"simple-idm",
+		APPLICATION_NAME,
+		APPLICATION_NAME,
 		DefaultRefreshTokenExpiry,
 		[]string{"public"},
 	)
@@ -140,7 +150,7 @@ func (s *RefreshTokenService) CreateToken(claimData interface{}) (Claims, error)
 // SetTokenCookie sets a cookie with the refresh token
 func (s *RefreshTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 	tokenCookie := &http.Cookie{
-		Name:     "refresh_token",
+		Name:     REFRESH_TOKEN_NAME,
 		Path:     "/",
 		Value:    tokenStr,
 		Expires:  expiry,
@@ -161,8 +171,8 @@ type PasswordResetTokenService struct {
 // NewPasswordResetTokenService creates a new PasswordResetTokenService
 func NewPasswordResetTokenService() *PasswordResetTokenService {
 	config := NewBaseTokenConfig(
-		"simple-idm",
-		"simple-idm",
+		APPLICATION_NAME,
+		APPLICATION_NAME,
 		DefaultPasswordResetExpiry,
 		[]string{"public"},
 	)
@@ -192,7 +202,7 @@ func (s *PasswordResetTokenService) CreateToken(claimData interface{}) (Claims, 
 // SetTokenCookie sets a cookie with the password reset token
 func (s *PasswordResetTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 	tokenCookie := &http.Cookie{
-		Name:     "access_token",
+		Name:     PASSWORD_RESET_TOKEN_NAME,
 		Path:     "/",
 		Value:    tokenStr,
 		Expires:  expiry,
@@ -213,8 +223,8 @@ type LogoutTokenService struct {
 // NewLogoutTokenService creates a new LogoutTokenService
 func NewLogoutTokenService() *LogoutTokenService {
 	config := NewBaseTokenConfig(
-		"simple-idm",
-		"simple-idm",
+		APPLICATION_NAME,
+		APPLICATION_NAME,
 		DefaultLogoutTokenExpiry,
 		[]string{"public"},
 	)
@@ -245,7 +255,7 @@ func (s *LogoutTokenService) CreateToken(claimData interface{}) (Claims, error) 
 func (s *LogoutTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 
 	accessCookie := &http.Cookie{
-		Name:     "access_token",
+		Name:     ACCESS_TOKEN_NAME,
 		Path:     "/",
 		Value:    "",
 		MaxAge:   -1,
@@ -256,7 +266,7 @@ func (s *LogoutTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr stri
 	http.SetCookie(w, accessCookie)
 
 	refreshCookie := &http.Cookie{
-		Name:     "refresh_token",
+		Name:     REFRESH_TOKEN_NAME,
 		Path:     "/",
 		Value:    "",
 		MaxAge:   -1,
@@ -277,8 +287,8 @@ type TempTokenService struct {
 // NewTempTokenService creates a new TempTokenService
 func NewTempTokenService() *TempTokenService {
 	config := NewBaseTokenConfig(
-		"simple-idm",
-		"simple-idm",
+		APPLICATION_NAME,
+		APPLICATION_NAME,
 		DefaultTempTokenExpiry,
 		[]string{"2fa"},
 	)
@@ -308,7 +318,7 @@ func (s *TempTokenService) CreateToken(claimData interface{}) (Claims, error) {
 // SetTokenCookie sets a cookie with the temporary token
 func (s *TempTokenService) SetTokenCookie(w http.ResponseWriter, tokenStr string, expiry time.Time) error {
 	tokenCookie := &http.Cookie{
-		Name:     "temp_token",
+		Name:     TEMP_TOKEN_NAME,
 		Path:     "/",
 		Value:    tokenStr,
 		Expires:  expiry,
