@@ -9,9 +9,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/client"
+	"github.com/tendant/simple-idm/pkg/impersonate"
 	"github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/mapper"
-	"github.com/tendant/simple-idm/pkg/impersonate"
 )
 
 // Constants for token cookie names
@@ -180,7 +180,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 
 	// Create a mappedUser for token generation
 
-	originalUser, err := h.service.GetUserByLoginID(r.Context(), loginId)
+	originalUser, err := h.service.GetOriginalUser(r.Context(), loginId)
 	if err != nil {
 		slog.Error("Failed to get original user", "error", err)
 		return &Response{
@@ -191,11 +191,11 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 
 	mappedUser := mapper.User{
 		// original user uuid
-		UserId: originalUser.Uuid.String(),
+		UserId: originalUser.UserId,
 		// original user login id
-		LoginID: originalUser.LoginID.UUID.String(),
+		LoginID: originalUser.LoginID,
 		// original user display name
-		DisplayName: originalUser.Fullname,
+		DisplayName: originalUser.DisplayName,
 	}
 
 	// Generate access token
