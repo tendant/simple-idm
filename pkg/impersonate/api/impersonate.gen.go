@@ -20,14 +20,22 @@ import (
 	"github.com/go-chi/render"
 )
 
-// SuccessResponse defines model for SuccessResponse.
-type SuccessResponse struct {
-	Result string `json:"result,omitempty"`
+// ErrorResponse defines model for ErrorResponse.
+type ErrorResponse struct {
+	// Error code
+	Code *string `json:"code,omitempty"`
+
+	// Error message
+	Error string `json:"error"`
 }
+
+// Empty response for successful operation
+type SuccessResponse map[string]interface{}
 
 // CreateImpersonateJSONBody defines parameters for CreateImpersonate.
 type CreateImpersonateJSONBody struct {
-	UserUUID string `json:"user_uuid"`
+	// UUID of the delegator user
+	DelegatorUserUUID string `json:"delegator_user_uuid"`
 }
 
 // CreateImpersonateJSONRequestBody defines body for CreateImpersonate for application/json ContentType.
@@ -89,11 +97,74 @@ func CreateImpersonateJSON200Response(body SuccessResponse) *Response {
 	}
 }
 
+// CreateImpersonateJSON400Response is a constructor method for a CreateImpersonate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func CreateImpersonateJSON400Response(body ErrorResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        400,
+		contentType: "application/json",
+	}
+}
+
+// CreateImpersonateJSON401Response is a constructor method for a CreateImpersonate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func CreateImpersonateJSON401Response(body ErrorResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        401,
+		contentType: "application/json",
+	}
+}
+
+// CreateImpersonateJSON403Response is a constructor method for a CreateImpersonate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func CreateImpersonateJSON403Response(body ErrorResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        403,
+		contentType: "application/json",
+	}
+}
+
+// CreateImpersonateBackJSON200Response is a constructor method for a CreateImpersonateBack response.
+// A *Response is returned with the configured status code and content type from the spec.
+func CreateImpersonateBackJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// CreateImpersonateBackJSON400Response is a constructor method for a CreateImpersonateBack response.
+// A *Response is returned with the configured status code and content type from the spec.
+func CreateImpersonateBackJSON400Response(body ErrorResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        400,
+		contentType: "application/json",
+	}
+}
+
+// CreateImpersonateBackJSON401Response is a constructor method for a CreateImpersonateBack response.
+// A *Response is returned with the configured status code and content type from the spec.
+func CreateImpersonateBackJSON401Response(body ErrorResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        401,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Impersonate a user
+	// Create impersonation session
 	// (POST /)
 	CreateImpersonate(w http.ResponseWriter, r *http.Request) *Response
+	// End impersonation session
+	// (POST /back)
+	CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -108,6 +179,24 @@ func (siw *ServerInterfaceWrapper) CreateImpersonate(w http.ResponseWriter, r *h
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.CreateImpersonate(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// CreateImpersonateBack operation middleware
+func (siw *ServerInterfaceWrapper) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.CreateImpersonateBack(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -236,6 +325,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Post("/", wrapper.CreateImpersonate)
+		r.Post("/back", wrapper.CreateImpersonateBack)
 	})
 	return r
 }
@@ -261,12 +351,19 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/5RSwU7jMBD9lWh2j2mT3b35tnDqAQnBESFknEnqkniMZ1wRVfl35IGKUrhws5/m+T2/",
-	"NwdwNEUKGITBHIDdFierx9vsHDLfIEcKjAWKiSIm8agDCTmPUk4yRwQDLMmHAZalPiL0uEMnUMPLaqAV",
-	"RfEU7Lja2zEjGEkZlzLtQ0/6jpex0DZTxMQUrGB1ZYMdcMIg1f/rDdSwx8SeAhj4s27XLSw1UMRgowcD",
-	"/xSqIVrZqslGfROrz+LeFg+bDgxcJrSCJ1pQQ8LnjCwX1M2F4CgIBuXaGEfvlN3suOgf0/qaTGZMDzn7",
-	"rlx6SpMVMKBA/U1YRdQn7MDcnVDvz1NcPs9qegV460eF/7btj2z/TtiDgV/NxxY07yvQnPev8h2yS157",
-	"BHNckT6P41wNGEq6WPmT9oSeMLD+kvM02TSf1Wur8uPy+PIaAAD//1ZycrWMAgAA",
+	"H4sIAAAAAAAC/+RVTW8bNxD9KwRboJe1Vkl82lPj1gUM9JDW8SkwgjE5kpjscujhrFQ10H8vhivL+ljD",
+	"LlAYBXJbzHLee/PxyG/WUZcoYpRsm282uwV2UD4vmYn/xJwoZtRAYkrIErD8duRL1GN2HJIEirYZkkz5",
+	"V1lZJ7SNzcIhzu2msqh/n0rqMGeYj+RtKst43wdGb5tPW5Db3TG6+4JOFP66dw5z3td8RNQlWRve/jcz",
+	"YpOHnFnfGq0OyskTbNUQ4oyGwqOAE/3EDkJrGxuWEH8W4gRzmjjqbGUjdArwcQiajwga7VmPL0RSbup6",
+	"tVpN9rM21ZHeqy4hZ4ogaN5/uCqCPbY4B0Fv+oxsoMhXxUFaPM2xlV0i5wHvzWQ6mSoNJYyQgm3suxKq",
+	"bAJZlLnWZdSU5bR9vzCCYDYQTdixBIomY1YGA21LqxDnBnYy0QhtRT5GiX/KGqQ+ii1qhsZf+R3LXhl2",
+	"mD9muSC/fhgBxqIQUmqDK9n1l6wyH5b4dGV37J+1dZ/7PvjTIm9urn41NDOywEe5pde2sjPiDsQ2tuQ+",
+	"t6ljfLeju/WYJdxjCQw7WnS/nU7/VdU/Ms5sY3+oH71db41dH3uk0B924HpniXZt5hh1OOj3Rq4z/Yox",
+	"6yad/4faDm+cEWUX4M12FQbuN6/HfROhlwVx+Bv9QP7u9ch/I74L3mM0Z+ZGbe8Js4kkZgFLNAm5C4MF",
+	"hfYHVVYy910HvN5Za9y85Wh9B+7r0xfAZfS5GMP1zBjlqWsg6pik55hVjyYQh3mI0A6XVmnaXy+w/oXK",
+	"+V+6YXCAljdUql8HRX7H5jjYucvon1w4PYis75NtPh0v2wcm37vte3z4cEIKb/dfTg3U4LsQ6+W53VTH",
+	"UH+8H4FIZwP35B52WBHlOazfyUF7ANfUdavBBWVpzqfT6XMQ131cYZazexiTpXqWQTsEvHbEiXTjHLB/",
+	"SakP2InJj6K/GPp2808AAAD//6ekwf8dCgAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

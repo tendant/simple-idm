@@ -1,0 +1,104 @@
+openapi: 3.0.0
+info:
+  contact:
+    email: ivan@torpago.com
+    name: Torpago Team
+    url: https://www.torpago.com
+  description: Impersonate API for delegated user access
+  title: Impersonate API
+  version: 1.0.0
+servers:
+  - description: Production
+    url: https://api2.torpago.com/api/admin/v4
+  - description: QA
+    url: https://app-server.qa.torpago.net/api/admin/v4
+  - description: Local
+    url: http://localhost:4000/api/admin/v4
+  - description: Sunwest-qa
+    url: https://app.qa.visionarycorporatecard.com/api/admin/v4
+  - description: Sunwest-prod
+    url: https://app.visionarycorporatecard.com/api/admin/v4
+paths:
+  /:
+    post:
+      operationId: CreateImpersonate
+      summary: Create impersonation session
+      description: Creates an impersonation session allowing a delegatee to access a delegator's account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                delegator_user_uuid:
+                  type: string
+                  format: uuid
+                  description: UUID of the delegator user
+              required:
+                - delegator_user_uuid
+      responses:
+        "200":
+          description: Successfully generated impersonate tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "403":
+          description: Forbidden - User does not have permission to impersonate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /back:
+    post:
+      operationId: CreateImpersonateBack
+      summary: End impersonation session
+      description: Ends the current impersonation session and returns to the original user context
+      responses:
+        "200":
+          description: Successfully generated tokens to return to original user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    SuccessResponse:
+      type: object
+      description: Empty response for successful operation
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+      required:
+        - error
