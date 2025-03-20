@@ -141,9 +141,7 @@ func (m *DefaultUserMapper) FindUsernamesByEmail(ctx context.Context, email stri
 // ToTokenClaims converts a User to rootModifications and extraClaims maps for token generation
 func (m *DefaultUserMapper) ToTokenClaims(user User) (rootModifications map[string]interface{}, extraClaims map[string]interface{}) {
 	// Root modifications are applied to the top level of the JWT claims
-	rootModifications = map[string]interface{}{
-		"sub": user.UserId, // Subject claim (required)
-	}
+	rootModifications = map[string]interface{}{}
 
 	// Extra claims should match the exact structure of the User object
 	extraClaims = map[string]interface{}{
