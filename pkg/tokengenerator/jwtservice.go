@@ -21,7 +21,7 @@ const (
 	DefaultAccessTokenExpiry  = 15 * time.Minute
 	DefaultRefreshTokenExpiry = 24 * time.Hour
 	DefaultTempTokenExpiry    = 5 * time.Minute
-	DefaultLogoutTokenExpiry  = 1 * time.Second
+	DefaultLogoutTokenExpiry  = -1 * time.Second
 )
 
 // JwtService provides JWT token generation and cookie management
@@ -199,7 +199,10 @@ func (js *JwtService) SetTempTokenCookie(w http.ResponseWriter, tokenValue strin
 
 // SetLogoutTokenCookie generates a logout token and sets it as a cookie
 func (js *JwtService) SetLogoutTokenCookie(w http.ResponseWriter, tokenValue string, expire time.Time) error {
-	return js.SetCookie(w, LOGOUT_TOKEN_NAME, tokenValue, expire)
+	js.ClearCookie(w, ACCESS_TOKEN_NAME)
+	js.ClearCookie(w, REFRESH_TOKEN_NAME)
+	js.ClearCookie(w, TEMP_TOKEN_NAME)
+	return nil
 }
 
 // SetCookie sets a cookie using the cookie setter for the given cookie name
