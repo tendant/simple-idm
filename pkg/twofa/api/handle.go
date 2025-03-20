@@ -211,7 +211,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 
 		// Set temp token cookie
-		err = h.jwtService.CookieSetter.SetCookie(w, tg.TEMP_TOKEN_NAME, tempTokenStr, tempTokenExpiry)
+		err = h.jwtService.SetTempTokenCookie(w, tempTokenStr, tempTokenExpiry)
 		if err != nil {
 			slog.Error("Failed to set temp token cookie", "err", err)
 			return &Response{
@@ -256,7 +256,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Set the access token cookie
-	err = h.jwtService.CookieSetter.SetCookie(w, tg.ACCESS_TOKEN_NAME, accessTokenStr, accessTokenExpiry)
+	err = h.jwtService.SetAccessTokenCookie(w, accessTokenStr, accessTokenExpiry)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
@@ -266,7 +266,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Set the refresh token cookie
-	err = h.jwtService.CookieSetter.SetCookie(w, tg.REFRESH_TOKEN_NAME, refreshTokenStr, refreshTokenExpiry)
+	err = h.jwtService.SetRefreshTokenCookie(w, refreshTokenStr, refreshTokenExpiry)
 	if err != nil {
 		slog.Error("Failed to set refresh token cookie", "err", err)
 		return &Response{
