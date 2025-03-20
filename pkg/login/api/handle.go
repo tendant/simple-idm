@@ -551,12 +551,12 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Get token from cookie instead of Authorization header
-	cookie, err := r.Cookie(ACCESS_TOKEN_NAME)
+	cookie, err := r.Cookie(TEMP_TOKEN_NAME)
 	if err != nil {
-		slog.Error("No Access Token Cookie", "err", err)
+		slog.Error("No Temp Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			body: "Missing access token cookie",
+			body: "Missing temp token cookie",
 		}
 	}
 	tokenStr := cookie.Value
@@ -578,6 +578,8 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 			body: "Invalid token format",
 		}
 	}
+
+	slog.Info("Token claims from switch user", "claims", claims)
 
 	// Extract login_id from custom_claims
 	customClaims, ok := claims["extra_claims"].(map[string]interface{})
