@@ -108,7 +108,7 @@ func NewJwtService(opts ...JwtServiceOption) *JwtService {
 }
 
 // GenerateToken generates a token with the given parameters
-func (js *JwtService) GenerateToken(tokenName, subject string, extraClaims map[string]interface{}) (string, time.Time, error) {
+func (js *JwtService) GenerateToken(tokenName, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, time.Time, error) {
 	var expiry time.Duration
 
 	// If subject is empty, use the default subject if available
@@ -129,33 +129,13 @@ func (js *JwtService) GenerateToken(tokenName, subject string, extraClaims map[s
 		expiry = js.AccessTokenExpiry
 	}
 
-	tokenStr, expiryTime, err := js.TokenGenerator.GenerateToken(subject, expiry, nil, extraClaims)
+	tokenStr, expiryTime, err := js.TokenGenerator.GenerateToken(subject, expiry, rootModifications, extraClaims)
 	return tokenStr, expiryTime, err
 }
 
 // ParseToken parses and validates a token
 func (js *JwtService) ParseToken(tokenName, tokenStr string) (*jwt.Token, error) {
 	return js.TokenGenerator.ParseToken(tokenStr)
-}
-
-// GenerateAccessToken generates an access token
-func (js *JwtService) GenerateAccessToken(subject string, extraClaims map[string]interface{}) (string, time.Time, error) {
-	return js.GenerateToken(ACCESS_TOKEN_NAME, subject, extraClaims)
-}
-
-// GenerateRefreshToken generates a refresh token
-func (js *JwtService) GenerateRefreshToken(subject string, extraClaims map[string]interface{}) (string, time.Time, error) {
-	return js.GenerateToken(REFRESH_TOKEN_NAME, subject, extraClaims)
-}
-
-// GenerateTempToken generates a temporary token
-func (js *JwtService) GenerateTempToken(subject string, extraClaims map[string]interface{}) (string, time.Time, error) {
-	return js.GenerateToken(TEMP_TOKEN_NAME, subject, extraClaims)
-}
-
-// GenerateLogoutToken generates a logout token
-func (js *JwtService) GenerateLogoutToken(subject string, extraClaims map[string]interface{}) (string, time.Time, error) {
-	return js.GenerateToken(LOGOUT_TOKEN_NAME, subject, extraClaims)
 }
 
 // SetAccessTokenCookie generates an access token and sets it as a cookie
@@ -180,7 +160,7 @@ func (js *JwtService) SetLogoutTokenCookie(w http.ResponseWriter, tokenValue str
 
 // GenerateAndSetCookie is a convenience method that generates a token and sets it as a cookie
 func (js *JwtService) GenerateAndSetCookie(w http.ResponseWriter, tokenName string, subject string, extraClaims map[string]interface{}) error {
-	token, expiry, err := js.GenerateToken(tokenName, subject, extraClaims)
+	token, expiry, err := js.GenerateToken(tokenName, subject, nil, extraClaims)
 	if err != nil {
 		return err
 	}
