@@ -432,6 +432,15 @@ func (s *LoginService) GetPasswordManager() *PasswordManager {
 	return s.passwordManager
 }
 
+// ToTokenClaims converts a User to token claims using the UserMapper
+func (s *LoginService) ToTokenClaims(user mapper.User) (rootModifications map[string]interface{}, extraClaims map[string]interface{}) {
+	if s.userMapper == nil {
+		slog.Warn("UserMapper is nil, returning empty claims")
+		return map[string]interface{}{}, map[string]interface{}{}
+	}
+	return s.userMapper.ToTokenClaims(user)
+}
+
 // FindUsernameByEmail finds a username by email address
 func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (string, bool, error) {
 	// Use the UserRepository to find usernames by email
