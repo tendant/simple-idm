@@ -68,6 +68,9 @@ type JwtConfig struct {
 	TempTokenExpiry          string `env:"TEMP_TOKEN_EXPIRY" env-default:"5m"`
 	PasswordResetTokenExpiry string `env:"PASSWORD_RESET_TOKEN_EXPIRY" env-default:"15m"`
 	LogoutTokenExpiry        string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"1s"`
+	Secret                   string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
+	Issuer                   string `env:"JWT_ISSUER" env-default:"simple-idm"`
+	Audience                 string `env:"JWT_AUDIENCE" env-default:"simple-idm"`
 }
 
 type EmailConfig struct {
@@ -128,7 +131,6 @@ func main() {
 	roleQueries := roledb.New(pool)
 	iamQueries := iamdb.New(pool)
 	loginQueries := logindb.New(pool)
-	// impersonateQueries := impersonatedb.New(pool)
 	twofaQueries := twofadb.New(pool)
 	mapperQueries := mapperdb.New(pool)
 
@@ -205,8 +207,8 @@ func main() {
 
 	// Create JWT service with configurable expiry durations
 	jwtService := tokengenerator.NewJwtService(
-		tokengenerator.WithTokenGenerator(tokenGenerator),
-		tokengenerator.WithCookieSetter(cookieSetter),
+		tokengenerator.WithDefaultTokenGenerator(tokenGenerator),
+		tokengenerator.WithDefaultCookieSetter(cookieSetter),
 		tokengenerator.WithAccessTokenExpiry(accessTokenExpiry),
 		tokengenerator.WithRefreshTokenExpiry(refreshTokenExpiry),
 		tokengenerator.WithTempTokenExpiry(tempTokenExpiry),
