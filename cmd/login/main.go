@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -12,13 +13,12 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/tendant/chi-demo/app"
 	dbutils "github.com/tendant/db-utils/db"
-	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
-	"github.com/tendant/simple-idm/pkg/impersonate"
-	"github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
+
+	// "github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 	"github.com/tendant/simple-idm/pkg/login"
 	loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
@@ -34,7 +34,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/role"
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
-	"github.com/tendant/simple-idm/pkg/token"
+	"github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	twofaapi "github.com/tendant/simple-idm/pkg/twofa/api"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
@@ -48,12 +48,6 @@ type IdmDbConfig struct {
 	Password string `env:"IDM_PG_PASSWORD" env-default:"pwd"`
 }
 
-type JwtConfig struct {
-	JwtSecret      string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
-	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
-	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
-}
-
 func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
 	return dbutils.DbConfig{
 		Host:     d.Host,
@@ -62,6 +56,21 @@ func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
 		User:     d.User,
 		Password: d.Password,
 	}
+}
+
+type JwtConfig struct {
+	JwtSecret      string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
+	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
+	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
+	// Token expiry durations
+	AccessTokenExpiry        string `env:"ACCESS_TOKEN_EXPIRY" env-default:"15m"`
+	RefreshTokenExpiry       string `env:"REFRESH_TOKEN_EXPIRY" env-default:"24h"`
+	TempTokenExpiry          string `env:"TEMP_TOKEN_EXPIRY" env-default:"5m"`
+	PasswordResetTokenExpiry string `env:"PASSWORD_RESET_TOKEN_EXPIRY" env-default:"15m"`
+	LogoutTokenExpiry        string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"1s"`
+	Secret                   string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
+	Issuer                   string `env:"JWT_ISSUER" env-default:"simple-idm"`
+	Audience                 string `env:"JWT_AUDIENCE" env-default:"simple-idm"`
 }
 
 type EmailConfig struct {
@@ -122,7 +131,6 @@ func main() {
 	roleQueries := roledb.New(pool)
 	iamQueries := iamdb.New(pool)
 	loginQueries := logindb.New(pool)
-	impersonateQueries := impersonatedb.New(pool)
 	twofaQueries := twofadb.New(pool)
 	mapperQueries := mapperdb.New(pool)
 
@@ -162,32 +170,55 @@ func main() {
 	// Use the same repository instance for both LoginRepository and UserRepository interfaces
 	loginService := login.NewLoginService(loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
 
-	// jwt service
-	jwtService := auth.NewJwtServiceOptions(
+	// Parse token expiry durations from environment variables
+	accessTokenExpiry, err := time.ParseDuration(config.JwtConfig.AccessTokenExpiry)
+	if err != nil {
+		slog.Error("Failed parsing access token expiry duration", "err", err)
+		accessTokenExpiry = tokengenerator.DefaultAccessTokenExpiry
+	}
+	refreshTokenExpiry, err := time.ParseDuration(config.JwtConfig.RefreshTokenExpiry)
+	if err != nil {
+		slog.Error("Failed parsing refresh token expiry duration", "err", err)
+		refreshTokenExpiry = tokengenerator.DefaultRefreshTokenExpiry
+	}
+	tempTokenExpiry, err := time.ParseDuration(config.JwtConfig.TempTokenExpiry)
+	if err != nil {
+		slog.Error("Failed parsing temp token expiry duration", "err", err)
+		tempTokenExpiry = tokengenerator.DefaultTempTokenExpiry
+	}
+	logoutTokenExpiry, err := time.ParseDuration(config.JwtConfig.LogoutTokenExpiry)
+	if err != nil {
+		slog.Error("Failed parsing logout token expiry duration", "err", err)
+		logoutTokenExpiry = tokengenerator.DefaultLogoutTokenExpiry
+	}
+
+	// Create JWT token generator
+	tokenGenerator := tokengenerator.NewJwtTokenGenerator(
 		config.JwtConfig.JwtSecret,
-		auth.WithCookieHttpOnly(config.JwtConfig.CookieHttpOnly),
-		auth.WithCookieSecure(config.JwtConfig.CookieSecure),
+		"simple-idm", // Issuer
+		"simple-idm", // Audience
 	)
 
-	jwtConfig := token.NewJwtConfig(
-		config.JwtConfig.JwtSecret,
-		token.WithCookieHttpOnly(config.JwtConfig.CookieHttpOnly),
-		token.WithCookieSecure(config.JwtConfig.CookieSecure),
-		token.WithAccessTokenService(token.NewAccessTokenService()),
-		token.WithRefreshTokenService(token.NewRefreshTokenService()),
-		token.WithPasswordResetTokenService(token.NewPasswordResetTokenService()),
-		token.WithLogoutTokenService(token.NewLogoutTokenService()),
-		token.WithTempTokenService(token.NewTempTokenService()),
+	// Create cookie setter
+	cookieSetter := tokengenerator.NewCookieSetter(
+		config.JwtConfig.CookieHttpOnly,
+		config.JwtConfig.CookieSecure,
 	)
 
-	// auth queries
-	// authQueries := authDb.New(pool)
+	// Create JWT service with configurable expiry durations
+	jwtService := tokengenerator.NewJwtService(
+		tokengenerator.WithDefaultTokenGenerator(tokenGenerator),
+		tokengenerator.WithDefaultCookieSetter(cookieSetter),
+		tokengenerator.WithAccessTokenExpiry(accessTokenExpiry),
+		tokengenerator.WithRefreshTokenExpiry(refreshTokenExpiry),
+		tokengenerator.WithTempTokenExpiry(tempTokenExpiry),
+		tokengenerator.WithLogoutTokenExpiry(logoutTokenExpiry),
+		tokengenerator.WithSubject("simple-idm"), // Default subject for tokens
+	)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
-	loginHandle := loginapi.NewHandle(loginService, *jwtConfig, loginapi.WithTwoFactorService(twoFaService))
-
-	// authHandle := authpkg.NewHandle(*jwtService, authLoginService)
+	loginHandle := loginapi.NewHandle(loginService, jwtService, loginapi.WithTwoFactorService(twoFaService))
 
 	server.R.Mount("/auth", loginapi.Handler(loginHandle))
 
@@ -259,18 +290,18 @@ func main() {
 		r.Mount("/idm/logins", loginsRouter)
 
 		// Initialize impersonate service and routes
-		impersonateService := impersonate.NewImpersonateService(impersonateQueries)
-		impersonateHandle := impersonate.NewHandle(impersonateService, *jwtService)
-		r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
+		//FIX-ME: impersonate service and routes
+		// impersonateService := impersonate.NewImpersonateService(impersonateQueries)
+		// impersonateHandle := impersonate.NewHandle(impersonateService, *jwtService)
+		// r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
 
 		// Initialize two factor authentication service and routes
-		twoFaHandle := twofaapi.NewHandle(twoFaService, *jwtConfig, userMapper)
+		twoFaHandle := twofaapi.NewHandle(twoFaService, jwtService, userMapper)
 		r.Mount("/idm/2fa", twofaapi.TwoFaHandler(twoFaHandle))
 	})
 
 	app.RoutesHealthzReady(server.R)
 	server.Run()
-
 }
 
 func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolicy {

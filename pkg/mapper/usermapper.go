@@ -14,6 +14,8 @@ type UserMapper interface {
 	FindUsersByLoginID(ctx context.Context, loginID uuid.UUID) ([]User, error)
 	GetUserByUserID(ctx context.Context, userID uuid.UUID) (User, error)
 	FindUsernamesByEmail(ctx context.Context, email string) ([]string, error)
+	//TODO: add convertion to claim
+	ToTokenClaims(user User) (rootModifications map[string]interface{}, extraClaims map[string]interface{})
 }
 
 // DefaultUserMapper implements the UserMapper interface
@@ -134,4 +136,28 @@ func (m *DefaultUserMapper) FindUsernamesByEmail(ctx context.Context, email stri
 	// This would need to be implemented based on your database schema
 	// For now, returning a placeholder implementation
 	return []string{}, nil
+}
+
+// ToTokenClaims converts a User to rootModifications and extraClaims maps for token generation
+func (m *DefaultUserMapper) ToTokenClaims(user User) (rootModifications map[string]interface{}, extraClaims map[string]interface{}) {
+	// Root modifications are applied to the top level of the JWT claims
+	rootModifications = map[string]interface{}{}
+
+	// Extra claims should match the exact structure of the User object
+	extraClaims = map[string]interface{}{
+		"user_id":      user.UserId,
+		"login_id":     user.LoginID,
+		"display_name": user.DisplayName,
+		"roles":        user.Roles,
+		"user_info":    user.UserInfo,
+	}
+
+	// Add extra_claims as a nested field within extraClaims
+	if user.ExtraClaims != nil {
+		extraClaims["extra_claims"] = user.ExtraClaims
+	} else {
+		extraClaims["extra_claims"] = map[string]interface{}{}
+	}
+
+	return
 }
