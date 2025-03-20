@@ -18,6 +18,8 @@ import (
 const (
 	ACCESS_TOKEN_NAME  = "access_token"
 	REFRESH_TOKEN_NAME = "refresh_token"
+	TEMP_TOKEN_NAME    = "temp_token"
+	LOGOUT_TOKEN_NAME  = "logout_token"
 )
 
 type Handle struct {
@@ -141,11 +143,9 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 				twoFactorMethods = append(twoFactorMethods, curMethod)
 			}
 
-			//FIX-ME: get from mapper pkg later
-			extraClaims := map[string]interface{}{}
-
 			// Create temp token using the token package
-			tempTokenStr, expiry, err := h.jwtService.GenerateTempToken("", extraClaims)
+			rootModifications, extraClaims := h.loginService.ToTokenClaims(idmUsers[0])
+			tempTokenStr, expiry, err := h.jwtService.GenerateToken(TEMP_TOKEN_NAME, "", rootModifications, extraClaims)
 			if err != nil {
 				slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
 				return &Response{
@@ -195,7 +195,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			"login_id": loginID.String(),
 			"users":    apiUsers,
 		}
-		tempTokenStr, expiry, err := h.jwtService.GenerateTempToken("", extraClaims)
+		tempTokenStr, expiry, err := h.jwtService.GenerateToken(TEMP_TOKEN_NAME, "", nil, extraClaims)
 		if err != nil {
 			slog.Error("Failed to create temp token", "err", err)
 			return &Response{
@@ -223,12 +223,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Create JWT tokens using the JwtService
-	extraClaims := map[string]interface{}{
-		"email":   tokenUser.UserInfo.Email,
-		"roles":   tokenUser.Roles,
-		"user_id": tokenUser.UserId,
-	}
-	accessTokenStr, expiry, err := h.jwtService.GenerateAccessToken("", extraClaims)
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
+	accessTokenStr, expiry, err := h.jwtService.GenerateToken(ACCESS_TOKEN_NAME, "", rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -251,7 +247,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		"email":   tokenUser.UserInfo.Email,
 		"user_id": tokenUser.UserId,
 	}
-	refreshTokenStr, expiry, err := h.jwtService.GenerateRefreshToken("", extraClaims)
+	refreshTokenStr, expiry, err := h.jwtService.GenerateToken(REFRESH_TOKEN_NAME, "", nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -418,7 +414,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 	extraClaims["user_id"] = userID
 
-	accessTokenStr, expiry, err := h.jwtService.GenerateAccessToken("", extraClaims)
+	accessTokenStr, expiry, err := h.jwtService.GenerateToken(ACCESS_TOKEN_NAME, "", nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "err", err)
 		return &Response{
@@ -438,7 +434,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	extraClaims = map[string]interface{}{}
-	refreshTokenStr, expiry, err := h.jwtService.GenerateRefreshToken("", extraClaims)
+	refreshTokenStr, expiry, err := h.jwtService.GenerateToken(REFRESH_TOKEN_NAME, "", nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "err", err)
 		return &Response{
@@ -636,13 +632,8 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	// Create new JWT tokens for the target user
-	extraClaims := map[string]interface{}{
-		"email":   targetUser.UserInfo.Email,
-		"roles":   targetUser.Roles,
-		"user_id": targetUser.UserId,
-	}
-	accessTokenStr, expiry, err := h.jwtService.GenerateAccessToken("", extraClaims)
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(targetUser)
+	accessTokenStr, expiry, err := h.jwtService.GenerateToken(ACCESS_TOKEN_NAME, "", rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "user", targetUser, "err", err)
 		return &Response{
@@ -661,11 +652,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	extraClaims = map[string]interface{}{
-		"email":   targetUser.UserInfo.Email,
-		"user_id": targetUser.UserId,
-	}
-	refreshTokenStr, expiry, err := h.jwtService.GenerateRefreshToken("", extraClaims)
+	refreshTokenStr, expiry, err := h.jwtService.GenerateToken(REFRESH_TOKEN_NAME, "", rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "user", targetUser, "err", err)
 		return &Response{
@@ -741,12 +728,8 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	// Create JWT tokens
 	tokenUser := idmUsers[0]
 
-	extraClaims := map[string]interface{}{
-		"email":   tokenUser.UserInfo.Email,
-		"roles":   tokenUser.Roles,
-		"user_id": tokenUser.UserId,
-	}
-	accessTokenStr, _, err := h.jwtService.GenerateAccessToken("", extraClaims)
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
+	accessTokenStr, _, err := h.jwtService.GenerateToken(ACCESS_TOKEN_NAME, "", rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -759,7 +742,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		"email":   tokenUser.UserInfo.Email,
 		"user_id": tokenUser.UserId,
 	}
-	refreshTokenStr, _, err := h.jwtService.GenerateRefreshToken("", extraClaims)
+	refreshTokenStr, _, err := h.jwtService.GenerateToken(REFRESH_TOKEN_NAME, "", nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -845,7 +828,8 @@ func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 	extraClaims := map[string]interface{}{
 		"timestamp": time.Now().Unix(),
 	}
-	logoutTokenStr, expiry, err := h.jwtService.GenerateLogoutToken("", extraClaims)
+	rootModifications, _ := h.loginService.ToTokenClaims(mapper.User{})
+	logoutTokenStr, expiry, err := h.jwtService.GenerateToken(LOGOUT_TOKEN_NAME, "", rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create logout token", "err", err)
 		return &Response{
