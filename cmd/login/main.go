@@ -205,8 +205,7 @@ func main() {
 	)
 
 	// Create JWT service with configurable expiry durations
-	jwtService := tokengenerator.NewJwtService(
-		tokengenerator.WithDefaultTokenGenerator(tokenGenerator),
+	jwtService := tokengenerator.NewJwtService(tokenGenerator,
 		tokengenerator.WithDefaultCookieSetter(cookieSetter),
 		tokengenerator.WithAccessTokenExpiry(accessTokenExpiry),
 		tokengenerator.WithRefreshTokenExpiry(refreshTokenExpiry),
