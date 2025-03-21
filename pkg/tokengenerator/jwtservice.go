@@ -20,9 +20,9 @@ const (
 
 // Default token expiry durations
 const (
-	DefaultAccessTokenExpiry  = 15 * time.Minute
-	DefaultRefreshTokenExpiry = 24 * time.Hour
-	DefaultTempTokenExpiry    = 5 * time.Minute
+	DefaultAccessTokenExpiry  = 5 * time.Minute
+	DefaultRefreshTokenExpiry = 15 * time.Minute
+	DefaultTempTokenExpiry    = 1 * time.Minute
 	DefaultLogoutTokenExpiry  = -1 * time.Second
 )
 
