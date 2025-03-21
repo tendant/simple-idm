@@ -578,44 +578,29 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	tokenStr := cookie.Value
 
 	// Parse and validate token
-	token, err := h.jwtService.ParseToken(tg.ACCESS_TOKEN_NAME, tokenStr)
+	token, err := h.jwtService.ParseToken(TEMP_TOKEN_NAME, tokenStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
-			body: "Invalid access token",
+			body: "Invalid temp token",
 		}
 	}
 
-	// Get claims from token
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid token format",
-		}
-	}
+	slog.Info("token from user switch", "token", token)
 
-	slog.Info("Token claims from switch user", "claims", claims)
-
-	// Extract login_id from custom_claims
-	customClaims, ok := claims["extra_claims"].(map[string]interface{})
-	if !ok {
+	// Extract login ID using the helper method
+	loginIdStr, err := h.jwtService.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid custom claims format",
-		}
-	}
-
-	loginIdStr, ok := customClaims["login_id"].(string)
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Missing or invalid login_id in token",
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
 		}
 	}
 
 	loginId, err := uuid.Parse(loginIdStr)
 	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Invalid login_id format in token",
