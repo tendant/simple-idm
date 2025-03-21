@@ -213,12 +213,11 @@ func main() {
 		tokengenerator.WithRefreshTokenExpiry(refreshTokenExpiry),
 		tokengenerator.WithTempTokenExpiry(tempTokenExpiry),
 		tokengenerator.WithLogoutTokenExpiry(logoutTokenExpiry),
-		tokengenerator.WithSubject("simple-idm"), // Default subject for tokens
 	)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
-	loginHandle := loginapi.NewHandle(loginService, jwtService, loginapi.WithTwoFactorService(twoFaService))
+	loginHandle := loginapi.NewHandle(loginService, jwtService, userMapper, loginapi.WithTwoFactorService(twoFaService))
 
 	server.R.Mount("/auth", loginapi.Handler(loginHandle))
 
