@@ -59,7 +59,7 @@ func (g *JwtTokenGenerator) GenerateToken(subject string, expiry time.Duration, 
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signingKey := []byte(g.Secret)
-	ss, err := token.SignedString(signingKey)
+	ss, err := signedString(signingKey, token)
 	if err != nil {
 		slog.Error("Failed sign JWT Claim string!", "err", err)
 		return "", time.Time{}, err
@@ -141,7 +141,7 @@ func (g *TempTokenGenerator) GenerateToken(subject string, expiry time.Duration,
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signingKey := []byte(g.Secret)
-	ss, err := token.SignedString(signingKey)
+	ss, err := signedString(signingKey, token)
 	if err != nil {
 		slog.Error("Failed to sign temporary JWT token", "err", err)
 		return "", time.Time{}, err
