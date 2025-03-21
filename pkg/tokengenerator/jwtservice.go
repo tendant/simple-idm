@@ -5,6 +5,8 @@ import (
 
 	"net/http"
 
+	"fmt"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -36,8 +38,6 @@ type JwtService struct {
 	RefreshTokenExpiry time.Duration
 	TempTokenExpiry    time.Duration
 	LogoutTokenExpiry  time.Duration
-
-	Subject string
 }
 
 // JwtServiceOption is a function that configures a JwtService
@@ -105,13 +105,6 @@ func WithLogoutTokenExpiry(expiry time.Duration) JwtServiceOption {
 	}
 }
 
-// WithSubject sets the default subject for tokens
-func WithSubject(subject string) JwtServiceOption {
-	return func(js *JwtService) {
-		js.Subject = subject
-	}
-}
-
 // NewJwtService creates a new JwtService
 func NewJwtService(options ...JwtServiceOption) *JwtService {
 	js := &JwtService{
@@ -155,22 +148,51 @@ func (js *JwtService) GenerateToken(tokenName, subject string, rootModifications
 		expiry = js.AccessTokenExpiry
 	}
 
-	// If subject is empty, use the default subject if available
-	if subject == "" && js.Subject != "" {
-		subject = js.Subject
-	}
-
 	tokenStr, expiryTime, err := tokenGenerator.GenerateToken(subject, expiry, rootModifications, extraClaims)
 	return tokenStr, expiryTime, err
 }
 
 // ParseToken parses and validates a token
 func (js *JwtService) ParseToken(tokenName, tokenStr string) (*jwt.Token, error) {
-	tokenGenerator, ok := js.TokenGenerators[tokenName]
-	if !ok {
-		tokenGenerator = js.DefaultTokenGenerator
-	}
+	tokenGenerator := js.GetTokenGenerator(tokenName)
 	return tokenGenerator.ParseToken(tokenStr)
+}
+
+// GetUserIDFromClaims extracts the user ID from token claims
+func (js *JwtService) GetUserIDFromClaims(claims jwt.Claims) (string, error) {
+	// First try to get from subject
+	subject, err := claims.GetSubject()
+	if err == nil && subject != "" {
+		return subject, nil
+	}
+
+	// If subject is empty or not available, try to get from extra claims
+	mapClaims, ok := claims.(jwt.MapClaims)
+	if !ok {
+		return "", fmt.Errorf("invalid claims format")
+	}
+
+	// Try to extract from extra_claims
+	extraClaimsRaw, ok := mapClaims["extra_claims"]
+	if !ok {
+		return "", fmt.Errorf("extra_claims not found in token")
+	}
+
+	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("extra_claims has invalid format")
+	}
+
+	// Try user_id first, then fall back to other common ID field names
+	for _, field := range []string{"user_id", "user_uuid", "userId", "id", "sub"} {
+		if idValue, ok := extraClaims[field]; ok {
+			if idStr, ok := idValue.(string); ok && idStr != "" {
+				return idStr, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("user ID not found in token claims")
 }
 
 // GetTokenGenerator returns the token generator for the given token name
@@ -199,10 +221,7 @@ func (js *JwtService) SetTempTokenCookie(w http.ResponseWriter, tokenValue strin
 
 // SetLogoutTokenCookie generates a logout token and sets it as a cookie
 func (js *JwtService) SetLogoutTokenCookie(w http.ResponseWriter, tokenValue string, expire time.Time) error {
-	js.ClearCookie(w, ACCESS_TOKEN_NAME)
-	js.ClearCookie(w, REFRESH_TOKEN_NAME)
-	js.ClearCookie(w, TEMP_TOKEN_NAME)
-	return nil
+	return js.SetCookie(w, LOGOUT_TOKEN_NAME, tokenValue, expire)
 }
 
 // SetCookie sets a cookie using the cookie setter for the given cookie name
