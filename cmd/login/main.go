@@ -66,7 +66,7 @@ type JwtConfig struct {
 	AccessTokenExpiry  string `env:"ACCESS_TOKEN_EXPIRY" env-default:"5m"`
 	RefreshTokenExpiry string `env:"REFRESH_TOKEN_EXPIRY" env-default:"15m"`
 	TempTokenExpiry    string `env:"TEMP_TOKEN_EXPIRY" env-default:"1m"`
-	LogoutTokenExpiry  string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"1s"`
+	LogoutTokenExpiry  string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"-1m"`
 	Secret             string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
 	Issuer             string `env:"JWT_ISSUER" env-default:"simple-idm"`
 	Audience           string `env:"JWT_AUDIENCE" env-default:"simple-idm"`
