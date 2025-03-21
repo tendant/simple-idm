@@ -63,14 +63,13 @@ type JwtConfig struct {
 	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
 	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
 	// Token expiry durations
-	AccessTokenExpiry        string `env:"ACCESS_TOKEN_EXPIRY" env-default:"15m"`
-	RefreshTokenExpiry       string `env:"REFRESH_TOKEN_EXPIRY" env-default:"24h"`
-	TempTokenExpiry          string `env:"TEMP_TOKEN_EXPIRY" env-default:"5m"`
-	PasswordResetTokenExpiry string `env:"PASSWORD_RESET_TOKEN_EXPIRY" env-default:"15m"`
-	LogoutTokenExpiry        string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"1s"`
-	Secret                   string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
-	Issuer                   string `env:"JWT_ISSUER" env-default:"simple-idm"`
-	Audience                 string `env:"JWT_AUDIENCE" env-default:"simple-idm"`
+	AccessTokenExpiry  string `env:"ACCESS_TOKEN_EXPIRY" env-default:"5m"`
+	RefreshTokenExpiry string `env:"REFRESH_TOKEN_EXPIRY" env-default:"15m"`
+	TempTokenExpiry    string `env:"TEMP_TOKEN_EXPIRY" env-default:"1m"`
+	LogoutTokenExpiry  string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"1s"`
+	Secret             string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
+	Issuer             string `env:"JWT_ISSUER" env-default:"simple-idm"`
+	Audience           string `env:"JWT_AUDIENCE" env-default:"simple-idm"`
 }
 
 type EmailConfig struct {
