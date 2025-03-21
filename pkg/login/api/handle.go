@@ -586,8 +586,6 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	slog.Info("token from user switch", "token", token)
-
 	// Extract login ID using the helper method
 	loginIdStr, err := h.jwtService.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
