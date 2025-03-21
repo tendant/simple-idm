@@ -1,11 +1,9 @@
 package tokengenerator
 
 import (
-	"time"
-
-	"net/http"
-
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -50,13 +48,6 @@ func WithTokenGenerator(tokenName string, tokenGenerator TokenGenerator) JwtServ
 			js.TokenGenerators = make(map[string]TokenGenerator)
 		}
 		js.TokenGenerators[tokenName] = tokenGenerator
-	}
-}
-
-// WithDefaultTokenGenerator sets the default token generator
-func WithDefaultTokenGenerator(tokenGenerator TokenGenerator) JwtServiceOption {
-	return func(js *JwtService) {
-		js.DefaultTokenGenerator = tokenGenerator
 	}
 }
 
@@ -106,10 +97,10 @@ func WithLogoutTokenExpiry(expiry time.Duration) JwtServiceOption {
 }
 
 // NewJwtService creates a new JwtService
-func NewJwtService(options ...JwtServiceOption) *JwtService {
+func NewJwtService(tokenGenerator TokenGenerator, options ...JwtServiceOption) *JwtService {
 	js := &JwtService{
 		TokenGenerators:       make(map[string]TokenGenerator),
-		DefaultTokenGenerator: nil,
+		DefaultTokenGenerator: tokenGenerator,
 		CookieSetters:         make(map[string]CookieSetter),
 		DefaultCookieSetter:   NewCookieSetter(true, true),
 		AccessTokenExpiry:     DefaultAccessTokenExpiry,
@@ -193,6 +184,38 @@ func (js *JwtService) GetUserIDFromClaims(claims jwt.Claims) (string, error) {
 	}
 
 	return "", fmt.Errorf("user ID not found in token claims")
+}
+
+// GetLoginIDFromClaims extracts the login ID from token claims
+func (js *JwtService) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
+	mapClaims, ok := claims.(jwt.MapClaims)
+	if !ok {
+		return "", fmt.Errorf("invalid claims format")
+	}
+
+	// Try to extract from extra_claims
+	extraClaimsRaw, ok := mapClaims["extra_claims"]
+	if !ok {
+		return "", fmt.Errorf("extra_claims not found in token")
+	}
+
+	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("extra_claims has invalid format")
+	}
+
+	// Look for login_id in extra claims
+	loginIDValue, ok := extraClaims["login_id"]
+	if !ok {
+		return "", fmt.Errorf("login_id not found in token claims")
+	}
+
+	loginIDStr, ok := loginIDValue.(string)
+	if !ok || loginIDStr == "" {
+		return "", fmt.Errorf("login_id is not a valid string")
+	}
+
+	return loginIDStr, nil
 }
 
 // GetTokenGenerator returns the token generator for the given token name

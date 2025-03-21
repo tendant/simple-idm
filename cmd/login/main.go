@@ -63,14 +63,13 @@ type JwtConfig struct {
 	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
 	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
 	// Token expiry durations
-	AccessTokenExpiry        string `env:"ACCESS_TOKEN_EXPIRY" env-default:"15m"`
-	RefreshTokenExpiry       string `env:"REFRESH_TOKEN_EXPIRY" env-default:"24h"`
-	TempTokenExpiry          string `env:"TEMP_TOKEN_EXPIRY" env-default:"5m"`
-	PasswordResetTokenExpiry string `env:"PASSWORD_RESET_TOKEN_EXPIRY" env-default:"15m"`
-	LogoutTokenExpiry        string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"1s"`
-	Secret                   string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
-	Issuer                   string `env:"JWT_ISSUER" env-default:"simple-idm"`
-	Audience                 string `env:"JWT_AUDIENCE" env-default:"simple-idm"`
+	AccessTokenExpiry  string `env:"ACCESS_TOKEN_EXPIRY" env-default:"5m"`
+	RefreshTokenExpiry string `env:"REFRESH_TOKEN_EXPIRY" env-default:"15m"`
+	TempTokenExpiry    string `env:"TEMP_TOKEN_EXPIRY" env-default:"1m"`
+	LogoutTokenExpiry  string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"-1m"`
+	Secret             string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
+	Issuer             string `env:"JWT_ISSUER" env-default:"simple-idm"`
+	Audience           string `env:"JWT_AUDIENCE" env-default:"simple-idm"`
 }
 
 type EmailConfig struct {
@@ -199,6 +198,12 @@ func main() {
 		"simple-idm", // Audience
 	)
 
+	tempTokenGenerator := tokengenerator.NewTempTokenGenerator(
+		config.JwtConfig.JwtSecret,
+		"simple-idm", // Issuer
+		"simple-idm", // Audience
+	)
+
 	// Create cookie setter
 	cookieSetter := tokengenerator.NewCookieSetter(
 		config.JwtConfig.CookieHttpOnly,
@@ -206,13 +211,13 @@ func main() {
 	)
 
 	// Create JWT service with configurable expiry durations
-	jwtService := tokengenerator.NewJwtService(
-		tokengenerator.WithDefaultTokenGenerator(tokenGenerator),
+	jwtService := tokengenerator.NewJwtService(tokenGenerator,
 		tokengenerator.WithDefaultCookieSetter(cookieSetter),
 		tokengenerator.WithAccessTokenExpiry(accessTokenExpiry),
 		tokengenerator.WithRefreshTokenExpiry(refreshTokenExpiry),
 		tokengenerator.WithTempTokenExpiry(tempTokenExpiry),
 		tokengenerator.WithLogoutTokenExpiry(logoutTokenExpiry),
+		tokengenerator.WithTokenGenerator(tokengenerator.TEMP_TOKEN_NAME, tempTokenGenerator),
 	)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
