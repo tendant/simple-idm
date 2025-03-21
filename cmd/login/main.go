@@ -198,6 +198,12 @@ func main() {
 		"simple-idm", // Audience
 	)
 
+	tempTokenGenerator := tokengenerator.NewTempTokenGenerator(
+		config.JwtConfig.JwtSecret,
+		"simple-idm", // Issuer
+		"simple-idm", // Audience
+	)
+
 	// Create cookie setter
 	cookieSetter := tokengenerator.NewCookieSetter(
 		config.JwtConfig.CookieHttpOnly,
@@ -211,6 +217,7 @@ func main() {
 		tokengenerator.WithRefreshTokenExpiry(refreshTokenExpiry),
 		tokengenerator.WithTempTokenExpiry(tempTokenExpiry),
 		tokengenerator.WithLogoutTokenExpiry(logoutTokenExpiry),
+		tokengenerator.WithTokenGenerator(tokengenerator.TEMP_TOKEN_NAME, tempTokenGenerator),
 	)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
