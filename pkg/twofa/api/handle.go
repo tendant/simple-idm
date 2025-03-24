@@ -48,12 +48,12 @@ func TwoFaHandler(h *Handle) http.Handler {
 
 type Handle struct {
 	twoFaService twofa.TwoFactorService
-	jwtService   *tg.JwtService
+	jwtService   tg.JwtService
 	userMapper   mapper.UserMapper
 }
 
 // NewHandle creates a new Handle
-func NewHandle(twoFaService twofa.TwoFactorService, jwtService *tg.JwtService, userMapper mapper.UserMapper) *Handle {
+func NewHandle(twoFaService twofa.TwoFactorService, jwtService tg.JwtService, userMapper mapper.UserMapper) *Handle {
 	return &Handle{
 		twoFaService: twoFaService,
 		jwtService:   jwtService,
@@ -75,18 +75,37 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// FIXME: read the login id from session cookies
-	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
-	if !ok {
-		slog.Error("Failed getting AuthUser", "ok", ok)
+	// Get token from cookie instead of Authorization header
+	cookie, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	if err != nil {
+		slog.Error("No Temp Token Cookie", "err", err)
 		return &Response{
-			body: http.StatusText(http.StatusUnauthorized),
 			Code: http.StatusUnauthorized,
+			body: "Missing temp token cookie",
+		}
+	}
+	tokenStr := cookie.Value
+
+	slog.Info("Temp Token Cookie", "tokenStr", tokenStr)
+
+	// Parse and validate token
+	token, err := h.jwtService.ParseToken(tg.TEMP_TOKEN_NAME, tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid temp token",
 		}
 	}
 
-	// Get user UUID from context (assuming it's set by auth middleware)
-	loginIdStr := authUser.LoginId
+	// Extract login ID using the helper method
+	loginIdStr, err := h.jwtService.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
 
 	loginId, err := uuid.Parse(loginIdStr)
 	if err != nil {
@@ -201,22 +220,13 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		rootModifications, extraClaims := h.userMapper.ToTokenClaims(idmUsers[0])
 
 		// Create temp token with the custom claims for user selection
-		tempTokenStr, tempTokenExpiry, err := h.jwtService.GenerateToken(TEMP_TOKEN_NAME, "", rootModifications, extraClaims)
+		// Use the login ID as the subject to ensure we have a valid ID in the token
+		tempTokenStr, err := h.jwtService.GenerateTempTokenAndSetCookie(w, loginIdStr, rootModifications, extraClaims)
 		if err != nil {
-			slog.Error("Failed to create temp token claims", "loginIdStr", loginIdStr, "err", err)
+			slog.Error("Failed to create temp token", "err", err)
 			return &Response{
 				Code: http.StatusInternalServerError,
-				body: "Failed to create temp token claims",
-			}
-		}
-
-		// Set temp token cookie
-		err = h.jwtService.SetTempTokenCookie(w, tempTokenStr, tempTokenExpiry)
-		if err != nil {
-			slog.Error("Failed to set temp token cookie", "err", err)
-			return &Response{
-				Code: http.StatusInternalServerError,
-				body: "Failed to set temp token cookie",
+				body: "Failed to create temp token",
 			}
 		}
 
@@ -235,43 +245,12 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	rootModifications, extraClaims := h.userMapper.ToTokenClaims(user)
 
-	// Create access token
-	accessTokenStr, accessTokenExpiry, err := h.jwtService.GenerateToken(ACCESS_TOKEN_NAME, user.UserId, rootModifications, extraClaims)
+	err = h.jwtService.GenerateTokensAndSetCookie(w, user.UserId, rootModifications, extraClaims)
 	if err != nil {
-		slog.Error("Failed to create access token", "user", user, "err", err)
+		slog.Error("Failed to create access token", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to create access token",
-		}
-	}
-
-	// Create refresh token
-	refreshTokenStr, refreshTokenExpiry, err := h.jwtService.GenerateToken(REFRESH_TOKEN_NAME, user.UserId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "user", user, "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to create refresh token",
-		}
-	}
-
-	// Set the access token cookie
-	err = h.jwtService.SetAccessTokenCookie(w, accessTokenStr, accessTokenExpiry)
-	if err != nil {
-		slog.Error("Failed to set access token cookie", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to set access token cookie",
-		}
-	}
-
-	// Set the refresh token cookie
-	err = h.jwtService.SetRefreshTokenCookie(w, refreshTokenStr, refreshTokenExpiry)
-	if err != nil {
-		slog.Error("Failed to set refresh token cookie", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to set refresh token cookie",
 		}
 	}
 

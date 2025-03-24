@@ -25,11 +25,11 @@ const (
 type Handle struct {
 	loginService     *login.LoginService
 	twoFactorService twofa.TwoFactorService
-	jwtService       *tg.JwtService
+	jwtService       tg.JwtService
 	userMapper       mapper.UserMapper
 }
 
-func NewHandle(loginService *login.LoginService, jwtService *tg.JwtService, userMapper mapper.UserMapper, opts ...Option) Handle {
+func NewHandle(loginService *login.LoginService, jwtService tg.JwtService, userMapper mapper.UserMapper, opts ...Option) Handle {
 	h := Handle{
 		loginService: loginService,
 		jwtService:   jwtService,
@@ -40,20 +40,6 @@ func NewHandle(loginService *login.LoginService, jwtService *tg.JwtService, user
 	}
 	return h
 }
-
-// func (h Handle) setTokenCookie(w http.ResponseWriter, tokenName, tokenValue string, expire time.Time) {
-// 	tokenCookie := &http.Cookie{
-// 		Name:     tokenName,
-// 		Path:     "/",
-// 		Value:    tokenValue,
-// 		Expires:  expire,
-// 		HttpOnly: h.jwtConfig.CookieHttpOnly, // Make the cookie HttpOnly
-// 		Secure:   h.jwtConfig.CookieSecure,   // Ensure it’s sent over HTTPS
-// 		SameSite: http.SameSiteLaxMode,       // Prevent CSRF
-// 	}
-
-// 	http.SetCookie(w, tokenCookie)
-// }
 
 // Login a user
 // (POST /login)
@@ -127,7 +113,6 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 		var twoFactorMethods []TwoFactorMethod
 		if len(enabledTwoFAs) > 0 {
-			// TODO: set cookies only with login id
 			slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
 
 			// If email 2FA is enabled, get unique emails from users
@@ -145,19 +130,13 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 				twoFactorMethods = append(twoFactorMethods, curMethod)
 			}
 
-			// Create temp token using the token package
-			rootModifications, extraClaims := h.loginService.ToTokenClaims(idmUsers[0])
-			tempTokenStr, expiry, err := h.jwtService.GenerateToken(TEMP_TOKEN_NAME, idmUsers[0].UserId, rootModifications, extraClaims)
-			if err != nil {
-				slog.Error("Failed to create temp token", "loginUuid", loginID, "error", err)
-				return &Response{
-					Code: http.StatusInternalServerError,
-					body: "Failed to create temp token",
-				}
+			extraClaims := map[string]interface{}{
+				"login_id": loginID.String(),
+				"users":    apiUsers,
 			}
 
-			// Set the temp token cookie
-			err = h.jwtService.SetTempTokenCookie(w, tempTokenStr, expiry)
+			tempTokenStr, err := h.jwtService.GenerateTempTokenAndSetCookie(w, idmUsers[0].UserId, nil, extraClaims)
+
 			if err != nil {
 				slog.Error("Failed to set temp token cookie", "err", err)
 				return &Response{
@@ -165,6 +144,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 					Code: http.StatusInternalServerError,
 				}
 			}
+
 			twoFARequiredResp := TwoFactorRequiredResponse{
 				TempToken:        tempTokenStr,
 				TwoFactorMethods: twoFactorMethods,
@@ -197,17 +177,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			"login_id": loginID.String(),
 			"users":    apiUsers,
 		}
-		tempTokenStr, expiry, err := h.jwtService.GenerateToken(TEMP_TOKEN_NAME, "simple-idm", nil, extraClaims)
-		if err != nil {
-			slog.Error("Failed to create temp token", "err", err)
-			return &Response{
-				Code: http.StatusInternalServerError,
-				body: "Failed to create temp token",
-			}
-		}
-
-		// Set the temp token cookie
-		err = h.jwtService.SetTempTokenCookie(w, tempTokenStr, expiry)
+		tempTokenStr, err := h.jwtService.GenerateTempTokenAndSetCookie(w, idmUsers[0].UserId, nil, extraClaims)
 		if err != nil {
 			slog.Error("Failed to set temp token cookie", "err", err)
 			return &Response{
@@ -215,6 +185,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 				Code: http.StatusInternalServerError,
 			}
 		}
+
 		// Return 202 response with users to select from
 		return PostLoginJSON202Response(SelectUserRequiredResponse{
 			Status:    "select_user_required",
@@ -226,40 +197,12 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	// Create JWT tokens using the JwtService
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
-	accessTokenStr, expiry, err := h.jwtService.GenerateToken(ACCESS_TOKEN_NAME, tokenUser.UserId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create access token claims", "user", tokenUser, "err", err)
-		return &Response{
-			body: "Failed to create access token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
 
-	// Set the access token cookie
-	err = h.jwtService.SetAccessTokenCookie(w, accessTokenStr, expiry)
+	err = h.jwtService.GenerateTokensAndSetCookie(w, tokenUser.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
 			body: "Failed to set access token cookie",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	refreshTokenStr, expiry, err := h.jwtService.GenerateToken(REFRESH_TOKEN_NAME, tokenUser.UserId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token claims", "user", tokenUser, "err", err)
-		return &Response{
-			body: "Failed to create refresh token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Set the refresh token cookie
-	err = h.jwtService.SetRefreshTokenCookie(w, refreshTokenStr, expiry)
-	if err != nil {
-		slog.Error("Failed to set refresh token cookie", "err", err)
-		return &Response{
-			body: "Failed to set refresh token cookie",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -431,41 +374,13 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
-	accessTokenStr, expiry, err := h.jwtService.GenerateToken(ACCESS_TOKEN_NAME, userId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create access token claims", "err", err)
-		return &Response{
-			body: "Failed to create access token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
 
-	// Set the access token cookie
-	err = h.jwtService.SetAccessTokenCookie(w, accessTokenStr, expiry)
+	err = h.jwtService.GenerateTokensAndSetCookie(w, userId, rootModifications, extraClaims)
 	if err != nil {
-		slog.Error("Failed to set access token cookie", "err", err)
+		slog.Error("Failed to create access token", "err", err)
 		return &Response{
-			body: "Failed to set access token cookie",
 			Code: http.StatusInternalServerError,
-		}
-	}
-
-	refreshTokenStr, expiry, err := h.jwtService.GenerateToken(REFRESH_TOKEN_NAME, userId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token claims", "err", err)
-		return &Response{
-			body: "Failed to create refresh token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Set the refresh token cookie
-	err = h.jwtService.SetRefreshTokenCookie(w, refreshTokenStr, expiry)
-	if err != nil {
-		slog.Error("Failed to set refresh token cookie", "err", err)
-		return &Response{
-			body: "Failed to set refresh token cookie",
-			Code: http.StatusInternalServerError,
+			body: "Failed to create access token",
 		}
 	}
 
@@ -479,7 +394,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 // (GET /users)
 func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Get token from cookie instead of Authorization header
-	cookie, err := r.Cookie(ACCESS_TOKEN_NAME)
+	cookie, err := r.Cookie(tg.ACCESS_TOKEN_NAME)
 	if err != nil {
 		slog.Error("No Access Token Cookie", "err", err)
 		return &Response{
@@ -567,7 +482,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Get token from cookie instead of Authorization header
-	cookie, err := r.Cookie(TEMP_TOKEN_NAME)
+	cookie, err := r.Cookie(tg.TEMP_TOKEN_NAME)
 	if err != nil {
 		slog.Error("No Temp Token Cookie", "err", err)
 		return &Response{
@@ -578,7 +493,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	tokenStr := cookie.Value
 
 	// Parse and validate token
-	token, err := h.jwtService.ParseToken(TEMP_TOKEN_NAME, tokenStr)
+	token, err := h.jwtService.ParseToken(tg.TEMP_TOKEN_NAME, tokenStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -634,41 +549,13 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(targetUser)
-	accessTokenStr, expiry, err := h.jwtService.GenerateToken(ACCESS_TOKEN_NAME, targetUser.UserId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create access token claims", "user", targetUser, "err", err)
-		return &Response{
-			body: "Failed to create access token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
 
-	// Set the access token cookie
-	err = h.jwtService.SetAccessTokenCookie(w, accessTokenStr, expiry)
+	err = h.jwtService.GenerateTokensAndSetCookie(w, targetUser.UserId, rootModifications, extraClaims)
 	if err != nil {
-		slog.Error("Failed to set access token cookie", "err", err)
+		slog.Error("Failed to create access token", "err", err)
 		return &Response{
-			body: "Failed to set access token cookie",
 			Code: http.StatusInternalServerError,
-		}
-	}
-
-	refreshTokenStr, expiry, err := h.jwtService.GenerateToken(REFRESH_TOKEN_NAME, targetUser.UserId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token claims", "user", targetUser, "err", err)
-		return &Response{
-			body: "Failed to create refresh token claims",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Set the refresh token cookie
-	err = h.jwtService.SetRefreshTokenCookie(w, refreshTokenStr, expiry)
-	if err != nil {
-		slog.Error("Failed to set refresh token cookie", "err", err)
-		return &Response{
-			body: "Failed to set refresh token cookie",
-			Code: http.StatusInternalServerError,
+			body: "Failed to create access token",
 		}
 	}
 
@@ -730,7 +617,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	tokenUser := idmUsers[0]
 
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
-	accessTokenStr, _, err := h.jwtService.GenerateToken(ACCESS_TOKEN_NAME, tokenUser.UserId, rootModifications, extraClaims)
+	accessTokenStr, _, err := h.jwtService.GenerateToken(tg.ACCESS_TOKEN_NAME, tokenUser.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -743,7 +630,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		"email":   tokenUser.UserInfo.Email,
 		"user_id": tokenUser.UserId,
 	}
-	refreshTokenStr, _, err := h.jwtService.GenerateToken(REFRESH_TOKEN_NAME, tokenUser.UserId, nil, extraClaims)
+	refreshTokenStr, _, err := h.jwtService.GenerateToken(tg.REFRESH_TOKEN_NAME, tokenUser.UserId, nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create refresh token claims", "user", tokenUser, "err", err)
 		return &Response{
@@ -825,28 +712,11 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 }
 
 func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
-	// Create logout token using the JwtService
-	logoutTokenStr, expiry, err := h.jwtService.GenerateToken(LOGOUT_TOKEN_NAME, "", nil, nil)
-	if err != nil {
-		slog.Error("Failed to create logout token", "err", err)
-		return &Response{
-			body: "Failed to create logout token",
-			Code: http.StatusInternalServerError,
-		}
-	}
 
-	// Set logout cookie to clear access and refresh tokens
-	err = h.jwtService.SetLogoutTokenCookie(w, logoutTokenStr, expiry)
-	if err != nil {
-		slog.Error("Failed to set logout token cookie", "err", err)
-		return &Response{
-			body: "Failed to set logout token cookie",
-			Code: http.StatusInternalServerError,
-		}
-	}
-	h.jwtService.ClearAccessTokenCookie(w)
-	h.jwtService.ClearRefreshTokenCookie(w)
-	h.jwtService.ClearTempTokenCookie(w)
+	h.jwtService.GenerateLogoutTokenAndSetCookie(w, "", nil, nil)
+	h.jwtService.ClearCookie(w, tg.ACCESS_TOKEN_NAME)
+	h.jwtService.ClearCookie(w, tg.REFRESH_TOKEN_NAME)
+	h.jwtService.ClearCookie(w, tg.TEMP_TOKEN_NAME)
 
 	return &Response{
 		Code: http.StatusOK,
