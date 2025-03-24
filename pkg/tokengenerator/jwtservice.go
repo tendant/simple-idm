@@ -47,6 +47,104 @@ type JwtService interface {
 	ClearCookie(w http.ResponseWriter, tokenName string) error
 }
 
+type TokenService interface {
+	// Token generation methods
+	GenerateTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) ([]TokenValue, error)
+	GenerateTempToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (TokenValue, error)
+	GenerateLogoutToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (TokenValue, error)
+}
+
+type DefaultTokenService struct {
+	accessTokenGenerator  TokenGenerator
+	refreshTokenGenerator TokenGenerator
+	tempTokenGenerator    TokenGenerator
+	logoutTokenGenerator  TokenGenerator
+}
+type TokenValue struct {
+	Name   string
+	Token  string
+	Expiry time.Time
+}
+
+func (d *DefaultTokenService) GenerateTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) ([]TokenValue, error) {
+	tokenName := ACCESS_TOKEN_NAME
+	accessToken, accessTokenExpiry, err := d.accessTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
+	}
+
+	tokenName = REFRESH_TOKEN_NAME
+	refreshToken, refreshTokenExpiry, err := d.refreshTokenGenerator.GenerateToken(subject, DefaultRefreshTokenExpiry, rootModifications, extraClaims)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
+	}
+	result := []TokenValue{
+		{
+			Name:   ACCESS_TOKEN_NAME,
+			Token:  accessToken,
+			Expiry: accessTokenExpiry,
+		},
+		{
+			Name:   REFRESH_TOKEN_NAME,
+			Token:  refreshToken,
+			Expiry: refreshTokenExpiry,
+		},
+	}
+	return result, nil
+}
+
+func (d *DefaultTokenService) GenerateTempToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (TokenValue, error) {
+	tokenName := TEMP_TOKEN_NAME
+	tempToken, tempTokenExpiry, err := d.tempTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
+	if err != nil {
+		return TokenValue{}, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
+	}
+
+	return TokenValue{
+		Name:   TEMP_TOKEN_NAME,
+		Token:  tempToken,
+		Expiry: tempTokenExpiry,
+	}, nil
+}
+
+func (d *DefaultTokenService) GenerateLogoutToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (TokenValue, error) {
+	tokenName := LOGOUT_TOKEN_NAME
+	logoutToken, logoutTokenExpiry, err := d.logoutTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
+	if err != nil {
+		return TokenValue{}, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
+	}
+
+	return TokenValue{
+		Name:   LOGOUT_TOKEN_NAME,
+		Token:  logoutToken,
+		Expiry: logoutTokenExpiry,
+	}, nil
+}
+
+type TokenCookieService interface {
+	SetTokensCookie(w http.ResponseWriter, tokens []TokenValue) error
+}
+
+type DefaultTokenCookieService struct {
+}
+
+func (d *DefaultTokenCookieService) SetTokensCookie(w http.ResponseWriter, tokens []TokenValue) error {
+	for _, token := range tokens {
+		cookie := &http.Cookie{
+			Name:     token.Name,
+			Path:     "/",
+			Value:    token.Token,
+			Expires:  token.Expiry,
+			HttpOnly: false,
+			Secure:   false,
+			SameSite: http.SameSiteLaxMode,
+		}
+
+		http.SetCookie(w, cookie)
+	}
+	return nil
+}
+
 // DefaultJwtService provides the default implementation of the JwtService interface
 type DefaultJwtService struct {
 	TokenGenerators       map[string]TokenGenerator
