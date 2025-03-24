@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -65,7 +64,7 @@ type JwtConfig struct {
 	// Token expiry durations
 	AccessTokenExpiry  string `env:"ACCESS_TOKEN_EXPIRY" env-default:"5m"`
 	RefreshTokenExpiry string `env:"REFRESH_TOKEN_EXPIRY" env-default:"15m"`
-	TempTokenExpiry    string `env:"TEMP_TOKEN_EXPIRY" env-default:"1m"`
+	TempTokenExpiry    string `env:"TEMP_TOKEN_EXPIRY" env-default:"10m"`
 	LogoutTokenExpiry  string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"-1m"`
 	Secret             string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
 	Issuer             string `env:"JWT_ISSUER" env-default:"simple-idm"`
@@ -169,28 +168,6 @@ func main() {
 	// Use the same repository instance for both LoginRepository and UserRepository interfaces
 	loginService := login.NewLoginService(loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
 
-	// Parse token expiry durations from environment variables
-	accessTokenExpiry, err := time.ParseDuration(config.JwtConfig.AccessTokenExpiry)
-	if err != nil {
-		slog.Error("Failed parsing access token expiry duration", "err", err)
-		accessTokenExpiry = tokengenerator.DefaultAccessTokenExpiry
-	}
-	refreshTokenExpiry, err := time.ParseDuration(config.JwtConfig.RefreshTokenExpiry)
-	if err != nil {
-		slog.Error("Failed parsing refresh token expiry duration", "err", err)
-		refreshTokenExpiry = tokengenerator.DefaultRefreshTokenExpiry
-	}
-	tempTokenExpiry, err := time.ParseDuration(config.JwtConfig.TempTokenExpiry)
-	if err != nil {
-		slog.Error("Failed parsing temp token expiry duration", "err", err)
-		tempTokenExpiry = tokengenerator.DefaultTempTokenExpiry
-	}
-	logoutTokenExpiry, err := time.ParseDuration(config.JwtConfig.LogoutTokenExpiry)
-	if err != nil {
-		slog.Error("Failed parsing logout token expiry duration", "err", err)
-		logoutTokenExpiry = tokengenerator.DefaultLogoutTokenExpiry
-	}
-
 	// Create JWT token generator
 	tokenGenerator := tokengenerator.NewJwtTokenGenerator(
 		config.JwtConfig.JwtSecret,
@@ -204,28 +181,17 @@ func main() {
 		"simple-idm", // Audience
 	)
 
-	// Create cookie setter
-	cookieSetter := tokengenerator.NewCookieSetter(
+	tokenService := tokengenerator.NewDefaultTokenService(tokenGenerator, tokenGenerator, tempTokenGenerator, tokenGenerator, config.JwtConfig.Secret)
+	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
+		"/",
 		config.JwtConfig.CookieHttpOnly,
 		config.JwtConfig.CookieSecure,
+		http.SameSiteLaxMode,
 	)
-
-	// Create JWT service with configurable expiry durations
-	jwtService := tokengenerator.NewJwtService(tokenGenerator,
-		tokengenerator.WithDefaultCookieSetter(cookieSetter),
-		tokengenerator.WithAccessTokenExpiry(accessTokenExpiry),
-		tokengenerator.WithRefreshTokenExpiry(refreshTokenExpiry),
-		tokengenerator.WithTempTokenExpiry(tempTokenExpiry),
-		tokengenerator.WithLogoutTokenExpiry(logoutTokenExpiry),
-		tokengenerator.WithTokenGenerator(tokengenerator.TEMP_TOKEN_NAME, tempTokenGenerator),
-	)
-
-	tokenService := tokengenerator.NewDefaultTokenService(tokenGenerator, tokenGenerator, tempTokenGenerator, tokenGenerator)
-	tokenCookieService := tokengenerator.DefaultTokenCookieService{}
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
-	loginHandle := loginapi.NewHandle(loginService, jwtService, userMapper, loginapi.WithTwoFactorService(twoFaService))
+	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, loginapi.WithTwoFactorService(twoFaService))
 
 	server.R.Mount("/auth", loginapi.Handler(loginHandle))
 
@@ -303,7 +269,7 @@ func main() {
 		// r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
 
 		// Initialize two factor authentication service and routes
-		twoFaHandle := twofaapi.NewHandle(twoFaService, jwtService, userMapper)
+		twoFaHandle := twofaapi.NewHandle(twoFaService, tokenService, tokenCookieService, userMapper)
 		r.Mount("/idm/2fa", twofaapi.TwoFaHandler(twoFaHandle))
 	})
 
