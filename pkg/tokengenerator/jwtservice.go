@@ -60,6 +60,16 @@ type DefaultTokenService struct {
 	tempTokenGenerator    TokenGenerator
 	logoutTokenGenerator  TokenGenerator
 }
+
+func NewDefaultTokenService(accessTokenGenerator, refreshTokenGenerator, tempTokenGenerator, logoutTokenGenerator TokenGenerator) TokenService {
+	return &DefaultTokenService{
+		accessTokenGenerator:  accessTokenGenerator,
+		refreshTokenGenerator: refreshTokenGenerator,
+		tempTokenGenerator:    tempTokenGenerator,
+		logoutTokenGenerator:  logoutTokenGenerator,
+	}
+}
+
 type TokenValue struct {
 	Name   string
 	Token  string

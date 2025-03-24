@@ -23,17 +23,21 @@ const (
 )
 
 type Handle struct {
-	loginService     *login.LoginService
-	twoFactorService twofa.TwoFactorService
-	jwtService       tg.JwtService
-	userMapper       mapper.UserMapper
+	loginService       *login.LoginService
+	twoFactorService   twofa.TwoFactorService
+	tokenService       tg.TokenService
+	tokenCookieService tg.TokenCookieService
+	jwtService         tg.JwtService
+	userMapper         mapper.UserMapper
 }
 
-func NewHandle(loginService *login.LoginService, jwtService tg.JwtService, userMapper mapper.UserMapper, opts ...Option) Handle {
+func NewHandle(loginService *login.LoginService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, jwtService tg.JwtService, userMapper mapper.UserMapper, opts ...Option) Handle {
 	h := Handle{
-		loginService: loginService,
-		jwtService:   jwtService,
-		userMapper:   userMapper,
+		loginService:       loginService,
+		tokenService:       tokenService,
+		tokenCookieService: tokenCookieService,
+		jwtService:         jwtService,
+		userMapper:         userMapper,
 	}
 	for _, opt := range opts {
 		opt(&h)
@@ -198,7 +202,16 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Create JWT tokens using the JwtService
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
 
-	err = h.jwtService.GenerateTokensAndSetCookie(w, tokenUser.UserId, rootModifications, extraClaims)
+	tokens, err := h.tokenService.GenerateTokens(tokenUser.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to set access token cookie", "err", err)
+		return &Response{
+			body: "Failed to set access token cookie",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	err = h.tokenCookieService.SetTokensCookie(w, tokens)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{

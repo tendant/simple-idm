@@ -220,6 +220,9 @@ func main() {
 		tokengenerator.WithTokenGenerator(tokengenerator.TEMP_TOKEN_NAME, tempTokenGenerator),
 	)
 
+	tokenService := tokengenerator.NewDefaultTokenService(tokenGenerator, tokenGenerator, tempTokenGenerator, tokenGenerator)
+	tokenCookieService := tokengenerator.DefaultTokenCookieService{}
+
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
 	loginHandle := loginapi.NewHandle(loginService, jwtService, userMapper, loginapi.WithTwoFactorService(twoFaService))
