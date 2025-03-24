@@ -1,14 +1,17 @@
 package api
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/mapper"
+	"github.com/tendant/simple-idm/pkg/tokengenerator"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
 )
@@ -47,17 +50,19 @@ func TwoFaHandler(h *Handle) http.Handler {
 }
 
 type Handle struct {
-	twoFaService twofa.TwoFactorService
-	jwtService   tg.JwtService
-	userMapper   mapper.UserMapper
+	twoFaService       twofa.TwoFactorService
+	tokenService       tokengenerator.TokenService
+	tokenCookieService tokengenerator.TokenCookieService
+	userMapper         mapper.UserMapper
 }
 
 // NewHandle creates a new Handle
-func NewHandle(twoFaService twofa.TwoFactorService, jwtService tg.JwtService, userMapper mapper.UserMapper) *Handle {
+func NewHandle(twoFaService twofa.TwoFactorService, tokenService tokengenerator.TokenService, tokenCookieService tokengenerator.TokenCookieService, userMapper mapper.UserMapper) *Handle {
 	return &Handle{
-		twoFaService: twoFaService,
-		jwtService:   jwtService,
-		userMapper:   userMapper,
+		twoFaService:       twoFaService,
+		tokenService:       tokenService,
+		tokenCookieService: tokenCookieService,
+		userMapper:         userMapper,
 	}
 }
 
@@ -89,7 +94,7 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	slog.Info("Temp Token Cookie", "tokenStr", tokenStr)
 
 	// Parse and validate token
-	token, err := h.jwtService.ParseToken(tg.TEMP_TOKEN_NAME, tokenStr)
+	token, err := h.tokenService.ParseToken(tokenStr)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -98,7 +103,7 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Extract login ID using the helper method
-	loginIdStr, err := h.jwtService.GetLoginIDFromClaims(token.Claims)
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{
@@ -221,7 +226,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 		// Create temp token with the custom claims for user selection
 		// Use the login ID as the subject to ensure we have a valid ID in the token
-		tempTokenStr, err := h.jwtService.GenerateTempTokenAndSetCookie(w, loginIdStr, rootModifications, extraClaims)
+		tempToken, err := h.tokenService.GenerateTempToken(loginIdStr, rootModifications, extraClaims)
 		if err != nil {
 			slog.Error("Failed to create temp token", "err", err)
 			return &Response{
@@ -230,11 +235,20 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 			}
 		}
 
+		err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to set temp token cookie",
+			}
+		}
+
 		// Return 202 response with users to select from
 		return Post2faValidateJSON202Response(SelectUserRequiredResponse{
 			Status:    "select_user_required",
 			Message:   "Multiple users found, please select one",
-			TempToken: tempTokenStr,
+			TempToken: tempToken.Token,
 			Users:     users,
 		})
 	}
@@ -245,12 +259,21 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	rootModifications, extraClaims := h.userMapper.ToTokenClaims(user)
 
-	err = h.jwtService.GenerateTokensAndSetCookie(w, user.UserId, rootModifications, extraClaims)
+	tokens, err := h.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to create access token",
+		}
+	}
+
+	err = h.tokenCookieService.SetTokensCookie(w, tokens)
+	if err != nil {
+		slog.Error("Failed to set tokens cookie", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to set tokens cookie",
 		}
 	}
 
@@ -414,4 +437,35 @@ func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	return Delete2faJSON200Response(resp)
+}
+
+func (h Handle) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
+	mapClaims, ok := claims.(jwt.MapClaims)
+	if !ok {
+		return "", fmt.Errorf("invalid claims format")
+	}
+
+	// Try to extract from extra_claims
+	extraClaimsRaw, ok := mapClaims["extra_claims"]
+	if !ok {
+		return "", fmt.Errorf("extra_claims not found in token")
+	}
+
+	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("extra_claims has invalid format")
+	}
+
+	// Look for login_id in extra claims
+	loginIDValue, ok := extraClaims["login_id"]
+	if !ok {
+		return "", fmt.Errorf("login_id not found in token claims")
+	}
+
+	loginIDStr, ok := loginIDValue.(string)
+	if !ok || loginIDStr == "" {
+		return "", fmt.Errorf("login_id is not a valid string")
+	}
+
+	return loginIDStr, nil
 }
