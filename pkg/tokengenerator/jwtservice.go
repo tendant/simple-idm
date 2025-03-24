@@ -31,8 +31,7 @@ type JwtService interface {
 	GenerateToken(tokenName, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, time.Time, error)
 
 	// Token generation methods
-	GenerateAccessTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error)
-	GenerateRefreshTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error)
+	GenerateTokensAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) error
 	GenerateTempTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error)
 	GenerateLogoutTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error)
 
@@ -167,32 +166,30 @@ func (js *DefaultJwtService) GenerateToken(tokenName, subject string, rootModifi
 	return tokenStr, expiryTime, err
 }
 
-// GenerateTokenAndSetCookie generates a token and sets it as a cookie
-func (js *DefaultJwtService) GenerateAccessTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error) {
-	token, expiry, err := js.GenerateToken(ACCESS_TOKEN_NAME, subject, rootModifications, extraClaims)
+func (js *DefaultJwtService) GenerateTokensAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) error {
+	tokenName := ACCESS_TOKEN_NAME
+	token, expiry, err := js.GenerateToken(tokenName, subject, rootModifications, extraClaims)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate %s token: %w", ACCESS_TOKEN_NAME, err)
+		return fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
 
-	err = js.SetCookie(w, ACCESS_TOKEN_NAME, token, expiry)
+	err = js.SetCookie(w, tokenName, token, expiry)
 	if err != nil {
-		return "", fmt.Errorf("failed to set %s cookie: %w", ACCESS_TOKEN_NAME, err)
-	}
-	return token, nil
-}
-
-// GenerateRefreshTokenAndSetCookie generates a token and sets it as a cookie
-func (js *DefaultJwtService) GenerateRefreshTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error) {
-	token, expiry, err := js.GenerateToken(REFRESH_TOKEN_NAME, subject, rootModifications, extraClaims)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate %s token: %w", REFRESH_TOKEN_NAME, err)
+		return fmt.Errorf("failed to set %s cookie: %w", tokenName, err)
 	}
 
-	err = js.SetCookie(w, REFRESH_TOKEN_NAME, token, expiry)
+	tokenName = REFRESH_TOKEN_NAME
+	token, expiry, err = js.GenerateToken(tokenName, subject, rootModifications, extraClaims)
 	if err != nil {
-		return "", fmt.Errorf("failed to set %s cookie: %w", REFRESH_TOKEN_NAME, err)
+		return fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
-	return token, nil
+
+	err = js.SetCookie(w, tokenName, token, expiry)
+	if err != nil {
+		return fmt.Errorf("failed to set %s cookie: %w", tokenName, err)
+	}
+
+	return nil
 }
 
 // GenerateTempTokenAndSetCookie generates a token and sets it as a cookie
