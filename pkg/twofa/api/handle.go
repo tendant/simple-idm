@@ -245,21 +245,12 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	rootModifications, extraClaims := h.userMapper.ToTokenClaims(user)
 
-	_, err = h.jwtService.GenerateAccessTokenAndSetCookie(w, user.UserId, rootModifications, extraClaims)
+	err = h.jwtService.GenerateTokensAndSetCookie(w, user.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to create access token",
-		}
-	}
-
-	_, err = h.jwtService.GenerateRefreshTokenAndSetCookie(w, user.UserId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to create refresh token",
 		}
 	}
 

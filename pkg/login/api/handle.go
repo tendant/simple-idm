@@ -198,20 +198,11 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Create JWT tokens using the JwtService
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
 
-	_, err = h.jwtService.GenerateAccessTokenAndSetCookie(w, tokenUser.UserId, rootModifications, extraClaims)
+	err = h.jwtService.GenerateTokensAndSetCookie(w, tokenUser.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
 			body: "Failed to set access token cookie",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	_, err = h.jwtService.GenerateRefreshTokenAndSetCookie(w, tokenUser.UserId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to set refresh token cookie", "err", err)
-		return &Response{
-			body: "Failed to set refresh token cookie",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -384,21 +375,12 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
 
-	_, err = h.jwtService.GenerateAccessTokenAndSetCookie(w, userId, rootModifications, extraClaims)
+	err = h.jwtService.GenerateTokensAndSetCookie(w, userId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to create access token",
-		}
-	}
-
-	_, err = h.jwtService.GenerateRefreshTokenAndSetCookie(w, userId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to create refresh token",
 		}
 	}
 
@@ -568,21 +550,12 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(targetUser)
 
-	_, err = h.jwtService.GenerateAccessTokenAndSetCookie(w, targetUser.UserId, rootModifications, extraClaims)
+	err = h.jwtService.GenerateTokensAndSetCookie(w, targetUser.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to create access token",
-		}
-	}
-
-	_, err = h.jwtService.GenerateRefreshTokenAndSetCookie(w, targetUser.UserId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to create refresh token",
 		}
 	}
 
