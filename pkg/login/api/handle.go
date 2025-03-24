@@ -384,8 +384,23 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
 
-	h.jwtService.GenerateAccessTokenAndSetCookie(w, userId, rootModifications, extraClaims)
-	h.jwtService.GenerateRefreshTokenAndSetCookie(w, userId, rootModifications, extraClaims)
+	_, err = h.jwtService.GenerateAccessTokenAndSetCookie(w, userId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create access token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create access token",
+		}
+	}
+
+	_, err = h.jwtService.GenerateRefreshTokenAndSetCookie(w, userId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create refresh token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create refresh token",
+		}
+	}
 
 	return &Response{
 		Code: http.StatusOK,
@@ -553,8 +568,23 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(targetUser)
 
-	h.jwtService.GenerateAccessTokenAndSetCookie(w, targetUser.UserId, rootModifications, extraClaims)
-	h.jwtService.GenerateRefreshTokenAndSetCookie(w, targetUser.UserId, rootModifications, extraClaims)
+	_, err = h.jwtService.GenerateAccessTokenAndSetCookie(w, targetUser.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create access token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create access token",
+		}
+	}
+
+	_, err = h.jwtService.GenerateRefreshTokenAndSetCookie(w, targetUser.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create refresh token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create refresh token",
+		}
+	}
 
 	// Convert mapped users to API users (including all available users)
 	apiUsers := make([]User, len(users))
