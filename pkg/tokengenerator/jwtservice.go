@@ -24,8 +24,32 @@ const (
 	DefaultLogoutTokenExpiry  = -1 * time.Second
 )
 
-// JwtService provides JWT token generation and cookie management
-type JwtService struct {
+// JwtService defines the interface for JWT token generation and management
+type JwtService interface {
+	// Token generator management
+	GetTokenGenerator(tokenName string) TokenGenerator
+	GenerateToken(tokenName, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, time.Time, error)
+
+	// Token generation methods
+	GenerateAccessTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error)
+	GenerateRefreshTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error)
+	GenerateTempTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error)
+	GenerateLogoutTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error)
+
+	// Token parsing and validation
+	ParseToken(tokenName, tokenValue string) (*jwt.Token, error)
+
+	// User ID extraction
+	GetUserIDFromClaims(claims jwt.Claims) (string, error)
+	GetLoginIDFromClaims(claims jwt.Claims) (string, error)
+
+	// Cookie management
+	SetCookie(w http.ResponseWriter, cookieName, cookieValue string, expire time.Time) error
+	ClearCookie(w http.ResponseWriter, tokenName string) error
+}
+
+// DefaultJwtService provides the default implementation of the JwtService interface
+type DefaultJwtService struct {
 	TokenGenerators       map[string]TokenGenerator
 	DefaultTokenGenerator TokenGenerator
 	CookieSetters         map[string]CookieSetter
@@ -38,12 +62,12 @@ type JwtService struct {
 	LogoutTokenExpiry  time.Duration
 }
 
-// JwtServiceOption is a function that configures a JwtService
-type JwtServiceOption func(*JwtService)
+// JwtServiceOption is a function that configures a DefaultJwtService
+type JwtServiceOption func(*DefaultJwtService)
 
 // WithTokenGenerator sets the token generator for a specific token name
 func WithTokenGenerator(tokenName string, tokenGenerator TokenGenerator) JwtServiceOption {
-	return func(js *JwtService) {
+	return func(js *DefaultJwtService) {
 		if js.TokenGenerators == nil {
 			js.TokenGenerators = make(map[string]TokenGenerator)
 		}
@@ -53,7 +77,7 @@ func WithTokenGenerator(tokenName string, tokenGenerator TokenGenerator) JwtServ
 
 // WithCookieSetter sets the cookie setter for a specific cookie name
 func WithCookieSetter(cookieName string, cookieSetter CookieSetter) JwtServiceOption {
-	return func(js *JwtService) {
+	return func(js *DefaultJwtService) {
 		if js.CookieSetters == nil {
 			js.CookieSetters = make(map[string]CookieSetter)
 		}
@@ -63,42 +87,42 @@ func WithCookieSetter(cookieName string, cookieSetter CookieSetter) JwtServiceOp
 
 // WithDefaultCookieSetter sets the default cookie setter
 func WithDefaultCookieSetter(cookieSetter CookieSetter) JwtServiceOption {
-	return func(js *JwtService) {
+	return func(js *DefaultJwtService) {
 		js.DefaultCookieSetter = cookieSetter
 	}
 }
 
 // WithAccessTokenExpiry sets the access token expiry duration
 func WithAccessTokenExpiry(expiry time.Duration) JwtServiceOption {
-	return func(js *JwtService) {
+	return func(js *DefaultJwtService) {
 		js.AccessTokenExpiry = expiry
 	}
 }
 
 // WithRefreshTokenExpiry sets the refresh token expiry duration
 func WithRefreshTokenExpiry(expiry time.Duration) JwtServiceOption {
-	return func(js *JwtService) {
+	return func(js *DefaultJwtService) {
 		js.RefreshTokenExpiry = expiry
 	}
 }
 
 // WithTempTokenExpiry sets the temporary token expiry duration
 func WithTempTokenExpiry(expiry time.Duration) JwtServiceOption {
-	return func(js *JwtService) {
+	return func(js *DefaultJwtService) {
 		js.TempTokenExpiry = expiry
 	}
 }
 
 // WithLogoutTokenExpiry sets the logout token expiry duration
 func WithLogoutTokenExpiry(expiry time.Duration) JwtServiceOption {
-	return func(js *JwtService) {
+	return func(js *DefaultJwtService) {
 		js.LogoutTokenExpiry = expiry
 	}
 }
 
-// NewJwtService creates a new JwtService
-func NewJwtService(tokenGenerator TokenGenerator, options ...JwtServiceOption) *JwtService {
-	js := &JwtService{
+// NewJwtService creates a new DefaultJwtService
+func NewJwtService(tokenGenerator TokenGenerator, options ...JwtServiceOption) JwtService {
+	js := &DefaultJwtService{
 		TokenGenerators:       make(map[string]TokenGenerator),
 		DefaultTokenGenerator: tokenGenerator,
 		CookieSetters:         make(map[string]CookieSetter),
@@ -117,7 +141,7 @@ func NewJwtService(tokenGenerator TokenGenerator, options ...JwtServiceOption) *
 }
 
 // GenerateToken generates a token with the given parameters
-func (js *JwtService) GenerateToken(tokenName, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, time.Time, error) {
+func (js *DefaultJwtService) GenerateToken(tokenName, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, time.Time, error) {
 	var expiry time.Duration
 	var tokenGenerator TokenGenerator
 
@@ -143,14 +167,70 @@ func (js *JwtService) GenerateToken(tokenName, subject string, rootModifications
 	return tokenStr, expiryTime, err
 }
 
+// GenerateTokenAndSetCookie generates a token and sets it as a cookie
+func (js *DefaultJwtService) GenerateAccessTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error) {
+	token, expiry, err := js.GenerateToken(ACCESS_TOKEN_NAME, subject, rootModifications, extraClaims)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate %s token: %w", ACCESS_TOKEN_NAME, err)
+	}
+
+	err = js.SetCookie(w, ACCESS_TOKEN_NAME, token, expiry)
+	if err != nil {
+		return "", fmt.Errorf("failed to set %s cookie: %w", ACCESS_TOKEN_NAME, err)
+	}
+	return token, nil
+}
+
+// GenerateRefreshTokenAndSetCookie generates a token and sets it as a cookie
+func (js *DefaultJwtService) GenerateRefreshTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error) {
+	token, expiry, err := js.GenerateToken(REFRESH_TOKEN_NAME, subject, rootModifications, extraClaims)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate %s token: %w", REFRESH_TOKEN_NAME, err)
+	}
+
+	err = js.SetCookie(w, REFRESH_TOKEN_NAME, token, expiry)
+	if err != nil {
+		return "", fmt.Errorf("failed to set %s cookie: %w", REFRESH_TOKEN_NAME, err)
+	}
+	return token, nil
+}
+
+// GenerateTempTokenAndSetCookie generates a token and sets it as a cookie
+func (js *DefaultJwtService) GenerateTempTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error) {
+	token, expiry, err := js.GenerateToken(TEMP_TOKEN_NAME, subject, rootModifications, extraClaims)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate %s token: %w", TEMP_TOKEN_NAME, err)
+	}
+
+	err = js.SetCookie(w, TEMP_TOKEN_NAME, token, expiry)
+	if err != nil {
+		return "", fmt.Errorf("failed to set %s cookie: %w", TEMP_TOKEN_NAME, err)
+	}
+	return token, nil
+}
+
+// GenerateLogoutTokenAndSetCookie generates a token and sets it as a cookie
+func (js *DefaultJwtService) GenerateLogoutTokenAndSetCookie(w http.ResponseWriter, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, error) {
+	token, expiry, err := js.GenerateToken(LOGOUT_TOKEN_NAME, subject, rootModifications, extraClaims)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate %s token: %w", LOGOUT_TOKEN_NAME, err)
+	}
+
+	err = js.SetCookie(w, LOGOUT_TOKEN_NAME, token, expiry)
+	if err != nil {
+		return "", fmt.Errorf("failed to set %s cookie: %w", LOGOUT_TOKEN_NAME, err)
+	}
+	return token, nil
+}
+
 // ParseToken parses and validates a token
-func (js *JwtService) ParseToken(tokenName, tokenStr string) (*jwt.Token, error) {
+func (js *DefaultJwtService) ParseToken(tokenName, tokenStr string) (*jwt.Token, error) {
 	tokenGenerator := js.GetTokenGenerator(tokenName)
 	return tokenGenerator.ParseToken(tokenStr)
 }
 
 // GetUserIDFromClaims extracts the user ID from token claims
-func (js *JwtService) GetUserIDFromClaims(claims jwt.Claims) (string, error) {
+func (js *DefaultJwtService) GetUserIDFromClaims(claims jwt.Claims) (string, error) {
 	// First try to get from subject
 	subject, err := claims.GetSubject()
 	if err == nil && subject != "" {
@@ -187,7 +267,7 @@ func (js *JwtService) GetUserIDFromClaims(claims jwt.Claims) (string, error) {
 }
 
 // GetLoginIDFromClaims extracts the login ID from token claims
-func (js *JwtService) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
+func (js *DefaultJwtService) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
 	mapClaims, ok := claims.(jwt.MapClaims)
 	if !ok {
 		return "", fmt.Errorf("invalid claims format")
@@ -219,7 +299,7 @@ func (js *JwtService) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
 }
 
 // GetTokenGenerator returns the token generator for the given token name
-func (js *JwtService) GetTokenGenerator(tokenName string) TokenGenerator {
+func (js *DefaultJwtService) GetTokenGenerator(tokenName string) TokenGenerator {
 	tokenGenerator, ok := js.TokenGenerators[tokenName]
 	if !ok {
 		return js.DefaultTokenGenerator
@@ -227,28 +307,8 @@ func (js *JwtService) GetTokenGenerator(tokenName string) TokenGenerator {
 	return tokenGenerator
 }
 
-// SetAccessTokenCookie generates an access token and sets it as a cookie
-func (js *JwtService) SetAccessTokenCookie(w http.ResponseWriter, tokenValue string, expire time.Time) error {
-	return js.SetCookie(w, ACCESS_TOKEN_NAME, tokenValue, expire)
-}
-
-// SetRefreshTokenCookie generates a refresh token and sets it as a cookie
-func (js *JwtService) SetRefreshTokenCookie(w http.ResponseWriter, tokenValue string, expire time.Time) error {
-	return js.SetCookie(w, REFRESH_TOKEN_NAME, tokenValue, expire)
-}
-
-// SetTempTokenCookie generates a temporary token and sets it as a cookie
-func (js *JwtService) SetTempTokenCookie(w http.ResponseWriter, tokenValue string, expire time.Time) error {
-	return js.SetCookie(w, TEMP_TOKEN_NAME, tokenValue, expire)
-}
-
-// SetLogoutTokenCookie generates a logout token and sets it as a cookie
-func (js *JwtService) SetLogoutTokenCookie(w http.ResponseWriter, tokenValue string, expire time.Time) error {
-	return js.SetCookie(w, LOGOUT_TOKEN_NAME, tokenValue, expire)
-}
-
 // SetCookie sets a cookie using the cookie setter for the given cookie name
-func (js *JwtService) SetCookie(w http.ResponseWriter, cookieName string, tokenValue string, expire time.Time) error {
+func (js *DefaultJwtService) SetCookie(w http.ResponseWriter, cookieName string, tokenValue string, expire time.Time) error {
 	cookieSetter, ok := js.CookieSetters[cookieName]
 	if !ok {
 		cookieSetter = js.DefaultCookieSetter
@@ -257,7 +317,7 @@ func (js *JwtService) SetCookie(w http.ResponseWriter, cookieName string, tokenV
 }
 
 // ClearCookie clears a cookie using the cookie setter for the given cookie name
-func (js *JwtService) ClearCookie(w http.ResponseWriter, cookieName string) error {
+func (js *DefaultJwtService) ClearCookie(w http.ResponseWriter, cookieName string) error {
 	cookieSetter, ok := js.CookieSetters[cookieName]
 	if !ok {
 		cookieSetter = js.DefaultCookieSetter
@@ -267,39 +327,10 @@ func (js *JwtService) ClearCookie(w http.ResponseWriter, cookieName string) erro
 
 // GetCookieSetter returns the cookie setter for the given cookie name
 // If no specific cookie setter is found, returns the default cookie setter
-func (js *JwtService) GetCookieSetter(cookieName string) CookieSetter {
+func (js *DefaultJwtService) GetCookieSetter(cookieName string) CookieSetter {
 	cookieSetter, ok := js.CookieSetters[cookieName]
 	if !ok {
 		return js.DefaultCookieSetter
 	}
 	return cookieSetter
-}
-
-// ClearAccessTokenCookie clears the access token cookie
-func (js *JwtService) ClearAccessTokenCookie(w http.ResponseWriter) error {
-	return js.ClearCookie(w, ACCESS_TOKEN_NAME)
-}
-
-// ClearRefreshTokenCookie clears the refresh token cookie
-func (js *JwtService) ClearRefreshTokenCookie(w http.ResponseWriter) error {
-	return js.ClearCookie(w, REFRESH_TOKEN_NAME)
-}
-
-// ClearTempTokenCookie clears the temp token cookie
-func (js *JwtService) ClearTempTokenCookie(w http.ResponseWriter) error {
-	return js.ClearCookie(w, TEMP_TOKEN_NAME)
-}
-
-// ClearLogoutTokenCookie clears the logout token cookie
-func (js *JwtService) ClearLogoutTokenCookie(w http.ResponseWriter) error {
-	return js.ClearCookie(w, LOGOUT_TOKEN_NAME)
-}
-
-// GenerateAndSetCookie is a convenience method that generates a token and sets it as a cookie
-func (js *JwtService) GenerateAndSetCookie(w http.ResponseWriter, tokenName string, subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) error {
-	token, expiry, err := js.GenerateToken(tokenName, subject, rootModifications, extraClaims)
-	if err != nil {
-		return err
-	}
-	return js.SetCookie(w, tokenName, token, expiry)
 }
