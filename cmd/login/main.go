@@ -191,11 +191,21 @@ func main() {
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
-	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, loginapi.WithTwoFactorService(twoFaService))
+	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, loginapi.WithTwoFactorService(twoFaService), loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()))
 
 	server.R.Mount("/auth", loginapi.Handler(loginHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
+
+	// Create a separate router for 2FA endpoints that only needs the verifier but not the authenticator
+	twoFaRouter := chi.NewRouter()
+	twoFaRouter.Use(client.Verifier(tokenAuth))
+
+	// Initialize two factor authentication service and routes
+	twoFaHandle := twofaapi.NewHandle(twoFaService, tokenService, tokenCookieService, userMapper)
+	slog.Info("Mounting 2FA routes", "path", "/idm/2fa")
+	twoFaRouter.Mount("/", twofaapi.TwoFaHandler(twoFaHandle))
+	server.R.Mount("/idm/2fa", twoFaRouter)
 
 	server.R.Group(func(r chi.Router) {
 		r.Use(client.Verifier(tokenAuth))
@@ -268,9 +278,6 @@ func main() {
 		// impersonateHandle := impersonate.NewHandle(impersonateService, *jwtService)
 		// r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
 
-		// Initialize two factor authentication service and routes
-		twoFaHandle := twofaapi.NewHandle(twoFaService, tokenService, tokenCookieService, userMapper)
-		r.Mount("/idm/2fa", twofaapi.TwoFaHandler(twoFaHandle))
 	})
 
 	app.RoutesHealthzReady(server.R)

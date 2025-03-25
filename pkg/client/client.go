@@ -48,6 +48,7 @@ func (k *contextKey) String() string {
 const (
 	ACCESS_TOKEN_NAME  = "access_token"
 	REFRESH_TOKEN_NAME = "refresh_token"
+	TEMP_TOKEN_NAME    = "temp_token"
 )
 
 var (
@@ -150,7 +151,7 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 
 func Verifier(ja *jwtauth.JWTAuth) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return jwtauth.Verify(ja, jwtauth.TokenFromHeader, TokenFromCookie)(next)
+		return jwtauth.Verify(ja, jwtauth.TokenFromHeader, TokenFromCookie, TempTokenFromCookie, TempTokenFromHeader)(next)
 	}
 }
 
@@ -160,4 +161,16 @@ func TokenFromCookie(r *http.Request) string {
 		return ""
 	}
 	return cookie.Value
+}
+
+func TempTokenFromCookie(r *http.Request) string {
+	cookie, err := r.Cookie(TEMP_TOKEN_NAME)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func TempTokenFromHeader(r *http.Request) string {
+	return r.Header.Get(TEMP_TOKEN_NAME)
 }
