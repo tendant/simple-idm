@@ -271,7 +271,7 @@ func (PostUsernameFindJSONRequestBody) Bind(*http.Request) error {
 // A Response object may be instantiated via functions for specific operation responses.
 // It may also be instantiated directly, for the purpose of responding with a single status code.
 type Response struct {
-	body        interface{}
+	Body        interface{}
 	Code        int
 	contentType string
 }
@@ -299,20 +299,20 @@ func (resp *Response) ContentType(contentType string) *Response {
 // MarshalJSON implements the json.Marshaler interface.
 // This is used to only marshal the body of the response.
 func (resp *Response) MarshalJSON() ([]byte, error) {
-	return json.Marshal(resp.body)
+	return json.Marshal(resp.Body)
 }
 
 // MarshalXML implements the xml.Marshaler interface.
 // This is used to only marshal the body of the response.
 func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	return e.Encode(resp.body)
+	return e.Encode(resp.Body)
 }
 
 // Post2faVerifyJSON200Response is a constructor method for a Post2faVerify response.
 // A *Response is returned with the configured status code and content type from the spec.
 func Post2faVerifyJSON200Response(body Login) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -324,7 +324,7 @@ func PostEmailVerifyJSON200Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -334,7 +334,7 @@ func PostEmailVerifyJSON200Response(body struct {
 // A *Response is returned with the configured status code and content type from the spec.
 func PostLoginJSON200Response(body Login) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -344,7 +344,7 @@ func PostLoginJSON200Response(body Login) *Response {
 // A *Response is returned with the configured status code and content type from the spec.
 func PostLoginJSON202Response(body interface{}) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        202,
 		contentType: "application/json",
 	}
@@ -356,7 +356,7 @@ func PostLoginJSON400Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        400,
 		contentType: "application/json",
 	}
@@ -368,7 +368,7 @@ func PostLogoutJSON200Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -384,7 +384,7 @@ func PostMobileLoginJSON200Response(body struct {
 	RefreshToken string `json:"refresh_token"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -396,7 +396,7 @@ func PostPasswordResetJSON200Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -408,7 +408,7 @@ func PostPasswordResetInitJSON200Response(body struct {
 	Code *string `json:"code,omitempty"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -418,7 +418,7 @@ func PostPasswordResetInitJSON200Response(body struct {
 // A *Response is returned with the configured status code and content type from the spec.
 func GetPasswordResetPolicyJSON200Response(body PasswordPolicyResponse) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -430,7 +430,7 @@ func PostRegisterJSON201Response(body struct {
 	Email *openapi_types.Email `json:"email,omitempty"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        201,
 		contentType: "application/json",
 	}
@@ -440,7 +440,7 @@ func PostRegisterJSON201Response(body struct {
 // A *Response is returned with the configured status code and content type from the spec.
 func PostTokenRefreshJSON200Response(body Tokens) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -450,7 +450,7 @@ func PostTokenRefreshJSON200Response(body Tokens) *Response {
 // A *Response is returned with the configured status code and content type from the spec.
 func PostUserSwitchJSON200Response(body Login) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -462,7 +462,7 @@ func PostUserSwitchJSON400Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        400,
 		contentType: "application/json",
 	}
@@ -474,7 +474,7 @@ func PostUserSwitchJSON403Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        403,
 		contentType: "application/json",
 	}
@@ -487,7 +487,7 @@ func PostUsernameFindJSON200Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -497,7 +497,7 @@ func PostUsernameFindJSON200Response(body struct {
 // A *Response is returned with the configured status code and content type from the spec.
 func FindUsersWithLoginJSON200Response(body []User) *Response {
 	return &Response{
-		body:        body,
+		Body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -559,7 +559,7 @@ func (siw *ServerInterfaceWrapper) Post2faVerify(w http.ResponseWriter, r *http.
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Post2faVerify(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -577,7 +577,7 @@ func (siw *ServerInterfaceWrapper) PostEmailVerify(w http.ResponseWriter, r *htt
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostEmailVerify(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -595,7 +595,7 @@ func (siw *ServerInterfaceWrapper) PostLogin(w http.ResponseWriter, r *http.Requ
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostLogin(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -613,7 +613,7 @@ func (siw *ServerInterfaceWrapper) PostLogout(w http.ResponseWriter, r *http.Req
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostLogout(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -631,7 +631,7 @@ func (siw *ServerInterfaceWrapper) PostMobileLogin(w http.ResponseWriter, r *htt
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostMobileLogin(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -649,7 +649,7 @@ func (siw *ServerInterfaceWrapper) PostPasswordReset(w http.ResponseWriter, r *h
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostPasswordReset(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -667,7 +667,7 @@ func (siw *ServerInterfaceWrapper) PostPasswordResetInit(w http.ResponseWriter, 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostPasswordResetInit(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -696,7 +696,7 @@ func (siw *ServerInterfaceWrapper) GetPasswordResetPolicy(w http.ResponseWriter,
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.GetPasswordResetPolicy(w, r, params)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -714,7 +714,7 @@ func (siw *ServerInterfaceWrapper) PostRegister(w http.ResponseWriter, r *http.R
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostRegister(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -732,7 +732,7 @@ func (siw *ServerInterfaceWrapper) PostTokenRefresh(w http.ResponseWriter, r *ht
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostTokenRefresh(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -750,7 +750,7 @@ func (siw *ServerInterfaceWrapper) PostUserSwitch(w http.ResponseWriter, r *http
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostUserSwitch(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -768,7 +768,7 @@ func (siw *ServerInterfaceWrapper) PostUsernameFind(w http.ResponseWriter, r *ht
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostUsernameFind(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -786,7 +786,7 @@ func (siw *ServerInterfaceWrapper) FindUsersWithLogin(w http.ResponseWriter, r *
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.FindUsersWithLogin(w, r)
 		if resp != nil {
-			if resp.body != nil {
+			if resp.Body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
