@@ -191,7 +191,7 @@ func main() {
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
-	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, loginapi.WithTwoFactorService(twoFaService))
+	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, loginapi.WithTwoFactorService(twoFaService), loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()))
 
 	server.R.Mount("/auth", loginapi.Handler(loginHandle))
 

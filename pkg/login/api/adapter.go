@@ -31,6 +31,13 @@ func WithTwoFactorService(twoFactorService twofa.TwoFactorService) Option {
 	}
 }
 
+// WithResponseHandler sets a custom response handler
+func WithResponseHandler(handler ResponseHandler) Option {
+	return func(h *Handle) {
+		h.responseHandler = handler
+	}
+}
+
 // RegisterParam represents parameters for user registration
 type RegisterParam struct {
 	Email    string

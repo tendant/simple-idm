@@ -29,6 +29,7 @@ type Handle struct {
 	tokenService       tg.TokenService
 	tokenCookieService tg.TokenCookieService
 	userMapper         mapper.UserMapper
+	responseHandler    ResponseHandler
 }
 
 func NewHandle(loginService *login.LoginService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, userMapper mapper.UserMapper, opts ...Option) Handle {
@@ -37,11 +38,114 @@ func NewHandle(loginService *login.LoginService, tokenService tg.TokenService, t
 		tokenService:       tokenService,
 		tokenCookieService: tokenCookieService,
 		userMapper:         userMapper,
+		responseHandler:    NewDefaultResponseHandler(),
 	}
 	for _, opt := range opts {
 		opt(&h)
 	}
 	return h
+}
+
+// ResponseHandler defines the interface for handling responses during login
+type ResponseHandler interface {
+	// PrepareUserSelectionResponse converts IDM users to API users for selection
+	PrepareUserSelectionResponse(idmUsers []mapper.User, loginID uuid.UUID, tempTokenStr string) *Response
+	// PrepareUserListResponse prepares a response for a list of users
+	PrepareUserListResponse(users []mapper.User) *Response
+	// PrepareUserSwitchResponse prepares a response for user switch
+	PrepareUserSwitchResponse(users []mapper.User) *Response
+}
+
+// DefaultResponseHandler is the default implementation of ResponseHandler
+type DefaultResponseHandler struct {
+}
+
+// NewDefaultResponseHandler creates a new DefaultResponseHandler
+func NewDefaultResponseHandler() ResponseHandler {
+	return &DefaultResponseHandler{}
+}
+
+// PrepareUserSelectionResponse creates a response for user selection
+func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.User, loginID uuid.UUID, tempTokenStr string) *Response {
+	apiUsers := make([]User, len(idmUsers))
+	for i, mu := range idmUsers {
+		email, _ := mu.ExtraClaims["email"].(string)
+		name := mu.DisplayName
+		id := mu.UserId
+
+		apiUsers[i] = User{
+			ID:    id,
+			Email: email,
+			Name:  name,
+		}
+	}
+
+	return &Response{
+		body: SelectUserRequiredResponse{
+			Status:    "select_user_required",
+			Message:   "Multiple users found, please select one",
+			TempToken: tempTokenStr,
+			Users:     apiUsers,
+		},
+		Code: http.StatusAccepted,
+	}
+}
+
+// PrepareUserListResponse prepares a response for a list of users
+func (h *DefaultResponseHandler) PrepareUserListResponse(users []mapper.User) *Response {
+	var apiUsers []User
+	for _, user := range users {
+		email, _ := user.ExtraClaims["email"].(string)
+		// Check if email is available in UserInfo
+		if user.UserInfo.Email != "" {
+			email = user.UserInfo.Email
+		}
+
+		role := ""
+		if len(user.Roles) > 0 {
+			role = user.Roles[0]
+		}
+
+		apiUsers = append(apiUsers, User{
+			ID:    user.UserId,
+			Name:  user.DisplayName,
+			Role:  role,
+			Email: email,
+		})
+	}
+	return FindUsersWithLoginJSON200Response(apiUsers)
+}
+
+// PrepareUserSwitchResponse prepares a response for user switch
+func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) *Response {
+	var apiUsers []User
+	for _, user := range users {
+		email, _ := user.ExtraClaims["email"].(string)
+		// Check if email is available in UserInfo
+		if user.UserInfo.Email != "" {
+			email = user.UserInfo.Email
+		}
+
+		role := ""
+		if len(user.Roles) > 0 {
+			role = user.Roles[0]
+		}
+
+		apiUsers = append(apiUsers, User{
+			ID:    user.UserId,
+			Name:  user.DisplayName,
+			Role:  role,
+			Email: email,
+		})
+	}
+
+	response := Login{
+		Status:  "success",
+		Message: "Successfully switched user",
+		Users:   apiUsers,
+	}
+
+	return PostUserSwitchJSON200Response(response)
 }
 
 // Login a user
@@ -171,29 +275,15 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	if len(idmUsers) > 1 {
-		apiUsers := make([]User, len(idmUsers))
-		for i, mu := range idmUsers {
-			email, _ := mu.ExtraClaims["email"].(string)
-			name := mu.DisplayName
-			id := mu.UserId
-
-			apiUsers[i] = User{
-				ID:    id,
-				Email: email,
-				Name:  name,
-			}
-		}
-
 		// Create temp token with the custom claims for user selection
 		extraClaims := map[string]interface{}{
 			"login_id": loginID.String(),
-			"users":    apiUsers,
 		}
 		tempToken, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
 		if err != nil {
-			slog.Error("Failed to set temp token cookie", "err", err)
+			slog.Error("Failed to generate temp token", "err", err)
 			return &Response{
-				body: "Failed to set temp token cookie",
+				body: "Failed to generate temp token",
 				Code: http.StatusInternalServerError,
 			}
 		}
@@ -206,14 +296,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 				Code: http.StatusInternalServerError,
 			}
 		}
-
-		// Return 202 response with users to select from
-		return PostLoginJSON202Response(SelectUserRequiredResponse{
-			Status:    "select_user_required",
-			Message:   "Multiple users found, please select one",
-			TempToken: tempToken.Token,
-			Users:     apiUsers,
-		})
+		// Prepare user selection response
+		return h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
 	}
 
 	// Create JWT tokens using the JwtService
@@ -452,29 +536,13 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 		}
 	}
 
-	// Get claims from token
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
+	// Get login ID from token claims
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to get login ID from claims", "err", err)
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid token format",
-		}
-	}
-
-	// Extract login_id from custom_claims
-	customClaims, ok := claims["extra_claims"].(map[string]interface{})
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid custom claims format",
-		}
-	}
-
-	loginIdStr, ok := customClaims["login_id"].(string)
-	if !ok {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Missing or invalid login_id in token",
+			body: "Failed to get login ID from claims",
+			Code: http.StatusBadRequest,
 		}
 	}
 
@@ -495,17 +563,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 		}
 	}
 
-	var res []User
-	for _, user := range users {
-		res = append(res, User{
-			ID:    user.UserId,
-			Name:  user.DisplayName,
-			Role:  user.Roles[0],
-			Email: user.UserInfo.Email,
-		})
-	}
-
-	return FindUsersWithLoginJSON200Response(res)
+	return h.responseHandler.PrepareUserListResponse(users)
 }
 
 // PostMobileLogin handles mobile login requests
@@ -608,26 +666,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	// Convert mapped users to API users (including all available users)
-	apiUsers := make([]User, len(users))
-	for i, mu := range users {
-		// Extract email and name from custom claims
-		email, _ := mu.ExtraClaims["email"].(string)
-		name := mu.DisplayName
-
-		apiUsers[i] = User{
-			ID:    mu.UserId,
-			Name:  name,
-			Email: email,
-		}
-	}
-
-	response := Login{
-		Status:  "success",
-		Message: "Successfully switched user",
-		Users:   apiUsers,
-	}
-
-	return PostUserSwitchJSON200Response(response)
+	return h.responseHandler.PrepareUserSwitchResponse(users)
 }
 
 func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Response {
