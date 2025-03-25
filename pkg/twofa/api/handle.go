@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -136,6 +135,7 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 			body: "failed to init 2fa: " + err.Error(),
 		}
 	}
+	resp.Result = "success"
 
 	return Post2faSendJSON200Response(resp)
 }
@@ -145,17 +145,35 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
 
-	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
-	if !ok {
-		slog.Error("Failed getting AuthUser", "ok", ok)
+	// Get token from cookie instead of Authorization header
+	cookie, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	if err != nil {
+		slog.Error("No Temp Token Cookie", "err", err)
 		return &Response{
-			body: http.StatusText(http.StatusUnauthorized),
 			Code: http.StatusUnauthorized,
+			body: "Missing temp token cookie",
+		}
+	}
+	tokenStr := cookie.Value
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid temp token",
 		}
 	}
 
-	// Get user UUID from context (assuming it's set by auth middleware)
-	loginIdStr := authUser.LoginId
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
 
 	loginId, err := uuid.Parse(loginIdStr)
 	if err != nil {
@@ -279,7 +297,6 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	// Include tokens in response
 	resp.Result = "success"
-
 	return Post2faValidateJSON200Response(resp)
 }
 
