@@ -869,35 +869,19 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 	return nil
 }
 
-// Post2faVerify handles verifying 2FA code during login
-// (POST /2fa/verify)
-func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response {
-	var req TwoFactorVerify
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Error("Failed to decode request body", "err", err)
-		return &Response{
-			body: "Invalid request body",
-			Code: http.StatusBadRequest,
-		}
-	}
-
-	// TODO: Implement 2FA verification logic here
-	// This should:
-	// 1. Validate the login token
-	// 2. Verify the 2FA code
-	// 3. Complete the login process if verification succeeds
-
+// Initiate sending 2fa code
+// (POST /2fa/send)
+func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	return &Response{
-		body: Login{
-			Message: "2FA verification successful",
-			Status:  "success",
-			User: User{
-				Email: "user@example.com",
-				Name:  "User Name",
-				ID:    "user-uuid",
-			},
-		},
-		Code: http.StatusOK,
+		Code: http.StatusNotImplemented,
+	}
+}
+
+// Authenticate 2fa passcode
+// (POST /2fa/validate)
+func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Response {
+	return &Response{
+		Code: http.StatusNotImplemented,
 	}
 }
 
