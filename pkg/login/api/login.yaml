@@ -279,22 +279,68 @@ paths:
                 items:
                   $ref: "#/components/schemas/User"
 
-  /2fa/verify:
+  /2fa/send:
     post:
-      summary: Verify 2FA code during login
+      summary: Initiate sending 2fa code
+      operationId: post_2fa_send
+      requestBody:
+        x-go-optional-value: true
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                delivery_option:
+                  type: string
+                user_id:
+                  type: string
+                  format: uuid
+              required:
+                - twofa_type
+                - delivery_option
+                - user_id
+      responses:
+        "200":
+          description: 2fa initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /2fa/validate:
+    post:
+      summary: Authenticate 2fa passcode
+      operationId: post_2fa_validate
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TwoFactorVerify"
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                passcode:
+                  type: string
+              required:
+                - passcode
+                - twofa_type
       responses:
         "200":
-          description: 2FA code verified successfully
+          description: 2fa validated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Login"
+                $ref: '#/components/schemas/SuccessResponse'
+        "202":
+          description: 2FA successful but select user required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelectUserRequiredResponse"
 components:
   schemas:
     TwoFactorRequiredResponse:
@@ -351,28 +397,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/User"
-    User:
-      type: object
-      properties:
-        id:
-          type: string
-          description: User's unique identifier
-        display_name:
-          type: string
-          description: User's display name
-        custom_claims:
-          type: object
-          description: Additional user information
-          properties:
-            email:
-              type: string
-              format: email
-            username:
-              type: string
-            roles:
-              type: array
-              items:
-                type: string
     Login:
       type: object
       properties:
@@ -387,11 +411,6 @@ components:
           description: List of users associated with the login. Usually contains one user, but may contain multiple if same username is shared.
           items:
             $ref: "#/components/schemas/User"
-        status:
-          type: string
-          example: success
-        message:
-          type: string
         user:
           $ref: "#/components/schemas/User"
         requires2FA:
@@ -522,6 +541,12 @@ components:
         loginToken:
           type: string
           description: Token from initial login response
+    SuccessResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        result:
+          type: string
   securitySchemes:
     BearerAuth:
       type: http
