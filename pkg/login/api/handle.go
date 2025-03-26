@@ -945,9 +945,161 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 // Authenticate 2fa passcode
 // (POST /2fa/validate)
 func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Response {
-	return &Response{
-		Code: http.StatusNotImplemented,
+	var resp SuccessResponse
+
+	// Get token from cookie instead of Authorization header
+	cookie, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	if err != nil {
+		slog.Error("No Temp Token Cookie", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Missing temp token cookie",
+		}
 	}
+	tokenStr := cookie.Value
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid temp token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	data := &Post2faValidateJSONRequestBody{}
+	err = render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to validate 2fa: " + err.Error(),
+		}
+	}
+
+	if !valid {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "2fa validation failed",
+		}
+	}
+
+	// 2FA validation successful, create access and refresh tokens
+	// Extract user data from claims to use for token creation
+	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to get user roles: " + err.Error(),
+		}
+	}
+
+	if len(idmUsers) == 0 {
+		slog.Error("No user found after 2fa")
+		return &Response{
+			body: "2fa validation failed",
+			Code: http.StatusNotFound,
+		}
+	}
+
+	if len(idmUsers) > 1 {
+		users := make([]User, len(idmUsers))
+		for i, mu := range idmUsers {
+			email, _ := mu.ExtraClaims["email"].(string)
+			name := mu.DisplayName
+			id := mu.UserId
+
+			users[i] = User{
+				ID:    id,
+				Email: email,
+				Name:  name,
+			}
+		}
+
+		rootModifications, extraClaims := h.userMapper.ToTokenClaims(idmUsers[0])
+
+		// Create temp token with the custom claims for user selection
+		// Use the login ID as the subject to ensure we have a valid ID in the token
+		tempToken, err := h.tokenService.GenerateTempToken(loginIdStr, rootModifications, extraClaims)
+		if err != nil {
+			slog.Error("Failed to create temp token", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to create temp token",
+			}
+		}
+
+		err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to set temp token cookie",
+			}
+		}
+
+		// Return 202 response with users to select from
+		return Post2faValidateJSON202Response(SelectUserRequiredResponse{
+			Status:    "select_user_required",
+			Message:   "Multiple users found, please select one",
+			TempToken: tempToken.Token,
+			Users:     users,
+		})
+	}
+
+	// Single user case - proceed with normal flow
+
+	user := idmUsers[0]
+
+	rootModifications, extraClaims := h.userMapper.ToTokenClaims(user)
+
+	tokens, err := h.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create access token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create access token",
+		}
+	}
+
+	err = h.tokenCookieService.SetTokensCookie(w, tokens)
+	if err != nil {
+		slog.Error("Failed to set tokens cookie", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to set tokens cookie",
+		}
+	}
+
+	// Include tokens in response
+	resp.Result = "success"
+	return Post2faValidateJSON200Response(resp)
 }
 
 // GetPasswordResetPolicy returns the current password policy
