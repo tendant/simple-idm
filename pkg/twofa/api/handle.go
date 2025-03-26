@@ -90,8 +90,6 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	}
 	tokenStr := cookie.Value
 
-	slog.Info("Temp Token Cookie", "tokenStr", tokenStr)
-
 	// Parse and validate token
 	token, err := h.tokenService.ParseToken(tokenStr)
 	if err != nil {
