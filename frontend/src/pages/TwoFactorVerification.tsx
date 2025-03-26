@@ -169,7 +169,11 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
           ? searchParams.redirect[0] 
           : searchParams.redirect;
       }
-      navigate(redirectPath);
+      
+      // Add a small delay to ensure localStorage updates are complete
+      setTimeout(() => {
+        navigate(redirectPath, { replace: true });
+      }, 100);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to switch user');
       setSwitchingUser(false);
