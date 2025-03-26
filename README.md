@@ -26,6 +26,14 @@ The application will start on port 3000 by default.
 
 http://localhost:3000
 
+
+### Connect to database
+
+```bash
+psql -h localhost -U idm -d idm_db
+```
+Password: pwd
+
 ## Roadmap
 
 The following features are planned for implementation:
