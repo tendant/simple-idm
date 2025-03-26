@@ -6,29 +6,27 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Insert admin login with bcrypt-hashed password
 -- The password 'pwd' is hashed using bcrypt with default cost
-INSERT INTO login (id, created_at, updated_at, created_by, password, username)
+INSERT INTO login (id, created_at, updated_at, created_by, password, username, password_version)
 VALUES (
     gen_random_uuid(),
     now() AT TIME ZONE 'utc',
     now() AT TIME ZONE 'utc',
     'system',
     -- This is the bcrypt hash of 'pwd'
-    '$2a$10$zXEBnvKYm.GuZqCvWlUmxOBY1n3UZClKDjSYbPY9jlVQyONNwMBQS',
-    'admin'
+    '$2a$10$ukfkOO6WeRhn7YZxEh5O3.gfvDeypM1Dff.4LwU.tOGmyyGXPlnNC',
+    'admin',
+    1
 )
-ON CONFLICT (username) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- Create a role for admin if it doesn't exist
-INSERT INTO roles (id, created_at, updated_at, created_by, name, description)
+INSERT INTO roles (id, name, description)
 VALUES (
     gen_random_uuid(),
-    now() AT TIME ZONE 'utc',
-    now() AT TIME ZONE 'utc',
-    'system',
     'admin',
     'Administrator role with full system access'
 )
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- Create a user record linked to the login
 WITH login_record AS (
@@ -37,14 +35,15 @@ WITH login_record AS (
 role_record AS (
     SELECT id FROM roles WHERE name = 'admin'
 )
-INSERT INTO users (id, created_at, updated_at, created_by, name, login_id)
+INSERT INTO users (id, created_at, last_modified_at, created_by, name, login_id, email)
 SELECT
     gen_random_uuid(),
     now() AT TIME ZONE 'utc',
     now() AT TIME ZONE 'utc',
     'system',
     'Administrator',
-    login_record.id
+    login_record.id,
+    'admin@example.com'
 FROM login_record
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE login_id = login_record.id
