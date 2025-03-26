@@ -275,9 +275,9 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/User"
+                oneOf:
+                  - $ref: "#/components/schemas/MultiUsersResponse"
+                  - $ref: "#/components/schemas/SingleUserResponse"
 
   /2fa/send:
     post:
@@ -343,6 +343,20 @@ paths:
                 $ref: "#/components/schemas/SelectUserRequiredResponse"
 components:
   schemas:
+    MultiUsersResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+    SingleUserResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
     TwoFactorRequiredResponse:
       x-go-optional-value: true
       type: object
