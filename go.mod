@@ -7,7 +7,7 @@ toolchain go1.23.2
 require (
 	github.com/discord-gophers/goapi-gen v0.2.2
 	github.com/getkin/kin-openapi v0.116.0
-	github.com/go-chi/chi/v5 v5.0.11
+	github.com/go-chi/chi/v5 v5.2.1
 	github.com/go-chi/jwtauth/v5 v5.3.2
 	github.com/go-chi/render v1.0.2
 	github.com/golang-jwt/jwt/v5 v5.2.1
