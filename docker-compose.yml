@@ -8,6 +8,8 @@ services:
     ports:
       - "4000:4000"  # Map to the provided port (default in config is 3000)
     environment:
+      # Inside Docker, your app must bind to 0.0.0.0, not localhost:
+      - HOST=0.0.0.0
       # Database configuration
       - IDM_PG_HOST=db
       - IDM_PG_PORT=5432
