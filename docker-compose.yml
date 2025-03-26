@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"  # Map to the provided port (default in config is 3000)
+    environment:
+      # Database configuration
+      - IDM_PG_HOST=db
+      - IDM_PG_PORT=5432
+      - IDM_PG_DATABASE=idm_db
+      - IDM_PG_USER=idm
+      - IDM_PG_PASSWORD=pwd
+      # JWT configuration
+      - JWT_SECRET=very-secure-jwt-secret
+      - COOKIE_HTTP_ONLY=true
+      - COOKIE_SECURE=false
+      - ACCESS_TOKEN_EXPIRY=5m
+      - REFRESH_TOKEN_EXPIRY=15m
+      - TEMP_TOKEN_EXPIRY=10m
+      - LOGOUT_TOKEN_EXPIRY=-1m
+      - JWT_ISSUER=simple-idm
+      - JWT_AUDIENCE=simple-idm
+      # Email configuration
+      - EMAIL_HOST=mailpit
+      - EMAIL_PORT=1025
+      - EMAIL_USERNAME=noreply@example.com
+      - EMAIL_PASSWORD=pwd
+      - EMAIL_FROM=noreply@example.com
+      # Password complexity
+      - PASSWORD_COMPLEXITY_REQUIRE_DIGIT=true
+      - PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE=true
+      - PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC=true
+      - PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE=true
+      - PASSWORD_COMPLEXITY_REQUIRED_LENGTH=8
+      - PASSWORD_COMPLEXITY_DISALLOW_COMMON_PWDS=true
+      - PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS=3
+      - PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT=5
+      - PASSWORD_COMPLEXITY_EXPIRATION_DAYS=90
+      # Base URL
+      - BASE_URL=http://localhost:4000
+    depends_on:
+      - db
+      - mailpit
+    command: ["/app/dist/cmd/login/login"]  # Use the login binary
+    volumes:
+      - .:/app  # Mount source code for development
+
+  db:
+    image: postgres:14-alpine
+    environment:
+      - POSTGRES_USER=idm
+      - POSTGRES_PASSWORD=pwd
+      - POSTGRES_DB=idm_db
+    ports:
+      - "5432:5432"  # Map to the provided port
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"  # Web UI
+      - "1025:1025"  # SMTP server
+    environment:
+      - MP_MAX_MESSAGES=500
+      - MP_DATA_FILE=/data/mailpit.db
+      - MP_SMTP_AUTH_ACCEPT_ANY=true
+      - MP_SMTP_AUTH_ALLOW_INSECURE=true
+    volumes:
+      - mailpit_data:/data
+
+volumes:
+  postgres_data:
+  mailpit_data:
