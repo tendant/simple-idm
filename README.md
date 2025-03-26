@@ -4,6 +4,20 @@ A simple Identity Management system with user authentication and authorization c
 
 ## Getting Started
 
+### Quick Start with Docker Compose
+
+```bash
+# Start the application
+docker-compose up --build 
+```
+Clean up - Remove all volumes created by your Compose project
+
+```
+docker-compose down -v
+```
+
+
+
 ### Running the Application
 
 ```bash
