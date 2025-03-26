@@ -197,16 +197,6 @@ func main() {
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
-	// Create a separate router for 2FA endpoints that only needs the verifier but not the authenticator
-	twoFaRouter := chi.NewRouter()
-	twoFaRouter.Use(client.Verifier(tokenAuth))
-
-	// Initialize two factor authentication service and routes
-	twoFaHandle := twofaapi.NewHandle(twoFaService, tokenService, tokenCookieService, userMapper)
-	slog.Info("Mounting 2FA routes", "path", "/idm/2fa")
-	twoFaRouter.Mount("/", twofaapi.TwoFaHandler(twoFaHandle))
-	server.R.Mount("/idm/2fa", twoFaRouter)
-
 	server.R.Group(func(r chi.Router) {
 		r.Use(client.Verifier(tokenAuth))
 		r.Use(jwtauth.Authenticator(tokenAuth))
@@ -257,6 +247,10 @@ func main() {
 			r.Mount("/", roleapi.Handler(roleHandle))
 		})
 		r.Mount("/idm/roles", roleRouter)
+
+		// Initialize two factor authentication service and routes
+		twoFaHandle := twofaapi.NewHandle(twoFaService, tokenService, tokenCookieService, userMapper)
+		r.Mount("/idm/2fa", twofaapi.TwoFaHandler(twoFaHandle))
 
 		// Initialize logins management service and routes
 		loginsQueries := loginsdb.New(pool)
