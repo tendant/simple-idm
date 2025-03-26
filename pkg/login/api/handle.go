@@ -81,7 +81,7 @@ func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.
 	}
 
 	return &Response{
-		Body: SelectUserRequiredResponse{
+		body: SelectUserRequiredResponse{
 			Status:    "select_user_required",
 			Message:   "Multiple users found, please select one",
 			TempToken: tempTokenStr,
@@ -156,7 +156,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	if err := render.DecodeJSON(r.Body, &data); err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Body: "Unable to parse request body",
+			body: "Unable to parse request body",
 		}
 	}
 
@@ -168,7 +168,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 		return &Response{
-			Body: "Username/Password is wrong",
+			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
 		}
 	}
@@ -176,7 +176,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after login")
 		return &Response{
-			Body: "Username/Password is wrong",
+			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
 		}
 	}
@@ -203,7 +203,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	if err != nil {
 		slog.Error("Failed to parse login ID", "loginID", idmUsers[0].LoginID, "error", err)
 		return &Response{
-			Body: "Invalid login ID",
+			body: "Invalid login ID",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -213,7 +213,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		if err != nil {
 			slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
 			return &Response{
-				Body: "Failed to find enabled 2FA",
+				body: "Failed to find enabled 2FA",
 				Code: http.StatusInternalServerError,
 			}
 		}
@@ -247,7 +247,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			if err != nil {
 				slog.Error("Failed to generate temp token", "err", err)
 				return &Response{
-					Body: "Failed to generate temp token",
+					body: "Failed to generate temp token",
 					Code: http.StatusInternalServerError,
 				}
 			}
@@ -256,7 +256,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			if err != nil {
 				slog.Error("Failed to set temp token cookie", "err", err)
 				return &Response{
-					Body: "Failed to set temp token cookie",
+					body: "Failed to set temp token cookie",
 					Code: http.StatusInternalServerError,
 				}
 			}
@@ -283,7 +283,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		if err != nil {
 			slog.Error("Failed to generate temp token", "err", err)
 			return &Response{
-				Body: "Failed to generate temp token",
+				body: "Failed to generate temp token",
 				Code: http.StatusInternalServerError,
 			}
 		}
@@ -292,7 +292,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		if err != nil {
 			slog.Error("Failed to set temp token cookie", "err", err)
 			return &Response{
-				Body: "Failed to set temp token cookie",
+				body: "Failed to set temp token cookie",
 				Code: http.StatusInternalServerError,
 			}
 		}
@@ -307,7 +307,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
-			Body: "Failed to set access token cookie",
+			body: "Failed to set access token cookie",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -316,7 +316,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
-			Body: "Failed to set access token cookie",
+			body: "Failed to set access token cookie",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -343,7 +343,7 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 
 	if body.Username == "" {
 		return &Response{
-			Body: map[string]string{
+			body: map[string]string{
 				"message": "Username is required",
 			},
 			Code:        400,
@@ -358,7 +358,7 @@ func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *R
 	}
 
 	return &Response{
-		Body: map[string]string{
+		body: map[string]string{
 			"message": "If an account exists with that username, we will send a password reset link to the associated email.",
 		},
 		Code:        http.StatusOK,
@@ -378,7 +378,7 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 
 	if body.Token == "" || body.NewPassword == "" {
 		return &Response{
-			Body: map[string]string{
+			body: map[string]string{
 				"message": "Token and new password are required",
 			},
 			Code:        400,
@@ -390,7 +390,7 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 	if err != nil {
 		slog.Error("Failed to reset password", "err", err)
 		return &Response{
-			Body: map[string]string{
+			body: map[string]string{
 				"message": err.Error(),
 			},
 			Code:        400,
@@ -399,7 +399,7 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 	}
 
 	return &Response{
-		Body: map[string]string{
+		body: map[string]string{
 			"message": "Password has been reset successfully",
 		},
 		Code:        200,
@@ -417,7 +417,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Error("No Refresh Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "No refresh token cookie",
+			body: "No refresh token cookie",
 		}
 	}
 
@@ -427,7 +427,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Error("Invalid Refresh Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Invalid refresh token",
+			body: "Invalid refresh token",
 		}
 	}
 
@@ -437,7 +437,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Error("Invalid token claims format")
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Invalid token format",
+			body: "Invalid token format",
 		}
 	}
 
@@ -447,7 +447,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Error("Missing expiration claim in token")
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Invalid token format: missing expiration",
+			body: "Invalid token format: missing expiration",
 		}
 	}
 
@@ -456,7 +456,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Error("Refresh token has expired", "expiry", expTime)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Refresh token has expired",
+			body: "Refresh token has expired",
 		}
 	}
 
@@ -466,7 +466,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Error("Failed to extract user ID from token", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Invalid token: " + err.Error(),
+			body: "Invalid token: " + err.Error(),
 		}
 	}
 
@@ -474,7 +474,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	if err != nil {
 		slog.Error("Failed to parse user ID", "err", err)
 		return &Response{
-			Body: "Failed to parse user ID",
+			body: "Failed to parse user ID",
 			Code: http.StatusBadRequest,
 		}
 	}
@@ -482,7 +482,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	if err != nil {
 		slog.Error("Failed to get user by user ID", "err", err, "user_id", userId)
 		return &Response{
-			Body: "Failed to get user by user ID",
+			body: "Failed to get user by user ID",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -494,7 +494,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Error("Failed to create tokens", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Body: "Failed to create tokens",
+			body: "Failed to create tokens",
 		}
 	}
 
@@ -503,13 +503,13 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		slog.Error("Failed to set tokens cookie", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Body: "Failed to set tokens cookie",
+			body: "Failed to set tokens cookie",
 		}
 	}
 
 	return &Response{
 		Code: http.StatusOK,
-		Body: "",
+		body: "",
 	}
 }
 
@@ -522,7 +522,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 		slog.Error("No Access Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Missing access token cookie",
+			body: "Missing access token cookie",
 		}
 	}
 	tokenStr := cookie.Value
@@ -532,7 +532,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Invalid access token",
+			body: "Invalid access token",
 		}
 	}
 
@@ -541,7 +541,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	if err != nil {
 		slog.Error("Failed to get login ID from claims", "err", err)
 		return &Response{
-			Body: "Failed to get login ID from claims",
+			body: "Failed to get login ID from claims",
 			Code: http.StatusBadRequest,
 		}
 	}
@@ -550,7 +550,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	if err != nil {
 		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
-			Body: "Failed to parse login ID: " + err.Error(),
+			body: "Failed to parse login ID: " + err.Error(),
 			Code: http.StatusBadRequest,
 		}
 	}
@@ -558,7 +558,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	if err != nil {
 		slog.Error("Failed to get users by login ID", "err", err)
 		return &Response{
-			Body: "Failed to get users by login ID",
+			body: "Failed to get users by login ID",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -574,7 +574,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	if err := render.DecodeJSON(r.Body, &data); err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Body: "Unable to parse request body",
+			body: "Unable to parse request body",
 		}
 	}
 
@@ -584,7 +584,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		slog.Error("No Temp Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Missing temp token cookie",
+			body: "Missing temp token cookie",
 		}
 	}
 	tokenStr := cookie.Value
@@ -594,7 +594,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Invalid temp token",
+			body: "Invalid temp token",
 		}
 	}
 
@@ -604,7 +604,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			Body: "Invalid token: " + err.Error(),
+			body: "Invalid token: " + err.Error(),
 		}
 	}
 
@@ -613,7 +613,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Body: "Invalid login_id format in token",
+			body: "Invalid login_id format in token",
 		}
 	}
 
@@ -623,7 +623,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		slog.Error("Failed to get users", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Body: "Failed to get users",
+			body: "Failed to get users",
 		}
 	}
 
@@ -641,7 +641,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	if !found {
 		return &Response{
 			Code: http.StatusForbidden,
-			Body: "Not authorized to switch to this user",
+			body: "Not authorized to switch to this user",
 		}
 	}
 
@@ -652,7 +652,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		slog.Error("Failed to create tokens", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Body: "Failed to create tokens",
+			body: "Failed to create tokens",
 		}
 	}
 
@@ -661,7 +661,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		slog.Error("Failed to set tokens in cookies", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Body: "Failed to set tokens in cookies",
+			body: "Failed to set tokens in cookies",
 		}
 	}
 
@@ -675,7 +675,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	if err := render.DecodeJSON(r.Body, &data); err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Body: "Unable to parse request body",
+			body: "Unable to parse request body",
 		}
 	}
 
@@ -687,7 +687,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 		return &Response{
-			Body: "Username/Password is wrong",
+			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
 		}
 	}
@@ -695,7 +695,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after login")
 		return &Response{
-			Body: "Username/Password is wrong",
+			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
 		}
 	}
@@ -708,7 +708,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	if err != nil {
 		slog.Error("Failed to create tokens", "user", tokenUser, "err", err)
 		return &Response{
-			Body: "Failed to create tokens",
+			body: "Failed to create tokens",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -731,7 +731,7 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Body: "unable to parse body",
+			body: "unable to parse body",
 		}
 	}
 
@@ -747,13 +747,13 @@ func (h Handle) PostRegister(w http.ResponseWriter, r *http.Request) *Response {
 	if err != nil {
 		slog.Error("Failed to register user", "email", registerParam.Email, "err", err)
 		return &Response{
-			Body: "Failed to register user",
+			body: "Failed to register user",
 			Code: http.StatusInternalServerError,
 		}
 	}
 	return &Response{
 		Code: http.StatusOK,
-		Body: "User registered successfully",
+		body: "User registered successfully",
 	}
 }
 
@@ -765,7 +765,7 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			Body: "unable to parse body",
+			body: "unable to parse body",
 		}
 	}
 
@@ -774,14 +774,14 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 	if err != nil {
 		slog.Error("Failed to verify user", "email", email, "err", err)
 		return &Response{
-			Body: "Failed to verify user",
+			body: "Failed to verify user",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
 	return &Response{
 		Code: http.StatusOK,
-		Body: "User verified successfully",
+		body: "User verified successfully",
 	}
 }
 
@@ -792,7 +792,7 @@ func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 		slog.Error("Failed to generate logout token", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Body: "Failed to generate logout token",
+			body: "Failed to generate logout token",
 		}
 	}
 	err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{token})
@@ -800,7 +800,7 @@ func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 		slog.Error("Failed to set logout token cookie", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Body: "Failed to set logout token cookie",
+			body: "Failed to set logout token cookie",
 		}
 	}
 	err = h.tokenCookieService.ClearCookies(w)
@@ -808,7 +808,7 @@ func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 		slog.Error("Failed to clear cookies", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			Body: "Failed to clear cookies",
+			body: "Failed to clear cookies",
 		}
 	}
 
@@ -833,7 +833,7 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 			// Return 200 even if user not found to prevent email enumeration
 			slog.Info("Username not found for email", "email", body.Email)
 			return &Response{
-				Body: map[string]string{
+				body: map[string]string{
 					"message": "If an account exists with that email, we will send the username to it.",
 				},
 				Code:        200,
@@ -847,7 +847,7 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 			slog.Error("Failed to send username email", "err", err, "email", body.Email)
 			// Still return 200 to prevent email enumeration
 			return &Response{
-				Body: map[string]string{
+				body: map[string]string{
 					"message": "If an account exists with that email, we will send the username to it.",
 				},
 				Code:        200,
@@ -856,7 +856,7 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 		}
 
 		return &Response{
-			Body: map[string]string{
+			body: map[string]string{
 				"message": "If an account exists with that email, we will send the username to it.",
 			},
 			Code:        200,
@@ -869,36 +869,237 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 	return nil
 }
 
-// Post2faVerify handles verifying 2FA code during login
-// (POST /2fa/verify)
-func (h Handle) Post2faVerify(w http.ResponseWriter, r *http.Request) *Response {
-	var req TwoFactorVerify
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.Error("Failed to decode request body", "err", err)
+// Initiate sending 2fa code
+// (POST /2fa/send)
+func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
+	var resp SuccessResponse
+
+	data := &Post2faSendJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
 		return &Response{
-			Body: "Invalid request body",
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Get token from cookie instead of Authorization header
+	cookie, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	if err != nil {
+		slog.Error("No Temp Token Cookie", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Missing temp token cookie",
+		}
+	}
+	tokenStr := cookie.Value
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid temp token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
 			Code: http.StatusBadRequest,
 		}
 	}
 
-	// TODO: Implement 2FA verification logic here
-	// This should:
-	// 1. Validate the login token
-	// 2. Verify the 2FA code
-	// 3. Complete the login process if verification succeeds
-
-	return &Response{
-		Body: Login{
-			Message: "2FA verification successful",
-			Status:  "success",
-			User: User{
-				Email: "user@example.com",
-				Name:  "User Name",
-				ID:    "user-uuid",
-			},
-		},
-		Code: http.StatusOK,
+	userId, err := uuid.Parse(data.UserID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid user_id format",
+		}
 	}
+
+	err = h.twoFactorService.SendTwoFaNotification(r.Context(), loginId, userId, data.TwofaType, data.DeliveryOption)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to init 2fa: " + err.Error(),
+		}
+	}
+	resp.Result = "success"
+
+	return Post2faSendJSON200Response(resp)
+}
+
+// Authenticate 2fa passcode
+// (POST /2fa/validate)
+func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Response {
+	var resp SuccessResponse
+
+	// Get token from cookie instead of Authorization header
+	cookie, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	if err != nil {
+		slog.Error("No Temp Token Cookie", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Missing temp token cookie",
+		}
+	}
+	tokenStr := cookie.Value
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid temp token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	data := &Post2faValidateJSONRequestBody{}
+	err = render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to validate 2fa: " + err.Error(),
+		}
+	}
+
+	if !valid {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "2fa validation failed",
+		}
+	}
+
+	// 2FA validation successful, create access and refresh tokens
+	// Extract user data from claims to use for token creation
+	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to get user roles: " + err.Error(),
+		}
+	}
+
+	if len(idmUsers) == 0 {
+		slog.Error("No user found after 2fa")
+		return &Response{
+			body: "2fa validation failed",
+			Code: http.StatusNotFound,
+		}
+	}
+
+	if len(idmUsers) > 1 {
+		users := make([]User, len(idmUsers))
+		for i, mu := range idmUsers {
+			email, _ := mu.ExtraClaims["email"].(string)
+			name := mu.DisplayName
+			id := mu.UserId
+
+			users[i] = User{
+				ID:    id,
+				Email: email,
+				Name:  name,
+			}
+		}
+
+		rootModifications, extraClaims := h.userMapper.ToTokenClaims(idmUsers[0])
+
+		// Create temp token with the custom claims for user selection
+		// Use the login ID as the subject to ensure we have a valid ID in the token
+		tempToken, err := h.tokenService.GenerateTempToken(loginIdStr, rootModifications, extraClaims)
+		if err != nil {
+			slog.Error("Failed to create temp token", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to create temp token",
+			}
+		}
+
+		err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to set temp token cookie",
+			}
+		}
+
+		// Return 202 response with users to select from
+		return Post2faValidateJSON202Response(SelectUserRequiredResponse{
+			Status:    "select_user_required",
+			Message:   "Multiple users found, please select one",
+			TempToken: tempToken.Token,
+			Users:     users,
+		})
+	}
+
+	// Single user case - proceed with normal flow
+
+	user := idmUsers[0]
+
+	rootModifications, extraClaims := h.userMapper.ToTokenClaims(user)
+
+	tokens, err := h.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create access token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create access token",
+		}
+	}
+
+	err = h.tokenCookieService.SetTokensCookie(w, tokens)
+	if err != nil {
+		slog.Error("Failed to set tokens cookie", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to set tokens cookie",
+		}
+	}
+
+	// Include tokens in response
+	resp.Result = "success"
+	return Post2faValidateJSON200Response(resp)
 }
 
 // GetPasswordResetPolicy returns the current password policy
@@ -907,7 +1108,7 @@ func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request, p
 	_, err := h.loginService.GetPasswordManager().ValidateResetToken(r.Context(), params.Token)
 	if err != nil {
 		return &Response{
-			Body: "Invalid or expired reset token",
+			body: "Invalid or expired reset token",
 			Code: http.StatusBadRequest,
 		}
 	}
