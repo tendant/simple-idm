@@ -872,9 +872,74 @@ func (h Handle) PostUsernameFind(w http.ResponseWriter, r *http.Request) *Respon
 // Initiate sending 2fa code
 // (POST /2fa/send)
 func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
-	return &Response{
-		Code: http.StatusNotImplemented,
+	var resp SuccessResponse
+
+	data := &Post2faSendJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
 	}
+
+	// Get token from cookie instead of Authorization header
+	cookie, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	if err != nil {
+		slog.Error("No Temp Token Cookie", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Missing temp token cookie",
+		}
+	}
+	tokenStr := cookie.Value
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid temp token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	userId, err := uuid.Parse(data.UserID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid user_id format",
+		}
+	}
+
+	err = h.twoFactorService.SendTwoFaNotification(r.Context(), loginId, userId, data.TwofaType, data.DeliveryOption)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to init 2fa: " + err.Error(),
+		}
+	}
+	resp.Result = "success"
+
+	return Post2faSendJSON200Response(resp)
 }
 
 // Authenticate 2fa passcode
