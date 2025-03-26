@@ -48,6 +48,7 @@ func main() {
 	password := flag.String("pass", "pwd", "SMTP password")
 	from := flag.String("from", "noreply@example.com", "From email address")
 	to := flag.String("to", "test@example.com", "To email address")
+	noTLS := flag.Bool("notls", false, "Disable TLS encryption (not recommended for production)")
 	flag.Parse()
 
 	if *from == "" || *to == "" {
@@ -63,7 +64,7 @@ func main() {
 
 	// Create client options
 	opts := []mail.Option{
-		mail.WithPort(1025),
+		mail.WithPort(*port),
 		// mail.WithTimeout(30), // Set timeout to 30 seconds
 		mail.WithDebugLog(), // Enable debug logging
 		mail.WithLogger(mailLogger),
@@ -71,22 +72,32 @@ func main() {
 
 	// Add authentication if provided
 	if *username != "" && *password != "" {
-		slog.Info("Adding authentication", "user", *username, "pass", *password)
+		slog.Info("Adding authentication", "user", *username)
 		opts = append(opts,
 			mail.WithSMTPAuth(mail.SMTPAuthPlain),
-			mail.WithUsername("noreply@example.com"),
-			mail.WithPassword("pwd"),
+			mail.WithUsername(*username),
+			mail.WithPassword(*password),
 		)
 	}
 
-	// For production SMTP servers (not local testing)
-	opts = append(opts,
-		mail.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}),
-		mail.WithTLSPolicy(mail.NoTLS))
+	// Configure TLS based on the flag
+	if *noTLS {
+		slog.Info("TLS disabled (not recommended for production)")
+		opts = append(opts,
+			mail.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}),
+			mail.WithTLSPolicy(mail.NoTLS))
+	} else {
+		slog.Info("Using TLS for SMTP connection")
+		opts = append(opts,
+			mail.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}),
+			mail.WithTLSPolicy(mail.TLSOpportunistic))
+	}
 
 	// Create new mail client
-	client, err := mail.NewClient("localhost", opts...)
-	client.SetSSL(false)
+	client, err := mail.NewClient(*host, opts...)
+	if *noTLS {
+		client.SetSSL(false)
+	}
 	if err != nil {
 		slog.Error("Failed to create mail client", "err", err, "host", *host)
 		return
