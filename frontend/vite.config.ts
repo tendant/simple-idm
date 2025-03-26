@@ -15,7 +15,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/auth': {
-        target: 'http://localhost:4001',
+        target: 'http://localhost:4000',
         changeOrigin: true,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
@@ -30,23 +30,23 @@ export default defineConfig({
         },
       },
       '/api/': {
-        target: 'http://localhost:4001',
+        target: 'http://localhost:4000',
         changeOrigin: true,
       },
       '/oidc': {
-        target: 'http://localhost:4002',
+        target: 'http://localhost:4001',
         changeOrigin: true,
       },
       '/oauth2': {
-        target: 'http://localhost:4002',
+        target: 'http://localhost:4001',
         changeOrigin: true,
       },
       '/idm': {
-        target: 'http://localhost:4001',
+        target: 'http://localhost:4000',
         changeOrigin: true,
       },
       '/profile': {
-        target: 'http://localhost:4001',
+        target: 'http://localhost:4000',
         changeOrigin: true,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
