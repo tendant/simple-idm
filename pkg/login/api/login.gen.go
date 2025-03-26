@@ -112,6 +112,11 @@ type SelectUserRequiredResponse struct {
 	Users     []User `json:"users,omitempty"`
 }
 
+// SuccessResponse defines model for SuccessResponse.
+type SuccessResponse struct {
+	Result string `json:"result,omitempty"`
+}
+
 // Tokens defines model for Tokens.
 type Tokens struct {
 	AccessToken  string `json:"accessToken"`
@@ -134,15 +139,6 @@ type TwoFactorRequiredResponse struct {
 	TwoFactorMethods []TwoFactorMethod `json:"two_factor_methods,omitempty"`
 }
 
-// TwoFactorVerify defines model for TwoFactorVerify.
-type TwoFactorVerify struct {
-	// TOTP code
-	Code string `json:"code"`
-
-	// Token from initial login response
-	LoginToken string `json:"loginToken"`
-}
-
 // User defines model for User.
 type User struct {
 	Email string `json:"email"`
@@ -151,8 +147,18 @@ type User struct {
 	Role  string `json:"role"`
 }
 
-// Post2faVerifyJSONBody defines parameters for Post2faVerify.
-type Post2faVerifyJSONBody TwoFactorVerify
+// Post2faSendJSONBody defines parameters for Post2faSend.
+type Post2faSendJSONBody struct {
+	DeliveryOption string `json:"delivery_option"`
+	TwofaType      string `json:"twofa_type"`
+	UserID         string `json:"user_id"`
+}
+
+// Post2faValidateJSONBody defines parameters for Post2faValidate.
+type Post2faValidateJSONBody struct {
+	Passcode  string `json:"passcode"`
+	TwofaType string `json:"twofa_type"`
+}
 
 // PostEmailVerifyJSONBody defines parameters for PostEmailVerify.
 type PostEmailVerifyJSONBody EmailVerifyRequest
@@ -195,11 +201,19 @@ type PostUserSwitchJSONBody struct {
 // PostUsernameFindJSONBody defines parameters for PostUsernameFind.
 type PostUsernameFindJSONBody FindUsernameRequest
 
-// Post2faVerifyJSONRequestBody defines body for Post2faVerify for application/json ContentType.
-type Post2faVerifyJSONRequestBody Post2faVerifyJSONBody
+// Post2faSendJSONRequestBody defines body for Post2faSend for application/json ContentType.
+type Post2faSendJSONRequestBody Post2faSendJSONBody
 
 // Bind implements render.Binder.
-func (Post2faVerifyJSONRequestBody) Bind(*http.Request) error {
+func (Post2faSendJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faValidateJSONRequestBody defines body for Post2faValidate for application/json ContentType.
+type Post2faValidateJSONRequestBody Post2faValidateJSONBody
+
+// Bind implements render.Binder.
+func (Post2faValidateJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -271,7 +285,7 @@ func (PostUsernameFindJSONRequestBody) Bind(*http.Request) error {
 // A Response object may be instantiated via functions for specific operation responses.
 // It may also be instantiated directly, for the purpose of responding with a single status code.
 type Response struct {
-	Body        interface{}
+	body        interface{}
 	Code        int
 	contentType string
 }
@@ -299,21 +313,41 @@ func (resp *Response) ContentType(contentType string) *Response {
 // MarshalJSON implements the json.Marshaler interface.
 // This is used to only marshal the body of the response.
 func (resp *Response) MarshalJSON() ([]byte, error) {
-	return json.Marshal(resp.Body)
+	return json.Marshal(resp.body)
 }
 
 // MarshalXML implements the xml.Marshaler interface.
 // This is used to only marshal the body of the response.
 func (resp *Response) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	return e.Encode(resp.Body)
+	return e.Encode(resp.body)
 }
 
-// Post2faVerifyJSON200Response is a constructor method for a Post2faVerify response.
+// Post2faSendJSON200Response is a constructor method for a Post2faSend response.
 // A *Response is returned with the configured status code and content type from the spec.
-func Post2faVerifyJSON200Response(body Login) *Response {
+func Post2faSendJSON200Response(body SuccessResponse) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// Post2faValidateJSON200Response is a constructor method for a Post2faValidate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faValidateJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// Post2faValidateJSON202Response is a constructor method for a Post2faValidate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faValidateJSON202Response(body SelectUserRequiredResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        202,
 		contentType: "application/json",
 	}
 }
@@ -324,7 +358,7 @@ func PostEmailVerifyJSON200Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -334,7 +368,7 @@ func PostEmailVerifyJSON200Response(body struct {
 // A *Response is returned with the configured status code and content type from the spec.
 func PostLoginJSON200Response(body Login) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -344,7 +378,7 @@ func PostLoginJSON200Response(body Login) *Response {
 // A *Response is returned with the configured status code and content type from the spec.
 func PostLoginJSON202Response(body interface{}) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        202,
 		contentType: "application/json",
 	}
@@ -356,7 +390,7 @@ func PostLoginJSON400Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        400,
 		contentType: "application/json",
 	}
@@ -368,7 +402,7 @@ func PostLogoutJSON200Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -384,7 +418,7 @@ func PostMobileLoginJSON200Response(body struct {
 	RefreshToken string `json:"refresh_token"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -396,7 +430,7 @@ func PostPasswordResetJSON200Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -408,7 +442,7 @@ func PostPasswordResetInitJSON200Response(body struct {
 	Code *string `json:"code,omitempty"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -418,7 +452,7 @@ func PostPasswordResetInitJSON200Response(body struct {
 // A *Response is returned with the configured status code and content type from the spec.
 func GetPasswordResetPolicyJSON200Response(body PasswordPolicyResponse) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -430,7 +464,7 @@ func PostRegisterJSON201Response(body struct {
 	Email *openapi_types.Email `json:"email,omitempty"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        201,
 		contentType: "application/json",
 	}
@@ -440,7 +474,7 @@ func PostRegisterJSON201Response(body struct {
 // A *Response is returned with the configured status code and content type from the spec.
 func PostTokenRefreshJSON200Response(body Tokens) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -450,7 +484,7 @@ func PostTokenRefreshJSON200Response(body Tokens) *Response {
 // A *Response is returned with the configured status code and content type from the spec.
 func PostUserSwitchJSON200Response(body Login) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -462,7 +496,7 @@ func PostUserSwitchJSON400Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        400,
 		contentType: "application/json",
 	}
@@ -474,7 +508,7 @@ func PostUserSwitchJSON403Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        403,
 		contentType: "application/json",
 	}
@@ -487,7 +521,7 @@ func PostUsernameFindJSON200Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -497,7 +531,7 @@ func PostUsernameFindJSON200Response(body struct {
 // A *Response is returned with the configured status code and content type from the spec.
 func FindUsersWithLoginJSON200Response(body []User) *Response {
 	return &Response{
-		Body:        body,
+		body:        body,
 		Code:        200,
 		contentType: "application/json",
 	}
@@ -505,9 +539,12 @@ func FindUsersWithLoginJSON200Response(body []User) *Response {
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Verify 2FA code during login
-	// (POST /2fa/verify)
-	Post2faVerify(w http.ResponseWriter, r *http.Request) *Response
+	// Initiate sending 2fa code
+	// (POST /2fa/send)
+	Post2faSend(w http.ResponseWriter, r *http.Request) *Response
+	// Authenticate 2fa passcode
+	// (POST /2fa/validate)
+	Post2faValidate(w http.ResponseWriter, r *http.Request) *Response
 	// Verify email address
 	// (POST /email/verify)
 	PostEmailVerify(w http.ResponseWriter, r *http.Request) *Response
@@ -552,14 +589,32 @@ type ServerInterfaceWrapper struct {
 	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
 }
 
-// Post2faVerify operation middleware
-func (siw *ServerInterfaceWrapper) Post2faVerify(w http.ResponseWriter, r *http.Request) {
+// Post2faSend operation middleware
+func (siw *ServerInterfaceWrapper) Post2faSend(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.Post2faVerify(w, r)
+		resp := siw.Handler.Post2faSend(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post2faValidate operation middleware
+func (siw *ServerInterfaceWrapper) Post2faValidate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faValidate(w, r)
+		if resp != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -577,7 +632,7 @@ func (siw *ServerInterfaceWrapper) PostEmailVerify(w http.ResponseWriter, r *htt
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostEmailVerify(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -595,7 +650,7 @@ func (siw *ServerInterfaceWrapper) PostLogin(w http.ResponseWriter, r *http.Requ
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostLogin(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -613,7 +668,7 @@ func (siw *ServerInterfaceWrapper) PostLogout(w http.ResponseWriter, r *http.Req
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostLogout(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -631,7 +686,7 @@ func (siw *ServerInterfaceWrapper) PostMobileLogin(w http.ResponseWriter, r *htt
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostMobileLogin(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -649,7 +704,7 @@ func (siw *ServerInterfaceWrapper) PostPasswordReset(w http.ResponseWriter, r *h
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostPasswordReset(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -667,7 +722,7 @@ func (siw *ServerInterfaceWrapper) PostPasswordResetInit(w http.ResponseWriter, 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostPasswordResetInit(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -696,7 +751,7 @@ func (siw *ServerInterfaceWrapper) GetPasswordResetPolicy(w http.ResponseWriter,
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.GetPasswordResetPolicy(w, r, params)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -714,7 +769,7 @@ func (siw *ServerInterfaceWrapper) PostRegister(w http.ResponseWriter, r *http.R
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostRegister(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -732,7 +787,7 @@ func (siw *ServerInterfaceWrapper) PostTokenRefresh(w http.ResponseWriter, r *ht
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostTokenRefresh(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -750,7 +805,7 @@ func (siw *ServerInterfaceWrapper) PostUserSwitch(w http.ResponseWriter, r *http
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostUserSwitch(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -768,7 +823,7 @@ func (siw *ServerInterfaceWrapper) PostUsernameFind(w http.ResponseWriter, r *ht
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostUsernameFind(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -786,7 +841,7 @@ func (siw *ServerInterfaceWrapper) FindUsersWithLogin(w http.ResponseWriter, r *
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.FindUsersWithLogin(w, r)
 		if resp != nil {
-			if resp.Body != nil {
+			if resp.body != nil {
 				render.Render(w, r, resp)
 			} else {
 				w.WriteHeader(resp.Code)
@@ -912,7 +967,8 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	}
 
 	r.Route(options.BaseURL, func(r chi.Router) {
-		r.Post("/2fa/verify", wrapper.Post2faVerify)
+		r.Post("/2fa/send", wrapper.Post2faSend)
+		r.Post("/2fa/validate", wrapper.Post2faValidate)
 		r.Post("/email/verify", wrapper.PostEmailVerify)
 		r.Post("/login", wrapper.PostLogin)
 		r.Post("/logout", wrapper.PostLogout)
@@ -950,42 +1006,43 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"9igAAA==",
+	"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",
+	"jBQ7PxxMaoX5oon99fq/AQAA//8yqp/jwSsAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
