@@ -18,13 +18,14 @@ RUN go mod download
 
 COPY . .
 
-RUN make
+# Build the login binary directly in the app directory
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 make all
 
 FROM public.ecr.aws/docker/library/golang:1.23-alpine
-
 
 WORKDIR /app
 
 COPY --from=build --chmod=0755 /app/dist/ /app/
 
-# CMD ["/app/main"]
+# Set the default command
+CMD ["/app/cmd/login"]

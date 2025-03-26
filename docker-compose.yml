@@ -45,9 +45,7 @@ services:
     depends_on:
       - db
       - mailpit
-    command: ["/app/dist/cmd/login/login"]  # Use the login binary
-    volumes:
-      - .:/app  # Mount source code for development
+    command: ["/app/cmd/login"]  # Use the login binary
 
   db:
     image: postgres:14-alpine
