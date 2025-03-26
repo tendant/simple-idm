@@ -80,15 +80,12 @@ func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.
 		}
 	}
 
-	return &Response{
-		body: SelectUserRequiredResponse{
-			Status:    "select_user_required",
-			Message:   "Multiple users found, please select one",
-			TempToken: tempTokenStr,
-			Users:     apiUsers,
-		},
-		Code: http.StatusAccepted,
-	}
+	return PostLoginJSON202Response(SelectUserRequiredResponse{
+		Status:    "select_user_required",
+		Message:   "Multiple users found, please select one",
+		TempToken: tempTokenStr,
+		Users:     apiUsers,
+	})
 }
 
 // PrepareUserListResponse prepares a response for a list of users
@@ -297,7 +294,10 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			}
 		}
 		// Prepare user selection response
-		return h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
+
+		respBody := h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
+
+		return respBody
 	}
 
 	// Create JWT tokens using the JwtService
