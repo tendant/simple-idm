@@ -2,13 +2,16 @@ SOURCES := $(shell find . -mindepth 2 -name "main.go")
 DESTS := $(patsubst ./%/main.go,dist/%,$(SOURCES))
 ALL := dist/main $(DESTS)
 
+GOARCH ?= amd64
+GOOS ?= linux
+
 all: $(ALL)
 	@echo $@: Building Targets $^
 
 dist/main:
 ifneq (,$(wildcard main.go))
 	$(echo Bulding main.go)
-	go build -buildvcs -o $@ main.go
+	GOARCH=$(GOARCH) GOOS=$(GOOS) go build -buildvcs -o $@ main.go
 endif
 
 #dist/main:
@@ -17,7 +20,7 @@ endif
 
 dist/%: %/main.go
 	@echo $@: Building $^ to $@
-	go build -buildvcs -o $@ $^
+	GOARCH=$(GOARCH) GOOS=$(GOOS) go build -buildvcs -o $@ $^
 
 dep:
 	go mod tidy
