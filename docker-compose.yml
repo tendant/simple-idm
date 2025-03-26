@@ -57,8 +57,38 @@ services:
       - POSTGRES_DB=idm_db
     ports:
       - "5432:5432"  # Map to the provided port
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h db -p 5432 -U idm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  migrate:
+    build: ./migrations
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://idm:pwd@db:5432/idm_db?sslmode=disable
+    volumes:
+      - ./migrations/idm:/migrations/idm
+    command: /go/bin/goose -dir /migrations/idm up
+
+  seed:
+    image: postgres:16
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./migrations/seed.sql:/seed.sql
+    entrypoint: ["sh", "-c", "psql -U idm -d idm_db -h db -f /seed.sql"]
+    environment:
+      PGPASSWORD: pwd
 
   mailpit:
     image: axllent/mailpit:latest
