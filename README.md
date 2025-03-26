@@ -7,7 +7,7 @@ A simple Identity Management system with user authentication and authorization c
 ### Quick Start with Docker Compose
 
 ```bash
-# Start the application
+# Start the application server
 docker-compose up --build 
 ```
 Clean up - Remove all volumes created by your Compose project
@@ -15,18 +15,16 @@ Clean up - Remove all volumes created by your Compose project
 ```
 docker-compose down -v
 ```
-
-
-
-### Running the Application
+### Running the Application Frontend
 
 ```bash
-# Build and run the application
-make build
-make run
+cd frontend
+npm run dev
 ```
 
-The application will start on port 4000 by default.
+The application will start on port 3000 by default.
+
+http://localhost:3000
 
 ## Roadmap
 
