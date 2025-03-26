@@ -20,24 +20,9 @@ import (
 	"github.com/go-chi/render"
 )
 
-// SelectUserRequiredResponse defines model for SelectUserRequiredResponse.
-type SelectUserRequiredResponse struct {
-	Message   string `json:"message,omitempty"`
-	Status    string `json:"status,omitempty"`
-	TempToken string `json:"temp_token,omitempty"`
-	Users     []User `json:"users,omitempty"`
-}
-
 // SuccessResponse defines model for SuccessResponse.
 type SuccessResponse struct {
 	Result string `json:"result,omitempty"`
-}
-
-// User defines model for User.
-type User struct {
-	Email string `json:"email"`
-	ID    string `json:"id"`
-	Name  string `json:"name"`
 }
 
 // Post2faCreateJSONBody defines parameters for Post2faCreate.
@@ -77,19 +62,6 @@ type Post2faEnableJSONBody struct {
 // Post2faEnableJSONBodyTwofaType defines parameters for Post2faEnable.
 type Post2faEnableJSONBodyTwofaType string
 
-// Post2faSendJSONBody defines parameters for Post2faSend.
-type Post2faSendJSONBody struct {
-	DeliveryOption string `json:"delivery_option"`
-	TwofaType      string `json:"twofa_type"`
-	UserID         string `json:"user_id"`
-}
-
-// Post2faValidateJSONBody defines parameters for Post2faValidate.
-type Post2faValidateJSONBody struct {
-	Passcode  string `json:"passcode"`
-	TwofaType string `json:"twofa_type"`
-}
-
 // Post2faCreateJSONRequestBody defines body for Post2faCreate for application/json ContentType.
 type Post2faCreateJSONRequestBody Post2faCreateJSONBody
 
@@ -119,22 +91,6 @@ type Post2faEnableJSONRequestBody Post2faEnableJSONBody
 
 // Bind implements render.Binder.
 func (Post2faEnableJSONRequestBody) Bind(*http.Request) error {
-	return nil
-}
-
-// Post2faSendJSONRequestBody defines body for Post2faSend for application/json ContentType.
-type Post2faSendJSONRequestBody Post2faSendJSONBody
-
-// Bind implements render.Binder.
-func (Post2faSendJSONRequestBody) Bind(*http.Request) error {
-	return nil
-}
-
-// Post2faValidateJSONRequestBody defines body for Post2faValidate for application/json ContentType.
-type Post2faValidateJSONRequestBody Post2faValidateJSONBody
-
-// Bind implements render.Binder.
-func (Post2faValidateJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -219,36 +175,6 @@ func Post2faEnableJSON200Response(body SuccessResponse) *Response {
 	}
 }
 
-// Post2faSendJSON200Response is a constructor method for a Post2faSend response.
-// A *Response is returned with the configured status code and content type from the spec.
-func Post2faSendJSON200Response(body SuccessResponse) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// Post2faValidateJSON200Response is a constructor method for a Post2faValidate response.
-// A *Response is returned with the configured status code and content type from the spec.
-func Post2faValidateJSON200Response(body SuccessResponse) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// Post2faValidateJSON202Response is a constructor method for a Post2faValidate response.
-// A *Response is returned with the configured status code and content type from the spec.
-func Post2faValidateJSON202Response(body SelectUserRequiredResponse) *Response {
-	return &Response{
-		body:        body,
-		Code:        202,
-		contentType: "application/json",
-	}
-}
-
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Create a new 2FA method
@@ -263,12 +189,6 @@ type ServerInterface interface {
 	// Enable an existing 2FA method
 	// (POST /enable)
 	Post2faEnable(w http.ResponseWriter, r *http.Request) *Response
-	// Initiate sending 2fa code
-	// (POST /send)
-	Post2faSend(w http.ResponseWriter, r *http.Request) *Response
-	// Authenticate 2fa passcode
-	// (POST /validate)
-	Post2faValidate(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -337,42 +257,6 @@ func (siw *ServerInterfaceWrapper) Post2faEnable(w http.ResponseWriter, r *http.
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Post2faEnable(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
-// Post2faSend operation middleware
-func (siw *ServerInterfaceWrapper) Post2faSend(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.Post2faSend(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
-// Post2faValidate operation middleware
-func (siw *ServerInterfaceWrapper) Post2faValidate(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.Post2faValidate(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -504,8 +388,6 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/delete", wrapper.Delete2fa)
 		r.Post("/disable", wrapper.Post2faDisable)
 		r.Post("/enable", wrapper.Post2faEnable)
-		r.Post("/send", wrapper.Post2faSend)
-		r.Post("/validate", wrapper.Post2faValidate)
 	})
 	return r
 }
@@ -531,20 +413,16 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+yYTW/bRhCG/8pi2iMdKWp6KG9u0wI6FAhitJeiEMbkUN50v7ozVCwY+u/FLhnTMinZ",
-	"RgU4DnwTuPPOxzuP1hZvoPI2eEdOGMob4OqKLOaPF2Sokj+Y4kf6t9WR6o/EwTumdBqiDxRFU461xIzr",
-	"fEDXaIMhKPsEqmWKKvYpoADZhnTKErVbw64AFpSW97WctaukXR3TCtmwEv8PuaQfHSd9zqyFbP7wfaQG",
-	"SvhuNsw964eepVlz0i4Nxohb2A0P/OUnqgQKuD5b+zMfRHuH5myDpiUoJba0K+CirSpiPuxVJG6NTLT7",
-	"xEK521F2sqjNpBe6nnzs0NJ0M7e+l38lcR9a9CX+vt/tLmm0a3zOpiXvcWkDRfYOhdTv6HBNlpyo8w9L",
-	"KGBDkbV3UMLbN/M389SND+QwaCjhh/yogIBylSeb5WE9Z+vSyJhsWdZQwgfPsmjwl0goqcPUObH87Ott",
-	"Cq68E3JZhyEYXWXl7BN7NzA/ttL4tXarzrbGR4sCJbStngbxs29w1T2+AXKtTbZ1VhXAlqEAbOWKnKT6",
-	"Pq4whDsmHvD9toe9CtPeD7qekNgzmKdZzN8+yYtjX5T7jOfyNXEVdWYVSlj8dq4syZWvVZXXUivuVE1r",
-	"zDZZ9m4+T4X2dUu3QaNr1a9QBYxoSdLXOEt+GkvulEITCeutomvNkhU/ThcRig6NYoobiopi9DF7z621",
-	"GLdQQgeTQuXosxpK5KhZTYaEDgP5Pp8vGnxOGL8dcufPRG635hOR++4ouc6Lanzr6v8FbcedwjGwmvHS",
-	"0INX6Ps+7vUO/cpI7PbyklDsOlbouttYu/WISnKPgvJX98rkV8hkt70XhGTH0VEimVz9II8XKehUNNZk",
-	"9IbiduX7UW4egnDyV87jeL5H4Z28xaiRIe9jsDz+W+VZiW1QaadFT/wTuofHsg9SCYIMR4Oq8jV1aGR+",
-	"UR6+rv78EngqRAIy5z6ezMa9fd8menG3ToPqi//jC2cxX5yumcNvPQ7chkM36rIVxVNvPfZBOx/+XlCG",
-	"7HYvu91u918AAAD//+V8Y4qTEQAA",
+	"H4sIAAAAAAAC/+yUT08bMRDFv4o17XEhIaWH7o2WVsqhEmqPFULD7mxi5B2749lAhPa7V7ahlAT6R60E",
+	"VNys2Xmet/N+8iU0vg+eiTVCfQmxWVKP+fh5aBqK8RPF4DlSKgXxgUQt5QahODhNJ10HghqiiuUFjGN1",
+	"XfGnZ9QoVHCxs/A7Pqj1jG5nhW4gqFUGGlO35c7ne6y6JJv3gSR6RiXzERkX1BOrOTiaQwUrkmg9Qw17",
+	"u9PdKYwV+ECMwUINr3KpgoC6zCYn2beP2Wdyj8nDvIUajnzUWYfvhFAJKhD6OlDUt75dp+bGsxJnHYbg",
+	"bJOVk7OYZl9vansrzi8sn9g2nTsvPSrUMAy2hWpzTxXoue/wpJQvgXjoof4C1KN1UEHsI1SAgy6JNc33",
+	"coIhwHF1x8aTeyvUpgu+e7g14XgzlvG2LseRCiXw/Dez6d4f7eKlUAc1vJjcYDW5YmqyCVQe31JsxGYw",
+	"oIbZhwPTky59a5ocS2tiUXWDc+u0sv3pNA26rZvzCp1tzVWEJqBgT0oSi+TNtuSHUeiEsF0burBRs+L1",
+	"3UOUhNGZSLIiMSTiJe8+Dn2PsoYaCkwGDdO5uRmRuyYtOVK6H8jD/H3W4UPC+P+QO30gckvM/4jc/Z+S",
+	"y15N5wdu/wrawp3BbWBtxFNHv3xCD6/6nt/QR0ZiyeUpoVgcG+TyGltebFFJ/FtQvudnJh8hkyW9J4Rk",
+	"4eh+IsfxWwAAAP//EcL1j0ULAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
