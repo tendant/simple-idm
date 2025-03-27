@@ -190,17 +190,8 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  access_token:
-                    type: string
-                    description: JWT access token
-                  refresh_token:
-                    type: string
-                    description: JWT refresh token
-                required:
-                  - access_token
-                  - refresh_token
+                oneOf:
+                  - $ref: "#/components/schemas/LoginResponse"
   /mobile/2fa/send:
     post:
       summary: Initiate sending 2fa code
@@ -692,6 +683,17 @@ components:
       properties:
         result:
           type: string
+    LoginResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+      required:
+        - access_token
+        - refresh_token
   securitySchemes:
     BearerAuth:
       type: http
