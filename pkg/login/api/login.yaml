@@ -201,6 +201,92 @@ paths:
                 required:
                   - access_token
                   - refresh_token
+  /mobile/2fa/validate:
+    post:
+      summary: Authenticate 2fa passcode
+      operationId: post_mobile_2fa_validate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                passcode:
+                  type: string
+              required:
+                - passcode
+                - twofa_type
+      responses:
+        "200":
+          description: 2fa validated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: JWT access token
+                  refresh_token:
+                    type: string
+                    description: JWT refresh token
+                required:
+                  - access_token
+                  - refresh_token
+        "202":
+          description: 2FA successful but select user required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelectUserRequiredResponse"
+  /mobile/user/switch:
+    post:
+      operationId: post_mobile_user_switch
+      summary: Switch to a different user when multiple users are available for the same login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  description: ID of the user to switch to
+              required:
+                - user_id
+      responses:
+        "200":
+          description: Successfully switched to the specified user
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Login"
+                  - $ref: "#/components/schemas/SingleUserResponse"
+        "400":
+          description: Invalid request or user not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid user UUID or user not found"
+        "403":
+          description: Not authorized to switch to this user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Not authorized to switch to this user"
   /username/find:
     post:
       summary: Send username to user's email address
