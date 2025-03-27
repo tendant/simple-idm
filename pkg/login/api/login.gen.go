@@ -181,10 +181,37 @@ type PostLoginJSONBody struct {
 	Username string `json:"username"`
 }
 
+// PostMobile2faSendJSONBody defines parameters for PostMobile2faSend.
+type PostMobile2faSendJSONBody struct {
+	DeliveryOption string `json:"delivery_option"`
+	TempToken      string `json:"temp_token"`
+	TwofaType      string `json:"twofa_type"`
+	UserID         string `json:"user_id"`
+}
+
+// PostMobile2faValidateJSONBody defines parameters for PostMobile2faValidate.
+type PostMobile2faValidateJSONBody struct {
+	Passcode  string `json:"passcode"`
+	TempToken string `json:"temp_token"`
+	TwofaType string `json:"twofa_type"`
+}
+
 // PostMobileLoginJSONBody defines parameters for PostMobileLogin.
 type PostMobileLoginJSONBody struct {
 	Password string `json:"password"`
 	Username string `json:"username"`
+}
+
+// PostMobileUserSwitchJSONBody defines parameters for PostMobileUserSwitch.
+type PostMobileUserSwitchJSONBody struct {
+	// JWT access token
+	AccessToken *string `json:"access_token,omitempty"`
+
+	// Temp token
+	TempToken *string `json:"temp_token,omitempty"`
+
+	// ID of the user to switch to
+	UserID string `json:"user_id"`
 }
 
 // PostPasswordResetJSONBody defines parameters for PostPasswordReset.
@@ -243,11 +270,35 @@ func (PostLoginJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
+// PostMobile2faSendJSONRequestBody defines body for PostMobile2faSend for application/json ContentType.
+type PostMobile2faSendJSONRequestBody PostMobile2faSendJSONBody
+
+// Bind implements render.Binder.
+func (PostMobile2faSendJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostMobile2faValidateJSONRequestBody defines body for PostMobile2faValidate for application/json ContentType.
+type PostMobile2faValidateJSONRequestBody PostMobile2faValidateJSONBody
+
+// Bind implements render.Binder.
+func (PostMobile2faValidateJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
 // PostMobileLoginJSONRequestBody defines body for PostMobileLogin for application/json ContentType.
 type PostMobileLoginJSONRequestBody PostMobileLoginJSONBody
 
 // Bind implements render.Binder.
 func (PostMobileLoginJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostMobileUserSwitchJSONRequestBody defines body for PostMobileUserSwitch for application/json ContentType.
+type PostMobileUserSwitchJSONRequestBody PostMobileUserSwitchJSONBody
+
+// Bind implements render.Binder.
+func (PostMobileUserSwitchJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -418,6 +469,42 @@ func PostLogoutJSON200Response(body struct {
 	}
 }
 
+// PostMobile2faSendJSON200Response is a constructor method for a PostMobile2faSend response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostMobile2faSendJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// PostMobile2faValidateJSON200Response is a constructor method for a PostMobile2faValidate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostMobile2faValidateJSON200Response(body struct {
+	// JWT access token
+	AccessToken string `json:"access_token"`
+
+	// JWT refresh token
+	RefreshToken string `json:"refresh_token"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// PostMobile2faValidateJSON202Response is a constructor method for a PostMobile2faValidate response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostMobile2faValidateJSON202Response(body SelectUserRequiredResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        202,
+		contentType: "application/json",
+	}
+}
+
 // PostMobileLoginJSON200Response is a constructor method for a PostMobileLogin response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostMobileLoginJSON200Response(body struct {
@@ -430,6 +517,40 @@ func PostMobileLoginJSON200Response(body struct {
 	return &Response{
 		body:        body,
 		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// PostMobileUserSwitchJSON200Response is a constructor method for a PostMobileUserSwitch response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostMobileUserSwitchJSON200Response(body interface{}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// PostMobileUserSwitchJSON400Response is a constructor method for a PostMobileUserSwitch response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostMobileUserSwitchJSON400Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        400,
+		contentType: "application/json",
+	}
+}
+
+// PostMobileUserSwitchJSON403Response is a constructor method for a PostMobileUserSwitch response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostMobileUserSwitchJSON403Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        403,
 		contentType: "application/json",
 	}
 }
@@ -564,9 +685,18 @@ type ServerInterface interface {
 	// Logout user
 	// (POST /logout)
 	PostLogout(w http.ResponseWriter, r *http.Request) *Response
+	// Initiate sending 2fa code
+	// (POST /mobile/2fa/send)
+	PostMobile2faSend(w http.ResponseWriter, r *http.Request) *Response
+	// Authenticate 2fa passcode
+	// (POST /mobile/2fa/validate)
+	PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *Response
 	// Mobile login endpoint
 	// (POST /mobile/login)
 	PostMobileLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Switch to a different user when multiple users are available for the same login
+	// (POST /mobile/user/switch)
+	PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	// Reset password
 	// (POST /password/reset)
 	PostPasswordReset(w http.ResponseWriter, r *http.Request) *Response
@@ -689,12 +819,66 @@ func (siw *ServerInterfaceWrapper) PostLogout(w http.ResponseWriter, r *http.Req
 	handler(w, r.WithContext(ctx))
 }
 
+// PostMobile2faSend operation middleware
+func (siw *ServerInterfaceWrapper) PostMobile2faSend(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostMobile2faSend(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PostMobile2faValidate operation middleware
+func (siw *ServerInterfaceWrapper) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostMobile2faValidate(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
 // PostMobileLogin operation middleware
 func (siw *ServerInterfaceWrapper) PostMobileLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostMobileLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PostMobileUserSwitch operation middleware
+func (siw *ServerInterfaceWrapper) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostMobileUserSwitch(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -982,7 +1166,10 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/email/verify", wrapper.PostEmailVerify)
 		r.Post("/login", wrapper.PostLogin)
 		r.Post("/logout", wrapper.PostLogout)
+		r.Post("/mobile/2fa/send", wrapper.PostMobile2faSend)
+		r.Post("/mobile/2fa/validate", wrapper.PostMobile2faValidate)
 		r.Post("/mobile/login", wrapper.PostMobileLogin)
+		r.Post("/mobile/user/switch", wrapper.PostMobileUserSwitch)
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset/init", wrapper.PostPasswordResetInit)
 		r.Get("/password/reset/policy", wrapper.GetPasswordResetPolicy)
@@ -1016,44 +1203,46 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"+XcAAAD///pGRIChNwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -54,6 +56,8 @@ type ResponseHandler interface {
 	PrepareUserListResponse(users []mapper.User) *Response
 	// PrepareUserSwitchResponse prepares a response for user switch
 	PrepareUserSwitchResponse(users []mapper.User) *Response
+	// PrepareMobileLoginResponse prepares a response for mobile login with tokens
+	PrepareMobileLoginResponse(tokens []tg.TokenValue) *Response
 }
 
 // DefaultResponseHandler is the default implementation of ResponseHandler
@@ -81,7 +85,7 @@ func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.
 	}
 
 	return PostLoginJSON202Response(SelectUserRequiredResponse{
-		Status:    "select_user_required",
+		Status:    "multiple_users",
 		Message:   "Multiple users found, please select one",
 		TempToken: tempTokenStr,
 		Users:     apiUsers,
@@ -145,6 +149,119 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 	return PostUserSwitchJSON200Response(response)
 }
 
+// PrepareMobileLoginResponse creates a response for mobile login with tokens
+func (h *DefaultResponseHandler) PrepareMobileLoginResponse(tokens []tg.TokenValue) *Response {
+	return PostMobileLoginJSON200Response(struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}{
+		AccessToken:  tokens[0].Token,
+		RefreshToken: tokens[1].Token,
+	})
+}
+
+// check2FAEnabled checks if 2FA is enabled for the given login ID and returns the 2FA methods if enabled
+// Returns: (is2FAEnabled, twoFactorMethods, tempToken, error)
+func (h Handle) check2FAEnabled(ctx context.Context, w http.ResponseWriter, loginID uuid.UUID, idmUsers []mapper.User) (bool, []TwoFactorMethod, *tg.TokenValue, error) {
+	if h.twoFactorService == nil {
+		return false, nil, nil, nil
+	}
+
+	enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
+		return false, nil, nil, fmt.Errorf("failed to find enabled 2FA: %w", err)
+	}
+
+	if len(enabledTwoFAs) == 0 {
+		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginID)
+		return false, nil, nil, nil
+	}
+
+	slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
+
+	// Convert mapped users to API users for token claims
+	apiUsers := make([]User, len(idmUsers))
+	for i, mu := range idmUsers {
+		// Extract email and name from claims
+		email, _ := mu.ExtraClaims["email"].(string)
+		name := mu.DisplayName
+
+		apiUsers[i] = User{
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
+		}
+	}
+
+	// If email 2FA is enabled, get unique emails from users
+	var twoFactorMethods []TwoFactorMethod
+	for _, method := range enabledTwoFAs {
+		curMethod := TwoFactorMethod{
+			Type: method,
+		}
+		switch method {
+		case twofa.TWO_FACTOR_TYPE_EMAIL:
+			options := getUniqueEmailsFromUsers(idmUsers)
+			curMethod.DeliveryOptions = options
+		default:
+			curMethod.DeliveryOptions = []DeliveryOption{}
+		}
+		twoFactorMethods = append(twoFactorMethods, curMethod)
+	}
+
+	extraClaims := map[string]interface{}{
+		"login_id": loginID.String(),
+		"users":    apiUsers,
+	}
+
+	tempToken, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return false, nil, nil, fmt.Errorf("failed to generate temp token: %w", err)
+	}
+
+	// Only set cookie if a writer is provided (web flow)
+	if w != nil {
+		err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return false, nil, nil, fmt.Errorf("failed to set temp token cookie: %w", err)
+		}
+	}
+
+	return true, twoFactorMethods, &tempToken, nil
+}
+
+// checkMultipleUsers checks if there are multiple users for the login and returns a temp token if needed
+// Returns: (isMultipleUsers, tempToken, error)
+func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, loginID uuid.UUID, idmUsers []mapper.User) (bool, *tg.TokenValue, error) {
+	if len(idmUsers) <= 1 {
+		return false, nil, nil
+	}
+
+	// Create temp token with the custom claims for user selection
+	extraClaims := map[string]interface{}{
+		"login_id": loginID.String(),
+	}
+	tempToken, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return true, nil, fmt.Errorf("failed to generate temp token: %w", err)
+	}
+
+	// Only set cookie if a writer is provided (web flow)
+	if w != nil {
+		err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return true, nil, fmt.Errorf("failed to set temp token cookie: %w", err)
+		}
+	}
+
+	return true, &tempToken, nil
+}
+
 // Login a user
 // (POST /login)
 func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
@@ -205,98 +322,38 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	if h.twoFactorService != nil {
-		enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(r.Context(), loginID)
-		if err != nil {
-			slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
-			return &Response{
-				body: "Failed to find enabled 2FA",
-				Code: http.StatusInternalServerError,
-			}
-		}
-
-		var twoFactorMethods []TwoFactorMethod
-		if len(enabledTwoFAs) > 0 {
-			slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
-
-			// If email 2FA is enabled, get unique emails from users
-			for _, method := range enabledTwoFAs {
-				curMethod := TwoFactorMethod{
-					Type: method,
-				}
-				switch method {
-				case twofa.TWO_FACTOR_TYPE_EMAIL:
-					options := getUniqueEmailsFromUsers(idmUsers)
-					curMethod.DeliveryOptions = options
-				default:
-					curMethod.DeliveryOptions = []DeliveryOption{}
-				}
-				twoFactorMethods = append(twoFactorMethods, curMethod)
-			}
-
-			extraClaims := map[string]interface{}{
-				"login_id": loginID.String(),
-				"users":    apiUsers,
-			}
-
-			tempToken, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
-
-			if err != nil {
-				slog.Error("Failed to generate temp token", "err", err)
-				return &Response{
-					body: "Failed to generate temp token",
-					Code: http.StatusInternalServerError,
-				}
-			}
-
-			err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
-			if err != nil {
-				slog.Error("Failed to set temp token cookie", "err", err)
-				return &Response{
-					body: "Failed to set temp token cookie",
-					Code: http.StatusInternalServerError,
-				}
-			}
-
-			twoFARequiredResp := TwoFactorRequiredResponse{
-				TempToken:        tempToken.Token,
-				TwoFactorMethods: twoFactorMethods,
-				Status:           "2fa_required",
-				Message:          "2FA verification required",
-			}
-
-			return PostLoginJSON202Response(twoFARequiredResp)
-		} else {
-			slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginID)
+	// Check if 2FA is enabled
+	is2FAEnabled, twoFactorMethods, tempToken, err := h.check2FAEnabled(r.Context(), w, loginID, idmUsers)
+	if err != nil {
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
 		}
 	}
 
-	if len(idmUsers) > 1 {
-		// Create temp token with the custom claims for user selection
-		extraClaims := map[string]interface{}{
-			"login_id": loginID.String(),
-		}
-		tempToken, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
-		if err != nil {
-			slog.Error("Failed to generate temp token", "err", err)
-			return &Response{
-				body: "Failed to generate temp token",
-				Code: http.StatusInternalServerError,
-			}
+	if is2FAEnabled {
+		twoFARequiredResp := TwoFactorRequiredResponse{
+			TempToken:        tempToken.Token,
+			TwoFactorMethods: twoFactorMethods,
+			Status:           "2fa_required",
+			Message:          "2FA verification required",
 		}
 
-		err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
-		if err != nil {
-			slog.Error("Failed to set temp token cookie", "err", err)
-			return &Response{
-				body: "Failed to set temp token cookie",
-				Code: http.StatusInternalServerError,
-			}
+		return PostLoginJSON202Response(twoFARequiredResp)
+	}
+
+	// Check if there are multiple users
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginID, idmUsers)
+	if err != nil {
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
 		}
+	}
+
+	if isMultipleUsers {
 		// Prepare user selection response
-
 		respBody := h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
-
 		return respBody
 	}
 
@@ -700,9 +757,51 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
+	// Check if 2FA is enabled for current login
+	loginID, err := uuid.Parse(idmUsers[0].LoginID)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "loginID", idmUsers[0].LoginID, "error", err)
+		return &Response{
+			body: "Invalid login ID",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	// Check if 2FA is enabled - pass nil for ResponseWriter to skip cookie setting
+	is2FAEnabled, twoFactorMethods, tempToken, err := h.check2FAEnabled(r.Context(), nil, loginID, idmUsers)
+	if err != nil {
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	if is2FAEnabled {
+		// Return 2FA required response for mobile
+		return PostLoginJSON202Response(TwoFactorRequiredResponse{
+			TempToken:        tempToken.Token,
+			TwoFactorMethods: twoFactorMethods,
+			Status:           "2fa_required",
+			Message:          "2FA verification required",
+		})
+	}
+
+	// Check if there are multiple users - pass nil for ResponseWriter to skip cookie setting
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), nil, loginID, idmUsers)
+	if err != nil {
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	if isMultipleUsers {
+		// Return user selection response
+		return h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
+	}
+
 	// Create JWT tokens
 	tokenUser := idmUsers[0]
-
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
 	tokens, err := h.tokenService.GenerateTokens(tokenUser.UserId, rootModifications, extraClaims)
 	if err != nil {
@@ -714,13 +813,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Return tokens in response
-	return PostMobileLoginJSON200Response(struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-	}{
-		AccessToken:  tokens[0].Token,
-		RefreshToken: tokens[1].Token,
-	})
+	return h.responseHandler.PrepareMobileLoginResponse(tokens)
 }
 
 // Register a new user
@@ -1066,7 +1159,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 		// Return 202 response with users to select from
 		return Post2faValidateJSON202Response(SelectUserRequiredResponse{
-			Status:    "select_user_required",
+			Status:    "multiple_users",
 			Message:   "Multiple users found, please select one",
 			TempToken: tempToken.Token,
 			Users:     users,
@@ -1197,4 +1290,297 @@ func (h Handle) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
 	}
 
 	return loginIDStr, nil
+}
+
+// (POST /mobile/2fa/send)
+func (h Handle) PostMobile2faSend(w http.ResponseWriter, r *http.Request) *Response {
+	var resp SuccessResponse
+
+	data := &PostMobile2faSendJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Get token from request body
+	if data.TempToken == "" {
+		slog.Error("No temp token in request body")
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Missing temp token in request body",
+		}
+	}
+	tokenStr := data.TempToken
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid temp token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	userId, err := uuid.Parse(data.UserID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid user_id format",
+		}
+	}
+
+	err = h.twoFactorService.SendTwoFaNotification(r.Context(), loginId, userId, data.TwofaType, data.DeliveryOption)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to init 2fa: " + err.Error(),
+		}
+	}
+	resp.Result = "success"
+
+	return Post2faSendJSON200Response(resp)
+}
+
+// (POST /mobile/2fa/validate)
+func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *Response {
+	data := &PostMobile2faValidateJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Get token from request body
+	if data.TempToken == "" {
+		slog.Error("No temp token in request body")
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Missing temp token in request body",
+		}
+	}
+	tokenStr := data.TempToken
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid temp token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// Validate the 2FA passcode
+	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to validate 2fa: " + err.Error(),
+		}
+	}
+
+	if !valid {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "2fa validation failed",
+		}
+	}
+
+	// 2FA validation successful, get users for the login ID
+	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to get user roles: " + err.Error(),
+		}
+	}
+
+	if len(idmUsers) == 0 {
+		slog.Error("No user found after 2fa")
+		return &Response{
+			body: "2fa validation failed",
+			Code: http.StatusNotFound,
+		}
+	}
+
+	// Check if there are multiple users - pass nil for ResponseWriter to skip cookie setting
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), nil, loginId, idmUsers)
+	if err != nil {
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	if isMultipleUsers {
+		// Return user selection response
+		return h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginId, tempToken.Token)
+	}
+
+	// Single user case - proceed with normal flow
+	user := idmUsers[0]
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(user)
+
+	tokens, err := h.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create tokens",
+		}
+	}
+
+	// Return tokens in response
+	return h.responseHandler.PrepareMobileLoginResponse(tokens)
+}
+
+// (POST /mobile/user/switch)
+func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
+	data := PostMobileUserSwitchJSONRequestBody{}
+	if err := render.DecodeJSON(r.Body, &data); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+
+	// Get token from either request body or Authorization header
+	var tokenStr string
+
+	// Check if token is in the request body
+	if data.TempToken != nil && *data.TempToken != "" {
+		tokenStr = *data.TempToken
+	} else if data.AccessToken != nil && *data.AccessToken != "" {
+		tokenStr = *data.AccessToken
+	} else {
+		// If not in request body, check Authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" || len(authHeader) < 8 || !strings.HasPrefix(authHeader, "Bearer ") {
+			slog.Error("No token found in request body or Authorization header")
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: "Missing token - provide either in request body or Authorization header",
+			}
+		}
+		tokenStr = authHeader[7:] // Remove "Bearer " prefix
+	}
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid login_id format in token",
+		}
+	}
+
+	// Get all users for the current login
+	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
+	if err != nil {
+		slog.Error("Failed to get users", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to get users",
+		}
+	}
+
+	// Check if the requested user is in the list
+	var targetUser mapper.User
+	found := false
+	for _, user := range users {
+		if user.UserId == data.UserID {
+			targetUser = user
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return PostMobileUserSwitchJSON403Response(struct {
+			Message *string `json:"message,omitempty"`
+		}{
+			Message: ptr("Not authorized to switch to this user"),
+		})
+	}
+
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(targetUser)
+
+	tokens, err := h.tokenService.GenerateTokens(targetUser.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create tokens",
+		}
+	}
+
+	// Return tokens in response for mobile
+	return h.responseHandler.PrepareMobileLoginResponse(tokens)
+}
+
+// Helper function to create a pointer to a string
+func ptr(s string) *string {
+	return &s
 }

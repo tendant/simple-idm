@@ -77,12 +77,12 @@ export const twoFactorApi = {
       }
     });
     
-    // Handle 202 status code for select_user_required
+    // Handle 202 status code for multiple_users
     if (response.status === 202) {
       const data = await response.json();
-      if (data.status === 'select_user_required') {
+      if (data.status === 'multiple_users') {
         return {
-          status: 'select_user_required',
+          status: 'multiple_users',
           message: data.message,
           temp_token: data.temp_token,
           users: data.users
