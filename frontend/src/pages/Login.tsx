@@ -23,7 +23,7 @@ const Login: Component = () => {
       });
 
       // Check if user selection is required
-      if (response.status === 'select_user_required') {
+      if (response.status === 'multiple_users') {
         // Redirect to the TwoFactorVerification page with user selection mode
         const params = new URLSearchParams();
         if (response.temp_token) {

@@ -212,7 +212,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
         });
 
         // Check if user selection is required
-        if (response.status === 'select_user_required') {
+        if (response.status === 'multiple_users') {
           setTempToken(response.temp_token);
           setAvailableUsers(response.users);
           setUserSelectionRequired(true);
