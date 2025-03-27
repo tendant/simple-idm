@@ -566,8 +566,8 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	return h.responseHandler.PrepareUserListResponse(users)
 }
 
-// PostMobileLogin handles mobile login requests
-// (POST /mobile/login)
+// Switch to a different user when multiple users are available for the same login
+// (POST /user/switch)
 func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response {
 	// Parse request body
 	data := PostUserSwitchJSONRequestBody{}
