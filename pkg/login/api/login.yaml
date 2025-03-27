@@ -244,7 +244,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Login"
+                oneOf:
+                  - $ref: "#/components/schemas/Login"
+                  - $ref: "#/components/schemas/SingleUserResponse"
         "400":
           description: Invalid request or user not found
           content:
@@ -352,6 +354,7 @@ components:
           items:
             $ref: "#/components/schemas/User"
     SingleUserResponse:
+      description: Structure added for integration compatibility purposes
       x-go-optional-value: true
       type: object
       properties:
