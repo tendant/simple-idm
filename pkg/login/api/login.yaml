@@ -216,9 +216,12 @@ paths:
                   type: string
                 passcode:
                   type: string
+                temp_token:
+                  type: string
               required:
                 - passcode
                 - twofa_type
+                - temp_token
       responses:
         "200":
           description: 2fa validated successfully
@@ -256,6 +259,12 @@ paths:
                 user_id:
                   type: string
                   description: ID of the user to switch to
+                temp_token:
+                  type: string
+                  description: Temp token
+                access_token:
+                  type: string
+                  description: JWT access token
               required:
                 - user_id
       responses:
