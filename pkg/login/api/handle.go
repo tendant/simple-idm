@@ -54,6 +54,8 @@ type ResponseHandler interface {
 	PrepareUserListResponse(users []mapper.User) *Response
 	// PrepareUserSwitchResponse prepares a response for user switch
 	PrepareUserSwitchResponse(users []mapper.User) *Response
+	// PrepareMobileLoginResponse prepares a response for mobile login with tokens
+	PrepareMobileLoginResponse(tokens []tg.TokenValue) *Response
 }
 
 // DefaultResponseHandler is the default implementation of ResponseHandler
@@ -143,6 +145,17 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 	}
 
 	return PostUserSwitchJSON200Response(response)
+}
+
+// PrepareMobileLoginResponse creates a response for mobile login with tokens
+func (h *DefaultResponseHandler) PrepareMobileLoginResponse(tokens []tg.TokenValue) *Response {
+	return PostMobileLoginJSON200Response(struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}{
+		AccessToken:  tokens[0].Token,
+		RefreshToken: tokens[1].Token,
+	})
 }
 
 // Login a user
@@ -714,13 +727,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Return tokens in response
-	return PostMobileLoginJSON200Response(struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-	}{
-		AccessToken:  tokens[0].Token,
-		RefreshToken: tokens[1].Token,
-	})
+	return h.responseHandler.PrepareMobileLoginResponse(tokens)
 }
 
 // Register a new user
