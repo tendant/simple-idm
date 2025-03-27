@@ -1292,6 +1292,119 @@ func (h Handle) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
 	return loginIDStr, nil
 }
 
+// (POST /mobile/2fa/validate)
+func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *Response {
+	data := &PostMobile2faValidateJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Get token from request body
+	if data.TempToken == "" {
+		slog.Error("No temp token in request body")
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Missing temp token in request body",
+		}
+	}
+	tokenStr := data.TempToken
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid temp token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// Validate the 2FA passcode
+	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to validate 2fa: " + err.Error(),
+		}
+	}
+
+	if !valid {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "2fa validation failed",
+		}
+	}
+
+	// 2FA validation successful, get users for the login ID
+	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to get user roles: " + err.Error(),
+		}
+	}
+
+	if len(idmUsers) == 0 {
+		slog.Error("No user found after 2fa")
+		return &Response{
+			body: "2fa validation failed",
+			Code: http.StatusNotFound,
+		}
+	}
+
+	// Check if there are multiple users - pass nil for ResponseWriter to skip cookie setting
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), nil, loginId, idmUsers)
+	if err != nil {
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	if isMultipleUsers {
+		// Return user selection response
+		return h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginId, tempToken.Token)
+	}
+
+	// Single user case - proceed with normal flow
+	user := idmUsers[0]
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(user)
+
+	tokens, err := h.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create tokens",
+		}
+	}
+
+	// Return tokens in response
+	return h.responseHandler.PrepareMobileLoginResponse(tokens)
+}
+
 // (POST /mobile/user/switch)
 func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Response {
 	// Parse request body
