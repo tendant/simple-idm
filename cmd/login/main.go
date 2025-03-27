@@ -193,7 +193,7 @@ func main() {
 	// Create a new handle with the domain login service directly
 	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, loginapi.WithTwoFactorService(twoFaService), loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()))
 
-	server.R.Mount("/auth", loginapi.Handler(loginHandle))
+	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
@@ -226,7 +226,7 @@ func main() {
 		profileRepo := profile.NewPostgresProfileRepository(profileQueries)
 		profileService := profile.NewProfileService(profileRepo, loginService)
 		profileHandle := profileapi.NewHandle(profileService, twoFaService)
-		r.Mount("/profile", profileapi.Handler(profileHandle))
+		r.Mount("/api/idm/profile", profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
 		// Initialize IAM repository and service
