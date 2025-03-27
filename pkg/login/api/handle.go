@@ -151,10 +151,7 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 
 // PrepareMobileLoginResponse creates a response for mobile login with tokens
 func (h *DefaultResponseHandler) PrepareMobileLoginResponse(tokens []tg.TokenValue) *Response {
-	return PostMobileLoginJSON200Response(struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-	}{
+	return PostMobileLoginJSON200Response(LoginResponse{
 		AccessToken:  tokens[0].Token,
 		RefreshToken: tokens[1].Token,
 	})
