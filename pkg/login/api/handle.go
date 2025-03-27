@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -1289,4 +1290,113 @@ func (h Handle) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
 	}
 
 	return loginIDStr, nil
+}
+
+// (POST /mobile/user/switch)
+func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
+	data := PostMobileUserSwitchJSONRequestBody{}
+	if err := render.DecodeJSON(r.Body, &data); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+
+	// Get token from either request body or Authorization header
+	var tokenStr string
+
+	// Check if token is in the request body
+	if data.TempToken != nil && *data.TempToken != "" {
+		tokenStr = *data.TempToken
+	} else if data.AccessToken != nil && *data.AccessToken != "" {
+		tokenStr = *data.AccessToken
+	} else {
+		// If not in request body, check Authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" || len(authHeader) < 8 || !strings.HasPrefix(authHeader, "Bearer ") {
+			slog.Error("No token found in request body or Authorization header")
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: "Missing token - provide either in request body or Authorization header",
+			}
+		}
+		tokenStr = authHeader[7:] // Remove "Bearer " prefix
+	}
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid login_id format in token",
+		}
+	}
+
+	// Get all users for the current login
+	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
+	if err != nil {
+		slog.Error("Failed to get users", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to get users",
+		}
+	}
+
+	// Check if the requested user is in the list
+	var targetUser mapper.User
+	found := false
+	for _, user := range users {
+		if user.UserId == data.UserID {
+			targetUser = user
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return PostMobileUserSwitchJSON403Response(struct {
+			Message *string `json:"message,omitempty"`
+		}{
+			Message: ptr("Not authorized to switch to this user"),
+		})
+	}
+
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(targetUser)
+
+	tokens, err := h.tokenService.GenerateTokens(targetUser.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create tokens",
+		}
+	}
+
+	// Return tokens in response for mobile
+	return h.responseHandler.PrepareMobileLoginResponse(tokens)
+}
+
+// Helper function to create a pointer to a string
+func ptr(s string) *string {
+	return &s
 }
