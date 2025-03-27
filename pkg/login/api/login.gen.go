@@ -181,6 +181,14 @@ type PostLoginJSONBody struct {
 	Username string `json:"username"`
 }
 
+// PostMobile2faSendJSONBody defines parameters for PostMobile2faSend.
+type PostMobile2faSendJSONBody struct {
+	DeliveryOption string `json:"delivery_option"`
+	TempToken      string `json:"temp_token"`
+	TwofaType      string `json:"twofa_type"`
+	UserID         string `json:"user_id"`
+}
+
 // PostMobile2faValidateJSONBody defines parameters for PostMobile2faValidate.
 type PostMobile2faValidateJSONBody struct {
 	Passcode  string `json:"passcode"`
@@ -259,6 +267,14 @@ type PostLoginJSONRequestBody PostLoginJSONBody
 
 // Bind implements render.Binder.
 func (PostLoginJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostMobile2faSendJSONRequestBody defines body for PostMobile2faSend for application/json ContentType.
+type PostMobile2faSendJSONRequestBody PostMobile2faSendJSONBody
+
+// Bind implements render.Binder.
+func (PostMobile2faSendJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -446,6 +462,16 @@ func PostLoginJSON400Response(body struct {
 func PostLogoutJSON200Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// PostMobile2faSendJSON200Response is a constructor method for a PostMobile2faSend response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostMobile2faSendJSON200Response(body SuccessResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        200,
@@ -659,6 +685,9 @@ type ServerInterface interface {
 	// Logout user
 	// (POST /logout)
 	PostLogout(w http.ResponseWriter, r *http.Request) *Response
+	// Initiate sending 2fa code
+	// (POST /mobile/2fa/send)
+	PostMobile2faSend(w http.ResponseWriter, r *http.Request) *Response
 	// Authenticate 2fa passcode
 	// (POST /mobile/2fa/validate)
 	PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *Response
@@ -778,6 +807,24 @@ func (siw *ServerInterfaceWrapper) PostLogout(w http.ResponseWriter, r *http.Req
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostLogout(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PostMobile2faSend operation middleware
+func (siw *ServerInterfaceWrapper) PostMobile2faSend(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostMobile2faSend(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -1119,6 +1166,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/email/verify", wrapper.PostEmailVerify)
 		r.Post("/login", wrapper.PostLogin)
 		r.Post("/logout", wrapper.PostLogout)
+		r.Post("/mobile/2fa/send", wrapper.PostMobile2faSend)
 		r.Post("/mobile/2fa/validate", wrapper.PostMobile2faValidate)
 		r.Post("/mobile/login", wrapper.PostMobileLogin)
 		r.Post("/mobile/user/switch", wrapper.PostMobileUserSwitch)
@@ -1155,45 +1203,46 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"+XcAAAD///pGRIChNwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
