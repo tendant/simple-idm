@@ -81,7 +81,7 @@ func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.
 	}
 
 	return PostLoginJSON202Response(SelectUserRequiredResponse{
-		Status:    "select_user_required",
+		Status:    "multiple_users",
 		Message:   "Multiple users found, please select one",
 		TempToken: tempTokenStr,
 		Users:     apiUsers,
@@ -1066,7 +1066,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 		// Return 202 response with users to select from
 		return Post2faValidateJSON202Response(SelectUserRequiredResponse{
-			Status:    "select_user_required",
+			Status:    "multiple_users",
 			Message:   "Multiple users found, please select one",
 			TempToken: tempToken.Token,
 			Users:     users,
