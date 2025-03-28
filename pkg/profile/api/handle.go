@@ -1,7 +1,9 @@
 package api
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -414,7 +416,12 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 
 	slog.Info("found login with username: %s", data.Username, "login", login.ID)
 
+	// Hash the password for logging purposes only
+	hashedForLogging := fmt.Sprintf("%x", sha256.Sum256([]byte(data.Password)))
+	slog.Info("password hash for logging", "password_hash", hashedForLogging)
+
 	// Verify password
+	slog.Info("hashed password", "hashed_password", string(login.Password))
 	valid, err := h.loginService.CheckPasswordByLoginId(r.Context(), login.ID, data.Password, string(login.Password))
 	if err != nil || !valid {
 		slog.Error("error checking password: %w", err)
@@ -438,7 +445,11 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	slog.Info("login associated successfully", "login", login.ID)
+	slog.Info("login associated successfully",
+		"login_id", login.ID,
+		"user_id", authUser.UserUuid,
+		"username", data.Username,
+	)
 
 	resp.Result = "success"
 
