@@ -22,10 +22,11 @@ type Handle struct {
 	loginService   *login.LoginService
 }
 
-func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService) Handle {
+func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, loginService *login.LoginService) Handle {
 	return Handle{
 		profileService: profileService,
 		twoFaService:   twoFaService,
+		loginService:   loginService,
 	}
 }
 
@@ -406,6 +407,8 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
+	slog.Info("found login with username: %s", data.Username, "login", login.ID)
+
 	// Verify password
 	valid, err := h.loginService.CheckPasswordByLoginId(r.Context(), login.ID, data.Password, string(login.Password))
 	if err != nil || !valid {
@@ -415,6 +418,8 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 			body: "invalid username or password",
 		}
 	}
+
+	slog.Info("password verified successfully", "login", login.ID)
 
 	_, err = h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
 		ID:      authUser.UserUuid,
@@ -427,6 +432,10 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 			body: "failed to associate login with current user",
 		}
 	}
+
+	slog.Info("login associated successfully", "login", login.ID)
+
+	resp.Result = "success"
 
 	return AssociateLoginJSON200Response(resp)
 
