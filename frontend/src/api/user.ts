@@ -81,7 +81,7 @@ export interface User {
 
 export const userApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const response = await apiClient.post('/auth/login', credentials, { skipAuth: true });
+    const response = await apiClient.post('/api/idm/auth/login', credentials, { skipAuth: true });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -180,7 +180,7 @@ export const userApi = {
   },
 
   findUsername: async (email: string): Promise<void> => {
-    const response = await apiClient.post('/auth/find-username', { email }, { skipAuth: true });
+    const response = await apiClient.post('/api/idm/auth/find-username', { email }, { skipAuth: true });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -194,7 +194,7 @@ export const userApi = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await apiClient.post('/auth/user/switch', { user_id: userId }, { 
+    const response = await apiClient.post('/api/idm/auth/user/switch', { user_id: userId }, { 
       headers,
       skipAuth: !!token // Skip default auth if we're providing a token
     });
