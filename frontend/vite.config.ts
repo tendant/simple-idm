@@ -13,7 +13,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/auth': {
-        target: 'http://192.168.3.23:4000',
+        target: 'http://localhost:4000',
         changeOrigin: true,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
@@ -28,23 +28,23 @@ export default defineConfig({
         },
       },
       '/api/': {
-        target: 'http://192.168.3.23:4000',
+        target: 'http://localhost:4000',
         changeOrigin: true,
       },
       '/oidc': {
-        target: 'http://192.168.3.23:4001',
+        target: 'http://localhost:4001',
         changeOrigin: true,
       },
       '/oauth2': {
-        target: 'http://192.168.3.23:4001',
+        target: 'http://localhost:4001',
         changeOrigin: true,
       },
       '/idm': {
-        target: 'http://192.168.3.23:4000',
+        target: 'http://localhost:4000',
         changeOrigin: true,
       },
       '/profile': {
-        target: 'http://192.168.3.23:4000',
+        target: 'http://localhost:4000',
         changeOrigin: true,
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
