@@ -1118,49 +1118,19 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	if len(idmUsers) > 1 {
-		users := make([]User, len(idmUsers))
-		for i, mu := range idmUsers {
-			email, _ := mu.ExtraClaims["email"].(string)
-			name := mu.DisplayName
-			id := mu.UserId
-
-			users[i] = User{
-				ID:    id,
-				Email: email,
-				Name:  name,
-			}
+	// Check if there are multiple users
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginId, idmUsers)
+	if err != nil {
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
 		}
+	}
 
-		rootModifications, extraClaims := h.userMapper.ToTokenClaims(idmUsers[0])
-
-		// Create temp token with the custom claims for user selection
-		// Use the login ID as the subject to ensure we have a valid ID in the token
-		tempToken, err := h.tokenService.GenerateTempToken(loginIdStr, rootModifications, extraClaims)
-		if err != nil {
-			slog.Error("Failed to create temp token", "err", err)
-			return &Response{
-				Code: http.StatusInternalServerError,
-				body: "Failed to create temp token",
-			}
-		}
-
-		err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
-		if err != nil {
-			slog.Error("Failed to set temp token cookie", "err", err)
-			return &Response{
-				Code: http.StatusInternalServerError,
-				body: "Failed to set temp token cookie",
-			}
-		}
-
-		// Return 202 response with users to select from
-		return Post2faValidateJSON202Response(SelectUserRequiredResponse{
-			Status:    "multiple_users",
-			Message:   "Multiple users found, please select one",
-			TempToken: tempToken.Token,
-			Users:     users,
-		})
+	if isMultipleUsers {
+		// Prepare user selection response
+		respBody := h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginId, tempToken.Token)
+		return respBody
 	}
 
 	// Single user case - proceed with normal flow
