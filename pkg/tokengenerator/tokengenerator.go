@@ -126,8 +126,8 @@ func (g *TempTokenGenerator) GenerateToken(subject string, expiry time.Duration,
 
 	// Create claims with shorter tolerance for time skew
 	claims := Claims{
-		ExtraClaims:  tempClaims,
-		CustomClaims: tempClaims,
+		ExtraClaims: tempClaims,
+		// CustomClaims: tempClaims,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
