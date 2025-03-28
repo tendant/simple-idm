@@ -22,6 +22,11 @@ type Handle struct {
 	loginService   *login.LoginService
 }
 
+const (
+	ErrInvalidCredentials = "invalid username or password"
+	ErrAssociationFailed  = "failed to associate login with current user"
+)
+
 func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, loginService *login.LoginService) Handle {
 	return Handle{
 		profileService: profileService,
@@ -379,14 +384,14 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
-			body: "invalid username or password",
+			body: ErrInvalidCredentials,
 		}
 	}
 
 	if data.Username == "" || data.Password == "" {
 		return &Response{
 			Code: http.StatusBadRequest,
-			body: "invalid username or password",
+			body: ErrInvalidCredentials,
 		}
 	}
 
@@ -397,13 +402,13 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 			slog.Error("no login found with username: %s", data.Username)
 			return &Response{
 				Code: http.StatusBadRequest,
-				body: "invalid username or password",
+				body: ErrInvalidCredentials,
 			}
 		}
 		slog.Error("error finding login with username: %s", data.Username)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			body: "invalid username or password",
+			body: ErrInvalidCredentials,
 		}
 	}
 
@@ -415,7 +420,7 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 		slog.Error("error checking password: %w", err)
 		return &Response{
 			Code: http.StatusBadRequest,
-			body: "invalid username or password",
+			body: ErrInvalidCredentials,
 		}
 	}
 
@@ -429,7 +434,7 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 		slog.Error("error updating login ID", "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			body: "failed to associate login with current user",
+			body: ErrAssociationFailed,
 		}
 	}
 
