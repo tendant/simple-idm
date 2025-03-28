@@ -6,16 +6,20 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/client"
+	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/profile"
 	"github.com/tendant/simple-idm/pkg/twofa"
+	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
 )
 
 type Handle struct {
 	profileService *profile.ProfileService
 	twoFaService   *twofa.TwoFaService
+	loginService   *login.LoginService
 }
 
 func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService) Handle {
@@ -355,4 +359,75 @@ func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	return Delete2faJSON200Response(resp)
+}
+
+// Associate a login
+// (POST /login/associate)
+func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response {
+	var resp SuccessResponse
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+	data := AssociateLoginJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid username or password",
+		}
+	}
+
+	if data.Username == "" || data.Password == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid username or password",
+		}
+	}
+
+	// Find login by username
+	login, err := h.loginService.FindLoginByUsername(r.Context(), data.Username)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			slog.Error("no login found with username: %s", data.Username)
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: "invalid username or password",
+			}
+		}
+		slog.Error("error finding login with username: %s", data.Username)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "invalid username or password",
+		}
+	}
+
+	// Verify password
+	valid, err := h.loginService.CheckPasswordByLoginId(r.Context(), login.ID, data.Password, string(login.Password))
+	if err != nil || !valid {
+		slog.Error("error checking password: %w", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid username or password",
+		}
+	}
+
+	_, err = h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
+		ID:      authUser.UserUuid,
+		LoginID: utils.ToNullUUID(login.ID),
+	})
+	if err != nil {
+		slog.Error("error updating login ID", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to associate login with current user",
+		}
+	}
+
+	return AssociateLoginJSON200Response(resp)
+
 }
