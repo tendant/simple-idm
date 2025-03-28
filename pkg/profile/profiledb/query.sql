@@ -35,6 +35,12 @@ FROM login
 WHERE username = $1
 AND deleted_at Is NULL;
 
+-- name: UpdateUserLoginId :one
+UPDATE users
+SET login_id = $2,
+    last_modified_at = NOW()
+WHERE id = $1
+RETURNING login_id;
 
 -- name: UpdateUserPassword :exec
 -- UPDATE users
