@@ -1,25 +1,25 @@
 import { apiClient } from './client';
 
 export interface Role {
-  id?: string;
-  uuid?: string;
-  name: string;
+  id?: string
+  uuid?: string
+  name: string
 }
 
 export interface CreateRoleRequest {
-  name: string;
+  name: string
 }
 
 export interface UpdateRoleRequest {
-  name: string;
+  name: string
 }
 
 export interface RoleUser {
-  id?: string;
-  uuid?: string;
-  email?: string;
-  name?: string;
-  username?: string;
+  id?: string
+  uuid?: string
+  email?: string
+  name?: string
+  username?: string
 }
 
 export const roleApi = {
@@ -29,11 +29,11 @@ export const roleApi = {
       throw new Error('Failed to fetch roles');
     }
     const roles = await response.json();
-    
+
     // Ensure each role has an id property (use uuid if available)
     return roles.map((role: any) => ({
       ...role,
-      id: role.uuid || role.id
+      id: role.uuid || role.id,
     }));
   },
 
@@ -42,7 +42,7 @@ export const roleApi = {
     const response = await apiClient.get(`/idm/roles/${id}`);
     console.log('Response status:', response.status);
     console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-    
+
     if (!response.ok) {
       console.error('Failed to fetch role:', response.status, response.statusText);
       throw new Error('Failed to fetch role');
@@ -50,11 +50,11 @@ export const roleApi = {
 
     const data = await response.json();
     console.log('Response data:', JSON.stringify(data, null, 2));
-    
+
     // Ensure the role has an id property (use uuid if available)
     return {
       ...data,
-      id: data.uuid || data.id
+      id: data.uuid || data.id,
     };
   },
 
@@ -78,24 +78,24 @@ export const roleApi = {
   updateRole: async (id: string, role: UpdateRoleRequest): Promise<Role> => {
     console.log('API: Updating role with ID:', id);
     console.log('API: Update payload:', JSON.stringify(role));
-    
+
     const response = await apiClient.put(`/idm/roles/${id}`, role);
 
     console.log('API: Update response status:', response.status);
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('API: Failed to update role:', errorText);
       throw new Error(`Failed to update role: ${errorText}`);
     }
-    
+
     const data = await response.json();
     console.log('API: Update response data:', JSON.stringify(data));
-    
+
     // Ensure the role has an id property (use uuid if available)
     return {
       ...data,
-      id: data.uuid || data.id
+      id: data.uuid || data.id,
     };
   },
 

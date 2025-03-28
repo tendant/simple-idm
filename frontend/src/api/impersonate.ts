@@ -1,17 +1,17 @@
 import { apiClient } from './client';
 
 export interface ImpersonateRequest {
-  user_uuid: string;
+  user_uuid: string
 }
 
 export interface ImpersonateResponse {
-  message: string;
-  status: string;
+  message: string
+  status: string
   User: {
-    user_uuid: string;
-    delegatee_uuid: string;
-    role: string[];
-  };
+    user_uuid: string
+    delegatee_uuid: string
+    role: string[]
+  }
 }
 
 export const impersonateApi = {

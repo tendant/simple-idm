@@ -1,82 +1,106 @@
-import type { ComponentProps, JSX } from "solid-js"
-import { For, mergeProps, Show, splitProps } from "solid-js"
-import { Dynamic } from "solid-js/web"
+import type { ComponentProps, JSX } from 'solid-js'
+import { For, mergeProps, Show, splitProps } from 'solid-js'
+import { Dynamic } from 'solid-js/web'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 type Bar<T> = T & {
   value: number
   name: JSX.Element
-  icon?: (props: ComponentProps<"svg">) => JSX.Element
+  icon?: (props: ComponentProps<'svg'>) => JSX.Element
   href?: string
   target?: string
 }
 
-type SortOrder = "ascending" | "descending" | "none"
+type SortOrder = 'ascending' | 'descending' | 'none'
 
 type ValueFormatter = (value: number) => string
 
 const defaultValueFormatter: ValueFormatter = (value: number) => value.toString()
 
-type BarListProps<T> = ComponentProps<"div"> & {
+type BarListProps<T> = ComponentProps<'div'> & {
   data: Bar<T>[]
   valueFormatter?: ValueFormatter
   sortOrder?: SortOrder
 }
 
-const BarList = <T,>(rawProps: BarListProps<T>) => {
+function BarList<T,>(rawProps: BarListProps<T>) {
   const props = mergeProps(
     {
       valueFormatter: defaultValueFormatter,
-      sortOrder: "descending" as SortOrder
+      sortOrder: 'descending' as SortOrder,
     },
-    rawProps
+    rawProps,
   )
-  const [local, others] = splitProps(props, ["class", "data", "valueFormatter", "sortOrder"])
+  const [local, others] = splitProps(props, ['class', 'data', 'valueFormatter', 'sortOrder'])
 
   const sortedData = () => {
-    if (local.sortOrder === "none") {
+    if (local.sortOrder === 'none') {
       return local.data
     }
     return local.data.sort((a, b) =>
-      local.sortOrder === "ascending" ? a.value - b.value : b.value - a.value
+      local.sortOrder === 'ascending'
+        ? a.value - b.value
+        : b.value - a.value,
     )
   }
 
   const widths = () => {
-    const maxValue = Math.max(...sortedData().map((item) => item.value), 0)
-    return sortedData().map((item) =>
-      item.value === 0 ? 0 : Math.max((item.value / maxValue) * 100, 2)
+    const maxValue = Math.max(...sortedData().map(item => item.value), 0)
+    return sortedData().map(item =>
+      item.value === 0
+        ? 0
+        : Math.max((item.value / maxValue) * 100, 2),
     )
   }
 
   return (
     <div
-      class={cn("flex flex-col space-y-1.5", local.class)}
       aria-sort={local.sortOrder}
+      class={cn('flex flex-col space-y-1.5', local.class)}
       {...others}
     >
-      <For each={sortedData()}>
+      <For
+        each={sortedData()}
+      >
         {(bar, idx) => {
           return (
-            <div class="row flex w-full justify-between space-x-6">
-              <div class="grow">
+            <div
+              class="row flex w-full justify-between space-x-6"
+            >
+              <div
+                class="grow"
+              >
                 <div
-                  class={cn("flex h-8 items-center rounded-md bg-secondary px-2")}
+                  class={cn('flex h-8 items-center rounded-md bg-secondary px-2')}
                   style={{
-                    width: `${widths()[idx()]}%`
+                    width: `${widths()[idx()]}%`,
                   }}
                 >
-                  <Show when={bar.icon}>
-                    {(icon) => <Dynamic component={icon()} class="mr-2 size-5 flex-none" />}
+                  <Show
+                    when={bar.icon}
+                  >
+                    {icon => (
+                      <Dynamic
+                        class="mr-2 size-5 flex-none"
+                        component={icon()}
+                      />
+                    )}
                   </Show>
-                  <Show when={bar.href} fallback={<p>{bar.name}</p>}>
-                    {(href) => (
+                  <Show
+                    when={bar.href}
+                    fallback={(
+                      <p>
+                        {bar.name}
+                      </p>
+                    )}
+                  >
+                    {href => (
                       <a
-                        href={href()}
-                        target={bar.target ?? "_blank"}
-                        rel="noreferrer"
                         class="hover:underline"
+                        href={href()}
+                        rel="noreferrer"
+                        target={bar.target ?? '_blank'}
                       >
                         {bar.name}
                       </a>
@@ -84,7 +108,11 @@ const BarList = <T,>(rawProps: BarListProps<T>) => {
                   </Show>
                 </div>
               </div>
-              <div class="flex items-center">{local.valueFormatter(bar.value)}</div>
+              <div
+                class="flex items-center"
+              >
+                {local.valueFormatter(bar.value)}
+              </div>
             </div>
           )
         }}

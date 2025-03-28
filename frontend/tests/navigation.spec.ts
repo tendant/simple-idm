@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Navigation Component', () => {
   test.beforeEach(async ({ page }) => {
@@ -10,19 +10,19 @@ test.describe('Navigation Component', () => {
         username: 'admin',
         email: 'admin@example.com',
         name: 'Admin User',
-        roles: [{ id: '1', name: 'admin' }]
+        roles: [{ id: '1', name: 'admin' }],
       }));
     });
-    
+
     // Mock the users API response for the default page
     await page.route('**/idm/users', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([])
+        body: JSON.stringify([]),
       });
     });
-    
+
     // Navigate to the users page to see the navigation
     await page.goto('/users');
   });
@@ -30,7 +30,7 @@ test.describe('Navigation Component', () => {
   test('should display all navigation links', async ({ page }) => {
     // Check for the app title
     await expect(page.getByText('Simple IDM')).toBeVisible();
-    
+
     // Check for all navigation links
     await expect(page.getByRole('link', { name: 'Users' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Roles' })).toBeVisible();
@@ -45,10 +45,10 @@ test.describe('Navigation Component', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([])
+        body: JSON.stringify([]),
       });
     });
-    
+
     await page.getByRole('link', { name: 'Users' }).click();
     await expect(page.url()).toContain('/users');
   });
@@ -59,10 +59,10 @@ test.describe('Navigation Component', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([])
+        body: JSON.stringify([]),
       });
     });
-    
+
     await page.getByRole('link', { name: 'Roles' }).click();
     await expect(page.url()).toContain('/roles');
   });
@@ -73,10 +73,10 @@ test.describe('Navigation Component', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([])
+        body: JSON.stringify([]),
       });
     });
-    
+
     await page.getByRole('link', { name: 'Logins' }).click();
     await expect(page.url()).toContain('/logins');
   });
@@ -92,16 +92,16 @@ test.describe('Navigation Component', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ success: true })
+        body: JSON.stringify({ success: true }),
       });
     });
-    
+
     // Click the logout button
     await page.getByRole('button', { name: 'Logout' }).click();
-    
+
     // Check that we've been redirected to the login page
     await expect(page.url()).toContain('/login');
-    
+
     // Verify localStorage was cleared
     const user = await page.evaluate(() => localStorage.getItem('user'));
     expect(user).toBeNull();
@@ -113,24 +113,24 @@ test.describe('Navigation Component', () => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
-        body: JSON.stringify({ message: 'Logout failed' })
+        body: JSON.stringify({ message: 'Logout failed' }),
       });
     });
-    
+
     // Spy on console.error
     const consoleErrorMessages: string[] = [];
-    page.on('console', msg => {
+    page.on('console', (msg) => {
       if (msg.type() === 'error') {
         consoleErrorMessages.push(msg.text());
       }
     });
-    
+
     // Click the logout button
     await page.getByRole('button', { name: 'Logout' }).click();
-    
+
     // Check that we're still on the same page (not redirected)
     await expect(page.url()).toContain('/users');
-    
+
     // Verify an error was logged to the console
     expect(consoleErrorMessages.some(msg => msg.includes('Logout failed'))).toBeTruthy();
   });

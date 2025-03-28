@@ -1,10 +1,12 @@
-import { Component, createSignal } from 'solid-js';
 import { useNavigate, useParams } from '@solidjs/router';
+import type { Component } from 'solid-js';
+import { createSignal } from 'solid-js';
+
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const PasswordReset: Component = () => {
   const params = useParams();
@@ -42,74 +44,115 @@ const PasswordReset: Component = () => {
 
       const data = await response.json();
       setSuccess(data.message || 'Password has been reset successfully');
-      
+
       // Redirect to login page after 2 seconds
       setTimeout(() => {
         navigate('/login');
       }, 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset password');
+    }
+    catch (err) {
+      setError(err instanceof Error
+        ? err.message
+        : 'Failed to reset password');
     }
   };
 
   return (
-    <div class="container mx-auto flex h-screen w-screen flex-col items-center justify-center">
+    <div
+      class="container mx-auto flex h-screen w-screen flex-col items-center justify-center"
+    >
       {success() && (
-        <Alert class="mb-4 w-[400px]">
+        <Alert
+          class="mb-4 w-[400px]"
+        >
           <AlertTitle>Success</AlertTitle>
-          <AlertDescription>{success()}</AlertDescription>
+          <AlertDescription>
+            {success()}
+          </AlertDescription>
         </Alert>
       )}
       {error() && (
-        <Alert class="mb-4 w-[400px]" variant="destructive">
+        <Alert
+          class="mb-4 w-[400px]"
+          variant="destructive"
+        >
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error()}</AlertDescription>
+          <AlertDescription>
+            {error()}
+          </AlertDescription>
         </Alert>
       )}
-      <Card class="w-[400px]">
+      <Card
+        class="w-[400px]"
+      >
         <CardHeader>
           <CardTitle>Reset Password</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} class="space-y-4">
+          <form
+            class="space-y-4"
+            onSubmit={handleSubmit}
+          >
 
-            <div class="space-y-2">
-              <Label for="password">New Password</Label>
+            <div
+              class="space-y-2"
+            >
+              <Label
+                for="password"
+              >
+                New Password
+              </Label>
               <Input
+                required
                 id="password"
+                placeholder="Enter new password"
                 type="password"
                 value={password()}
-                onInput={(e) => setPassword(e.currentTarget.value)}
-                placeholder="Enter new password"
-                required
+                onInput={e => setPassword(e.currentTarget.value)}
               />
             </div>
-            <div class="space-y-2">
-              <Label for="confirmPassword">Confirm Password</Label>
+            <div
+              class="space-y-2"
+            >
+              <Label
+                for="confirmPassword"
+              >
+                Confirm Password
+              </Label>
               <Input
+                required
                 id="confirmPassword"
+                placeholder="Confirm new password"
                 type="password"
                 value={confirmPassword()}
-                onInput={(e) => setConfirmPassword(e.currentTarget.value)}
-                placeholder="Confirm new password"
-                required
+                onInput={e => setConfirmPassword(e.currentTarget.value)}
               />
             </div>
             {error() && (
-              <Alert class="mt-4" variant="destructive">
+              <Alert
+                class="mt-4"
+                variant="destructive"
+              >
                 <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error()}</AlertDescription>
+                <AlertDescription>
+                  {error()}
+                </AlertDescription>
               </Alert>
             )}
-            <div class="space-y-2">
-              <Button type="submit" class="w-full">
+            <div
+              class="space-y-2"
+            >
+              <Button
+                class="w-full"
+                type="submit"
+              >
                 Reset Password
               </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => navigate('/login')}
+              <Button
                 class="w-full"
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/login')}
               >
                 Back to Login
               </Button>

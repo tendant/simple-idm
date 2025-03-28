@@ -1,7 +1,8 @@
-import { Component } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import RoleForm from '../components/RoleForm';
+import type { Component } from 'solid-js';
+
 import { roleApi } from '../api/role';
+import RoleForm from '../components/RoleForm';
 
 const CreateRole: Component = () => {
   const navigate = useNavigate();
@@ -12,18 +13,35 @@ const CreateRole: Component = () => {
   };
 
   return (
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      <div class="sm:flex sm:items-center">
-        <div class="sm:flex-auto">
-          <h1 class="text-2xl font-semibold text-gray-12">Create Role</h1>
-          <p class="mt-2 text-sm text-gray-11">
+    <div
+      class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8"
+    >
+      <div
+        class="sm:flex sm:items-center"
+      >
+        <div
+          class="sm:flex-auto"
+        >
+          <h1
+            class="text-2xl font-semibold text-gray-12"
+          >
+            Create Role
+          </h1>
+          <p
+            class="mt-2 text-sm text-gray-11"
+          >
             Create a new role in the system.
           </p>
         </div>
       </div>
 
-      <div class="mt-8">
-        <RoleForm onSubmit={handleSubmit} submitLabel="Create Role" />
+      <div
+        class="mt-8"
+      >
+        <RoleForm
+          submitLabel="Create Role"
+          onSubmit={handleSubmit}
+        />
       </div>
     </div>
   );

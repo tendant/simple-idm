@@ -4,8 +4,8 @@ import { useNavigate } from '@solidjs/router';
 let refreshPromise: Promise<Response> | null = null;
 
 interface ApiError extends Error {
-  status?: number;
-  code?: string;
+  status?: number
+  code?: string
 }
 
 export async function refreshToken(): Promise<boolean> {
@@ -15,14 +15,15 @@ export async function refreshToken(): Promise<boolean> {
       credentials: 'include',
     });
     return response.ok;
-  } catch (error) {
+  }
+  catch (error) {
     return false;
   }
 }
 
 export async function fetchWithAuth(
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<Response> {
   // First attempt
   let response = await fetch(url, {
@@ -35,19 +36,21 @@ export async function fetchWithAuth(
     // If there's already a refresh request in progress, wait for it
     if (refreshPromise) {
       await refreshPromise;
-    } else {
+    }
+    else {
       // Create new refresh request
       refreshPromise = fetch('/api/idm/auth/token/refresh', {
         method: 'POST',
         credentials: 'include',
       });
-      
+
       try {
         const refreshResponse = await refreshPromise;
         if (!refreshResponse.ok) {
           throw new Error('Token refresh failed');
         }
-      } finally {
+      }
+      finally {
         refreshPromise = null;
       }
     }
@@ -62,7 +65,7 @@ export async function fetchWithAuth(
   if (!response.ok) {
     const error: ApiError = new Error(response.statusText);
     error.status = response.status;
-    
+
     // Try to extract the error message from the response body
     try {
       const errorData = await response.clone().json();
@@ -72,11 +75,12 @@ export async function fetchWithAuth(
       if (errorData && errorData.code) {
         error.code = errorData.code;
       }
-    } catch (e) {
+    }
+    catch (e) {
       // If we can't parse the JSON, just use the status text
       console.error('Failed to parse error response:', e);
     }
-    
+
     throw error;
   }
 
@@ -98,10 +102,10 @@ export function useApiErrorHandler() {
 }
 
 // Helper function to extract error details from API responses
-export function extractErrorDetails(error: unknown): { 
-  message: string; 
-  code?: string; 
-  status?: number 
+export function extractErrorDetails(error: unknown): {
+  message: string
+  code?: string
+  status?: number
 } {
   if (error instanceof Error) {
     // If it's an ApiError with additional properties
@@ -109,18 +113,20 @@ export function extractErrorDetails(error: unknown): {
       return {
         message: error.message || 'An error occurred',
         code: (error as any).code,
-        status: (error as any).status
+        status: (error as any).status,
       };
     }
-    
+
     // Regular Error object
     return {
-      message: error.message || 'An error occurred'
+      message: error.message || 'An error occurred',
     };
   }
-  
+
   // Unknown error type
   return {
-    message: error instanceof Object ? JSON.stringify(error) : 'An unknown error occurred'
+    message: error instanceof Object
+      ? JSON.stringify(error)
+      : 'An unknown error occurred',
   };
 }
