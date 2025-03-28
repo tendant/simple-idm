@@ -95,12 +95,12 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 				return
 			}
 
-			// Process extra claims if they exist within extra claims
-			if extraClaimsRaw, exists := extraClaims["extra_claims"]; exists {
-				extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+			// Process nested extra claims if they exist within extra claims
+			if extraClaimsNestedRaw, exists := extraClaims["extra_claims"]; exists {
+				extraClaimsNested, ok := extraClaimsNestedRaw.(map[string]interface{})
 				if ok {
-					if err := LoadFromMap(extraClaims, &authUser.ExtraClaims); err != nil {
-						slog.Warn("failed to parse extra claims", "error", err)
+					if err := LoadFromMap(extraClaimsNested, &authUser.ExtraClaims); err != nil {
+						slog.Warn("failed to parse nested extra claims", "error", err)
 						// Continue processing as extra claims are optional
 					}
 				}
