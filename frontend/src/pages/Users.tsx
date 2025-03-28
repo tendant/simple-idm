@@ -1,7 +1,7 @@
-import { Component, createSignal, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { userApi } from '../api/user';
+import { Component, createSignal, For, onMount, Show } from 'solid-js';
 import type { User } from '../api/user';
+import { userApi } from '../api/user';
 
 const Users: Component = () => {
   const navigate = useNavigate();
@@ -20,12 +20,12 @@ const Users: Component = () => {
     }
   };
 
-  const handleDelete = async (uuid: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this user?')) return;
     
     try {
-      await userApi.deleteUser(uuid);
-      setUsers(users().filter(user => user.uuid !== uuid));
+      await userApi.deleteUser(id);
+      setUsers(users().filter(user => user?.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete user');
     }
@@ -96,60 +96,65 @@ const Users: Component = () => {
                 </thead>
                 <tbody class="divide-y divide-gray-6">
                   <Show when={!loading()} fallback={<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>}>
-                    {users().map((user) => (
-                      <tr key={user.id}>
-                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
-                          {user.name || '-'}
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          {user.username ? (
-                            <a 
-                              href="#" 
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (user.login_id) {
-                                  navigate(`/logins/${user.login_id}/detail`);
-                                }
-                              }}
-                              class={user.login_id ? "text-blue-600 hover:text-blue-800 hover:underline" : "text-gray-11"}
-                            >
-                              {user.username}
-                            </a>
-                          ) : (
-                            '-'
-                          )}
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          {user.email}
-                        </td>
-                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                          <div class="flex flex-wrap gap-1">
-                            {user.roles?.map((role) => (
-                              <span
-                                key={role.id}
-                                class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20"
+                    <For each={users()}>
+                      {
+                        (user)=>(
+                          <tr >
+                          <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
+                            {user.name || '-'}
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                            {user.username ? (
+                              <a 
+                                href="#" 
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (user.login_id) {
+                                    navigate(`/logins/${user.login_id}/detail`);
+                                  }
+                                }}
+                                class={user.login_id ? "text-blue-600 hover:text-blue-800 hover:underline" : "text-gray-11"}
                               >
-                                {role.name}
-                              </span>
-                            )) || '-'}
-                          </div>
-                        </td>
-                        <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                          <button
-                            onClick={() => navigate(`/users/${user.id}/edit`)}
-                            class="text-blue-600 hover:text-blue-900 mr-4"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(user.id!)}
-                            class="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                                {user.username}
+                              </a>
+                            ) : (
+                              '-'
+                            )}
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                            {user.email}
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                            <div class="flex flex-wrap gap-1">
+                              <For each={user.roles}>
+                                {role => (
+                                  <span
+                                    class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20"
+                                  >
+                                    {role.name}
+                                  </span>
+                                )}
+                              </For>
+                            </div>
+                          </td>
+                          <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                            <button
+                              onClick={() => navigate(`/users/${user.id}/edit`)}
+                              class="text-blue-600 hover:text-blue-900 mr-4"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(user.id!)}
+                              class="text-red-600 hover:text-red-900"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                        )
+                      }
+                    </For>
                   </Show>
                 </tbody>
               </table>
