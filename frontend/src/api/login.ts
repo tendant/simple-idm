@@ -1,36 +1,36 @@
 import { apiClient } from './client';
 
 export interface Login {
-  id?: string;
-  username: string;
-  created_at?: string;
-  last_modified_at?: string;
-  two_factor_enabled?: boolean;
-  password_last_changed?: string;
-  status?: string;
+  id?: string
+  username: string
+  created_at?: string
+  last_modified_at?: string
+  two_factor_enabled?: boolean
+  password_last_changed?: string
+  status?: string
 }
 
 export interface TwoFactorMethod {
-  type: string;
-  enabled: boolean;
-  two_factor_id: string;
+  type: string
+  enabled: boolean
+  two_factor_id: string
 }
 
 export interface TwoFactorMethods {
-  count: number;
-  methods: TwoFactorMethod[] | null;
+  count: number
+  methods: TwoFactorMethod[] | null
 }
 
 export interface CreateLoginRequest {
-  username: string;
-  password: string;
-  email?: string; // Added to support email in login creation
+  username: string
+  password: string
+  email?: string // Added to support email in login creation
 }
 
 export interface UpdateLoginRequest {
-  username?: string;
-  password?: string;
-  two_factor_enabled?: boolean;
+  username?: string
+  password?: string
+  two_factor_enabled?: boolean
 }
 
 export const loginApi = {
@@ -84,7 +84,7 @@ export const loginApi = {
     }
   },
 
-  enable2FA: async (id: string): Promise<{ secret: string; qrCode: string }> => {
+  enable2FA: async (id: string): Promise<{ secret: string, qrCode: string }> => {
     const response = await apiClient.post(`/idm/logins/${id}/2fa/enable`, {});
     if (!response.ok) {
       throw new Error('Failed to enable 2FA');
@@ -114,12 +114,12 @@ export const loginApi = {
     }
     return response.json();
   },
-  
+
   get2FAMethods: async (id: string): Promise<TwoFactorMethods> => {
     const response = await apiClient.get(`/idm/logins/${id}/2fa`);
     if (!response.ok) {
       throw new Error('Failed to fetch 2FA methods');
     }
     return response.json();
-  }
+  },
 };
