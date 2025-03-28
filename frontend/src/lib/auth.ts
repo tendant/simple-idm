@@ -20,7 +20,8 @@ export async function logout() {
     // Clear auth data and redirect to login page
     clearAuthData();
     window.location.href = '/login';
-  } catch (error) {
+  }
+  catch (error) {
     console.error('Logout failed:', error);
     throw error;
   }

@@ -1,8 +1,9 @@
-import { mergeProps, Show, splitProps, type Component, type ComponentProps } from "solid-js"
+import type { Component, ComponentProps } from 'solid-js';
+import { mergeProps, Show, splitProps } from 'solid-js'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
-type DeltaBarProps = ComponentProps<"div"> & {
+type DeltaBarProps = ComponentProps<'div'> & {
   value: number
   isIncreasePositive?: boolean
 }
@@ -10,43 +11,53 @@ type DeltaBarProps = ComponentProps<"div"> & {
 const DeltaBar: Component<DeltaBarProps> = (rawProps) => {
   const props = mergeProps(
     {
-      isIncreasePositive: true
+      isIncreasePositive: true,
     },
-    rawProps
+    rawProps,
   )
-  const [local, others] = splitProps(props, ["value", "isIncreasePositive", "class"])
+  const [local, others] = splitProps(props, ['value', 'isIncreasePositive', 'class'])
 
   return (
     <div
-      class={cn("relative flex h-2 w-full items-center rounded-full bg-secondary", local.class)}
+      class={cn('relative flex h-2 w-full items-center rounded-full bg-secondary', local.class)}
       {...others}
     >
-      <div class="flex h-full w-1/2 justify-end">
-        <Show when={local.value < 0}>
+      <div
+        class="flex h-full w-1/2 justify-end"
+      >
+        <Show
+          when={local.value < 0}
+        >
           <div
-            class={cn(
-              "rounded-l-full",
-              (local.value > 0 && local.isIncreasePositive) ||
-                (local.value < 0 && !local.isIncreasePositive)
-                ? "bg-success-foreground"
-                : "bg-error-foreground"
-            )}
             style={{ width: `${Math.abs(local.value)}%` }}
+            class={cn(
+              'rounded-l-full',
+              (local.value > 0 && local.isIncreasePositive)
+              || (local.value < 0 && !local.isIncreasePositive)
+                ? 'bg-success-foreground'
+                : 'bg-error-foreground',
+            )}
           />
         </Show>
       </div>
-      <div class={cn("z-10 h-4 w-1 rounded-full bg-primary ring-2 ring-background")} />
-      <div class="flex h-full w-1/2 justify-start">
-        <Show when={local.value > 0}>
+      <div
+        class={cn('z-10 h-4 w-1 rounded-full bg-primary ring-2 ring-background')}
+      />
+      <div
+        class="flex h-full w-1/2 justify-start"
+      >
+        <Show
+          when={local.value > 0}
+        >
           <div
-            class={cn(
-              "rounded-r-full",
-              (local.value > 0 && local.isIncreasePositive) ||
-                (local.value < 0 && !local.isIncreasePositive)
-                ? "bg-success-foreground"
-                : "bg-error-foreground"
-            )}
             style={{ width: `${Math.abs(local.value)}%` }}
+            class={cn(
+              'rounded-r-full',
+              (local.value > 0 && local.isIncreasePositive)
+              || (local.value < 0 && !local.isIncreasePositive)
+                ? 'bg-success-foreground'
+                : 'bg-error-foreground',
+            )}
           />
         </Show>
       </div>

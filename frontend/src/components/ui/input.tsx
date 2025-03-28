@@ -1,18 +1,20 @@
-import { Component, ComponentProps, splitProps } from "solid-js";
-import { cn } from "@/lib/utils";
+import type { Component, ComponentProps } from 'solid-js';
+import { splitProps } from 'solid-js';
 
-export interface InputProps extends ComponentProps<"input"> {
-  class?: string;
+import { cn } from '@/lib/utils';
+
+export interface InputProps extends ComponentProps<'input'> {
+  class?: string
 }
 
 const Input: Component<InputProps> = (props) => {
-  const [local, others] = splitProps(props, ["class"]);
+  const [local, others] = splitProps(props, ['class']);
 
   return (
     <input
       class={cn(
-        "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-        local.class
+        'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+        local.class,
       )}
       {...others}
     />
