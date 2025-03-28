@@ -18,8 +18,9 @@ type ExtraClaims struct {
 }
 
 type AuthUser struct {
-	UserId  string `json:"user_id,omitempty"`
-	LoginId string `json:"login_id,omitempty"`
+	UserId      string `json:"user_id,omitempty"`
+	DisplayName string `json:"display_name,omitempty"` // Name of the user, not username
+	LoginId     string `json:"login_id,omitempty"`
 	// For backward compatibility, we still need to support UserUuid, also it is convenient to have it as a uuid.UUID
 	UserUuid uuid.UUID
 	// LoginID as UUID for direct use (parsed from LoginId string)
@@ -79,27 +80,27 @@ func AuthUserMiddleware(next http.Handler) http.Handler {
 		// Initialize auth user
 		authUser := new(AuthUser)
 
-		// Process custom claims if they exist
-		if customClaimsRaw, exists := claims["extra_claims"]; exists {
-			customClaims, ok := customClaimsRaw.(map[string]interface{})
+		// Process extra claims if they exist
+		if extraClaimsRaw, exists := claims["extra_claims"]; exists {
+			extraClaims, ok := extraClaimsRaw.(map[string]interface{})
 			if !ok {
-				http.Error(w, "invalid custom claims format", http.StatusUnauthorized)
+				http.Error(w, "invalid extra claims format", http.StatusUnauthorized)
 				return
 			}
 
-			// Extract data from custom claims
-			if err := LoadFromMap(customClaims, authUser); err != nil {
-				slog.Error("failed to parse custom claims", "error", err)
-				http.Error(w, "invalid custom claims data", http.StatusUnauthorized)
+			// Extract data from extra claims
+			if err := LoadFromMap(extraClaims, authUser); err != nil {
+				slog.Error("failed to parse extra claims", "error", err)
+				http.Error(w, "invalid extra claims data", http.StatusUnauthorized)
 				return
 			}
 
-			// Process extra claims if they exist within custom claims
-			if extraClaimsRaw, exists := customClaims["extra_claims"]; exists {
-				extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+			// Process nested extra claims if they exist within extra claims
+			if extraClaimsNestedRaw, exists := extraClaims["extra_claims"]; exists {
+				extraClaimsNested, ok := extraClaimsNestedRaw.(map[string]interface{})
 				if ok {
-					if err := LoadFromMap(extraClaims, &authUser.ExtraClaims); err != nil {
-						slog.Warn("failed to parse extra claims", "error", err)
+					if err := LoadFromMap(extraClaimsNested, &authUser.ExtraClaims); err != nil {
+						slog.Warn("failed to parse nested extra claims", "error", err)
 						// Continue processing as extra claims are optional
 					}
 				}
