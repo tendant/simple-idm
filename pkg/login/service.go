@@ -98,18 +98,26 @@ func (s *LoginService) CheckPasswordByLoginId(ctx context.Context, loginId uuid.
 	)
 }
 
-func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.User, error) {
-	// Find user by username
+func (s *LoginService) FindLoginByUsername(ctx context.Context, username string) (LoginEntity, error) {
 	usernameStr := username
 	usernameValid := username != ""
-	loginUser, err := s.repository.FindLoginByUsername(ctx, usernameStr, usernameValid)
+	login, err := s.repository.FindLoginByUsername(ctx, usernameStr, usernameValid)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			slog.Error("no login found with username: %s", username)
-			return []mapper.User{}, fmt.Errorf("invalid username or password")
+			return LoginEntity{}, fmt.Errorf("invalid username or password")
 		}
 		slog.Error("error finding login with username: %s", username)
-		return []mapper.User{}, fmt.Errorf("error finding user: %w", err)
+		return LoginEntity{}, fmt.Errorf("error finding user: %w", err)
+	}
+	return login, nil
+}
+
+func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.User, error) {
+	// Find user by username
+	loginUser, err := s.FindLoginByUsername(ctx, username)
+	if err != nil {
+		return []mapper.User{}, fmt.Errorf("error finding login: %w", err)
 	}
 
 	// Verify password
@@ -341,14 +349,8 @@ func (s LoginService) ChangePassword(ctx context.Context, loginID, currentPasswo
 // InitPasswordReset generates a reset token and sends a reset email
 func (s *LoginService) InitPasswordReset(ctx context.Context, username string) error {
 	// Find user by username
-	usernameValid := username != ""
-	loginUser, err := s.repository.FindLoginByUsername(ctx, username, usernameValid)
+	loginUser, err := s.FindLoginByUsername(ctx, username)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			slog.Warn("User not found")
-			return nil
-		}
-		slog.Error("Error finding user", "err", err)
 		return err
 	}
 

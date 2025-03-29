@@ -22,28 +22,29 @@ type BackupCode struct {
 }
 
 type GooseDbVersion struct {
-	ID        int32     `json:"id"`
-	VersionID int64     `json:"version_id"`
-	IsApplied bool      `json:"is_applied"`
-	Tstamp    time.Time `json:"tstamp"`
+	ID        int32        `json:"id"`
+	VersionID int64        `json:"version_id"`
+	IsApplied bool         `json:"is_applied"`
+	Tstamp    sql.NullTime `json:"tstamp"`
 }
 
 type Login struct {
-	ID              uuid.UUID      `json:"id"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
-	DeletedAt       sql.NullTime   `json:"deleted_at"`
-	CreatedBy       sql.NullString `json:"created_by"`
-	Password        []byte         `json:"password"`
-	Username        sql.NullString `json:"username"`
-	PasswordVersion pgtype.Int4    `json:"password_version"`
+	ID                    uuid.UUID      `json:"id"`
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+	DeletedAt             sql.NullTime   `json:"deleted_at"`
+	CreatedBy             sql.NullString `json:"created_by"`
+	Password              []byte         `json:"password"`
+	Username              sql.NullString `json:"username"`
+	PasswordVersion       pgtype.Int4    `json:"password_version"`
+	PasswordResetRequired sql.NullBool   `json:"password_reset_required"`
 }
 
 type Login2fa struct {
 	ID                   uuid.UUID      `json:"id"`
 	LoginID              uuid.UUID      `json:"login_id"`
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
-	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
+	TwoFactorEnabled     sql.NullBool   `json:"two_factor_enabled"`
 	TwoFactorType        sql.NullString `json:"two_factor_type"`
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
 	CreatedAt            time.Time      `json:"created_at"`

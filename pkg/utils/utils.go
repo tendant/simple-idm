@@ -134,3 +134,15 @@ func NullStringToNullUUID(nullStr sql.NullString) uuid.NullUUID {
 		Valid: true,
 	}
 }
+
+func ToNullUUID(id uuid.UUID) uuid.NullUUID {
+	if id == uuid.Nil {
+		return uuid.NullUUID{
+			Valid: false,
+		}
+	}
+	return uuid.NullUUID{
+		UUID:  id,
+		Valid: true,
+	}
+}

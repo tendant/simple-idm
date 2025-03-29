@@ -262,6 +262,35 @@ paths:
           description: 2FA method not found
         "500":
           description: Internal server error
+  /login/associate:
+    post:
+      summary: Associate a login
+      operationId: associate_login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                username:
+                  type: string
+              required:
+                - password
+                - username
+      responses:
+        "200":
+          description: Login associated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: Login not found
 components:
   schemas:
     SuccessResponse:
