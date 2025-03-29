@@ -6,7 +6,7 @@ function clearAuthData() {
 
 export async function logout() {
   try {
-    const response = await fetch('/auth/logout', {
+    const response = await fetch('/api/idm/auth/logout', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

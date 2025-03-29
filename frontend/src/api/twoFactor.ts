@@ -58,7 +58,7 @@ export interface SelectUserRequiredResponse {
 
 export const twoFactorApi = {
   sendCode: async (token: string, request: TwoFactorSendRequest): Promise<void> => {
-    const response = await apiClient.post('/auth/2fa/send', request, {
+    const response = await apiClient.post('/api/idm/auth/2fa/send', request, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -71,7 +71,7 @@ export const twoFactorApi = {
   },
   
   verifyCode: async (token: string, request: TwoFactorVerifyRequest): Promise<any> => {
-    const response = await apiClient.post('/auth/2fa/validate', request, {
+    const response = await apiClient.post('/api/idm/auth/2fa/validate', request, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -103,7 +103,7 @@ export const twoFactorApi = {
   },
 
   enable2FAMethod: async (loginId: string, twofaType: string): Promise<void> => {
-    const response = await apiClient.post('/idm/2fa/enable', {
+    const response = await apiClient.post('/api/idm/idm/2fa/enable', {
       login_id: loginId,
       twofa_type: twofaType
     });
@@ -115,7 +115,7 @@ export const twoFactorApi = {
   },
 
   disable2FAMethod: async (loginId: string, twofaType: string): Promise<void> => {
-    const response = await apiClient.post('/idm/2fa/disable', {
+    const response = await apiClient.post('/api/idm/idm/2fa/disable', {
       login_id: loginId,
       twofa_type: twofaType
     });
@@ -127,7 +127,7 @@ export const twoFactorApi = {
   },
   
   create2FAMethod: async (loginId: string, twofaType: string): Promise<void> => {
-    const response = await apiClient.post('/idm/2fa', {
+    const response = await apiClient.post('/api/idm/idm/2fa', {
       login_id: loginId,
       twofa_type: twofaType
     });
@@ -139,7 +139,7 @@ export const twoFactorApi = {
   },
 
   delete2FAMethod: async (loginId: string, twofaType: string, twofaId: string): Promise<void> => {
-    const response = await apiClient.post('/idm/2fa/delete', {
+    const response = await apiClient.post('/api/idm/idm/2fa/delete', {
       login_id: loginId,
       twofa_type: twofaType,
       twofa_id: twofaId
@@ -152,7 +152,7 @@ export const twoFactorApi = {
   },
 
   setup2FAMethod: async (twofaType: string): Promise<any> => {
-    const response = await apiClient.post('/profile/2fa/setup', {
+    const response = await apiClient.post('/api/idm/profile/2fa/setup', {
       twofa_type: twofaType
     });
     
@@ -165,7 +165,7 @@ export const twoFactorApi = {
   },
   
   get2FAMethods: async (): Promise<ProfileTwoFactorMethods> => {
-    const response = await apiClient.get('/profile/2fa');
+    const response = await apiClient.get('/api/idm/profile/2fa');
     
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));

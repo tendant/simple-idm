@@ -24,7 +24,7 @@ const PasswordReset: Component = () => {
     }
 
     try {
-      const response = await fetch('/auth/password/reset', {
+      const response = await fetch('/api/idm/auth/password/reset', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
