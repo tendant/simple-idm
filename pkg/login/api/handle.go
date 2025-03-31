@@ -57,8 +57,8 @@ type ResponseHandler interface {
 	PrepareUserListResponse(users []mapper.User) *Response
 	// PrepareUserSwitchResponse prepares a response for user switch
 	PrepareUserSwitchResponse(users []mapper.User) *Response
-	// PrepareMobileLoginResponse prepares a response for mobile login with tokens
-	PrepareMobileLoginResponse(tokens []tg.TokenValue) *Response
+	// PrepareTokenResponse prepares a response with access and refresh tokens
+	PrepareTokenResponse(tokens []tg.TokenValue) *Response
 }
 
 // DefaultResponseHandler is the default implementation of ResponseHandler
@@ -150,17 +150,24 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 	return PostUserSwitchJSON200Response(response)
 }
 
-// PrepareMobileLoginResponse creates a response for mobile login with tokens
-func (h *DefaultResponseHandler) PrepareMobileLoginResponse(tokens []tg.TokenValue) *Response {
-	return PostMobileLoginJSON200Response(LoginResponse{
-		AccessToken:  tokens[0].Token,
-		RefreshToken: tokens[1].Token,
-	})
-}
+// PrepareTokenResponse creates a response with access and refresh tokens
+func (h *DefaultResponseHandler) PrepareTokenResponse(tokens []tg.TokenValue) *Response {
+	if len(tokens) < 2 {
+		slog.Error("Not enough tokens to prepare response", "tokens_count", len(tokens))
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Internal server error: insufficient tokens",
+		}
+	}
 
-// MobileTokenRefreshRequest represents the request body for mobile token refresh
-type MobileTokenRefreshRequest struct {
-	RefreshToken string `json:"refresh_token"`
+	return &Response{
+		Code: http.StatusOK,
+		body: LoginResponse{
+			AccessToken:  tokens[0].Token,
+			RefreshToken: tokens[1].Token,
+		},
+		contentType: "application/json",
+	}
 }
 
 // check2FAEnabled checks if 2FA is enabled for the given login ID and returns the 2FA methods if enabled
@@ -603,10 +610,7 @@ func (h Handle) PostMobileTokenRefresh(w http.ResponseWriter, r *http.Request) *
 	}
 
 	// Return tokens in response instead of setting cookies
-	return PostMobileTokenRefreshJSON200Response(Tokens{
-		AccessToken:  tokens[0].Token,
-		RefreshToken: tokens[1].Token,
-	})
+	return h.responseHandler.PrepareTokenResponse(tokens)
 }
 
 // validateRefreshToken validates a refresh token and returns the parsed token and claims
@@ -885,7 +889,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Return tokens in response
-	return h.responseHandler.PrepareMobileLoginResponse(tokens)
+	return h.responseHandler.PrepareTokenResponse(tokens)
 }
 
 // Register a new user
@@ -1515,7 +1519,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	}
 
 	// Return tokens in response
-	return h.responseHandler.PrepareMobileLoginResponse(tokens)
+	return h.responseHandler.PrepareTokenResponse(tokens)
 }
 
 // (POST /mobile/user/switch)
@@ -1619,7 +1623,7 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 	}
 
 	// Return tokens in response for mobile
-	return h.responseHandler.PrepareMobileLoginResponse(tokens)
+	return h.responseHandler.PrepareTokenResponse(tokens)
 }
 
 // Helper function to create a pointer to a string
