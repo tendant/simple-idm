@@ -356,3 +356,12 @@ func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 
 	return Delete2faJSON200Response(resp)
 }
+
+// Switch to a different user when multiple users are available for the same login
+// (POST /user/switch)
+func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response {
+	return &Response{
+		Code: http.StatusNotImplemented,
+		body: "not implemented",
+	}
+}
