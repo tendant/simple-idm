@@ -368,3 +368,12 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		body: "not implemented",
 	}
 }
+
+// Get a list of users associated with the current login
+// (GET /users)
+func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response {
+	return &Response{
+		Code: http.StatusNotImplemented,
+		body: "not implemented",
+	}
+}
