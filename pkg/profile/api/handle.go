@@ -8,20 +8,23 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/client"
+	loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/profile"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	"golang.org/x/exp/slog"
 )
 
 type Handle struct {
-	profileService *profile.ProfileService
-	twoFaService   *twofa.TwoFaService
+	profileService  *profile.ProfileService
+	twoFaService    *twofa.TwoFaService
+	responseHandler loginapi.ResponseHandler
 }
 
 func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService) Handle {
 	return Handle{
-		profileService: profileService,
-		twoFaService:   twoFaService,
+		profileService:  profileService,
+		twoFaService:    twoFaService,
+		responseHandler: &loginapi.DefaultResponseHandler{},
 	}
 }
 
