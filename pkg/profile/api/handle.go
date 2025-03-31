@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/client"
-	loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/profile"
 	"github.com/tendant/simple-idm/pkg/twofa"
@@ -18,7 +17,7 @@ import (
 type Handle struct {
 	profileService  *profile.ProfileService
 	twoFaService    *twofa.TwoFaService
-	responseHandler loginapi.ResponseHandler
+	responseHandler ResponseHandler
 	userMapper      mapper.UserMapper
 }
 
@@ -26,7 +25,7 @@ func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFa
 	return Handle{
 		profileService:  profileService,
 		twoFaService:    twoFaService,
-		responseHandler: &loginapi.DefaultResponseHandler{},
+		responseHandler: NewDefaultResponseHandler(),
 		userMapper:      userMapper,
 	}
 }
@@ -406,4 +405,44 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	}
 
 	return h.responseHandler.PrepareUserListResponse(users)
+}
+
+// ResponseHandler defines the interface for handling responses during login
+type ResponseHandler interface {
+	// PrepareUserListResponse prepares a response for a list of users
+	PrepareUserListResponse(users []mapper.User) *Response
+}
+
+// DefaultResponseHandler is the default implementation of ResponseHandler
+type DefaultResponseHandler struct {
+}
+
+// NewDefaultResponseHandler creates a new DefaultResponseHandler
+func NewDefaultResponseHandler() ResponseHandler {
+	return &DefaultResponseHandler{}
+}
+
+// PrepareUserListResponse prepares a response for a list of users
+func (h *DefaultResponseHandler) PrepareUserListResponse(users []mapper.User) *Response {
+	var apiUsers []User
+	for _, user := range users {
+		email, _ := user.ExtraClaims["email"].(string)
+		// Check if email is available in UserInfo
+		if user.UserInfo.Email != "" {
+			email = user.UserInfo.Email
+		}
+
+		role := ""
+		if len(user.Roles) > 0 {
+			role = user.Roles[0]
+		}
+
+		apiUsers = append(apiUsers, User{
+			ID:    user.UserId,
+			Name:  user.DisplayName,
+			Role:  role,
+			Email: email,
+		})
+	}
+	return FindUsersWithLoginJSON200Response(apiUsers)
 }
