@@ -135,8 +135,8 @@ type SuccessResponse struct {
 
 // Tokens defines model for Tokens.
 type Tokens struct {
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 // TwoFactorMethod defines model for TwoFactorMethod.
@@ -206,6 +206,11 @@ type PostMobile2faValidateJSONBody struct {
 type PostMobileLoginJSONBody struct {
 	Password string `json:"password"`
 	Username string `json:"username"`
+}
+
+// PostMobileTokenRefreshJSONBody defines parameters for PostMobileTokenRefresh.
+type PostMobileTokenRefreshJSONBody struct {
+	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
 // PostMobileUserSwitchJSONBody defines parameters for PostMobileUserSwitch.
@@ -297,6 +302,14 @@ type PostMobileLoginJSONRequestBody PostMobileLoginJSONBody
 
 // Bind implements render.Binder.
 func (PostMobileLoginJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostMobileTokenRefreshJSONRequestBody defines body for PostMobileTokenRefresh for application/json ContentType.
+type PostMobileTokenRefreshJSONRequestBody PostMobileTokenRefreshJSONBody
+
+// Bind implements render.Binder.
+func (PostMobileTokenRefreshJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -521,6 +534,16 @@ func PostMobileLoginJSON200Response(body interface{}) *Response {
 	}
 }
 
+// PostMobileTokenRefreshJSON200Response is a constructor method for a PostMobileTokenRefresh response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostMobileTokenRefreshJSON200Response(body Tokens) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // PostMobileUserSwitchJSON200Response is a constructor method for a PostMobileUserSwitch response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostMobileUserSwitchJSON200Response(body interface{}) *Response {
@@ -694,6 +717,9 @@ type ServerInterface interface {
 	// Mobile login endpoint
 	// (POST /mobile/login)
 	PostMobileLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Refresh JWT tokens
+	// (POST /mobile/token/refresh)
+	PostMobileTokenRefresh(w http.ResponseWriter, r *http.Request) *Response
 	// Switch to a different user when multiple users are available for the same login
 	// (POST /mobile/user/switch)
 	PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Response
@@ -861,6 +887,24 @@ func (siw *ServerInterfaceWrapper) PostMobileLogin(w http.ResponseWriter, r *htt
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostMobileLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PostMobileTokenRefresh operation middleware
+func (siw *ServerInterfaceWrapper) PostMobileTokenRefresh(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostMobileTokenRefresh(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -1169,6 +1213,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/mobile/2fa/send", wrapper.PostMobile2faSend)
 		r.Post("/mobile/2fa/validate", wrapper.PostMobile2faValidate)
 		r.Post("/mobile/login", wrapper.PostMobileLogin)
+		r.Post("/mobile/token/refresh", wrapper.PostMobileTokenRefresh)
 		r.Post("/mobile/user/switch", wrapper.PostMobileUserSwitch)
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset/init", wrapper.PostPasswordResetInit)
@@ -1203,46 +1248,46 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"HYpKiTWmqhebzX8DAAD//7f5GxXDNwAA",
+	"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",
+	"4aQk2/kjr6iUmGOqfLHZ/D8AAP//tfceVm05AAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
