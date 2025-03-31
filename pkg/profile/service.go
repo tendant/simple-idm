@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/profile/profiledb"
 	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
@@ -111,13 +112,15 @@ func (r *PostgresProfileRepository) UpdateUsername(ctx context.Context, arg Upda
 type ProfileService struct {
 	repository   ProfileRepository
 	loginService *login.LoginService
+	userMapper   mapper.UserMapper
 }
 
 // NewProfileService creates a new ProfileService
-func NewProfileService(repository ProfileRepository, loginService *login.LoginService) *ProfileService {
+func NewProfileService(repository ProfileRepository, loginService *login.LoginService, userMapper mapper.UserMapper) *ProfileService {
 	return &ProfileService{
 		repository:   repository,
 		loginService: loginService,
+		userMapper:   userMapper,
 	}
 }
 
@@ -189,6 +192,27 @@ func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswo
 
 func (s *ProfileService) GetPasswordPolicy() *login.PasswordPolicy {
 	return s.loginService.GetPasswordPolicy()
+}
+
+// ToTokenClaims converts a User to token claims using the UserMapper
+func (s *ProfileService) ToTokenClaims(user mapper.User) (rootModifications map[string]interface{}, extraClaims map[string]interface{}) {
+	if s.userMapper == nil {
+		slog.Warn("UserMapper is nil, returning empty claims")
+		return map[string]interface{}{}, map[string]interface{}{}
+	}
+	return s.userMapper.ToTokenClaims(user)
+}
+
+func (s *ProfileService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
+	// Get users from repository
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to find users by login ID", "err", err)
+		return nil, err
+	}
+
+	// Return the users directly
+	return users, nil
 }
 
 // Disable2FA disables 2FA for a user after verifying their password and 2FA code
