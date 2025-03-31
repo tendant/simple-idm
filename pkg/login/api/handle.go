@@ -158,6 +158,11 @@ func (h *DefaultResponseHandler) PrepareMobileLoginResponse(tokens []tg.TokenVal
 	})
 }
 
+// MobileTokenRefreshRequest represents the request body for mobile token refresh
+type MobileTokenRefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 // check2FAEnabled checks if 2FA is enabled for the given login ID and returns the 2FA methods if enabled
 // Returns: (is2FAEnabled, twoFactorMethods, tempToken, error)
 func (h Handle) check2FAEnabled(ctx context.Context, w http.ResponseWriter, loginID uuid.UUID, idmUsers []mapper.User) (bool, []TwoFactorMethod, *tg.TokenValue, error) {
@@ -543,6 +548,65 @@ func (h Handle) getUserFromToken(ctx context.Context, token *jwt.Token) (string,
 	}
 
 	return userId, tokenUser, nil
+}
+
+// PostMobileTokenRefresh handles the mobile token refresh endpoint
+// (POST /api/v5/idm/auth/mobile/token/refresh)
+func (h Handle) PostMobileTokenRefresh(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
+	var data PostMobileTokenRefreshJSONBody
+	if err := render.DecodeJSON(r.Body, &data); err != nil {
+		slog.Error("Unable to parse request body", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+
+	// Validate refresh token is provided
+	if data.RefreshToken == "" {
+		slog.Error("No refresh token provided in request body")
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Refresh token is required",
+		}
+	}
+
+	// Validate the refresh token
+	token, _, err := h.validateRefreshToken(data.RefreshToken)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: err.Error(),
+		}
+	}
+
+	// Get user information from token
+	userId, tokenUser, err := h.getUserFromToken(r.Context(), token)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: err.Error(),
+		}
+	}
+
+	// Generate token claims
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
+
+	tokens, err := h.tokenService.GenerateTokens(userId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create tokens",
+		}
+	}
+
+	// Return tokens in response instead of setting cookies
+	return PostMobileTokenRefreshJSON200Response(Tokens{
+		AccessToken:  tokens[0].Token,
+		RefreshToken: tokens[1].Token,
+	})
 }
 
 // validateRefreshToken validates a refresh token and returns the parsed token and claims
