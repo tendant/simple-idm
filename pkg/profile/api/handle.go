@@ -9,6 +9,7 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/client"
 	loginapi "github.com/tendant/simple-idm/pkg/login/api"
+	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/profile"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	"golang.org/x/exp/slog"
@@ -18,13 +19,15 @@ type Handle struct {
 	profileService  *profile.ProfileService
 	twoFaService    *twofa.TwoFaService
 	responseHandler loginapi.ResponseHandler
+	userMapper      mapper.UserMapper
 }
 
-func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService) Handle {
+func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, userMapper mapper.UserMapper) Handle {
 	return Handle{
 		profileService:  profileService,
 		twoFaService:    twoFaService,
 		responseHandler: &loginapi.DefaultResponseHandler{},
+		userMapper:      userMapper,
 	}
 }
 
@@ -372,8 +375,35 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 // Get a list of users associated with the current login
 // (GET /users)
 func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response {
-	return &Response{
-		Code: http.StatusNotImplemented,
-		body: "not implemented",
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
 	}
+
+	// Get user UUID from context (assuming it's set by auth middleware)
+	loginIdStr := authUser.LoginId
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	users, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
+	if err != nil {
+		slog.Error("Failed to get users by login ID", "err", err)
+		return &Response{
+			body: "Failed to get users by login ID",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	return h.responseHandler.PrepareUserListResponse(users)
 }
