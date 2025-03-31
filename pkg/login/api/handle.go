@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -283,6 +284,10 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			body: "Unable to parse request body",
 		}
 	}
+
+	// Log username and hashed password
+	passwordHash := fmt.Sprintf("%x", sha256.Sum256([]byte(data.Password)))
+	slog.Info("Login request", "username", data.Username, "password_hash", passwordHash)
 
 	// Call login service
 	loginParams := LoginParams{
