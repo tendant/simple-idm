@@ -306,6 +306,19 @@ paths:
                   message:
                     type: string
                     example: "Not authorized to switch to this user"
+  /users:
+    get:
+      summary: Get a list of users associated with the current login
+      operationId: find_users_with_login
+      responses:
+        "200":
+          description: Successfully retrieved users
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MultiUsersResponse"
+                  - $ref: "#/components/schemas/SingleUserResponse"
 components:
   schemas:
     SuccessResponse:
@@ -467,6 +480,21 @@ components:
         - name
         - email
         - role
+    MultiUsersResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+    SingleUserResponse:
+      description: Structure added for integration compatibility purposes
+      x-go-optional-value: true
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
   securitySchemes:
     BearerAuth:
       type: http
