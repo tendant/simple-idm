@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -464,7 +465,6 @@ func (h Handle) PostPasswordReset(w http.ResponseWriter, r *http.Request) *Respo
 // PostTokenRefresh handles the token refresh endpoint
 // (POST /token/refresh)
 func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Response {
-
 	// Get refresh token from cookie
 	cookie, err := r.Cookie(tg.REFRESH_TOKEN_NAME)
 	if err != nil {
@@ -475,72 +475,25 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		}
 	}
 
-	// Parse and validate the refresh token
-	token, err := h.tokenService.ParseToken(cookie.Value)
+	// Validate the refresh token
+	token, _, err := h.validateRefreshToken(cookie.Value)
 	if err != nil {
-		slog.Error("Invalid Refresh Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			body: "Invalid refresh token",
+			body: err.Error(),
 		}
 	}
 
-	// Explicitly check token expiration
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		slog.Error("Invalid token claims format")
-		return &Response{
-			Code: http.StatusUnauthorized,
-			body: "Invalid token format",
-		}
-	}
-
-	// Check if token has expired
-	exp, ok := claims["exp"].(float64)
-	if !ok {
-		slog.Error("Missing expiration claim in token")
-		return &Response{
-			Code: http.StatusUnauthorized,
-			body: "Invalid token format: missing expiration",
-		}
-	}
-
-	expTime := time.Unix(int64(exp), 0)
-	if time.Now().After(expTime) {
-		slog.Error("Refresh token has expired", "expiry", expTime)
-		return &Response{
-			Code: http.StatusUnauthorized,
-			body: "Refresh token has expired",
-		}
-	}
-
-	// Get user ID from claims using the helper method
-	userId, err := h.GetUserIDFromClaims(token.Claims)
+	// Get user information from token
+	userId, tokenUser, err := h.getUserFromToken(r.Context(), token)
 	if err != nil {
-		slog.Error("Failed to extract user ID from token", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			body: "Invalid token: " + err.Error(),
+			body: err.Error(),
 		}
 	}
 
-	userUuid, err := uuid.Parse(userId)
-	if err != nil {
-		slog.Error("Failed to parse user ID", "err", err)
-		return &Response{
-			body: "Failed to parse user ID",
-			Code: http.StatusBadRequest,
-		}
-	}
-	tokenUser, err := h.userMapper.GetUserByUserID(r.Context(), userUuid)
-	if err != nil {
-		slog.Error("Failed to get user by user ID", "err", err, "user_id", userId)
-		return &Response{
-			body: "Failed to get user by user ID",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
+	// Generate token claims
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
 
 	tokens, err := h.tokenService.GenerateTokens(userId, rootModifications, extraClaims)
@@ -565,6 +518,64 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		Code: http.StatusOK,
 		body: "",
 	}
+}
+
+// getUserFromToken extracts user information from token claims
+// Returns the user ID, user object, and any error
+func (h Handle) getUserFromToken(ctx context.Context, token *jwt.Token) (string, mapper.User, error) {
+	// Get user ID from claims using the helper method
+	userId, err := h.GetUserIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract user ID from token", "err", err)
+		return "", mapper.User{}, fmt.Errorf("invalid token: %w", err)
+	}
+
+	userUuid, err := uuid.Parse(userId)
+	if err != nil {
+		slog.Error("Failed to parse user ID", "err", err)
+		return "", mapper.User{}, fmt.Errorf("failed to parse user ID: %w", err)
+	}
+
+	tokenUser, err := h.userMapper.GetUserByUserID(ctx, userUuid)
+	if err != nil {
+		slog.Error("Failed to get user by user ID", "err", err, "user_id", userId)
+		return "", mapper.User{}, fmt.Errorf("failed to get user by user ID: %w", err)
+	}
+
+	return userId, tokenUser, nil
+}
+
+// validateRefreshToken validates a refresh token and returns the parsed token and claims
+// Returns the parsed token, claims, and error if validation fails
+func (h Handle) validateRefreshToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
+	// Parse and validate the refresh token
+	token, err := h.tokenService.ParseToken(tokenString)
+	if err != nil {
+		slog.Error("Invalid refresh token", "err", err)
+		return nil, nil, fmt.Errorf("invalid refresh token: %w", err)
+	}
+
+	// Explicitly check token expiration
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		slog.Error("Invalid token claims format")
+		return nil, nil, fmt.Errorf("invalid token claims format")
+	}
+
+	// Check if token has expired
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		slog.Error("Missing expiration claim in token")
+		return nil, nil, fmt.Errorf("invalid token format: missing expiration")
+	}
+
+	expTime := time.Unix(int64(exp), 0)
+	if time.Now().After(expTime) {
+		slog.Error("Refresh token has expired", "expiry", expTime)
+		return nil, nil, fmt.Errorf("refresh token has expired")
+	}
+
+	return token, claims, nil
 }
 
 // Get a list of users associated with the current login
@@ -1412,7 +1423,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 		}
 	}
 
-	// Check if there are multiple users - pass nil for ResponseWriter to skip cookie setting
+	// Check if there are multiple users
 	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), nil, loginId, idmUsers)
 	if err != nil {
 		return &Response{
