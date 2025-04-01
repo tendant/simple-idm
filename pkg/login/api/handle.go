@@ -563,7 +563,7 @@ func (h Handle) getUserFromToken(ctx context.Context, token *jwt.Token) (string,
 }
 
 // PostMobileTokenRefresh handles the mobile token refresh endpoint
-// (POST /api/v5/idm/auth/mobile/token/refresh)
+// (POST /mobile/token/refresh)
 func (h Handle) PostMobileTokenRefresh(w http.ResponseWriter, r *http.Request) *Response {
 	// Parse request body
 	var data PostMobileTokenRefreshJSONBody
