@@ -12,7 +12,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-
+	"github.com/jinzhu/copier"
+	"github.com/tendant/simple-idm/pkg/common"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -174,79 +175,46 @@ func (h *DefaultResponseHandler) PrepareTokenResponse(tokens map[string]tg.Token
 	}
 }
 
-// check2FAEnabled checks if 2FA is enabled for the given login ID and returns the 2FA methods if enabled
-// Returns: (is2FAEnabled, twoFactorMethods, tempToken, error)
-func (h Handle) check2FAEnabled(ctx context.Context, w http.ResponseWriter, loginID uuid.UUID, idmUsers []mapper.User) (bool, []TwoFactorMethod, *tg.TokenValue, error) {
-	if h.twoFactorService == nil {
-		return false, nil, nil, nil
-	}
-
-	enabledTwoFAs, err := h.twoFactorService.FindEnabledTwoFAs(ctx, loginID)
-	if err != nil {
-		slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
-		return false, nil, nil, fmt.Errorf("failed to find enabled 2FA: %w", err)
-	}
-
-	if len(enabledTwoFAs) == 0 {
-		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginID)
-		return false, nil, nil, nil
-	}
-
-	slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
-
-	// Convert mapped users to API users for token claims
-	apiUsers := make([]User, len(idmUsers))
-	for i, mu := range idmUsers {
-		// Extract email and name from claims
-		email, _ := mu.ExtraClaims["email"].(string)
-		name := mu.DisplayName
-
-		apiUsers[i] = User{
-			ID:    mu.UserId,
-			Name:  name,
-			Email: email,
-		}
-	}
-
-	// If email 2FA is enabled, get unique emails from users
+// prepare2FARequiredResponse prepares a 2FA required response
+// helper method for login handler, private since no need for separate implementation
+func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMethod, tempToken *tg.TokenValue) *Response {
+	// Convert common.TwoFactorMethod to api.TwoFactorMethod
 	var twoFactorMethods []TwoFactorMethod
-	for _, method := range enabledTwoFAs {
-		curMethod := TwoFactorMethod{
-			Type: method,
-		}
-		switch method {
-		case twofa.TWO_FACTOR_TYPE_EMAIL:
-			options := getUniqueEmailsFromUsers(idmUsers)
-			curMethod.DeliveryOptions = options
-		default:
-			curMethod.DeliveryOptions = []DeliveryOption{}
-		}
-		twoFactorMethods = append(twoFactorMethods, curMethod)
-	}
-
-	extraClaims := map[string]interface{}{
-		"login_id": loginID.String(),
-		"users":    apiUsers,
-	}
-
-	tempTokenMap, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
+	err := copier.Copy(&twoFactorMethods, &commonMethods)
 	if err != nil {
-		slog.Error("Failed to generate temp token", "err", err)
-		return false, nil, nil, fmt.Errorf("failed to generate temp token: %w", err)
-	}
-
-	tempToken := tempTokenMap[tg.TEMP_TOKEN_NAME]
-
-	// Only set cookie if a writer is provided (web flow)
-	if w != nil {
-		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
-		if err != nil {
-			slog.Error("Failed to set temp token cookie", "err", err)
-			return false, nil, nil, fmt.Errorf("failed to set temp token cookie: %w", err)
+		slog.Error("Failed to copy 2FA methods", "err", err)
+		return &Response{
+			body: "Failed to process 2FA methods",
+			Code: http.StatusInternalServerError,
 		}
 	}
 
-	return true, twoFactorMethods, &tempToken, nil
+	twoFARequiredResp := TwoFactorRequiredResponse{
+		TempToken:        tempToken.Token,
+		TwoFactorMethods: twoFactorMethods,
+		Status:           "2fa_required",
+		Message:          "Two-factor authentication is required",
+	}
+
+	return &Response{
+		Code: http.StatusAccepted,
+		body: twoFARequiredResp,
+	}
+}
+
+// prepareLoginSelectionRequiredResponse prepares a login selection required response
+func (h Handle) prepareLoginSelectionRequiredResponse(loginOptions []LoginOption) *Response {
+	resp := SelectLoginRequiredResponse{
+		Status:       "login_selection_required",
+		Message:      "Please select a login",
+		LoginOptions: loginOptions,
+	}
+
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        resp,
+		contentType: "application/json",
+	}
 }
 
 // checkMultipleUsers checks if there are multiple users for the login and returns a temp token if needed
@@ -344,23 +312,27 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Check if 2FA is enabled
-	is2FAEnabled, twoFactorMethods, tempToken, err := h.check2FAEnabled(r.Context(), w, loginID, idmUsers)
+	enabled, commonMethods, tempToken, err := common.Check2FAEnabled(
+		r.Context(),
+		w,
+		loginID,
+		idmUsers,
+		h.twoFactorService,
+		h.tokenService,
+		h.tokenCookieService,
+		nil, // No login options for this flow
+	)
 	if err != nil {
+		slog.Error("Failed to check 2FA", "err", err)
 		return &Response{
 			body: err.Error(),
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	if is2FAEnabled {
-		twoFARequiredResp := TwoFactorRequiredResponse{
-			TempToken:        tempToken.Token,
-			TwoFactorMethods: twoFactorMethods,
-			Status:           "2fa_required",
-			Message:          "2FA verification required",
-		}
-
-		return PostLoginJSON202Response(twoFARequiredResp)
+	if enabled {
+		// Return 2FA required response
+		return h.prepare2FARequiredResponse(commonMethods, tempToken)
 	}
 
 	// Check if there are multiple users
@@ -546,7 +518,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 // getUserFromToken extracts user information from token claims
 // Returns the user ID, user object, and any error
 func (h Handle) getUserFromToken(ctx context.Context, token *jwt.Token) (string, mapper.User, error) {
-	// Get user ID from claims using the helper method
+	// Get user ID from claims using the common implementation
 	userId, err := h.GetUserIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract user ID from token", "err", err)
@@ -756,8 +728,8 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	if err != nil {
 		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Invalid login_id format in token",
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
 		}
 	}
 
@@ -766,8 +738,8 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	if err != nil {
 		slog.Error("Failed to get users", "err", err)
 		return &Response{
-			Code: http.StatusInternalServerError,
 			body: "Failed to get users",
+			Code: http.StatusInternalServerError,
 		}
 	}
 
@@ -855,22 +827,27 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Check if 2FA is enabled - pass nil for ResponseWriter to skip cookie setting
-	is2FAEnabled, twoFactorMethods, tempToken, err := h.check2FAEnabled(r.Context(), nil, loginID, idmUsers)
+	enabled, commonMethods, tempToken, err := common.Check2FAEnabled(
+		r.Context(),
+		nil,
+		loginID,
+		idmUsers,
+		h.twoFactorService,
+		h.tokenService,
+		h.tokenCookieService,
+		nil, // No login options for this flow
+	)
 	if err != nil {
+		slog.Error("Failed to check 2FA", "err", err)
 		return &Response{
 			body: err.Error(),
 			Code: http.StatusInternalServerError,
 		}
 	}
 
-	if is2FAEnabled {
+	if enabled {
 		// Return 2FA required response for mobile
-		return PostLoginJSON202Response(TwoFactorRequiredResponse{
-			TempToken:        tempToken.Token,
-			TwoFactorMethods: twoFactorMethods,
-			Status:           "2fa_required",
-			Message:          "2FA verification required",
-		})
+		return h.prepare2FARequiredResponse(commonMethods, tempToken)
 	}
 
 	// Check if there are multiple users - pass nil for ResponseWriter to skip cookie setting
@@ -1190,6 +1167,15 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
+	// Extract login options from claims using the helper method
+	loginOptions := h.ExtractLoginOptionsFromClaims(token.Claims)
+
+	// If we have login options, return a login selection required response
+	if len(loginOptions) > 0 {
+		slog.Info("Returning login selection response", "options", loginOptions)
+		return h.prepareLoginSelectionRequiredResponse(loginOptions)
+	}
+
 	// 2FA validation successful, create access and refresh tokens
 	// Extract user data from claims to use for token creation
 	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
@@ -1250,6 +1236,58 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	// Include tokens in response
 	resp.Result = "success"
 	return Post2faValidateJSON200Response(resp)
+}
+
+func (h Handle) ExtractLoginOptionsFromClaims(claims jwt.Claims) []LoginOption {
+	additionalClaims := make(map[string]interface{})
+	if mapClaims, ok := claims.(jwt.MapClaims); ok {
+		slog.Info("Claims", "claims", mapClaims)
+
+		// Login options are nested inside extra_claims
+		if extraClaims, exists := mapClaims["extra_claims"].(map[string]interface{}); exists {
+			slog.Info("Extra claims", "extraClaims", extraClaims)
+
+			// Extract login options from extra_claims
+			if loginOptions, exists := extraClaims["login_options"]; exists {
+				slog.Info("Login options found", "loginOptions", loginOptions)
+				additionalClaims["login_options"] = loginOptions
+			}
+		}
+	}
+
+	// Check if we have login options to return
+	if loginOptionsData, exists := additionalClaims["login_options"]; exists && loginOptionsData != nil {
+		slog.Info("Login options found", "loginOptions", loginOptionsData)
+
+		// Convert to the expected type
+		var loginOptions []LoginOption
+
+		// Handle different possible formats of login options
+		if optionsSlice, ok := loginOptionsData.([]interface{}); ok {
+			for _, opt := range optionsSlice {
+				if optMap, ok := opt.(map[string]interface{}); ok {
+					option := LoginOption{}
+					if id, ok := optMap["id"].(string); ok {
+						idCopy := id
+						option.ID = &idCopy
+					}
+					if username, ok := optMap["username"].(string); ok {
+						usernameCopy := username
+						option.Username = &usernameCopy
+					}
+					if current, ok := optMap["current"].(bool); ok {
+						currentCopy := current
+						option.Current = &currentCopy
+					}
+					loginOptions = append(loginOptions, option)
+				}
+			}
+		}
+
+		return loginOptions
+	}
+
+	return nil
 }
 
 // GetPasswordResetPolicy returns the current password policy
