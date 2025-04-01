@@ -504,11 +504,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
         "202":
-          description: 2FA successful but select user required
+          description: 2FA successful but further action required
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SelectUserRequiredResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/SelectUserRequiredResponse"
+                  - $ref: "#/components/schemas/SelectLoginRequiredResponse"
 components:
   schemas:
     MultiUsersResponse:
@@ -741,6 +743,30 @@ components:
       required:
         - access_token
         - refresh_token
+    SelectLoginRequiredResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "login_selection_required"
+        message:
+          type: string
+          example: "Please select a login"
+        login_options:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoginOption"
+    LoginOption:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        current:
+          type: boolean
   securitySchemes:
     BearerAuth:
       type: http
