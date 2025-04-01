@@ -98,6 +98,25 @@ func (q *Queries) FindUserByUsername(ctx context.Context, username sql.NullStrin
 	return items, nil
 }
 
+const getLoginById = `-- name: GetLoginById :one
+SELECT id, username
+FROM login
+WHERE id = $1
+AND deleted_at IS NULL
+`
+
+type GetLoginByIdRow struct {
+	ID       uuid.UUID      `json:"id"`
+	Username sql.NullString `json:"username"`
+}
+
+func (q *Queries) GetLoginById(ctx context.Context, id uuid.UUID) (GetLoginByIdRow, error) {
+	row := q.db.QueryRow(ctx, getLoginById, id)
+	var i GetLoginByIdRow
+	err := row.Scan(&i.ID, &i.Username)
+	return i, err
+}
+
 const getUserById = `-- name: GetUserById :one
 SELECT u.id, u.email, u.created_at, u.last_modified_at, u.login_id, l.username, l.password
 FROM users u JOIN login l ON u.login_id = l.id
