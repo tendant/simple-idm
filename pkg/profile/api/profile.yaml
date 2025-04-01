@@ -262,6 +262,63 @@ paths:
           description: 2FA method not found
         "500":
           description: Internal server error
+  /user/switch:
+    post:
+      summary: Switch to a different user when multiple users are available for the same login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  description: ID of the user to switch to
+              required:
+                - user_id
+      responses:
+        "200":
+          description: Successfully switched to the specified user
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Login"
+                  - $ref: "#/components/schemas/SingleUserResponse"
+        "400":
+          description: Invalid request or user not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid user UUID or user not found"
+        "403":
+          description: Not authorized to switch to this user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Not authorized to switch to this user"
+  /users:
+    get:
+      summary: Get a list of users associated with the current login
+      operationId: find_users_with_login
+      responses:
+        "200":
+          description: Successfully retrieved users
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MultiUsersResponse"
+                  - $ref: "#/components/schemas/SingleUserResponse"
   /login/associate:
     post:
       summary: Associate a login
@@ -403,6 +460,63 @@ components:
       required:
         - type
         - enabled
+    SingleUserResponse:
+      description: Structure added for integration compatibility purposes
+      x-go-optional-value: true
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+    Login:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "Login successful"
+        users:
+          type: array
+          description: List of users associated with the login. Usually contains one user, but may contain multiple if same username is shared.
+          items:
+            $ref: "#/components/schemas/User"
+        user:
+          $ref: "#/components/schemas/User"
+        requires2FA:
+          type: boolean
+          description: Whether 2FA verification is required
+        loginToken:
+          type: string
+          description: Token for 2FA verification if required
+      required:
+        - status
+        - message
+        - user
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+      required:
+        - id
+        - name
+        - email
+        - role
+    MultiUsersResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
   securitySchemes:
     BearerAuth:
       type: http

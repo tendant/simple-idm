@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '../components/ui/alert';
+import { AssociatedAccounts } from '../components/AssociatedAccounts';
 import Navigation from '../components/Navigation';
 
 const Settings: Component = () => {
@@ -110,9 +111,10 @@ const Settings: Component = () => {
         )}
 
         <Tabs defaultValue="password" class="w-full">
-          <TabsList class="grid w-full grid-cols-2">
+          <TabsList class="grid w-full grid-cols-3">
             <TabsTrigger value="password">Password</TabsTrigger>
             <TabsTrigger value="2fa">Two-Factor Auth</TabsTrigger>
+            <TabsTrigger value="accounts">Associated Accounts</TabsTrigger>
           </TabsList>
 
           <TabsContent value="password">
@@ -373,6 +375,10 @@ const Settings: Component = () => {
               {/* Removed the "Enter Code to Disable 2FA" block as requested */}
           </CardContent>
         </Card>
+      </TabsContent>
+
+      <TabsContent value="accounts">
+        <AssociatedAccounts />
       </TabsContent>
     </Tabs>
           </div>
