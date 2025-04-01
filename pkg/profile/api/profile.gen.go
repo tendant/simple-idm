@@ -25,6 +25,20 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// Defines values for LoginSelectionRequiredResponseStatus.
+var (
+	UnknownLoginSelectionRequiredResponseStatus = LoginSelectionRequiredResponseStatus{}
+
+	LoginSelectionRequiredResponseStatusLoginSelectionRequired = LoginSelectionRequiredResponseStatus{"login_selection_required"}
+)
+
+// DeliveryOption defines model for DeliveryOption.
+type DeliveryOption struct {
+	DisplayValue string `json:"display_value,omitempty"`
+	HashedValue  string `json:"hashed_value,omitempty"`
+	UserID       string `json:"user_id,omitempty"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Error code
@@ -47,6 +61,25 @@ type Login struct {
 
 	// List of users associated with the login. Usually contains one user, but may contain multiple if same username is shared.
 	Users []User `json:"users,omitempty"`
+}
+
+// LoginOption defines model for LoginOption.
+type LoginOption struct {
+	// Whether this is the current login
+	Current bool `json:"current,omitempty"`
+
+	// ID of the login
+	ID string `json:"id,omitempty"`
+
+	// Username of the login
+	Username string `json:"username,omitempty"`
+}
+
+// LoginSelectionRequiredResponse defines model for LoginSelectionRequiredResponse.
+type LoginSelectionRequiredResponse struct {
+	LoginOptions []LoginOption                        `json:"login_options"`
+	Message      string                               `json:"message"`
+	Status       LoginSelectionRequiredResponseStatus `json:"status"`
 }
 
 // MultiUsersResponse defines model for MultiUsersResponse.
@@ -101,10 +134,26 @@ type TwoFactorMethod struct {
 	Type        string `json:"type"`
 }
 
+// TwoFactorMethodSelection defines model for TwoFactorMethodSelection.
+type TwoFactorMethodSelection struct {
+	DeliveryOptions []DeliveryOption `json:"delivery_options,omitempty"`
+	Type            string           `json:"type,omitempty"`
+}
+
 // TwoFactorMethods defines model for TwoFactorMethods.
 type TwoFactorMethods struct {
 	Count   int               `json:"count"`
 	Methods []TwoFactorMethod `json:"methods"`
+}
+
+// TwoFactorRequiredResponse defines model for TwoFactorRequiredResponse.
+type TwoFactorRequiredResponse struct {
+	Message string `json:"message,omitempty"`
+	Status  string `json:"status,omitempty"`
+
+	// Temporary token to use for 2FA verification
+	TempToken        string                     `json:"temp_token,omitempty"`
+	TwoFactorMethods []TwoFactorMethodSelection `json:"two_factor_methods,omitempty"`
 }
 
 // User defines model for User.
@@ -113,6 +162,35 @@ type User struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Role  string `json:"role"`
+}
+
+// LoginSelectionRequiredResponseStatus defines model for LoginSelectionRequiredResponse.Status.
+type LoginSelectionRequiredResponseStatus struct {
+	value string
+}
+
+func (t *LoginSelectionRequiredResponseStatus) ToValue() string {
+	return t.value
+}
+func (t LoginSelectionRequiredResponseStatus) MarshalJSON() ([]byte, error) {
+	return json.Marshal(t.value)
+}
+func (t *LoginSelectionRequiredResponseStatus) UnmarshalJSON(data []byte) error {
+	var value string
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	return t.FromValue(value)
+}
+func (t *LoginSelectionRequiredResponseStatus) FromValue(value string) error {
+	switch value {
+
+	case LoginSelectionRequiredResponseStatusLoginSelectionRequired.value:
+		t.value = value
+		return nil
+
+	}
+	return fmt.Errorf("unknown enum value: %v", value)
 }
 
 // Delete2faJSONBody defines parameters for Delete2fa.
@@ -152,6 +230,12 @@ type Post2faSetupJSONBodyTwofaType string
 type AssociateLoginJSONBody struct {
 	Password string `json:"password"`
 	Username string `json:"username"`
+}
+
+// CompleteLoginAssociationJSONBody defines parameters for CompleteLoginAssociation.
+type CompleteLoginAssociationJSONBody struct {
+	// ID of the login the user selected
+	LoginID string `json:"login_id"`
 }
 
 // ChangePasswordJSONBody defines parameters for ChangePassword.
@@ -215,6 +299,14 @@ type AssociateLoginJSONRequestBody AssociateLoginJSONBody
 
 // Bind implements render.Binder.
 func (AssociateLoginJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// CompleteLoginAssociationJSONRequestBody defines body for CompleteLoginAssociation for application/json ContentType.
+type CompleteLoginAssociationJSONRequestBody CompleteLoginAssociationJSONBody
+
+// Bind implements render.Binder.
+func (CompleteLoginAssociationJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -348,6 +440,26 @@ func Post2faSetupJSON201Response(body SuccessResponse) *Response {
 // AssociateLoginJSON200Response is a constructor method for a AssociateLogin response.
 // A *Response is returned with the configured status code and content type from the spec.
 func AssociateLoginJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// AssociateLoginJSON202Response is a constructor method for a AssociateLogin response.
+// A *Response is returned with the configured status code and content type from the spec.
+func AssociateLoginJSON202Response(body interface{}) *Response {
+	return &Response{
+		body:        body,
+		Code:        202,
+		contentType: "application/json",
+	}
+}
+
+// CompleteLoginAssociationJSON200Response is a constructor method for a CompleteLoginAssociation response.
+// A *Response is returned with the configured status code and content type from the spec.
+func CompleteLoginAssociationJSON200Response(body SuccessResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        200,
@@ -519,6 +631,9 @@ type ServerInterface interface {
 	// Associate a login
 	// (POST /login/associate)
 	AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Complete login association after user selection
+	// (POST /login/associate/complete)
+	CompleteLoginAssociation(w http.ResponseWriter, r *http.Request) *Response
 	// Change user password
 	// (PUT /password)
 	ChangePassword(w http.ResponseWriter, r *http.Request) *Response
@@ -638,6 +753,24 @@ func (siw *ServerInterfaceWrapper) AssociateLogin(w http.ResponseWriter, r *http
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.AssociateLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// CompleteLoginAssociation operation middleware
+func (siw *ServerInterfaceWrapper) CompleteLoginAssociation(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.CompleteLoginAssociation(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -865,6 +998,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/2fa/enable", wrapper.Post2faEnable)
 		r.Post("/2fa/setup", wrapper.Post2faSetup)
 		r.Post("/login/associate", wrapper.AssociateLogin)
+		r.Post("/login/associate/complete", wrapper.CompleteLoginAssociation)
 		r.Put("/password", wrapper.ChangePassword)
 		r.Get("/password/policy", wrapper.GetPasswordPolicy)
 		r.Post("/user/switch", wrapper.PostUserSwitch)
@@ -895,39 +1029,44 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"//8r6aUHpygAAA==",
+	"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",
+	"y+XyPwEAAP//YX3CqTMxAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
