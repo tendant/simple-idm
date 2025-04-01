@@ -27,9 +27,15 @@ export const AssociatedAccounts: Component = () => {
 
   const handleSwitchUser = async (userId: string) => {
     try {
-      await userApi.switchUser(userId);
-      // After switching user, redirect to homepage
-      navigate('/');
+      const response = await userApi.switchUser(userId);
+      // No need to display response details as per requirements
+      // Just check if the switch was successful
+      if (response && response.status === 'success') {
+        // After switching user, redirect to homepage
+        navigate('/');
+      } else {
+        setError('Failed to switch user');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to switch user');
       console.error('Error switching user:', err);

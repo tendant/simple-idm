@@ -194,7 +194,7 @@ export const userApi = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await apiClient.post('/api/idm/auth/user/switch', { user_id: userId }, { 
+    const response = await apiClient.post('/api/idm/profile/user/switch', { user_id: userId }, { 
       headers,
       skipAuth: !!token // Skip default auth if we're providing a token
     });
