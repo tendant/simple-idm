@@ -156,8 +156,8 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
     setError(null);
     
     try {
-      // Call the switchUser API with the selected user ID and temp token
-      const response = await userApi.switchUser(selectedUserId()!, tempToken());
+      // Call the switchUserDuringLogin API with the selected user ID and temp token
+      const response = await userApi.switchUserDuringLogin(selectedUserId()!, tempToken());
       
       // Store the user info in localStorage
       localStorage.setItem('user', JSON.stringify(response));

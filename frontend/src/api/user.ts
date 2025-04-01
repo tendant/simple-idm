@@ -188,16 +188,28 @@ export const userApi = {
     }
   },
 
-  switchUser: async (userId: string, token?: string): Promise<any> => {
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+  // Used during login process when multiple users are found for a login
+  switchUserDuringLogin: async (userId: string, token: string): Promise<any> => {
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`
+    };
+
+    const response = await apiClient.post('/api/idm/auth/user/switch', { user_id: userId }, { 
+      headers,
+      skipAuth: true // Always skip default auth since we're providing a temp token
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || 'Failed to switch user during login');
     }
 
-    const response = await apiClient.post('/api/idm/profile/user/switch', { user_id: userId }, { 
-      headers,
-      skipAuth: !!token // Skip default auth if we're providing a token
-    });
+    return response.json();
+  },
+
+  // Used in settings page after login to switch between associated accounts
+  switchUser: async (userId: string): Promise<any> => {
+    const response = await apiClient.post('/api/idm/profile/user/switch', { user_id: userId }, {});
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
