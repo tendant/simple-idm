@@ -27,9 +27,9 @@ const (
 
 type TokenService interface {
 	// Token generation methods
-	GenerateTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) ([]TokenValue, error)
-	GenerateTempToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (TokenValue, error)
-	GenerateLogoutToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (TokenValue, error)
+	GenerateTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error)
+	GenerateTempToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error)
+	GenerateLogoutToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error)
 	ParseToken(tokenStr string) (*jwt.Token, error)
 }
 
@@ -57,7 +57,7 @@ type TokenValue struct {
 	Expiry time.Time
 }
 
-func (d *DefaultTokenService) GenerateTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) ([]TokenValue, error) {
+func (d *DefaultTokenService) GenerateTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error) {
 	tokenName := ACCESS_TOKEN_NAME
 	accessToken, accessTokenExpiry, err := d.accessTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
@@ -69,46 +69,52 @@ func (d *DefaultTokenService) GenerateTokens(subject string, rootModifications m
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
-	result := []TokenValue{
-		{
+
+	result := map[string]TokenValue{
+		ACCESS_TOKEN_NAME: {
 			Name:   ACCESS_TOKEN_NAME,
 			Token:  accessToken,
 			Expiry: accessTokenExpiry,
 		},
-		{
+		REFRESH_TOKEN_NAME: {
 			Name:   REFRESH_TOKEN_NAME,
 			Token:  refreshToken,
 			Expiry: refreshTokenExpiry,
 		},
 	}
+
 	return result, nil
 }
 
-func (d *DefaultTokenService) GenerateTempToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (TokenValue, error) {
+func (d *DefaultTokenService) GenerateTempToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error) {
 	tokenName := TEMP_TOKEN_NAME
 	tempToken, tempTokenExpiry, err := d.tempTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
-		return TokenValue{}, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
+		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
 
-	return TokenValue{
-		Name:   TEMP_TOKEN_NAME,
-		Token:  tempToken,
-		Expiry: tempTokenExpiry,
+	return map[string]TokenValue{
+		TEMP_TOKEN_NAME: {
+			Name:   TEMP_TOKEN_NAME,
+			Token:  tempToken,
+			Expiry: tempTokenExpiry,
+		},
 	}, nil
 }
 
-func (d *DefaultTokenService) GenerateLogoutToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (TokenValue, error) {
+func (d *DefaultTokenService) GenerateLogoutToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error) {
 	tokenName := LOGOUT_TOKEN_NAME
 	logoutToken, logoutTokenExpiry, err := d.logoutTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
-		return TokenValue{}, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
+		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
 
-	return TokenValue{
-		Name:   LOGOUT_TOKEN_NAME,
-		Token:  logoutToken,
-		Expiry: logoutTokenExpiry,
+	return map[string]TokenValue{
+		LOGOUT_TOKEN_NAME: {
+			Name:   LOGOUT_TOKEN_NAME,
+			Token:  logoutToken,
+			Expiry: logoutTokenExpiry,
+		},
 	}, nil
 }
 
@@ -133,7 +139,7 @@ func (d *DefaultTokenService) ParseToken(tokenStr string) (*jwt.Token, error) {
 }
 
 type TokenCookieService interface {
-	SetTokensCookie(w http.ResponseWriter, tokens []TokenValue) error
+	SetTokensCookie(w http.ResponseWriter, tokens map[string]TokenValue) error
 	ClearCookies(w http.ResponseWriter) error
 }
 
@@ -144,10 +150,10 @@ type DefaultTokenCookieService struct {
 	SameSite http.SameSite
 }
 
-func (d *DefaultTokenCookieService) SetTokensCookie(w http.ResponseWriter, tokens []TokenValue) error {
-	for _, token := range tokens {
+func (d *DefaultTokenCookieService) SetTokensCookie(w http.ResponseWriter, tokens map[string]TokenValue) error {
+	for name, token := range tokens {
 		cookie := &http.Cookie{
-			Name:     token.Name,
+			Name:     name,
 			Path:     d.Path,
 			Value:    token.Token,
 			Expires:  token.Expiry,
