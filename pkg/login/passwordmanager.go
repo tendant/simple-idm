@@ -297,33 +297,34 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	slog.Info("Password complexity checked")
 
 	// Get current password and version for history
-	login, err := pm.repository.GetLoginById(ctx, tokenInfo.LoginID)
+	_, err = pm.repository.GetLoginById(ctx, tokenInfo.LoginID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		slog.Error("Failed to get current password", "err", err)
 		return fmt.Errorf("failed to get current password: %w", err)
 	}
 
+	// FIX-ME: include and test in May 2025 Sprint
 	// If we found the login, check password history
-	if err == nil && pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
-		if err := pm.CheckPasswordHistory(ctx, tokenInfo.LoginID.String(), newPassword); err != nil {
-			slog.Error("Failed to check password history", "err", err)
-			return err
-		}
+	// if err == nil && pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
+	// 	if err := pm.CheckPasswordHistory(ctx, tokenInfo.LoginID.String(), newPassword); err != nil {
+	// 		slog.Error("Failed to check password history", "err", err)
+	// 		return err
+	// 	}
 
-		// Store the old password in history
-		version, isValid, err := pm.repository.GetPasswordVersion(ctx, tokenInfo.LoginID)
-		if err == nil && isValid {
-			// Only add to history if we could get the version
-			err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID, string(login.Password), PasswordVersion(version))
-			if err != nil {
-				// Log but continue
-				slog.Error("Failed to add password to history", "error", err)
-			}
-		}
-		slog.Info("password version", "version", version)
-	}
+	// 	// Store the old password in history
+	// 	version, isValid, err := pm.repository.GetPasswordVersion(ctx, tokenInfo.LoginID)
+	// 	if err == nil && isValid {
+	// 		// Only add to history if we could get the version
+	// 		err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID, string(login.Password), PasswordVersion(version))
+	// 		if err != nil {
+	// 			// Log but continue
+	// 			slog.Error("Failed to add password to history", "error", err)
+	// 		}
+	// 	}
+	// 	slog.Info("password version", "version", version)
+	// }
 
-	slog.Info("Password history checked")
+	// slog.Info("Password history checked")
 
 	// Hash the new password using the current version
 	slog.Info("Password Version in Password Manager", "version", pm.currentVersion)
@@ -406,6 +407,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 	}
 	slog.Info("New password is valid")
 
+	// FIX-ME: include and test in May 2025 Sprint
 	// Check password history if enabled
 	// if pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
 	// 	if err := pm.CheckPasswordHistory(ctx, userID, newPassword); err != nil {
