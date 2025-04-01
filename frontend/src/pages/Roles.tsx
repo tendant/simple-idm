@@ -1,5 +1,5 @@
-import { Component, createSignal, createEffect, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
+import { Component, createSignal, For, onMount } from 'solid-js';
 import { roleApi, type Role } from '../api/role';
 
 const Roles: Component = () => {
@@ -96,35 +96,39 @@ const Roles: Component = () => {
                       </td>
                     </tr>
                   ) : (
-                    roles().map((role) => (
-                      <tr key={role.id}>
-                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-12 sm:pl-6">
-                          {role.name}
-                        </td>
-                        <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                          <button
-                            onClick={() => {
-                              console.log('Edit button clicked for role:', role);
-                              if (role.id) {
-                                console.log('Navigating to:', `/roles/${role.id}/edit`);
-                                navigate(`/roles/${role.id}/edit`);
-                              } else {
-                                console.error('No role ID available');
-                              }
-                            }}
-                            class="text-blue-600 hover:text-blue-900 mr-4"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => role.id && handleDelete(role.id)}
-                            class="text-red-600 hover:text-red-900"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    <For each={roles()}>
+                      {
+                        (role)=>(
+                          <tr >
+                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-12 sm:pl-6">
+                              {role.name}
+                            </td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                              <button
+                                onClick={() => {
+                                  console.log('Edit button clicked for role:', role);
+                                  if (role.id) {
+                                    console.log('Navigating to:', `/roles/${role.id}/edit`);
+                                    navigate(`/roles/${role.id}/edit`);
+                                  } else {
+                                    console.error('No role ID available');
+                                  }
+                                }}
+                                class="text-blue-600 hover:text-blue-900 mr-4"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => role.id && handleDelete(role.id)}
+                                class="text-red-600 hover:text-red-900"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      }
+                    </For>
                   )}
                 </tbody>
               </table>
