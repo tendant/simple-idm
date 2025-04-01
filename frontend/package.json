@@ -1,24 +1,14 @@
 {
   "name": "vite-template-solid",
+  "type": "module",
   "version": "0.0.0",
   "description": "",
-  "type": "module",
+  "license": "MIT",
   "scripts": {
     "start": "vite",
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview"
-  },
-  "license": "MIT",
-  "devDependencies": {
-    "@playwright/test": "^1.51.1",
-    "@tailwindcss/vite": "^4.0.0",
-    "@types/node": "^22.10.10",
-    "autoprefixer": "^10.4.17",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.0",
-    "vite-plugin-solid": "^2.11.0"
   },
   "dependencies": {
     "@ark-ui/solid": "^4.10.1",
@@ -38,6 +28,19 @@
     "solid-sonner": "^0.2.8",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^4.11.0",
+    "@playwright/test": "^1.51.1",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.10.10",
+    "autoprefixer": "^10.4.17",
+    "eslint": "^9.23.0",
+    "eslint-plugin-solid": "^0.14.5",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.11.0"
   },
   "overrides": {
     "tailwindcss-animate": {

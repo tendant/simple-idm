@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Login Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -14,10 +14,11 @@ test.describe('Login Page', () => {
             username: 'admin',
             email: 'admin@example.com',
             name: 'Admin User',
-            roles: [{ id: '1', name: 'admin' }]
-          })
+            roles: [{ id: '1', name: 'admin' }],
+          }),
         });
-      } else if (requestData.username === 'user_with_2fa') {
+      }
+      else if (requestData.username === 'user_with_2fa') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -30,22 +31,23 @@ test.describe('Login Page', () => {
                 delivery_options: [
                   {
                     display_value: 'u***@example.com',
-                    hashed_value: 'hashed_email_123'
-                  }
-                ]
-              }
-            ]
-          })
+                    hashed_value: 'hashed_email_123',
+                  },
+                ],
+              },
+            ],
+          }),
         });
-      } else {
+      }
+      else {
         await route.fulfill({
           status: 401,
           contentType: 'text/plain',
-          body: 'Invalid username or password'
+          body: 'Invalid username or password',
         });
       }
     });
-    
+
     // Navigate to the login page before each test
     await page.goto('/login');
   });
@@ -64,10 +66,10 @@ test.describe('Login Page', () => {
     // Fill in invalid credentials
     await page.getByLabel('Username').fill('invalid_user');
     await page.getByLabel('Password').fill('invalid_password');
-    
+
     // Submit the form
     await page.getByRole('button', { name: 'Sign in' }).click();
-    
+
     // Check for error message
     await expect(page.getByText('Invalid username or password')).toBeVisible();
   });
@@ -84,19 +86,19 @@ test.describe('Login Page', () => {
             username: 'admin',
             email: 'admin@example.com',
             name: 'Admin User',
-            roles: [{ id: '1', name: 'admin' }]
-          }
-        ])
+            roles: [{ id: '1', name: 'admin' }],
+          },
+        ]),
       });
     });
-    
+
     // Fill in valid credentials
     await page.getByLabel('Username').fill('admin');
     await page.getByLabel('Password').fill('Password123!');
-    
+
     // Submit the form
     await page.getByRole('button', { name: 'Sign in' }).click();
-    
+
     // Check that we've been redirected to the users page
     await expect(page.url()).toContain('/users');
     await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
@@ -106,10 +108,10 @@ test.describe('Login Page', () => {
     // Fill in credentials
     await page.getByLabel('Username').fill('user_with_2fa');
     await page.getByLabel('Password').fill('pwd');
-    
+
     // Submit the form
     await page.getByRole('button', { name: 'Sign in' }).click();
-    
+
     // Check that we've been redirected to the 2FA verification page
     await expect(page.url()).toContain('/two-factor-verification');
   });

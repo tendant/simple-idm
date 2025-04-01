@@ -1,5 +1,5 @@
 interface RequestConfig extends RequestInit {
-  skipAuth?: boolean;
+  skipAuth?: boolean
 }
 
 let refreshPromise: Promise<void> | null = null;
@@ -8,11 +8,13 @@ let refreshPromise: Promise<void> | null = null;
 function redirectToLogin() {
   // Clear any auth-related data from localStorage
   localStorage.removeItem('user');
-  
+
   // Get the current path to redirect back after login
   const currentPath = window.location.pathname;
-  const loginPath = `/login${currentPath !== '/login' ? `?redirect=${encodeURIComponent(currentPath)}` : ''}`;
-  
+  const loginPath = `/login${currentPath !== '/login'
+    ? `?redirect=${encodeURIComponent(currentPath)}`
+    : ''}`;
+
   // Use replace to prevent back button from returning to the failed page
   window.location.replace(loginPath);
 }
@@ -42,8 +44,8 @@ async function refreshToken() {
 }
 
 export interface ApiClientOptions {
-  headers?: Record<string, string>;
-  skipAuth?: boolean;
+  headers?: Record<string, string>
+  skipAuth?: boolean
 }
 
 async function fetchWithAuth(url: string, config: RequestConfig = {}): Promise<Response> {
@@ -77,7 +79,8 @@ async function fetchWithAuth(url: string, config: RequestConfig = {}): Promise<R
     });
 
     return retryResponse;
-  } catch (error) {
+  }
+  catch (error) {
     // If refresh token fails, redirect to login
     redirectToLogin();
     throw error;
@@ -95,7 +98,7 @@ export const apiClient = {
       skipAuth: options.skipAuth,
     });
   },
-  
+
   post: async (url: string, body: any, options: ApiClientOptions = {}): Promise<Response> => {
     return fetchWithAuth(url, {
       method: 'POST',
@@ -107,7 +110,7 @@ export const apiClient = {
       skipAuth: options.skipAuth,
     });
   },
-  
+
   put: async (url: string, body: any, options: ApiClientOptions = {}): Promise<Response> => {
     return fetchWithAuth(url, {
       method: 'PUT',
@@ -119,7 +122,7 @@ export const apiClient = {
       skipAuth: options.skipAuth,
     });
   },
-  
+
   delete: async (url: string, options: ApiClientOptions = {}): Promise<Response> => {
     return fetchWithAuth(url, {
       method: 'DELETE',
@@ -130,11 +133,11 @@ export const apiClient = {
       skipAuth: options.skipAuth,
     });
   },
-  
+
   // Legacy support for the old apiClient function
   call: async (url: string, config: RequestConfig = {}): Promise<Response> => {
     return fetchWithAuth(url, config);
-  }
+  },
 };
 
 // For backward compatibility
