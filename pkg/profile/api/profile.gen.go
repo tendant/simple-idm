@@ -25,6 +25,13 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
+// DeliveryOption defines model for DeliveryOption.
+type DeliveryOption struct {
+	DisplayValue string `json:"display_value,omitempty"`
+	HashedValue  string `json:"hashed_value,omitempty"`
+	UserID       string `json:"user_id,omitempty"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Error code
@@ -47,6 +54,25 @@ type Login struct {
 
 	// List of users associated with the login. Usually contains one user, but may contain multiple if same username is shared.
 	Users []User `json:"users,omitempty"`
+}
+
+// LoginOption defines model for LoginOption.
+type LoginOption struct {
+	// Whether this is the current login
+	Current bool `json:"current,omitempty"`
+
+	// ID of the login
+	ID string `json:"id,omitempty"`
+
+	// Username of the login
+	Username string `json:"username,omitempty"`
+}
+
+// LoginSelectionRequiredResponse defines model for LoginSelectionRequiredResponse.
+type LoginSelectionRequiredResponse struct {
+	LoginOptions []LoginOption `json:"login_options"`
+	Message      string        `json:"message"`
+	Status       string        `json:"status"`
 }
 
 // MultiUsersResponse defines model for MultiUsersResponse.
@@ -101,10 +127,26 @@ type TwoFactorMethod struct {
 	Type        string `json:"type"`
 }
 
+// TwoFactorMethodSelection defines model for TwoFactorMethodSelection.
+type TwoFactorMethodSelection struct {
+	DeliveryOptions []DeliveryOption `json:"delivery_options,omitempty"`
+	Type            string           `json:"type,omitempty"`
+}
+
 // TwoFactorMethods defines model for TwoFactorMethods.
 type TwoFactorMethods struct {
 	Count   int               `json:"count"`
 	Methods []TwoFactorMethod `json:"methods"`
+}
+
+// TwoFactorRequiredResponse defines model for TwoFactorRequiredResponse.
+type TwoFactorRequiredResponse struct {
+	Message string `json:"message,omitempty"`
+	Status  string `json:"status,omitempty"`
+
+	// Temporary token to use for 2FA verification
+	TempToken        string                     `json:"temp_token,omitempty"`
+	TwoFactorMethods []TwoFactorMethodSelection `json:"two_factor_methods,omitempty"`
 }
 
 // User defines model for User.
@@ -152,6 +194,12 @@ type Post2faSetupJSONBodyTwofaType string
 type AssociateLoginJSONBody struct {
 	Password string `json:"password"`
 	Username string `json:"username"`
+}
+
+// CompleteLoginAssociationJSONBody defines parameters for CompleteLoginAssociation.
+type CompleteLoginAssociationJSONBody struct {
+	// ID of the login the user selected
+	LoginID string `json:"login_id"`
 }
 
 // ChangePasswordJSONBody defines parameters for ChangePassword.
@@ -215,6 +263,14 @@ type AssociateLoginJSONRequestBody AssociateLoginJSONBody
 
 // Bind implements render.Binder.
 func (AssociateLoginJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// CompleteLoginAssociationJSONRequestBody defines body for CompleteLoginAssociation for application/json ContentType.
+type CompleteLoginAssociationJSONRequestBody CompleteLoginAssociationJSONBody
+
+// Bind implements render.Binder.
+func (CompleteLoginAssociationJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -348,6 +404,26 @@ func Post2faSetupJSON201Response(body SuccessResponse) *Response {
 // AssociateLoginJSON200Response is a constructor method for a AssociateLogin response.
 // A *Response is returned with the configured status code and content type from the spec.
 func AssociateLoginJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// AssociateLoginJSON202Response is a constructor method for a AssociateLogin response.
+// A *Response is returned with the configured status code and content type from the spec.
+func AssociateLoginJSON202Response(body interface{}) *Response {
+	return &Response{
+		body:        body,
+		Code:        202,
+		contentType: "application/json",
+	}
+}
+
+// CompleteLoginAssociationJSON200Response is a constructor method for a CompleteLoginAssociation response.
+// A *Response is returned with the configured status code and content type from the spec.
+func CompleteLoginAssociationJSON200Response(body SuccessResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        200,
@@ -519,6 +595,9 @@ type ServerInterface interface {
 	// Associate a login
 	// (POST /login/associate)
 	AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Complete login association after user selection
+	// (POST /login/associate/complete)
+	CompleteLoginAssociation(w http.ResponseWriter, r *http.Request) *Response
 	// Change user password
 	// (PUT /password)
 	ChangePassword(w http.ResponseWriter, r *http.Request) *Response
@@ -638,6 +717,24 @@ func (siw *ServerInterfaceWrapper) AssociateLogin(w http.ResponseWriter, r *http
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.AssociateLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// CompleteLoginAssociation operation middleware
+func (siw *ServerInterfaceWrapper) CompleteLoginAssociation(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.CompleteLoginAssociation(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -865,6 +962,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/2fa/enable", wrapper.Post2faEnable)
 		r.Post("/2fa/setup", wrapper.Post2faSetup)
 		r.Post("/login/associate", wrapper.AssociateLogin)
+		r.Post("/login/associate/complete", wrapper.CompleteLoginAssociation)
 		r.Put("/password", wrapper.ChangePassword)
 		r.Get("/password/policy", wrapper.GetPasswordPolicy)
 		r.Post("/user/switch", wrapper.PostUserSwitch)
@@ -895,39 +993,44 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"//8r6aUHpygAAA==",
+	"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",
+	"Wq3+EwAA///XRnjBNDEAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -3,6 +3,12 @@ SELECT u.id, u.email, u.created_at, u.last_modified_at, u.login_id, l.username, 
 FROM users u JOIN login l ON u.login_id = l.id
 WHERE u.id = $1;
 
+-- name: GetLoginById :one
+SELECT id, username
+FROM login
+WHERE id = $1
+AND deleted_at IS NULL;
+
 -- name: Disable2FAByLoginId :exec
 UPDATE login_2fa
 SET deleted_at = now() AT TIME ZONE 'utc'
