@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/login"
+	loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/profile"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -380,7 +382,6 @@ func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 // Associate a login
 // (POST /login/associate)
 func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response {
-	var resp SuccessResponse
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
@@ -389,8 +390,27 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 			Code: http.StatusUnauthorized,
 		}
 	}
+
+	originalLoginId, err := uuid.Parse(authUser.LoginId)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Failed to parse login ID: " + err.Error(),
+		}
+	}
+	originalLogin, err := h.profileService.GetLoginById(r.Context(), originalLoginId)
+	if err != nil {
+		slog.Error("Failed to get original login", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to get original login: " + err.Error(),
+		}
+	}
+	slog.Info("Current user", "user_uuid", authUser.UserId, "original login", originalLogin)
+
 	data := AssociateLoginJSONRequestBody{}
-	err := render.DecodeJSON(r.Body, &data)
+	err = render.DecodeJSON(r.Body, &data)
 	if err != nil {
 		return &Response{
 			Code: http.StatusBadRequest,
@@ -399,6 +419,7 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	if data.Username == "" || data.Password == "" {
+		slog.Error("Invalid username or password", "username", data.Username, "password length", len(data.Password))
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: ErrInvalidCredentials,
@@ -441,28 +462,174 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 
 	slog.Info("password verified successfully", "login", login.ID)
 
-	_, err = h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
-		ID:      authUser.UserUuid,
-		LoginID: utils.ToNullUUID(login.ID),
-	})
+	// Check if 2FA is enabled for this login
+	extraClaims := map[string]interface{}{
+		"login_id":           login.ID.String(),
+		"association_target": authUser.UserUuid.String(),
+	}
+
+	is2FAEnabled, twoFactorMethods, tempToken, err := h.check2FAEnabled(r.Context(), w, login, extraClaims)
 	if err != nil {
-		slog.Error("error updating login ID", "err", err)
+		slog.Error("Failed during 2FA check", "error", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			body: ErrAssociationFailed,
+			body: "Failed during 2FA check",
 		}
 	}
 
-	slog.Info("login associated successfully",
-		"login_id", login.ID,
-		"user_id", authUser.UserUuid,
-		"username", data.Username,
-	)
+	if is2FAEnabled {
+		// Return 2FA required response
+		return h.prepare2FARequiredResponse(twoFactorMethods, tempToken)
+	}
 
-	resp.Result = "success"
+	// Prepare login selection required response
+	loginOptions := []LoginOption{
+		{
+			ID:       authUser.LoginId,
+			Username: originalLogin.Username,
+			Current:  true,
+		},
+		{
+			ID:       login.ID.String(),
+			Username: login.Username,
+			Current:  false,
+		},
+	}
 
-	return AssociateLoginJSON200Response(resp)
+	return h.prepareLoginSelectionRequiredResponse(loginOptions)
+}
 
+// prepare2FARequiredResponse prepares a 2FA required response
+func (h Handle) prepare2FARequiredResponse(twoFactorMethods []TwoFactorMethodSelection, tempToken *tg.TokenValue) *Response {
+	twoFAResp := TwoFactorRequiredResponse{
+		Status:           "2fa_required",
+		TwoFactorMethods: twoFactorMethods,
+		TempToken:        tempToken.Token,
+		Message:          "2FA verification required",
+	}
+
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        twoFAResp,
+		contentType: "application/json",
+	}
+}
+
+// prepareLoginSelectionRequiredResponse prepares a login selection required response
+func (h Handle) prepareLoginSelectionRequiredResponse(loginOptions []LoginOption) *Response {
+	resp := LoginSelectionRequiredResponse{
+		Status:       "login_selection_required",
+		LoginOptions: loginOptions,
+		Message:      "Please select which login to use for this account",
+	}
+
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        resp,
+		contentType: "application/json",
+	}
+}
+
+// check2FAEnabled checks if 2FA is enabled for the given login ID and returns the 2FA methods if enabled
+// Returns: (is2FAEnabled, twoFactorMethods, tempToken, error)
+func (h Handle) check2FAEnabled(ctx context.Context, w http.ResponseWriter, login login.LoginEntity, extraClaims map[string]interface{}) (bool, []TwoFactorMethodSelection, *tg.TokenValue, error) {
+	if h.twoFaService == nil {
+		return false, nil, nil, nil
+	}
+
+	enabledTwoFAs, err := h.twoFaService.FindEnabledTwoFAs(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to find enabled 2FA", "loginUuid", login.ID, "error", err)
+		return false, nil, nil, fmt.Errorf("failed to find enabled 2FA: %w", err)
+	}
+
+	if len(enabledTwoFAs) == 0 {
+		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", login.ID)
+		return false, nil, nil, nil
+	}
+
+	slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", login.ID)
+
+	// Get user information for the login
+	idmUsers, err := h.loginService.GetUsersByLoginId(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to find users for login", "loginUuid", login.ID, "error", err)
+		return false, nil, nil, fmt.Errorf("failed to retrieve user information: %w", err)
+	}
+
+	if len(idmUsers) == 0 {
+		slog.Error("No users found for login", "loginUuid", login.ID)
+		return false, nil, nil, fmt.Errorf("no users found for login")
+	}
+
+	// Convert mapped users to API users for token claims
+	apiUsers := make([]loginapi.User, len(idmUsers))
+	for i, mu := range idmUsers {
+		// Extract email and name from claims
+		email, _ := mu.ExtraClaims["email"].(string)
+		name := mu.DisplayName
+
+		apiUsers[i] = loginapi.User{
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
+		}
+	}
+
+	// Prepare 2FA methods
+	var twoFactorMethods []TwoFactorMethodSelection
+	for _, method := range enabledTwoFAs {
+		curMethod := TwoFactorMethodSelection{
+			Type: method,
+		}
+		switch method {
+		case twofa.TWO_FACTOR_TYPE_EMAIL:
+			// Create delivery options for email 2FA
+			emailMap := make(map[string]bool)
+			var deliveryOptions []DeliveryOption
+
+			for _, user := range idmUsers {
+				// Get email from ExtraClaims
+				email, ok := user.ExtraClaims["email"].(string)
+				if !ok || emailMap[email] || email == "" {
+					continue
+				}
+
+				deliveryOptions = append(deliveryOptions, DeliveryOption{
+					UserID:       user.UserId,
+					DisplayValue: utils.MaskEmail(email),
+					HashedValue:  utils.HashEmail(email),
+				})
+				emailMap[email] = true
+			}
+			curMethod.DeliveryOptions = deliveryOptions
+		default:
+			curMethod.DeliveryOptions = []DeliveryOption{}
+		}
+		twoFactorMethods = append(twoFactorMethods, curMethod)
+	}
+
+	// Create temp token with the custom claims
+	tempTokenMap, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return false, nil, nil, fmt.Errorf("failed to generate temporary token: %w", err)
+	}
+
+	// Set the token cookie
+	err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
+	if err != nil {
+		slog.Error("Failed to set temp token cookie", "err", err)
+		return false, nil, nil, fmt.Errorf("failed to set temporary token cookie: %w", err)
+	}
+
+	tempToken, ok := tempTokenMap[tg.TEMP_TOKEN_NAME]
+	if !ok {
+		slog.Error("Temp token not found in token map")
+		return false, nil, nil, fmt.Errorf("temp token not found in token map")
+	}
+
+	return true, twoFactorMethods, &tempToken, nil
 }
 
 // Switch to a different user when multiple users are available for the same login
