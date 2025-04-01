@@ -350,7 +350,7 @@ paths:
             application/json:
               schema:
                 oneOf:
-                  - $ref: "#/components/schemas/LoginSelectionRequiredResponse"
+                  - $ref: "#/components/schemas/SelectLoginRequiredResponse"
                   - $ref: "#/components/schemas/TwoFactorRequiredResponse"
         "400":
           description: Invalid request parameters
@@ -563,7 +563,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/User"
-    LoginSelectionRequiredResponse:
+    SelectLoginRequiredResponse:
       type: object
       properties:
         login_options:
