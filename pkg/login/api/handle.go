@@ -59,7 +59,7 @@ type ResponseHandler interface {
 	// PrepareUserSwitchResponse prepares a response for user switch
 	PrepareUserSwitchResponse(users []mapper.User) *Response
 	// PrepareTokenResponse prepares a response with access and refresh tokens
-	PrepareTokenResponse(tokens []tg.TokenValue) *Response
+	PrepareTokenResponse(tokens map[string]tg.TokenValue) *Response
 }
 
 // DefaultResponseHandler is the default implementation of ResponseHandler
@@ -152,9 +152,12 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 }
 
 // PrepareTokenResponse creates a response with access and refresh tokens
-func (h *DefaultResponseHandler) PrepareTokenResponse(tokens []tg.TokenValue) *Response {
-	if len(tokens) < 2 {
-		slog.Error("Not enough tokens to prepare response", "tokens_count", len(tokens))
+func (h *DefaultResponseHandler) PrepareTokenResponse(tokens map[string]tg.TokenValue) *Response {
+	accessToken, hasAccess := tokens[tg.ACCESS_TOKEN_NAME]
+	refreshToken, hasRefresh := tokens[tg.REFRESH_TOKEN_NAME]
+
+	if !hasAccess || !hasRefresh {
+		slog.Error("Missing required tokens", "has_access", hasAccess, "has_refresh", hasRefresh)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Internal server error: insufficient tokens",
@@ -164,8 +167,8 @@ func (h *DefaultResponseHandler) PrepareTokenResponse(tokens []tg.TokenValue) *R
 	return &Response{
 		Code: http.StatusOK,
 		body: LoginResponse{
-			AccessToken:  tokens[0].Token,
-			RefreshToken: tokens[1].Token,
+			AccessToken:  accessToken.Token,
+			RefreshToken: refreshToken.Token,
 		},
 		contentType: "application/json",
 	}
@@ -226,15 +229,17 @@ func (h Handle) check2FAEnabled(ctx context.Context, w http.ResponseWriter, logi
 		"users":    apiUsers,
 	}
 
-	tempToken, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
+	tempTokenMap, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate temp token", "err", err)
 		return false, nil, nil, fmt.Errorf("failed to generate temp token: %w", err)
 	}
 
+	tempToken := tempTokenMap[tg.TEMP_TOKEN_NAME]
+
 	// Only set cookie if a writer is provided (web flow)
 	if w != nil {
-		err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
+		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
 		if err != nil {
 			slog.Error("Failed to set temp token cookie", "err", err)
 			return false, nil, nil, fmt.Errorf("failed to set temp token cookie: %w", err)
@@ -255,7 +260,7 @@ func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, l
 	extraClaims := map[string]interface{}{
 		"login_id": loginID.String(),
 	}
-	tempToken, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
+	tempTokenMap, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate temp token", "err", err)
 		return true, nil, fmt.Errorf("failed to generate temp token: %w", err)
@@ -263,13 +268,14 @@ func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, l
 
 	// Only set cookie if a writer is provided (web flow)
 	if w != nil {
-		err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{tempToken})
+		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
 		if err != nil {
 			slog.Error("Failed to set temp token cookie", "err", err)
 			return true, nil, fmt.Errorf("failed to set temp token cookie: %w", err)
 		}
 	}
 
+	tempToken := tempTokenMap[tg.TEMP_TOKEN_NAME]
 	return true, &tempToken, nil
 }
 
@@ -961,7 +967,7 @@ func (h Handle) PostEmailVerify(w http.ResponseWriter, r *http.Request) *Respons
 
 func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 
-	token, err := h.tokenService.GenerateLogoutToken("", nil, nil)
+	tokenMap, err := h.tokenService.GenerateLogoutToken("", nil, nil)
 	if err != nil {
 		slog.Error("Failed to generate logout token", "err", err)
 		return &Response{
@@ -969,7 +975,7 @@ func (h Handle) PostLogout(w http.ResponseWriter, r *http.Request) *Response {
 			body: "Failed to generate logout token",
 		}
 	}
-	err = h.tokenCookieService.SetTokensCookie(w, []tg.TokenValue{token})
+	err = h.tokenCookieService.SetTokensCookie(w, tokenMap)
 	if err != nil {
 		slog.Error("Failed to set logout token cookie", "err", err)
 		return &Response{
