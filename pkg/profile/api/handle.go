@@ -530,6 +530,62 @@ func (h Handle) prepareLoginSelectionRequiredResponse(loginOptions []LoginOption
 	}
 }
 
+// CompleteLoginAssociation handles the final step of login association after the user has selected which login to use
+func (h Handle) CompleteLoginAssociation(w http.ResponseWriter, r *http.Request) *Response {
+	// Get authenticated user from context
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Parse request body
+	data := CompleteLoginAssociationJSONBody{}
+	err := render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Invalid request body",
+		}
+	}
+
+	// Validate login ID
+	loginID, err := uuid.Parse(data.LoginID)
+	if err != nil {
+		slog.Error("Invalid login ID format", "login_id", data.LoginID, "error", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Invalid login ID format",
+		}
+	}
+
+	// Update the user's login ID
+	_, err = h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
+		ID:      authUser.UserUuid,
+		LoginID: utils.ToNullUUID(loginID),
+	})
+	if err != nil {
+		slog.Error("error updating login ID", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: ErrAssociationFailed,
+		}
+	}
+
+	slog.Info("login associated successfully",
+		"login_id", loginID,
+		"user_id", authUser.UserUuid,
+	)
+
+	resp := SuccessResponse{
+		Result: "Success",
+	}
+	return CompleteLoginAssociationJSON200Response(resp)
+}
+
 // check2FAEnabled checks if 2FA is enabled for the given login ID and returns the 2FA methods if enabled
 // Returns: (is2FAEnabled, twoFactorMethods, tempToken, error)
 func (h Handle) check2FAEnabled(ctx context.Context, w http.ResponseWriter, login login.LoginEntity, extraClaims map[string]interface{}) (bool, []TwoFactorMethodSelection, *tg.TokenValue, error) {
