@@ -260,7 +260,7 @@ const Settings: Component = () => {
                                     setSuccess(null);
                                     setIsLoading(true);
                                     try {
-                                      await request(`/profile/2fa/${method.enabled ? 'disable' : 'enable'}`, {
+                                      await request(`/api/idm/profile/2fa/${method.enabled ? 'disable' : 'enable'}`, {
                                         method: 'POST',
                                         headers: {
                                           'Content-Type': 'application/json',
@@ -291,7 +291,7 @@ const Settings: Component = () => {
                                       setSuccess(null);
                                       setIsLoading(true);
                                       try {
-                                        await request('/profile/2fa/delete', {
+                                        await request('/api/idm/profile/2fa/delete', {
                                           method: 'POST',
                                           headers: {
                                             'Content-Type': 'application/json',
