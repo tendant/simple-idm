@@ -572,7 +572,7 @@ components:
             $ref: '#/components/schemas/LoginOption'
         status:
           type: string
-          enum: ["login_selection_required"]
+          example: "login_selection_required"
         message:
           type: string
       required:
