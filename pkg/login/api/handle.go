@@ -1547,6 +1547,67 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 	return h.responseHandler.PrepareMobileLoginResponse(tokens)
 }
 
+// Get a list of users associated with the current login
+// (GET /mobile/users)
+func (h Handle) MobileFindUsersWithLogin(w http.ResponseWriter, r *http.Request, params MobileFindUsersWithLoginParams) *Response {
+	var tokenStr string
+	if params.TempToken != nil && *params.TempToken != "" {
+		tokenStr = *params.TempToken
+	} else if params.AccessToken != nil && *params.AccessToken != "" {
+		tokenStr = *params.AccessToken
+	} else {
+		// If not in request body, check Authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" || len(authHeader) < 8 || !strings.HasPrefix(authHeader, "Bearer ") {
+			slog.Error("No token found in request body or Authorization header")
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: "Missing token - provide either in request body or Authorization header",
+			}
+		}
+		tokenStr = authHeader[7:] // Remove "Bearer " prefix
+	}
+
+	// Parse and validate token
+	token, err := h.tokenService.ParseToken(tokenStr)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token",
+		}
+	}
+
+	// Extract login ID using the helper method
+	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
+	if err != nil {
+		slog.Error("Failed to get users by login ID", "err", err)
+		return &Response{
+			body: "Failed to get users by login ID",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	return h.responseHandler.PrepareUserListResponse(users)
+}
+
 // Helper function to create a pointer to a string
 func ptr(s string) *string {
 	return &s
