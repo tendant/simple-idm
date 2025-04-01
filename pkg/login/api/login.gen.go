@@ -135,8 +135,8 @@ type SuccessResponse struct {
 
 // Tokens defines model for Tokens.
 type Tokens struct {
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 // TwoFactorMethod defines model for TwoFactorMethod.
@@ -206,6 +206,11 @@ type PostMobile2faValidateJSONBody struct {
 type PostMobileLoginJSONBody struct {
 	Password string `json:"password"`
 	Username string `json:"username"`
+}
+
+// PostMobileTokenRefreshJSONBody defines parameters for PostMobileTokenRefresh.
+type PostMobileTokenRefreshJSONBody struct {
+	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
 // PostMobileUserSwitchJSONBody defines parameters for PostMobileUserSwitch.
@@ -306,6 +311,14 @@ type PostMobileLoginJSONRequestBody PostMobileLoginJSONBody
 
 // Bind implements render.Binder.
 func (PostMobileLoginJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostMobileTokenRefreshJSONRequestBody defines body for PostMobileTokenRefresh for application/json ContentType.
+type PostMobileTokenRefreshJSONRequestBody PostMobileTokenRefreshJSONBody
+
+// Bind implements render.Binder.
+func (PostMobileTokenRefreshJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -530,6 +543,16 @@ func PostMobileLoginJSON200Response(body interface{}) *Response {
 	}
 }
 
+// PostMobileTokenRefreshJSON200Response is a constructor method for a PostMobileTokenRefresh response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostMobileTokenRefreshJSON200Response(body Tokens) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // PostMobileUserSwitchJSON200Response is a constructor method for a PostMobileUserSwitch response.
 // A *Response is returned with the configured status code and content type from the spec.
 func PostMobileUserSwitchJSON200Response(body interface{}) *Response {
@@ -713,6 +736,9 @@ type ServerInterface interface {
 	// Mobile login endpoint
 	// (POST /mobile/login)
 	PostMobileLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Refresh JWT tokens
+	// (POST /mobile/token/refresh)
+	PostMobileTokenRefresh(w http.ResponseWriter, r *http.Request) *Response
 	// Switch to a different user when multiple users are available for the same login
 	// (POST /mobile/user/switch)
 	PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Response
@@ -883,6 +909,24 @@ func (siw *ServerInterfaceWrapper) PostMobileLogin(w http.ResponseWriter, r *htt
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostMobileLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PostMobileTokenRefresh operation middleware
+func (siw *ServerInterfaceWrapper) PostMobileTokenRefresh(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostMobileTokenRefresh(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -1228,6 +1272,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/mobile/2fa/send", wrapper.PostMobile2faSend)
 		r.Post("/mobile/2fa/validate", wrapper.PostMobile2faValidate)
 		r.Post("/mobile/login", wrapper.PostMobileLogin)
+		r.Post("/mobile/token/refresh", wrapper.PostMobileTokenRefresh)
 		r.Post("/mobile/user/switch", wrapper.PostMobileUserSwitch)
 		r.Get("/mobile/users", wrapper.MobileFindUsersWithLogin)
 		r.Post("/password/reset", wrapper.PostPasswordReset)
@@ -1262,6 +1307,7 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
+
 
 	"H4sIAAAAAAAC/+xbX2/juBH/KoRaoC2gi3O5PvmpOWxzyOFyF+TP7cMiEBhpZHFPIrUkFcc9+LsXHFKy",
 	"JVGy7MTZLZq3XYscDmd+M/zNkPkziEVRCg5cq2D+Z6DiDAqK//wAOXsCufqt1Exw80spRQlSM8DvCVNl",
@@ -1303,6 +1349,7 @@ var swaggerSpec = []string{
 	"A9JxQUoob17twjNTWm1YdSnFE0sgsTfCYROh+OJ3yfKcPGKvXNvtUd25Og4H8oqZbwq0I51pvj/Aeku+",
 	"3TbxOXGfCOMJSuMLtGQN+yVVxtImyvEGeyvyRrxTGzskS+cLBTxpu0gLwvTJYUh2htto1jptTohPt9D8",
 	"ZCHQYMiLl5NuCMD2X7nZF4jyb8r3EmG8+PeW/e/V8o5qeb3+bwAAAP//2xvdyPA5AAA=",
+
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

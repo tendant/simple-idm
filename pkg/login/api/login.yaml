@@ -167,6 +167,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Tokens'
+  /mobile/token/refresh:
+    post:
+      summary: Refresh JWT tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              x-go-optional-value: true
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
   /mobile/login:
     post:
       summary: Mobile login endpoint
@@ -676,13 +696,13 @@ components:
     Tokens:
       type: object
       properties:
-        accessToken:
+        access_token:
           type: string
-        refreshToken:
+        refresh_token:
           type: string
       required:
-        - accessToken
-        - refreshToken
+        - access_token
+        - refresh_token
     FindUsernameRequest:
       type: object
       required:

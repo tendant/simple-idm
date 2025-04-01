@@ -1,20 +1,18 @@
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
-import tailwindcss from '@tailwindcss/vite';
 
 import path from "path";
 
 export default defineConfig({
   plugins: [
     solidPlugin(),
-    tailwindcss({
-      config: './tailwind.config.js',
-    }),
+    tailwindcss(),
   ],
   server: {
     port: 3000,
     proxy: {
-      '/auth': {
+      '/api/idm/auth': {
         target: 'http://localhost:4000',
         changeOrigin: true,
         configure: (proxy, _options) => {
@@ -45,7 +43,7 @@ export default defineConfig({
         target: 'http://localhost:4000',
         changeOrigin: true,
       },
-      '/profile': {
+      '/api/idm/profile': {
         target: 'http://localhost:4000',
         changeOrigin: true,
         configure: (proxy, _options) => {

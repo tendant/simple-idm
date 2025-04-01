@@ -1,5 +1,5 @@
-import { Component, createSignal, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
+import { Component, createSignal, For, onMount, Show } from 'solid-js';
 import { loginApi, type Login } from '../api/login';
 
 const Logins: Component = () => {
@@ -98,43 +98,47 @@ const Logins: Component = () => {
                         <td colspan="4" class="text-center py-4 text-sm text-gray-9">No logins found</td>
                       </tr>
                     ) : (
-                      logins().map((login) => (
-                        <tr data-key={login.id}>
-                          <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
-                            <a
-                              href={`/logins/${login.id}/detail`}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                navigate(`/logins/${login.id}/detail`);
-                              }}
-                              class="text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                              {login.username}
-                            </a>
-                          </td>
-                          {/* 2FA Enabled column cell removed */}
-                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                            {login.password_last_changed ? new Date(login.password_last_changed).toLocaleDateString() : '-'}
-                          </td>
-                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
-                            {login.status || 'Active'}
-                          </td>
-                          <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                            <button
-                              onClick={() => navigate(`/logins/${login.id}/edit`)}
-                              class="text-blue-600 hover:text-blue-900 mr-4"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(login.id!)}
-                              class="text-red-600 hover:text-red-900"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                      <For each={logins()}>
+                        {
+                          (login)=>(
+                            <tr data-key={login.id}>
+                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
+                              <a
+                                href={`/logins/${login.id}/detail`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  navigate(`/logins/${login.id}/detail`);
+                                }}
+                                class="text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                {login.username}
+                              </a>
+                            </td>
+                            {/* 2FA Enabled column cell removed */}
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                              {login.password_last_changed ? new Date(login.password_last_changed).toLocaleDateString() : '-'}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                              {login.status || 'Active'}
+                            </td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                              <button
+                                onClick={() => navigate(`/logins/${login.id}/edit`)}
+                                class="text-blue-600 hover:text-blue-900 mr-4"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(login.id!)}
+                                class="text-red-600 hover:text-red-900"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                          )
+                        }
+                      </For>
                     )}
                   </Show>
                 </tbody>

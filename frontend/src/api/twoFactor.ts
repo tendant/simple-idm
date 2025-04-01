@@ -140,6 +140,7 @@ export const twoFactorApi = {
 
   delete2FAMethod: async (loginId: string, twofaType: string, twofaId: string): Promise<void> => {
     const response = await apiClient.post('/api/idm/profile/2fa/delete', {
+
       login_id: loginId,
       twofa_type: twofaType,
       twofa_id: twofaId

@@ -19,7 +19,7 @@ const PasswordResetInit: Component = () => {
     setLoading(true);
     
     try {
-      const response = await fetch('/auth/password/reset/init', {
+      const response = await fetch('/api/idm/auth/password/reset/init', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
