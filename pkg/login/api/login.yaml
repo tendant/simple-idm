@@ -320,6 +320,33 @@ paths:
                   message:
                     type: string
                     example: "Not authorized to switch to this user"
+  /mobile/users:
+    get:
+      summary: Get a list of users associated with the current login
+      operationId: mobile_find_users_with_login
+      parameters:
+        - name: temp_token
+          in: query
+          required: false
+          description: Temp token
+          schema:
+            type: string
+        - name: access_token
+          in: query
+          required: false
+          description: JWT access token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successfully retrieved users
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MultiUsersResponse"
+                  - $ref: "#/components/schemas/SingleUserResponse"
+
   /username/find:
     post:
       summary: Send username to user's email address
