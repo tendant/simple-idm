@@ -319,6 +319,35 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/MultiUsersResponse"
                   - $ref: "#/components/schemas/SingleUserResponse"
+  /login/associate:
+    post:
+      summary: Associate a login
+      operationId: associate_login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                username:
+                  type: string
+              required:
+                - password
+                - username
+      responses:
+        "200":
+          description: Login associated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: Login not found
 components:
   schemas:
     SuccessResponse:
@@ -488,13 +517,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/User"
-    SingleUserResponse:
-      description: Structure added for integration compatibility purposes
-      x-go-optional-value: true
-      type: object
-      properties:
-        user:
-          $ref: "#/components/schemas/User"
   securitySchemes:
     BearerAuth:
       type: http

@@ -1,17 +1,22 @@
 package api
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/mapper"
+	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/profile"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
+	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
 )
 
@@ -21,17 +26,24 @@ type Handle struct {
 	responseHandler    ResponseHandler
 	tokenService       tg.TokenService
 	tokenCookieService tg.TokenCookieService
+  loginService   *login.LoginService
 }
 
-func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService) Handle {
+func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService) Handle {
 	return Handle{
 		profileService:     profileService,
 		twoFaService:       twoFaService,
 		responseHandler:    NewDefaultResponseHandler(),
 		tokenService:       tokenService,
 		tokenCookieService: tokenCookieService,
+    loginService:   loginService,
 	}
 }
+
+const (
+	ErrInvalidCredentials = "invalid username or password"
+	ErrAssociationFailed  = "failed to associate login with current user"
+)
 
 // Get password policy
 // (GET /password/policy)
@@ -365,18 +377,10 @@ func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 	return Delete2faJSON200Response(resp)
 }
 
-// Switch to a different user when multiple users are available for the same login
-// (POST /user/switch)
-func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response {
-	// Parse request body
-	data := PostUserSwitchJSONRequestBody{}
-	if err := render.DecodeJSON(r.Body, &data); err != nil {
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Unable to parse request body",
-		}
-	}
-
+// Associate a login
+// (POST /login/associate)
+func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response {
+	var resp SuccessResponse
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
@@ -385,176 +389,79 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 			Code: http.StatusUnauthorized,
 		}
 	}
-
-	// Get user UUID from context (assuming it's set by auth middleware)
-	loginIdStr := authUser.LoginId
-
-	loginId, err := uuid.Parse(loginIdStr)
+	data := AssociateLoginJSONRequestBody{}
+	err := render.DecodeJSON(r.Body, &data)
 	if err != nil {
-		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
-			body: "Failed to parse login ID: " + err.Error(),
 			Code: http.StatusBadRequest,
+			body: ErrInvalidCredentials,
 		}
 	}
 
-	users, err := h.profileService.GetUsersByLoginId(r.Context(), loginId)
-	if err != nil {
-		slog.Error("Failed to get users by login ID", "err", err)
+	if data.Username == "" || data.Password == "" {
 		return &Response{
-			body: "Failed to get users by login ID",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Check if the requested user is in the list
-	var targetUser mapper.User
-	found := false
-	for _, user := range users {
-		if user.UserId == data.UserID {
-			targetUser = user
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return &Response{
-			Code: http.StatusForbidden,
-			body: "Not authorized to switch to this user",
-		}
-	}
-
-	rootModifications, extraClaims := h.profileService.ToTokenClaims(targetUser)
-
-	tokens, err := h.tokenService.GenerateTokens(targetUser.UserId, rootModifications, extraClaims)
-	if err != nil {
-		slog.Error("Failed to create tokens", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to create tokens",
-		}
-	}
-
-	err = h.tokenCookieService.SetTokensCookie(w, tokens)
-	if err != nil {
-		slog.Error("Failed to set tokens in cookies", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to set tokens in cookies",
-		}
-	}
-
-	// Convert mapped users to API users (including all available users)
-	return h.responseHandler.PrepareUserSwitchResponse(users)
-}
-
-// Get a list of users associated with the current login
-// (GET /users)
-func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response {
-	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
-	if !ok {
-		slog.Error("Failed getting AuthUser", "ok", ok)
-		return &Response{
-			body: http.StatusText(http.StatusUnauthorized),
-			Code: http.StatusUnauthorized,
-		}
-	}
-
-	// Get user UUID from context (assuming it's set by auth middleware)
-	loginIdStr := authUser.LoginId
-
-	loginId, err := uuid.Parse(loginIdStr)
-	if err != nil {
-		slog.Error("Failed to parse login ID", "err", err)
-		return &Response{
-			body: "Failed to parse login ID: " + err.Error(),
 			Code: http.StatusBadRequest,
+			body: ErrInvalidCredentials,
 		}
 	}
 
-	users, err := h.profileService.GetUsersByLoginId(r.Context(), loginId)
+	// Find login by username
+	login, err := h.loginService.FindLoginByUsername(r.Context(), data.Username)
 	if err != nil {
-		slog.Error("Failed to get users by login ID", "err", err)
+		if err == pgx.ErrNoRows {
+			slog.Error("no login found with username: %s", data.Username)
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: ErrInvalidCredentials,
+			}
+		}
+		slog.Error("error finding login with username: %s", data.Username)
 		return &Response{
-			body: "Failed to get users by login ID",
 			Code: http.StatusInternalServerError,
+			body: ErrInvalidCredentials,
 		}
 	}
 
-	return h.responseHandler.PrepareUserListResponse(users)
-}
+	slog.Info("found login with username: %s", data.Username, "login", login.ID)
 
-// ResponseHandler defines the interface for handling responses during login
-type ResponseHandler interface {
-	// PrepareUserListResponse prepares a response for a list of users
-	PrepareUserListResponse(users []mapper.User) *Response
-	// PrepareUserSwitchResponse prepares a response for user switch
-	PrepareUserSwitchResponse(users []mapper.User) *Response
-}
+	// Hash the password for logging purposes only
+	hashedForLogging := fmt.Sprintf("%x", sha256.Sum256([]byte(data.Password)))
+	slog.Info("password hash for logging", "password_hash", hashedForLogging)
 
-// DefaultResponseHandler is the default implementation of ResponseHandler
-type DefaultResponseHandler struct {
-}
-
-// NewDefaultResponseHandler creates a new DefaultResponseHandler
-func NewDefaultResponseHandler() ResponseHandler {
-	return &DefaultResponseHandler{}
-}
-
-// PrepareUserListResponse prepares a response for a list of users
-func (h *DefaultResponseHandler) PrepareUserListResponse(users []mapper.User) *Response {
-	var apiUsers []User
-	for _, user := range users {
-		email, _ := user.ExtraClaims["email"].(string)
-		// Check if email is available in UserInfo
-		if user.UserInfo.Email != "" {
-			email = user.UserInfo.Email
+	// Verify password
+	slog.Info("hashed password", "hashed_password", string(login.Password))
+	valid, err := h.loginService.CheckPasswordByLoginId(r.Context(), login.ID, data.Password, string(login.Password))
+	if err != nil || !valid {
+		slog.Error("error checking password: %w", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: ErrInvalidCredentials,
 		}
-
-		role := ""
-		if len(user.Roles) > 0 {
-			role = user.Roles[0]
-		}
-
-		apiUsers = append(apiUsers, User{
-			ID:    user.UserId,
-			Name:  user.DisplayName,
-			Role:  role,
-			Email: email,
-		})
-	}
-	return FindUsersWithLoginJSON200Response(apiUsers)
-}
-
-// PrepareUserSwitchResponse prepares a response for user switch
-func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) *Response {
-	var apiUsers []User
-	for _, user := range users {
-		email, _ := user.ExtraClaims["email"].(string)
-		// Check if email is available in UserInfo
-		if user.UserInfo.Email != "" {
-			email = user.UserInfo.Email
-		}
-
-		role := ""
-		if len(user.Roles) > 0 {
-			role = user.Roles[0]
-		}
-
-		apiUsers = append(apiUsers, User{
-			ID:    user.UserId,
-			Name:  user.DisplayName,
-			Role:  role,
-			Email: email,
-		})
 	}
 
-	response := Login{
-		Status:  "success",
-		Message: "Successfully switched user",
-		Users:   apiUsers,
+	slog.Info("password verified successfully", "login", login.ID)
+
+	_, err = h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
+		ID:      authUser.UserUuid,
+		LoginID: utils.ToNullUUID(login.ID),
+	})
+	if err != nil {
+		slog.Error("error updating login ID", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: ErrAssociationFailed,
+		}
 	}
 
-	return PostUserSwitchJSON200Response(response)
+	slog.Info("login associated successfully",
+		"login_id", login.ID,
+		"user_id", authUser.UserUuid,
+		"username", data.Username,
+	)
+
+	resp.Result = "success"
+
+	return AssociateLoginJSON200Response(resp)
+
 }
+

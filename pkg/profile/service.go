@@ -33,6 +33,10 @@ type (
 		ID       uuid.UUID `json:"id"`
 		Username string    `json:"username"`
 	}
+	UpdateLoginIdParam struct {
+		ID      uuid.UUID     `json:"id"`
+		LoginID uuid.NullUUID `json:"login_id"`
+	}
 )
 
 // ProfileRepository defines the interface for profile database operations
@@ -43,6 +47,8 @@ type ProfileRepository interface {
 	FindUserByUsername(ctx context.Context, username string) ([]Profile, error)
 	// UpdateUsername updates a user's username
 	UpdateUsername(ctx context.Context, arg UpdateUsernameParam) error
+	// UpdateLoginId updates a user's login ID
+	UpdateLoginId(ctx context.Context, arg UpdateLoginIdParam) (uuid.UUID, error)
 	// Additional methods can be added as needed
 }
 
@@ -108,19 +114,31 @@ func (r *PostgresProfileRepository) UpdateUsername(ctx context.Context, arg Upda
 	return nil
 }
 
+func (r *PostgresProfileRepository) UpdateLoginId(ctx context.Context, arg UpdateLoginIdParam) (uuid.UUID, error) {
+	login_id, err := r.queries.UpdateUserLoginId(ctx, profiledb.UpdateUserLoginIdParams{
+		ID:      arg.ID,
+		LoginID: arg.LoginID,
+	})
+	if err != nil {
+		slog.Error("Failed to update login id", "err", err)
+		return uuid.Nil, fmt.Errorf("failed to update login id: %w", err)
+	}
+	return login_id.UUID, nil
+}
+
 // ProfileService provides profile-related operations
 type ProfileService struct {
 	repository   ProfileRepository
-	loginService *login.LoginService
 	userMapper   mapper.UserMapper
+  passwordManager *login.PasswordManager
 }
 
 // NewProfileService creates a new ProfileService
-func NewProfileService(repository ProfileRepository, loginService *login.LoginService, userMapper mapper.UserMapper) *ProfileService {
+func NewProfileService(repository ProfileRepository, passwordManager *login.PasswordManager, userMapper mapper.UserMapper) *ProfileService {
 	return &ProfileService{
-		repository:   repository,
-		loginService: loginService,
-		userMapper:   userMapper,
+		repository:      repository,
+		passwordManager: passwordManager,
+    userMapper:   userMapper,
 	}
 }
 
@@ -140,7 +158,7 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	}
 
 	// Verify the current password
-	match, err := s.loginService.CheckPasswordHash(params.CurrentPassword, string(user.Password), login.PasswordV1)
+	match, err := s.passwordManager.CheckPasswordHash(params.CurrentPassword, string(user.Password), login.PasswordV1)
 	if err != nil || !match {
 		slog.Error("Invalid current password", "uuid", params.UserId)
 		return fmt.Errorf("invalid current password")
@@ -177,7 +195,7 @@ type UpdatePasswordParams struct {
 
 // UpdatePassword updates a user's password after verifying their current password
 func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswordParams) error {
-	err := s.loginService.ChangePassword(
+	err := s.passwordManager.ChangePassword(
 		ctx,
 		params.LoginID.String(),
 		params.CurrentPassword,
@@ -191,7 +209,11 @@ func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswo
 }
 
 func (s *ProfileService) GetPasswordPolicy() *login.PasswordPolicy {
-	return s.loginService.GetPasswordPolicy()
+	return s.passwordManager.GetPolicy()
+}
+
+func (s *ProfileService) UpdateLoginId(ctx context.Context, arg UpdateLoginIdParam) (uuid.UUID, error) {
+	return s.repository.UpdateLoginId(ctx, arg)
 }
 
 // ToTokenClaims converts a User to token claims using the UserMapper

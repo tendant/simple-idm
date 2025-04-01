@@ -148,6 +148,12 @@ type Post2faSetupJSONBody struct {
 // Post2faSetupJSONBodyTwofaType defines parameters for Post2faSetup.
 type Post2faSetupJSONBodyTwofaType string
 
+// AssociateLoginJSONBody defines parameters for AssociateLogin.
+type AssociateLoginJSONBody struct {
+	Password string `json:"password"`
+	Username string `json:"username"`
+}
+
 // ChangePasswordJSONBody defines parameters for ChangePassword.
 type ChangePasswordJSONBody struct {
 	// User's current password
@@ -201,6 +207,14 @@ type Post2faSetupJSONRequestBody Post2faSetupJSONBody
 
 // Bind implements render.Binder.
 func (Post2faSetupJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// AssociateLoginJSONRequestBody defines body for AssociateLogin for application/json ContentType.
+type AssociateLoginJSONRequestBody AssociateLoginJSONBody
+
+// Bind implements render.Binder.
+func (AssociateLoginJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -327,6 +341,16 @@ func Post2faSetupJSON201Response(body SuccessResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        201,
+		contentType: "application/json",
+	}
+}
+
+// AssociateLoginJSON200Response is a constructor method for a AssociateLogin response.
+// A *Response is returned with the configured status code and content type from the spec.
+func AssociateLoginJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
 		contentType: "application/json",
 	}
 }
@@ -492,6 +516,9 @@ type ServerInterface interface {
 	// Create a new 2FA method
 	// (POST /2fa/setup)
 	Post2faSetup(w http.ResponseWriter, r *http.Request) *Response
+	// Associate a login
+	// (POST /login/associate)
+	AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 	// Change user password
 	// (PUT /password)
 	ChangePassword(w http.ResponseWriter, r *http.Request) *Response
@@ -593,6 +620,24 @@ func (siw *ServerInterfaceWrapper) Post2faSetup(w http.ResponseWriter, r *http.R
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Post2faSetup(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// AssociateLogin operation middleware
+func (siw *ServerInterfaceWrapper) AssociateLogin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.AssociateLogin(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -819,6 +864,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/2fa/disable", wrapper.Post2faDisable)
 		r.Post("/2fa/enable", wrapper.Post2faEnable)
 		r.Post("/2fa/setup", wrapper.Post2faSetup)
+		r.Post("/login/associate", wrapper.AssociateLogin)
 		r.Put("/password", wrapper.ChangePassword)
 		r.Get("/password/policy", wrapper.GetPasswordPolicy)
 		r.Post("/user/switch", wrapper.PostUserSwitch)
