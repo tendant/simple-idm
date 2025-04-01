@@ -24,6 +24,11 @@ type (
 		Password       []byte    `json:"password"`
 	}
 
+	LoginRecord struct {
+		ID       uuid.UUID `json:"id"`
+		Username string    `json:"username"`
+	}
+
 	FindUserByUsername struct {
 		ID       uuid.UUID `json:"id"`
 		Username string    `json:"username"`
@@ -43,6 +48,8 @@ type (
 type ProfileRepository interface {
 	// GetUserById retrieves a user by their ID
 	GetUserById(ctx context.Context, id uuid.UUID) (Profile, error)
+	// GetLoginById retrieves a login by its ID
+	GetLoginById(ctx context.Context, id uuid.UUID) (LoginRecord, error)
 	// FindUserByUsername finds users by their username
 	FindUserByUsername(ctx context.Context, username string) ([]Profile, error)
 	// UpdateUsername updates a user's username
@@ -78,6 +85,20 @@ func (r *PostgresProfileRepository) GetUserById(ctx context.Context, id uuid.UUI
 	res.CreatedAt = row.CreatedAt
 	res.LastModifiedAt = row.LastModifiedAt
 	res.LoginID = row.LoginID.UUID
+	res.Username = row.Username.String
+
+	return res, nil
+}
+
+func (r *PostgresProfileRepository) GetLoginById(ctx context.Context, id uuid.UUID) (LoginRecord, error) {
+	var res LoginRecord
+	row, err := r.queries.GetLoginById(ctx, id)
+	if err != nil {
+		slog.Error("Failed to get login", "err", err)
+		return res, fmt.Errorf("failed to get login: %w", err)
+	}
+
+	res.ID = row.ID
 	res.Username = row.Username.String
 
 	return res, nil
@@ -128,9 +149,9 @@ func (r *PostgresProfileRepository) UpdateLoginId(ctx context.Context, arg Updat
 
 // ProfileService provides profile-related operations
 type ProfileService struct {
-	repository   ProfileRepository
-	userMapper   mapper.UserMapper
-  passwordManager *login.PasswordManager
+	repository      ProfileRepository
+	userMapper      mapper.UserMapper
+	passwordManager *login.PasswordManager
 }
 
 // NewProfileService creates a new ProfileService
@@ -138,7 +159,7 @@ func NewProfileService(repository ProfileRepository, passwordManager *login.Pass
 	return &ProfileService{
 		repository:      repository,
 		passwordManager: passwordManager,
-    userMapper:   userMapper,
+		userMapper:      userMapper,
 	}
 }
 
@@ -235,6 +256,10 @@ func (s *ProfileService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUI
 
 	// Return the users directly
 	return users, nil
+}
+
+func (s *ProfileService) GetLoginById(ctx context.Context, id uuid.UUID) (LoginRecord, error) {
+	return s.repository.GetLoginById(ctx, id)
 }
 
 // Disable2FA disables 2FA for a user after verifying their password and 2FA code
