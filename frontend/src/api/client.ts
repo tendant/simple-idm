@@ -22,7 +22,7 @@ async function refreshToken() {
     return refreshPromise;
   }
 
-  refreshPromise = fetch('/auth/token/refresh', {
+  refreshPromise = fetch('/api/idm/auth/token/refresh', {
     method: 'POST',
     credentials: 'include',
   }).then(async (response) => {
