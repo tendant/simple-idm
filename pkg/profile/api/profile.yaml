@@ -356,6 +356,30 @@ paths:
           description: Invalid request parameters
         "404":
           description: Login not found
+  /login/associate/complete:
+    post:
+      summary: Complete login association after user selection
+      operationId: complete_login_association
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                login_id:
+                  type: string
+                  format: uuid
+                  description: ID of the login the user selected
+              required:
+                - login_id
+      responses:
+        "200":
+          description: Login association completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
 components:
   schemas:
     LoginOption:
