@@ -445,6 +445,15 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 
 	slog.Info("found login with username: %s", data.Username, "login", login.ID)
 
+	// Check if login is already associated with user
+	if login.ID == originalLoginId {
+		slog.Warn("login already associated with user", "login_id", login.ID, "user_id", originalLoginId)
+		return &Response{
+			Code: http.StatusOK,
+			body: "Login already associated with user",
+		}
+	}
+
 	// Hash the password for logging purposes only
 	hashedForLogging := fmt.Sprintf("%x", sha256.Sum256([]byte(data.Password)))
 	slog.Info("password hash for logging", "password_hash", hashedForLogging)
