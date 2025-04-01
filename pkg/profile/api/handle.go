@@ -13,7 +13,6 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/login"
-	loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/profile"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -627,20 +626,6 @@ func (h Handle) check2FAEnabled(ctx context.Context, w http.ResponseWriter, logi
 		return false, nil, nil, fmt.Errorf("no users found for login")
 	}
 
-	// Convert mapped users to API users for token claims
-	apiUsers := make([]loginapi.User, len(idmUsers))
-	for i, mu := range idmUsers {
-		// Extract email and name from claims
-		email, _ := mu.ExtraClaims["email"].(string)
-		name := mu.DisplayName
-
-		apiUsers[i] = loginapi.User{
-			ID:    mu.UserId,
-			Name:  name,
-			Email: email,
-		}
-	}
-
 	// Prepare 2FA methods
 	var twoFactorMethods []TwoFactorMethodSelection
 	for _, method := range enabledTwoFAs {
@@ -654,9 +639,9 @@ func (h Handle) check2FAEnabled(ctx context.Context, w http.ResponseWriter, logi
 			var deliveryOptions []DeliveryOption
 
 			for _, user := range idmUsers {
-				// Get email from ExtraClaims
-				email, ok := user.ExtraClaims["email"].(string)
-				if !ok || emailMap[email] || email == "" {
+				// Get email from UserInfo
+				email := user.UserInfo.Email
+				if emailMap[email] || email == "" {
 					continue
 				}
 
