@@ -1,8 +1,12 @@
-import { Component, createSignal, createEffect, For, Show } from 'solid-js';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/card';
-import { Button } from '../components/ui/button';
-import { userApi, User } from '../api/user';
 import { useNavigate } from '@solidjs/router';
+import type { Component } from 'solid-js';
+import { createEffect, createSignal, For, Show } from 'solid-js';
+
+import type { User } from '../api/user';
+import { userApi } from '../api/user';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+
 import { Spinner } from './ui/spinner';
 
 export const AssociatedAccounts: Component = () => {
@@ -17,10 +21,14 @@ export const AssociatedAccounts: Component = () => {
     try {
       const data = await userApi.getUsersWithCurrentLogin();
       setUsers(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load associated accounts');
+    }
+    catch (err) {
+      setError(err instanceof Error
+        ? err.message
+        : 'Failed to load associated accounts');
       console.error('Error fetching associated accounts:', err);
-    } finally {
+    }
+    finally {
       setIsLoading(false);
     }
   });
@@ -33,11 +41,15 @@ export const AssociatedAccounts: Component = () => {
       if (response && response.status === 'success') {
         // After switching user, redirect to homepage
         navigate('/');
-      } else {
+      }
+      else {
         setError('Failed to switch user');
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to switch user');
+    }
+    catch (err) {
+      setError(err instanceof Error
+        ? err.message
+        : 'Failed to switch user');
       console.error('Error switching user:', err);
     }
   };
@@ -48,37 +60,73 @@ export const AssociatedAccounts: Component = () => {
         <CardTitle>Associated Accounts</CardTitle>
       </CardHeader>
       <CardContent>
-        <Show when={isLoading()}>
-          <div class="flex justify-center py-4">
+        <Show
+          when={isLoading()}
+        >
+          <div
+            class="flex justify-center py-4"
+          >
             <Spinner />
           </div>
         </Show>
 
-        <Show when={error()}>
-          <div class="text-red-500 mb-4">{error()}</div>
+        <Show
+          when={error()}
+        >
+          <div
+            class="text-red-500 mb-4"
+          >
+            {error()}
+          </div>
         </Show>
 
-        <Show when={!isLoading() && !error() && users().length === 0}>
-          <p class="text-sm text-gray-600">No associated accounts found.</p>
+        <Show
+          when={!isLoading() && !error() && users().length === 0}
+        >
+          <p
+            class="text-sm text-gray-600"
+          >
+            No associated accounts found.
+          </p>
         </Show>
 
-        <Show when={!isLoading() && users().length > 0}>
-          <div class="space-y-4">
-            <p class="text-sm text-gray-600 mb-2">
+        <Show
+          when={!isLoading() && users().length > 0}
+        >
+          <div
+            class="space-y-4"
+          >
+            <p
+              class="text-sm text-gray-600 mb-2"
+            >
               These accounts are associated with your current login. You can switch between them without re-authenticating.
             </p>
-            <div class="space-y-2">
-              <For each={users()}>
-                {(user) => (
-                  <div class="flex items-center justify-between p-3 border rounded-md">
+            <div
+              class="space-y-2"
+            >
+              <For
+                each={users()}
+              >
+                {user => (
+                  <div
+                    class="flex items-center justify-between p-3 border rounded-md"
+                  >
                     <div>
-                      <div class="font-medium">{user.name || user.username}</div>
-                      <div class="text-sm text-gray-500">{user.email}</div>
+                      <div
+                        class="font-medium"
+                      >
+                        {user.name || user.username}
+                      </div>
+                      <div
+                        class="text-sm text-gray-500"
+                      >
+                        {user.email}
+                      </div>
                     </div>
-                    <Button 
-                      onClick={() => handleSwitchUser(user.id!)}
-                      variant="outline"
+                    <Button
                       size="sm"
+                      variant="outline"
+                      onClick={() => handleSwitchUser(user.id!)}
                     >
                       Switch
                     </Button>

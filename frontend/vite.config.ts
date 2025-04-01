@@ -1,8 +1,8 @@
+import path from 'node:path';
+
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
-
-import path from "path";
 
 export default defineConfig({
   plugins: [
@@ -56,8 +56,8 @@ export default defineConfig({
           proxy.on('proxyRes', (proxyRes, req, _res) => {
             console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
           });
-        }
-      }
+        },
+      },
     },
   },
   build: {
@@ -65,7 +65,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src")
-    }
-  }
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
 });
