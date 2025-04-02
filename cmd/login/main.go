@@ -228,7 +228,8 @@ func main() {
 		profileQueries := profiledb.New(pool)
 		profileRepo := profile.NewPostgresProfileRepository(profileQueries)
 		profileService := profile.NewProfileService(profileRepo, passwordManager, userMapper)
-		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService)
+		responseHandler := profileapi.NewDefaultResponseHandler()
+		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService, &responseHandler)
 		r.Mount("/api/idm/profile", profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
