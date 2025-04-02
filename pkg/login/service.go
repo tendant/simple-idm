@@ -22,11 +22,16 @@ type LoginService struct {
 	delegatedUserMapper mapper.DelegatedUserMapper
 	passwordManager     *PasswordManager
 	postPasswordUpdate  *PostPasswordUpdateFunc
+	postLoginCreate     *PostLoginCreateFunc
 }
 
 // PostPasswordUpdateFunc is a function that will be called after a password update
 // It receives the username and password that were updated
 type PostPasswordUpdateFunc func(username string, password []byte) error
+
+// PostLoginCreateFunc is a function that will be called after a login record is created
+// It receives the username, password, and login ID of the newly created login
+type PostLoginCreateFunc func(username string, password []byte, loginID string) error
 
 // LoginServiceOptions contains optional parameters for creating a LoginService
 type LoginServiceOptions struct {
@@ -68,6 +73,13 @@ func WithPasswordManager(passwordManager *PasswordManager) Option {
 func WithPostPasswordUpdate(postPasswordUpdate *PostPasswordUpdateFunc) Option {
 	return func(ls *LoginService) {
 		ls.postPasswordUpdate = postPasswordUpdate
+	}
+}
+
+// WithPostLoginCreate sets the post login create function for the LoginService
+func WithPostLoginCreate(postLoginCreate *PostLoginCreateFunc) Option {
+	return func(ls *LoginService) {
+		ls.postLoginCreate = postLoginCreate
 	}
 }
 
@@ -286,6 +298,14 @@ func (s LoginService) Create(ctx context.Context, params RegisterParam) (logindb
 		// Password field removed as it's not in the User struct
 		CreatedAt:      time.Now(),
 		LastModifiedAt: time.Now(),
+	}
+
+	// Call post login create function if available
+	if s.postLoginCreate != nil {
+		err = (*s.postLoginCreate)(params.Name, []byte(params.Password), user.ID.String())
+		if err != nil {
+			slog.Error("Failed in post-login create", "err", err)
+		}
 	}
 
 	return user, nil
