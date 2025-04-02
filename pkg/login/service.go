@@ -29,6 +29,45 @@ type LoginServiceOptions struct {
 	PasswordManager *PasswordManager
 }
 
+// Option is a function that configures a LoginService
+type Option func(*LoginService)
+
+// WithNotificationManager sets the notification manager for the LoginService
+func WithNotificationManager(notificationManager *notification.NotificationManager) Option {
+	return func(ls *LoginService) {
+		ls.notificationManager = notificationManager
+	}
+}
+
+// WithUserMapper sets the user mapper for the LoginService
+func WithUserMapper(userMapper mapper.UserMapper) Option {
+	return func(ls *LoginService) {
+		ls.userMapper = userMapper
+	}
+}
+
+// WithDelegatedUserMapper sets the delegated user mapper for the LoginService
+func WithDelegatedUserMapper(delegatedUserMapper mapper.DelegatedUserMapper) Option {
+	return func(ls *LoginService) {
+		ls.delegatedUserMapper = delegatedUserMapper
+	}
+}
+
+// WithPasswordManager sets the password manager for the LoginService
+func WithPasswordManager(passwordManager *PasswordManager) Option {
+	return func(ls *LoginService) {
+		ls.passwordManager = passwordManager
+	}
+}
+
+// WithPostPasswordUpdate sets the post password update function for the LoginService
+func WithPostPasswordUpdate(postPasswordUpdate *PostPasswordUpdateFunc) Option {
+	return func(ls *LoginService) {
+		ls.postPasswordUpdate = postPasswordUpdate
+	}
+}
+
+// NewLoginService creates a new LoginService with the given options
 func NewLoginService(
 	repository LoginRepository,
 	notificationManager *notification.NotificationManager,
@@ -47,14 +86,32 @@ func NewLoginService(
 	}
 
 	return &LoginService{
-		repository: repository,
-		// userRepository:      userRepository,
+		repository:          repository,
 		notificationManager: notificationManager,
 		userMapper:          userMapper,
 		delegatedUserMapper: delegatedUserMapper,
 		passwordManager:     passwordManager,
 		postPasswordUpdate:  postPasswordUpdate,
 	}
+}
+
+// NewLoginServiceWithOptions creates a new LoginService with the given options
+func NewLoginServiceWithOptions(repository LoginRepository, opts ...Option) *LoginService {
+	// Create a default password manager
+	passwordManager := NewPasswordManagerWithRepository(repository)
+	
+	// Create service with default values
+	ls := &LoginService{
+		repository:      repository,
+		passwordManager: passwordManager,
+	}
+	
+	// Apply all options
+	for _, opt := range opts {
+		opt(ls)
+	}
+	
+	return ls
 }
 
 type LoginParams struct {
