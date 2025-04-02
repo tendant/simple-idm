@@ -28,10 +28,6 @@ type LoginService struct {
 // It receives the username and password that were updated
 type PostPasswordUpdateFunc func(username string, password []byte) error
 
-// PostLoginCreateFunc is a function that will be called after a login record is created
-// It receives the username, password, and login ID of the newly created login
-type PostLoginCreateFunc func(username string, password []byte, loginID string) error
-
 // LoginServiceOptions contains optional parameters for creating a LoginService
 type LoginServiceOptions struct {
 	PasswordManager *PasswordManager
