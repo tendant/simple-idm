@@ -280,27 +280,31 @@ func (pm *PasswordManager) ValidateResetToken(ctx context.Context, token string)
 }
 
 // ResetPassword changes a user's password using a valid reset token
-func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword string) error {
+// Returns the loginID of the user whose password was reset
+func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword string) (string, error) {
 	// Validate token and get user info
 	tokenInfo, err := pm.repository.ValidatePasswordResetToken(ctx, token)
 	if err != nil {
 		slog.Error("Failed to validate reset token", "err", err)
-		return errors.New("invalid or expired reset token")
+		return "", errors.New("invalid or expired reset token")
 	}
 	slog.Info("token validated")
 
 	// Check if the new password meets complexity requirements
 	if err := pm.CheckPasswordComplexity(newPassword); err != nil {
 		slog.Error("Failed to check password complexity", "err", err)
-		return err
+		return "", err
 	}
 	slog.Info("Password complexity checked")
 
 	// Get current password and version for history
 	_, err = pm.repository.GetLoginById(ctx, tokenInfo.LoginID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", errors.New("user not found")
+		}
 		slog.Error("Failed to get current password", "err", err)
-		return fmt.Errorf("failed to get current password: %w", err)
+		return "", fmt.Errorf("failed to get current password: %w", err)
 	}
 
 	// FIX-ME: include and test in May 2025 Sprint
@@ -308,7 +312,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	// if err == nil && pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
 	// 	if err := pm.CheckPasswordHistory(ctx, tokenInfo.LoginID.String(), newPassword); err != nil {
 	// 		slog.Error("Failed to check password history", "err", err)
-	// 		return err
+	// 		return "", err
 	// 	}
 
 	// 	// Store the old password in history
@@ -331,7 +335,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
 	if err != nil {
 		slog.Error("Failed to hash password", "err", err)
-		return fmt.Errorf("failed to hash password: %w", err)
+		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
 	slog.Info("password hashed")
 
@@ -343,7 +347,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	})
 	if err != nil {
 		slog.Error("Failed to update password", "err", err)
-		return fmt.Errorf("failed to update password: %w", err)
+		return "", fmt.Errorf("failed to update password: %w", err)
 	}
 	slog.Info("Password updated")
 
@@ -358,11 +362,12 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	err = pm.repository.UpdatePasswordResetRequired(ctx, tokenInfo.LoginID, false)
 	if err != nil {
 		slog.Error("Failed to update password reset required", "err", err)
-		return err
+		return "", err
 	}
 	slog.Info("Updated password reset required to false")
 
-	return nil
+	// Return the loginID so the service layer can use it
+	return tokenInfo.LoginID.String(), nil
 }
 
 // ChangePassword changes a user's password after verifying the current password
