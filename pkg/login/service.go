@@ -432,16 +432,17 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 		loginUuid, err := uuid.Parse(loginID)
 		if err != nil {
 			slog.Error("Failed to parse login ID", "err", err)
-			return nil
+			return err
 		}
 		login, err := s.repository.GetLoginById(ctx, loginUuid)
 		if err != nil {
 			slog.Error("Failed to get login by ID", "err", err)
-			return nil
+			return err
 		}
 		err = (*s.postPasswordUpdate)(login.Username, passwordBytes)
 		if err != nil {
 			slog.Error("Failed in post-password update", "err", err)
+			return err
 		}
 	}
 	return nil
@@ -461,16 +462,17 @@ func (s LoginService) ChangePassword(ctx context.Context, loginID, currentPasswo
 		loginUuid, err := uuid.Parse(loginID)
 		if err != nil {
 			slog.Error("Failed to parse login ID", "err", err)
-			return nil
+			return err
 		}
 		login, err := s.repository.GetLoginById(ctx, loginUuid)
 		if err != nil {
 			slog.Error("Failed to get login by ID", "err", err)
-			return nil
+			return err
 		}
 		err = (*s.postPasswordUpdate)(login.Username, passwordBytes)
 		if err != nil {
 			slog.Error("Failed in post-password update", "err", err)
+			return err
 		}
 	}
 	return nil
