@@ -21,6 +21,7 @@ type LoginService struct {
 	userMapper          mapper.UserMapper
 	delegatedUserMapper mapper.DelegatedUserMapper
 	passwordManager     *PasswordManager
+	postPasswordUpdate  *PostPasswordUpdateFunc
 }
 
 // LoginServiceOptions contains optional parameters for creating a LoginService
@@ -34,6 +35,7 @@ func NewLoginService(
 	userMapper mapper.UserMapper,
 	delegatedUserMapper mapper.DelegatedUserMapper,
 	options *LoginServiceOptions,
+	postPasswordUpdate *PostPasswordUpdateFunc,
 ) *LoginService {
 	var passwordManager *PasswordManager
 	// Use provided password manager if available
@@ -51,6 +53,7 @@ func NewLoginService(
 		userMapper:          userMapper,
 		delegatedUserMapper: delegatedUserMapper,
 		passwordManager:     passwordManager,
+		postPasswordUpdate:  postPasswordUpdate,
 	}
 }
 
@@ -344,6 +347,19 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 func (s LoginService) ChangePassword(ctx context.Context, loginID, currentPassword, newPassword string) error {
 	// Delegate to the password manager
 	return s.passwordManager.ChangePassword(ctx, loginID, currentPassword, newPassword)
+}
+
+type PostPasswordUpdateFunc func() error
+
+func (s LoginService) UpdatePassword(ctx context.Context, loginID, newPassword string, postPasswordUpdate *PostPasswordUpdateFunc) error {
+	// Delegate to the password manager
+	if postPasswordUpdate != nil {
+		err := (*postPasswordUpdate)()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // InitPasswordReset generates a reset token and sends a reset email
