@@ -401,7 +401,7 @@ func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPas
 // ResetPassword validates the reset token and updates the user's password
 func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword string) error {
 	// first try to reset password in new login
-	err := s.passwordManager.ResetPassword(ctx, token, newPassword)
+	loginID, err := s.passwordManager.ResetPassword(ctx, token, newPassword)
 	if err != nil {
 		slog.Error("Failed to reset password", "err", err)
 		return err
@@ -409,9 +409,19 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 	// if new login succeed, try to update in old login for backward-compatibility
 	if s.postPasswordUpdate != nil {
 		passwordBytes := []byte(newPassword)
-		err := (*s.postPasswordUpdate)(token, passwordBytes)
+		loginUuid, err := uuid.Parse(loginID)
 		if err != nil {
-			slog.Warn("Failed in post-password update", "err", err)
+			slog.Error("Failed to parse login ID", "err", err)
+			return nil
+		}
+		login, err := s.repository.GetLoginById(ctx, loginUuid)
+		if err != nil {
+			slog.Error("Failed to get login by ID", "err", err)
+			return nil
+		}
+		err = (*s.postPasswordUpdate)(login.Username, passwordBytes)
+		if err != nil {
+			slog.Error("Failed in post-password update", "err", err)
 		}
 	}
 	return nil
@@ -431,16 +441,16 @@ func (s LoginService) ChangePassword(ctx context.Context, loginID, currentPasswo
 		loginUuid, err := uuid.Parse(loginID)
 		if err != nil {
 			slog.Error("Failed to parse login ID", "err", err)
-			return err
+			return nil
 		}
 		login, err := s.repository.GetLoginById(ctx, loginUuid)
 		if err != nil {
 			slog.Error("Failed to get login by ID", "err", err)
-			return err
+			return nil
 		}
 		err = (*s.postPasswordUpdate)(login.Username, passwordBytes)
 		if err != nil {
-			slog.Warn("Failed in post-password update", "err", err)
+			slog.Error("Failed in post-password update", "err", err)
 		}
 	}
 	return nil
