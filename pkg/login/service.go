@@ -24,6 +24,10 @@ type LoginService struct {
 	postPasswordUpdate  *PostPasswordUpdateFunc
 }
 
+// PostPasswordUpdateFunc is a function that will be called after a password update
+// It receives the username and password that were updated
+type PostPasswordUpdateFunc func(username string, password []byte) error
+
 // LoginServiceOptions contains optional parameters for creating a LoginService
 type LoginServiceOptions struct {
 	PasswordManager *PasswordManager
@@ -99,18 +103,18 @@ func NewLoginService(
 func NewLoginServiceWithOptions(repository LoginRepository, opts ...Option) *LoginService {
 	// Create a default password manager
 	passwordManager := NewPasswordManagerWithRepository(repository)
-	
+
 	// Create service with default values
 	ls := &LoginService{
 		repository:      repository,
 		passwordManager: passwordManager,
 	}
-	
+
 	// Apply all options
 	for _, opt := range opts {
 		opt(ls)
 	}
-	
+
 	return ls
 }
 
@@ -396,24 +400,47 @@ func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPas
 
 // ResetPassword validates the reset token and updates the user's password
 func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword string) error {
-	// Use the password manager to handle the reset
-	return s.passwordManager.ResetPassword(ctx, token, newPassword)
+	// first try to reset password in new login
+	err := s.passwordManager.ResetPassword(ctx, token, newPassword)
+	if err != nil {
+		slog.Error("Failed to reset password", "err", err)
+		return err
+	}
+	// if new login succeed, try to update in old login for backward-compatibility
+	if s.postPasswordUpdate != nil {
+		passwordBytes := []byte(newPassword)
+		err := (*s.postPasswordUpdate)(token, passwordBytes)
+		if err != nil {
+			slog.Warn("Failed in post-password update", "err", err)
+		}
+	}
+	return nil
 }
 
 // ChangePassword changes a user's password after verifying the current password
 func (s LoginService) ChangePassword(ctx context.Context, loginID, currentPassword, newPassword string) error {
-	// Delegate to the password manager
-	return s.passwordManager.ChangePassword(ctx, loginID, currentPassword, newPassword)
-}
-
-type PostPasswordUpdateFunc func() error
-
-func (s LoginService) UpdatePassword(ctx context.Context, loginID, newPassword string, postPasswordUpdate *PostPasswordUpdateFunc) error {
-	// Delegate to the password manager
-	if postPasswordUpdate != nil {
-		err := (*postPasswordUpdate)()
+	// first try to change password in new login
+	err := s.passwordManager.ChangePassword(ctx, loginID, currentPassword, newPassword)
+	if err != nil {
+		slog.Error("Failed to change password", "err", err)
+		return err
+	}
+	// if new login succeed, try to update in old login for backward-compatibility
+	if s.postPasswordUpdate != nil {
+		passwordBytes := []byte(newPassword)
+		loginUuid, err := uuid.Parse(loginID)
 		if err != nil {
+			slog.Error("Failed to parse login ID", "err", err)
 			return err
+		}
+		login, err := s.repository.GetLoginById(ctx, loginUuid)
+		if err != nil {
+			slog.Error("Failed to get login by ID", "err", err)
+			return err
+		}
+		err = (*s.postPasswordUpdate)(login.Username, passwordBytes)
+		if err != nil {
+			slog.Warn("Failed in post-password update", "err", err)
 		}
 	}
 	return nil
