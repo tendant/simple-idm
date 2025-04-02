@@ -161,12 +161,15 @@ func main() {
 	passwordManager.WithPolicyChecker(policyChecker)
 
 	// Create login service with the custom password manager
-	loginServiceOptions := &login.LoginServiceOptions{
-		PasswordManager: passwordManager,
-	}
 	loginRepository := login.NewPostgresLoginRepository(loginQueries)
 	// Use the same repository instance for both LoginRepository and UserRepository interfaces
-	loginService := login.NewLoginService(loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
+	loginService := login.NewLoginServiceWithOptions(
+		loginRepository,
+		login.WithNotificationManager(notificationManager),
+		login.WithUserMapper(userMapper),
+		login.WithDelegatedUserMapper(delegatedUserMapper),
+		login.WithPasswordManager(passwordManager),
+	)
 
 	// Create JWT token generator
 	tokenGenerator := tokengenerator.NewJwtTokenGenerator(
@@ -225,7 +228,8 @@ func main() {
 		profileQueries := profiledb.New(pool)
 		profileRepo := profile.NewPostgresProfileRepository(profileQueries)
 		profileService := profile.NewProfileService(profileRepo, passwordManager, userMapper)
-		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService)
+		responseHandler := profileapi.NewDefaultResponseHandler()
+		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService, responseHandler)
 		r.Mount("/api/idm/profile", profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
