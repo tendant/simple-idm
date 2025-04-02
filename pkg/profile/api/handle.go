@@ -30,11 +30,11 @@ type Handle struct {
 	loginService       *login.LoginService
 }
 
-func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService, responseHandler *ResponseHandler) Handle {
+func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService, responseHandler ResponseHandler) Handle {
 	return Handle{
 		profileService:     profileService,
 		twoFaService:       twoFaService,
-		responseHandler:    *responseHandler,
+		responseHandler:    responseHandler,
 		tokenService:       tokenService,
 		tokenCookieService: tokenCookieService,
 		loginService:       loginService,
