@@ -166,7 +166,7 @@ func main() {
 	}
 	loginRepository := login.NewPostgresLoginRepository(loginQueries)
 	// Use the same repository instance for both LoginRepository and UserRepository interfaces
-	loginService := login.NewLoginService(loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions)
+	loginService := login.NewLoginService(loginRepository, notificationManager, userMapper, delegatedUserMapper, loginServiceOptions, nil)
 
 	// Create JWT token generator
 	tokenGenerator := tokengenerator.NewJwtTokenGenerator(
