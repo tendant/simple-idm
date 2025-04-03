@@ -1,3 +1,4 @@
+import { Input } from '@/components/Input';
 import { useLocation, useNavigate, useParams } from '@solidjs/router';
 import { Component, createSignal, onMount, Show } from 'solid-js';
 import { loginApi, type Login } from '../api/login';
@@ -230,14 +231,13 @@ const EditLogin: Component = () => {
                     Username <span class="text-red-500">*</span>
                   </label>
                   <div class="mt-1">
-                    <input
+                    <Input
                       type="text"
                       name="username"
                       id="username"
                       required
                       value={username()}
                       onInput={(e) => setUsername(e.currentTarget.value)}
-                      class={`block w-full appearance-none rounded-lg border px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                     />
                   </div>
                 </div>
@@ -279,14 +279,13 @@ const EditLogin: Component = () => {
                       New Password <span class="text-red-500">*</span>
                     </label>
                     <div class="mt-1">
-                      <input
+                      <Input
                         type="password"
                         name="new-password"
                         id="new-password"
                         required
                         value={password()}
                         onInput={(e) => setPassword(e.currentTarget.value)}
-                        class={`block w-full appearance-none rounded-lg border px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                       />
                     </div>
                   </div>
@@ -296,14 +295,13 @@ const EditLogin: Component = () => {
                       Confirm Password <span class="text-red-500">*</span>
                     </label>
                     <div class="mt-1">
-                      <input
+                      <Input
                         type="password"
                         name="confirm-password"
                         id="confirm-password"
                         required
                         value={confirmPassword()}
                         onInput={(e) => setConfirmPassword(e.currentTarget.value)}
-                        class={`block w-full appearance-none rounded-lg border px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                       />
                     </div>
                   </div>
@@ -373,14 +371,13 @@ const EditLogin: Component = () => {
                       Verification Code <span class="text-red-500">*</span>
                     </label>
                     <div class="mt-1">
-                      <input
+                      <Input
                         type="text"
                         name="verification-code"
                         id="verification-code"
                         required
                         value={verificationCode()}
                         onInput={(e) => setVerificationCode(e.currentTarget.value)}
-                        class={`block w-full appearance-none rounded-lg border px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                         placeholder="Enter the 6-digit code from your authenticator app"
                       />
                     </div>
