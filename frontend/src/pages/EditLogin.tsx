@@ -1,5 +1,5 @@
+import { useLocation, useNavigate, useParams } from '@solidjs/router';
 import { Component, createSignal, onMount, Show } from 'solid-js';
-import { useNavigate, useParams, useLocation } from '@solidjs/router';
 import { loginApi, type Login } from '../api/login';
 import { userApi, type User } from '../api/user';
 
@@ -237,7 +237,7 @@ const EditLogin: Component = () => {
                       required
                       value={username()}
                       onInput={(e) => setUsername(e.currentTarget.value)}
-                      class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                      class={`block w-full appearance-none rounded-lg border px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                     />
                   </div>
                 </div>
@@ -286,7 +286,7 @@ const EditLogin: Component = () => {
                         required
                         value={password()}
                         onInput={(e) => setPassword(e.currentTarget.value)}
-                        class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                        class={`block w-full appearance-none rounded-lg border px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                       />
                     </div>
                   </div>
@@ -303,7 +303,7 @@ const EditLogin: Component = () => {
                         required
                         value={confirmPassword()}
                         onInput={(e) => setConfirmPassword(e.currentTarget.value)}
-                        class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                        class={`block w-full appearance-none rounded-lg border px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                       />
                     </div>
                   </div>
@@ -380,7 +380,7 @@ const EditLogin: Component = () => {
                         required
                         value={verificationCode()}
                         onInput={(e) => setVerificationCode(e.currentTarget.value)}
-                        class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                        class={`block w-full appearance-none rounded-lg border px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                         placeholder="Enter the 6-digit code from your authenticator app"
                       />
                     </div>
