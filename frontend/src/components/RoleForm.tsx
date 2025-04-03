@@ -93,7 +93,7 @@ const RoleForm: Component<Props> = (props) => {
             type="text"
             value={name()}
             onInput={(e) => setName(e.currentTarget.value)}
-            class="flex-1"
+            class="flex-1 border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-base"
             required
           />
           <button
