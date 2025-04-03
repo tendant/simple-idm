@@ -134,7 +134,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 // It ends the current impersonation session and returns to the original user context
 func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *Response {
 	// Get the current user from context (this would be set by your auth middleware)
-	_, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed to get authenticated user from context")
 		return CreateImpersonateBackJSON401Response(ErrorResponse{
@@ -198,6 +198,14 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	origUserID, ok := extraClaimsMap["orig_user_id"].(string)
 	if !ok {
 		slog.Error("No original user ID found in token claims")
+		return CreateImpersonateBackJSON400Response(ErrorResponse{
+			Error: "Not in an impersonation session",
+			Code:  stringPtr("not_impersonating"),
+		})
+	}
+
+	if origUserID == authUser.UserId {
+		slog.Error("Original user ID matches current user ID")
 		return CreateImpersonateBackJSON400Response(ErrorResponse{
 			Error: "Not in an impersonation session",
 			Code:  stringPtr("not_impersonating"),
