@@ -118,7 +118,7 @@ func (m *DefaultUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUI
 
 	return User{
 		UserId:      user.ID.String(),
-		LoginID:     "", // This would need to be populated from a separate query
+		LoginID:     user.LoginID.UUID.String(),
 		DisplayName: user.Name.String,
 		ExtraClaims: extraClaims,
 		UserInfo:    userInfo,
