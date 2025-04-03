@@ -1,8 +1,8 @@
-import { Input } from '@/components/Input';
 import { useLocation, useNavigate } from '@solidjs/router';
 import { Component, createSignal, onMount } from 'solid-js';
 import { loginApi } from '../api/login';
 import { userApi } from '../api/user';
+import { Input } from '@/components/ui/input';
 
 const CreateLogin: Component = () => {
   const navigate = useNavigate();

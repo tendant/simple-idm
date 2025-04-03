@@ -1,8 +1,8 @@
-import { Input } from '@/components/Input';
 import { useLocation, useNavigate, useParams } from '@solidjs/router';
 import { Component, createSignal, onMount, Show } from 'solid-js';
 import { loginApi, type Login } from '../api/login';
 import { userApi, type User } from '../api/user';
+import { Input } from '@/components/ui/input';
 
 const EditLogin: Component = () => {
   const params = useParams();

@@ -1,7 +1,7 @@
 import { Component, createEffect, createSignal, onMount } from 'solid-js';
 import type { Role, RoleUser } from '../api/role';
 import { roleApi } from '../api/role';
-import { Input } from './Input';
+import { Input } from './ui/input';
 
 interface Props {
   initialData?: Role;
