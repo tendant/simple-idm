@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/auth"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/impersonate"
 	"github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/mapper"
+	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 )
 
 // Constants for token cookie names
@@ -22,21 +22,17 @@ const (
 
 // Handler implements the ServerInterface for impersonate API
 type Handle struct {
-	service    *impersonate.Service
-	jwtService auth.Jwt
-}
-
-// TokenInfo contains token and its expiry time
-type TokenInfo struct {
-	Token  string
-	Expiry time.Time
+	service            *impersonate.Service
+	tokenService       tg.TokenService
+	tokenCookieService tg.TokenCookieService
 }
 
 // NewHandler creates a new impersonate API handler
-func NewHandler(service *impersonate.Service, jwtService auth.Jwt) *Handle {
+func NewHandler(service *impersonate.Service, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService) *Handle {
 	return &Handle{
-		service:    service,
-		jwtService: jwtService,
+		service:            service,
+		tokenService:       tokenService,
+		tokenCookieService: tokenCookieService,
 	}
 }
 
@@ -53,7 +49,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 		})
 	}
 
-	// Use the LoginID from authUser
+	// Get the login UUID from authUser (it's already a uuid.UUID type)
 	loginUuid := authUser.LoginID
 
 	// Parse request body
@@ -88,19 +84,12 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 
 	// Check if the requested delegator is in the list of delegated users
 	var foundDelegator bool
-	var selectedUser struct {
-		UUID       string
-		Fullname   string
-		Email      string
-		Role       string
-		TenantUUID string
-	}
+	var selectedUser mapper.User
 
 	for _, user := range delegatedUsers {
 		if user.UserId == delegatorUserUUID.String() {
 			foundDelegator = true
-			selectedUser.UUID = user.UserId
-			selectedUser.Fullname = user.DisplayName
+			selectedUser = user
 			break
 		}
 	}
@@ -113,43 +102,31 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 		})
 	}
 
-	// TODO: Generate actual tokens for the impersonation session
-	// This would typically involve your JWT or token service
+	// generate extra_claims and add orig_user_uuid into extra_claims
+	_, extraClaims := h.service.ToTokenClaims(selectedUser)
+	extraClaims["orig_user_uuid"] = authUser.UserId
 
-	// Create a mappedUser for token generation
-	mappedUser := mapper.User{
-		// delegator user uuid
-		UserId: selectedUser.UUID,
-		// current user's login id
-		LoginID:     loginUuid.String(),
-		DisplayName: selectedUser.Fullname,
-	}
-
-	// Generate access token
-	accessToken, err := h.jwtService.CreateAccessToken(mappedUser)
+	// Generate tokens using the token service
+	tokens, err := h.tokenService.GenerateTokens(selectedUser.UserId, nil, extraClaims)
 	if err != nil {
-		slog.Error("Failed to create access token", "err", err)
+		slog.Error("Failed to generate tokens", "error", err)
 		return &Response{
-			body: "Failed to create access token",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Generate refresh token
-	refreshToken, err := h.jwtService.CreateRefreshToken(mappedUser)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "err", err)
-		return &Response{
-			body: "Failed to create refresh token",
+			body: "Failed to generate tokens",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
 	// Set cookies for the tokens
-	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
-	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
+	err = h.tokenCookieService.SetTokensCookie(w, tokens)
+	if err != nil {
+		slog.Error("Failed to set tokens in cookies", "error", err)
+		return &Response{
+			body: "Failed to set tokens in cookies",
+			Code: http.StatusInternalServerError,
+		}
+	}
 
-	// Return the success response with user information
+	// Return the success response
 	return CreateImpersonateJSON200Response(SuccessResponse{})
 }
 
@@ -157,7 +134,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 // It ends the current impersonation session and returns to the original user context
 func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *Response {
 	// Get the current user from context (this would be set by your auth middleware)
-	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	_, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed to get authenticated user from context")
 		return CreateImpersonateBackJSON401Response(ErrorResponse{
@@ -166,21 +143,79 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 		})
 	}
 
-	// Use the LoginID from authUser
-	loginId := authUser.LoginID
-
 	// Check if the current user is in an impersonation session
-	// This would typically involve checking a token or session store
-	// For now, we'll assume the user is in an impersonation session if they call this endpoint
+	// Get the access token from the cookie
+	accessTokenCookie, err := r.Cookie(ACCESS_TOKEN_NAME)
+	if err != nil {
+		slog.Error("Failed to get access token cookie", "error", err)
+		return CreateImpersonateBackJSON401Response(ErrorResponse{
+			Error: "No access token found",
+			Code:  stringPtr("unauthorized"),
+		})
+	}
 
-	// TODO: Implement the actual logic to end impersonation
-	// 1. Verify that the current user is in an impersonation session
-	// 2. Generate tokens to return to the original user context
-	// 3. Return the tokens and original user information
+	// Parse the token to verify impersonation
+	token, err := h.tokenService.ParseToken(accessTokenCookie.Value)
+	if err != nil {
+		slog.Error("Failed to parse access token", "error", err)
+		return CreateImpersonateBackJSON401Response(ErrorResponse{
+			Error: "Invalid access token",
+			Code:  stringPtr("unauthorized"),
+		})
+	}
+
+	// Check if the token contains impersonation claims
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		slog.Error("Failed to get claims from token")
+		return CreateImpersonateBackJSON400Response(ErrorResponse{
+			Error: "Not in an impersonation session",
+			Code:  stringPtr("not_impersonating"),
+		})
+	}
+
+	// Extract extra claims from the token
+	extraClaimsRaw, ok := claims["extra_claims"]
+	if !ok {
+		slog.Error("No extra claims found in token")
+		return CreateImpersonateBackJSON400Response(ErrorResponse{
+			Error: "Not in an impersonation session",
+			Code:  stringPtr("not_impersonating"),
+		})
+	}
+
+	// Convert extra claims to map
+	extraClaimsMap, ok := extraClaimsRaw.(map[string]interface{})
+	if !ok {
+		slog.Error("Extra claims is not a map")
+		return CreateImpersonateBackJSON400Response(ErrorResponse{
+			Error: "Invalid token format",
+			Code:  stringPtr("invalid_token"),
+		})
+	}
+
+	// Check for original user information in the claims
+	origUserID, ok := extraClaimsMap["orig_user_id"].(string)
+	if !ok {
+		slog.Error("No original user ID found in token claims")
+		return CreateImpersonateBackJSON400Response(ErrorResponse{
+			Error: "Not in an impersonation session",
+			Code:  stringPtr("not_impersonating"),
+		})
+	}
+
+	// Parse the original user ID
+	origUserUUID, err := uuid.Parse(origUserID)
+	if err != nil {
+		slog.Error("Invalid original user ID in token claims", "error", err)
+		return CreateImpersonateBackJSON400Response(ErrorResponse{
+			Error: "Invalid impersonation data",
+			Code:  stringPtr("invalid_impersonation"),
+		})
+	}
 
 	// Create a mappedUser for token generation
-
-	originalUser, err := h.service.GetOriginalUser(r.Context(), loginId)
+	originalUser, err := h.service.GetOriginalUser(r.Context(), origUserUUID)
 	if err != nil {
 		slog.Error("Failed to get original user", "error", err)
 		return &Response{
@@ -189,58 +224,32 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 		}
 	}
 
-	mappedUser := mapper.User{
-		// original user uuid
-		UserId: originalUser.UserId,
-		// original user login id
-		LoginID: originalUser.LoginID,
-		// original user display name
-		DisplayName: originalUser.DisplayName,
-	}
-
-	// Generate access token
-	accessToken, err := h.jwtService.CreateAccessToken(mappedUser)
+	_, extraClaims := h.service.ToTokenClaims(originalUser)
+	// Generate tokens using the token service
+	tokens, err := h.tokenService.GenerateTokens(originalUser.UserId, nil, extraClaims)
 	if err != nil {
-		slog.Error("Failed to create access token", "err", err)
+		slog.Error("Failed to generate tokens", "error", err)
 		return &Response{
-			body: "Failed to create access token",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Generate refresh token
-	refreshToken, err := h.jwtService.CreateRefreshToken(mappedUser)
-	if err != nil {
-		slog.Error("Failed to create refresh token", "err", err)
-		return &Response{
-			body: "Failed to create refresh token",
+			body: "Failed to generate tokens",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
 	// Set cookies for the tokens
-	h.setTokenCookie(w, ACCESS_TOKEN_NAME, accessToken.Token, accessToken.Expiry)
-	h.setTokenCookie(w, REFRESH_TOKEN_NAME, refreshToken.Token, refreshToken.Expiry)
+	err = h.tokenCookieService.SetTokensCookie(w, tokens)
+	if err != nil {
+		slog.Error("Failed to set tokens in cookies", "error", err)
+		return &Response{
+			body: "Failed to set tokens in cookies",
+			Code: http.StatusInternalServerError,
+		}
+	}
 
-	// Return the success response with the original user's information
+	// Return the success response
 	return CreateImpersonateBackJSON200Response(SuccessResponse{})
 }
 
-// Helper function to create string pointers
+// Helper function to create a string pointer
 func stringPtr(s string) *string {
 	return &s
-}
-
-// setTokenCookie sets a cookie with the given name, value, and expiry time
-func (h *Handle) setTokenCookie(w http.ResponseWriter, name, value string, expiry time.Time) {
-	cookie := &http.Cookie{
-		Name:     name,
-		Value:    value,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		Expires:  expiry,
-	}
-	http.SetCookie(w, cookie)
 }

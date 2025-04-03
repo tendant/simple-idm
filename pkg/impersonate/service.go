@@ -55,3 +55,7 @@ func (s *Service) GetOriginalUser(ctx context.Context, userId uuid.UUID) (mapper
 
 	return user, nil
 }
+
+func (s *Service) ToTokenClaims(user mapper.User) (rootModifications map[string]interface{}, extraClaims map[string]interface{}) {
+	return s.usermapper.ToTokenClaims(user)
+}
