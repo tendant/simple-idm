@@ -1,6 +1,7 @@
-import { Component, createSignal, createEffect, onMount } from 'solid-js';
+import { Component, createEffect, createSignal, onMount } from 'solid-js';
 import type { Role, RoleUser } from '../api/role';
 import { roleApi } from '../api/role';
+import { Input } from './Input';
 
 interface Props {
   initialData?: Role;
@@ -88,11 +89,11 @@ const RoleForm: Component<Props> = (props) => {
       <div class="max-w-lg">
         <label class="block text-base font-medium text-gray-700 mb-2">Role Name</label>
         <div class="flex space-x-4">
-          <input
+          <Input
             type="text"
             value={name()}
             onInput={(e) => setName(e.currentTarget.value)}
-            class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-base py-2"
+            class="flex-1"
             required
           />
           <button
