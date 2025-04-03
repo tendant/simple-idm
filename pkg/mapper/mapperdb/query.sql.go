@@ -15,13 +15,13 @@ import (
 
 const getUserById = `-- name: GetUserById :one
 SELECT u.id, u.name, u.email, u.created_at, u.last_modified_at,
-       COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
+       COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles, u.login_id
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
 LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.id = $1
 AND u.deleted_at IS NULL
-GROUP BY u.id, u.name, u.email, u.created_at, u.last_modified_at
+GROUP BY u.id, u.name, u.email, u.created_at, u.last_modified_at, u.login_id
 `
 
 type GetUserByIdRow struct {
@@ -31,6 +31,7 @@ type GetUserByIdRow struct {
 	CreatedAt      time.Time      `json:"created_at"`
 	LastModifiedAt time.Time      `json:"last_modified_at"`
 	Roles          interface{}    `json:"roles"`
+	LoginID        uuid.NullUUID  `json:"login_id"`
 }
 
 func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow, error) {
@@ -43,6 +44,7 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 		&i.CreatedAt,
 		&i.LastModifiedAt,
 		&i.Roles,
+		&i.LoginID,
 	)
 	return i, err
 }
