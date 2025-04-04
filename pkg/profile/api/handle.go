@@ -7,9 +7,11 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/copier"
+
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/common"
 	"github.com/tendant/simple-idm/pkg/login"
@@ -518,19 +520,7 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 	}
 
 	// If 2FA is not enabled, return a user selection response
-	// This allows the client to select which user to associate with
-	resp := SelectUsersToAssociateRequiredResponse{
-		Status:      "user_association_selection_required",
-		UserOptions: userOptions,
-		Message:     "Please select which user to use for this account",
-	}
-
-	slog.Info("Returning user selection options", "login_id", login.ID, "option_count", len(userOptions))
-	return &Response{
-		Code:        http.StatusAccepted,
-		body:        resp,
-		contentType: "application/json",
-	}
+	return h.prepareUserAssociationSelectionResponse(w, idmUsers[0].UserId, authUser.LoginId, userOptions)
 }
 
 // CompleteAssociateUser handles the final step of user association after the user has selected which users to associate
@@ -551,9 +541,47 @@ func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *R
 	loginID := authUser.LoginID
 	slog.Info("Processing user association request", "login_id", loginID)
 
+	// Extract and validate the token from the request
+	tempToken, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	if err != nil {
+		slog.Error("Failed to get temp token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Temp token not found",
+		}
+	}
+
+	// Parse and validate the token
+	token, err := h.tokenService.ParseToken(tempToken.Value)
+	if err != nil {
+		slog.Error("Failed to parse token", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token: " + err.Error(),
+		}
+	}
+
+	// Extract and verify 2FA status from token claims
+	twofaVerified, err := h.get2FAVerifiedFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to verify 2FA status from token claims", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Invalid token claims",
+		}
+	}
+
+	if !twofaVerified {
+		slog.Error("2FA verification required", "verified", twofaVerified)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "2FA verification required",
+		}
+	}
+
 	// Parse and validate the request body
 	data := CompleteAssociateUserJSONBody{}
-	err := render.DecodeJSON(r.Body, &data)
+	err = render.DecodeJSON(r.Body, &data)
 	if err != nil {
 		slog.Error("Failed to decode request body", "err", err)
 		return &Response{
@@ -623,6 +651,81 @@ func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *R
 
 	slog.Info("User association completed successfully", "user_count", len(data), "login_id", loginID)
 	return CompleteAssociateUserJSON200Response(resp)
+}
+
+func (h Handle) get2FAVerifiedFromClaims(claims jwt.Claims) (bool, error) {
+	mapClaims, ok := claims.(jwt.MapClaims)
+	if !ok {
+		return false, fmt.Errorf("invalid claims format")
+	}
+
+	// Try to extract from extra_claims
+	extraClaimsRaw, ok := mapClaims["extra_claims"]
+	if !ok {
+		return false, fmt.Errorf("extra_claims not found in token")
+	}
+
+	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+	if !ok {
+		return false, fmt.Errorf("extra_claims has invalid format")
+	}
+
+	// Look for 2fa_verified in extra claims
+	twofaVerified, ok := extraClaims["2fa_verified"].(bool)
+	if !ok {
+		return false, fmt.Errorf("2fa_verified not found in token claims")
+	}
+
+	return twofaVerified, nil
+}
+
+// prepareUserAssociationSelectionResponse prepares a response for user association selection
+// It generates a temporary token with the necessary claims and returns a properly formatted response
+func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, userID string, authLoginID string, userOptions []UserOption) *Response {
+	extraClaims := map[string]interface{}{
+		"login_id":     authLoginID,
+		"2fa_verified": true,
+	}
+	// Add user options to extra claims if provided
+	if userOptions != nil {
+		extraClaims["user_options"] = userOptions
+	}
+
+	// Generate a temporary token with the necessary claims
+	tempTokenMap, err := h.tokenService.GenerateTempToken(userID, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to generate temp token: " + err.Error(),
+		}
+	}
+
+	// Set the token cookie if a response writer is provided
+	if w != nil {
+		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to set temp token cookie: " + err.Error(),
+			}
+		}
+	}
+
+	// Prepare the response with user options for selection
+	resp := SelectUsersToAssociateRequiredResponse{
+		Status:      "user_association_selection_required",
+		UserOptions: userOptions,
+		Message:     "Please select which user to use for this account",
+	}
+
+	slog.Info("Returning user selection options", "login_id", authLoginID, "option_count", len(userOptions))
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        resp,
+		contentType: "application/json",
+	}
 }
 
 // prepare2FARequiredResponse prepares a 2FA required response
