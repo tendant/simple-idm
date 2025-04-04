@@ -211,7 +211,8 @@ func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, l
 
 	// Create temp token with the custom claims for user selection
 	extraClaims := map[string]interface{}{
-		"login_id": loginID.String(),
+		"login_id":     loginID.String(),
+		"2fa_verified": true, // This method will only be called if 2FA is not enabled or 2FA validation is passed
 	}
 	tempTokenMap, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
 	if err != nil {
@@ -696,6 +697,15 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		return &Response{
 			Code: http.StatusUnauthorized,
 			body: "Invalid temp token",
+		}
+	}
+
+	twoFAVerified, err := h.Get2FAVerifiedFromClaims(token.Claims)
+	if err != nil || !twoFAVerified {
+		slog.Error("2FA not verified", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "2FA not verified",
 		}
 	}
 
@@ -1375,6 +1385,32 @@ func (h Handle) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
 	return loginIDStr, nil
 }
 
+func (h Handle) Get2FAVerifiedFromClaims(claims jwt.Claims) (bool, error) {
+	mapClaims, ok := claims.(jwt.MapClaims)
+	if !ok {
+		return false, fmt.Errorf("invalid claims format")
+	}
+
+	// Try to extract from extra_claims
+	extraClaimsRaw, ok := mapClaims["extra_claims"]
+	if !ok {
+		return false, fmt.Errorf("extra_claims not found in token")
+	}
+
+	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+	if !ok {
+		return false, fmt.Errorf("extra_claims has invalid format")
+	}
+
+	// Look for 2fa_verified in extra claims
+	twofaVerified, ok := extraClaims["2fa_verified"]
+	if !ok {
+		return false, fmt.Errorf("2fa_verified not found in token claims")
+	}
+
+	return twofaVerified.(bool), nil
+}
+
 // (POST /mobile/2fa/send)
 func (h Handle) PostMobile2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
@@ -1545,6 +1581,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	// Single user case - proceed with normal flow
 	user := idmUsers[0]
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(user)
+	extraClaims["2fa_verified"] = true
 
 	tokens, err := h.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
