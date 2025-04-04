@@ -123,8 +123,8 @@ func (g *TempTokenGenerator) GenerateToken(subject string, expiry time.Duration,
 	tempClaims := map[string]interface{}{
 		"login_id": extraClaims["login_id"],
 	}
-	if _, exists := extraClaims["login_options"]; exists {
-		tempClaims["login_options"] = extraClaims["login_options"]
+	if _, exists := extraClaims["user_options"]; exists {
+		tempClaims["user_options"] = extraClaims["user_options"]
 	}
 
 	// Create claims with shorter tolerance for time skew
