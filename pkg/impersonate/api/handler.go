@@ -89,6 +89,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 			Code:  stringPtr("server_error"),
 		})
 	}
+	slog.Info("Delegators retrieved", "delegators", delegators)
 
 	// Check if the requested delegator is in the list of delegated users
 	var foundDelegator bool
@@ -98,6 +99,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 		if user.UserId == delegatorUserUUID.String() {
 			foundDelegator = true
 			selectedUser = user
+			slog.Info("Delegator found", "delegator_uuid", delegatorUserUUID)
 			break
 		}
 	}
@@ -112,7 +114,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 
 	// generate extra_claims and add orig_user_uuid into extra_claims
 	_, extraClaims := h.service.ToTokenClaims(selectedUser)
-	extraClaims["orig_user_uuid"] = authUser.UserId
+	extraClaims["orig_user_id"] = authUser.UserId
 
 	// Generate tokens using the token service
 	tokens, err := h.tokenService.GenerateTokens(selectedUser.UserId, nil, extraClaims)
@@ -134,8 +136,12 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 		}
 	}
 
+	slog.Info("Impersonation successful", "delegator_uuid", delegatorUserUUID)
+
 	// Return the success response
-	return CreateImpersonateJSON200Response(SuccessResponse{})
+	resp := SuccessResponse{}
+	resp["message"] = "success"
+	return CreateImpersonateJSON200Response(resp)
 }
 
 // CreateImpersonateBack handles the POST /impersonate/back endpoint
@@ -211,6 +217,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 			Code:  stringPtr("not_impersonating"),
 		})
 	}
+	slog.Info("Original user ID found in token claims", "orig_user_id", origUserID)
 
 	if origUserID == authUser.UserId {
 		slog.Error("Original user ID matches current user ID")
@@ -219,6 +226,8 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 			Code:  stringPtr("not_impersonating"),
 		})
 	}
+
+	slog.Info("Impersonation session found", "orig_user_id", origUserID, "user_id", authUser.UserId)
 
 	// Parse the original user ID
 	origUserUUID, err := uuid.Parse(origUserID)
@@ -240,6 +249,8 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 		}
 	}
 
+	slog.Info("Original user retrieved", "user_id", originalUser.UserId)
+
 	_, extraClaims := h.service.ToTokenClaims(originalUser)
 	// Generate tokens using the token service
 	tokens, err := h.tokenService.GenerateTokens(originalUser.UserId, nil, extraClaims)
@@ -260,9 +271,12 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 			Code: http.StatusInternalServerError,
 		}
 	}
+	slog.Info("Impersonate back succeed")
 
 	// Return the success response
-	return CreateImpersonateBackJSON200Response(SuccessResponse{})
+	resp := SuccessResponse{}
+	resp["message"] = "success"
+	return CreateImpersonateJSON200Response(resp)
 }
 
 // Helper function to create a string pointer
