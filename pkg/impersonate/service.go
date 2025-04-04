@@ -23,21 +23,21 @@ func NewService(usermapper mapper.UserMapper, repository DelegationRepository) *
 	}
 }
 
-// GetDelegatedUsers implements the DelegatedUserMapper interface from simple-idm/pkg/mapper
+// FindDelegators implements the DelegatedUserMapper interface from simple-idm/pkg/mapper
 // It retrieves all delegator users for the specified delegatee loginID
-func (s *Service) GetDelegatedUsers(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
+func (s *Service) FindDelegators(ctx context.Context, delegateeUuid uuid.UUID) ([]mapper.User, error) {
 	if s.repository == nil {
 		slog.Warn("Delegation service repository is nil")
 		return nil, nil
 	}
 
 	// Get delegated users using the repository
-	delegatedUsers, err := s.repository.FindDelegatedUsers(ctx, loginID)
+	delegators, err := s.repository.FindDelegators(ctx, delegateeUuid)
 	if err != nil {
-		return nil, fmt.Errorf("error getting delegated users: %w", err)
+		return nil, fmt.Errorf("error getting delegators: %w", err)
 	}
 
-	return delegatedUsers, nil
+	return delegators, nil
 }
 
 // GetOriginalUser retrieves a user by their user ID
