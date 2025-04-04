@@ -380,7 +380,7 @@ func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 
 // Associate a login
 // (POST /login/associate)
-func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response {
+func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response {
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
@@ -398,17 +398,8 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 			body: "Failed to parse login ID: " + err.Error(),
 		}
 	}
-	originalLogin, err := h.profileService.GetLoginById(r.Context(), originalLoginId)
-	if err != nil {
-		slog.Error("Failed to get original login", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to get original login: " + err.Error(),
-		}
-	}
-	slog.Info("Current user", "user_uuid", authUser.UserId, "original login", originalLogin)
 
-	data := AssociateLoginJSONRequestBody{}
+	data := AssociateUserJSONRequestBody{}
 	err = render.DecodeJSON(r.Body, &data)
 	if err != nil {
 		return &Response{
@@ -480,18 +471,14 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	// Prepare login selection required response
-	loginOptions := []LoginOption{
-		{
-			ID:       authUser.LoginId,
-			Username: originalLogin.Username,
-			Current:  true,
-		},
-		{
-			ID:       login.ID.String(),
-			Username: login.Username,
-			Current:  false,
-		},
+	// Prepare user selection required response
+	userOptions := []UserOption{}
+
+	for _, user := range idmUsers {
+		userOptions = append(userOptions, UserOption{
+			UserID:      user.UserId,
+			DisplayName: user.DisplayName,
+		})
 	}
 
 	is2FAEnabled, commonMethods, tempToken, err := common.Check2FAEnabled(
@@ -502,7 +489,7 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 		h.twoFaService,
 		h.tokenService,
 		h.tokenCookieService,
-		loginOptions,
+		userOptions,
 	)
 	if err != nil {
 		slog.Error("Failed to check 2FA", "err", err)
@@ -517,7 +504,17 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 		return h.prepare2FARequiredResponse(commonMethods, tempToken)
 	}
 
-	return h.prepareLoginSelectionRequiredResponse(loginOptions)
+	resp := SelectUsersToAssociateRequiredResponse{
+		Status:      "user_association_selection_required",
+		UserOptions: userOptions,
+		Message:     "Please select which user to use for this account",
+	}
+
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        resp,
+		contentType: "application/json",
+	}
 }
 
 // prepare2FARequiredResponse prepares a 2FA required response
@@ -550,23 +547,8 @@ func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMetho
 	}
 }
 
-// prepareLoginSelectionRequiredResponse prepares a login selection required response
-func (h Handle) prepareLoginSelectionRequiredResponse(loginOptions []LoginOption) *Response {
-	resp := SelectLoginRequiredResponse{
-		Status:       "login_selection_required",
-		LoginOptions: loginOptions,
-		Message:      "Please select which login to use for this account",
-	}
-
-	return &Response{
-		Code:        http.StatusAccepted,
-		body:        resp,
-		contentType: "application/json",
-	}
-}
-
-// CompleteLoginAssociation handles the final step of login association after the user has selected which login to use
-func (h Handle) CompleteLoginAssociation(w http.ResponseWriter, r *http.Request) *Response {
+// CompleteAssociateUser handles the final step of login association after the user has selected which login to use
+func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *Response {
 	// Get authenticated user from context
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
@@ -577,8 +559,10 @@ func (h Handle) CompleteLoginAssociation(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	loginID := authUser.LoginID
+
 	// Parse request body
-	data := CompleteLoginAssociationJSONBody{}
+	data := CompleteAssociateUserJSONBody{}
 	err := render.DecodeJSON(r.Body, &data)
 	if err != nil {
 		return &Response{
@@ -587,38 +571,41 @@ func (h Handle) CompleteLoginAssociation(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// Validate login ID
-	loginID, err := uuid.Parse(data.LoginID)
-	if err != nil {
-		slog.Error("Invalid login ID format", "login_id", data.LoginID, "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Invalid login ID format",
+	slog.Info("number of user to be associated", "count", len(data))
+
+	for _, userOption := range data {
+
+		// Update the user's login ID
+		userId, err := uuid.Parse(userOption.UserID)
+		if err != nil {
+			slog.Error("error parsing user ID", "user_id", userOption.UserID, "err", err)
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: "Invalid user ID",
+			}
 		}
-	}
 
-	// Update the user's login ID
-	_, err = h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
-		ID:      authUser.UserUuid,
-		LoginID: utils.ToNullUUID(loginID),
-	})
-	if err != nil {
-		slog.Error("error updating login ID", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: ErrAssociationFailed,
+		updatedLoginID, err := h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
+			ID:      userId,
+			LoginID: utils.ToNullUUID(loginID),
+		})
+		if err != nil {
+			slog.Error("error updating login ID", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: ErrAssociationFailed,
+			}
 		}
+
+		slog.Info("user associated successfully",
+			"login_id", updatedLoginID,
+			"user_id", userId,
+		)
 	}
-
-	slog.Info("login associated successfully",
-		"login_id", loginID,
-		"user_id", authUser.UserUuid,
-	)
-
 	resp := SuccessResponse{
 		Result: "Success",
 	}
-	return CompleteLoginAssociationJSON200Response(resp)
+	return CompleteAssociateUserJSON200Response(resp)
 }
 
 // Switch to a different user when multiple users are available for the same login
