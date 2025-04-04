@@ -202,21 +202,6 @@ func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMetho
 	}
 }
 
-// prepareLoginSelectionRequiredResponse prepares a login selection required response
-func (h Handle) prepareLoginSelectionRequiredResponse(loginOptions []LoginOption) *Response {
-	resp := SelectLoginRequiredResponse{
-		Status:       "login_selection_required",
-		Message:      "Please select a login",
-		LoginOptions: loginOptions,
-	}
-
-	return &Response{
-		Code:        http.StatusAccepted,
-		body:        resp,
-		contentType: "application/json",
-	}
-}
-
 // checkMultipleUsers checks if there are multiple users for the login and returns a temp token if needed
 // Returns: (isMultipleUsers, tempToken, error)
 func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, loginID uuid.UUID, idmUsers []mapper.User) (bool, *tg.TokenValue, error) {
@@ -1167,13 +1152,22 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	// Extract login options from claims using the helper method
-	loginOptions := h.ExtractLoginOptionsFromClaims(token.Claims)
+	// Extract user options from claims using the helper method
+	userOptions := h.ExtractUserOptionsFromClaims(token.Claims)
 
-	// If we have login options, return a login selection required response
-	if len(loginOptions) > 0 {
-		slog.Info("Returning login selection response", "options", loginOptions)
-		return h.prepareLoginSelectionRequiredResponse(loginOptions)
+	// If we have user options, return a user selection required response
+	if len(userOptions) > 0 {
+		resp := SelectUsersToAssociateRequiredResponse{
+			Status:      "user_association_selection_required",
+			Message:     "Please select users to associate",
+			UserOptions: userOptions,
+		}
+
+		return &Response{
+			Code:        http.StatusAccepted,
+			body:        resp,
+			contentType: "application/json",
+		}
 	}
 
 	// 2FA validation successful, create access and refresh tokens
@@ -1238,53 +1232,47 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	return Post2faValidateJSON200Response(resp)
 }
 
-func (h Handle) ExtractLoginOptionsFromClaims(claims jwt.Claims) []LoginOption {
+func (h Handle) ExtractUserOptionsFromClaims(claims jwt.Claims) []UserOption {
 	additionalClaims := make(map[string]interface{})
 	if mapClaims, ok := claims.(jwt.MapClaims); ok {
 		slog.Info("Claims", "claims", mapClaims)
 
-		// Login options are nested inside extra_claims
+		// User options are nested inside extra_claims
 		if extraClaims, exists := mapClaims["extra_claims"].(map[string]interface{}); exists {
 			slog.Info("Extra claims", "extraClaims", extraClaims)
 
-			// Extract login options from extra_claims
-			if loginOptions, exists := extraClaims["login_options"]; exists {
-				slog.Info("Login options found", "loginOptions", loginOptions)
-				additionalClaims["login_options"] = loginOptions
+			// Extract user options from extra_claims
+			if userOptions, exists := extraClaims["user_options"]; exists {
+				slog.Info("User options found", "userOptions", userOptions)
+				additionalClaims["user_options"] = userOptions
 			}
 		}
 	}
 
-	// Check if we have login options to return
-	if loginOptionsData, exists := additionalClaims["login_options"]; exists && loginOptionsData != nil {
-		slog.Info("Login options found", "loginOptions", loginOptionsData)
+	// Check if we have user options to return
+	if userOptionsData, exists := additionalClaims["user_options"]; exists && userOptionsData != nil {
+		slog.Info("User options found", "userOptions", userOptionsData)
 
 		// Convert to the expected type
-		var loginOptions []LoginOption
+		var userOptions []UserOption
 
-		// Handle different possible formats of login options
-		if optionsSlice, ok := loginOptionsData.([]interface{}); ok {
+		// Handle different possible formats of user options
+		if optionsSlice, ok := userOptionsData.([]interface{}); ok {
 			for _, opt := range optionsSlice {
 				if optMap, ok := opt.(map[string]interface{}); ok {
-					option := LoginOption{}
-					if id, ok := optMap["id"].(string); ok {
-						idCopy := id
-						option.ID = &idCopy
+					option := UserOption{}
+					if id, ok := optMap["user_id"].(string); ok {
+						option.UserID = id
 					}
-					if username, ok := optMap["username"].(string); ok {
-						usernameCopy := username
-						option.Username = &usernameCopy
+					if displayName, ok := optMap["display_name"].(string); ok {
+						option.DisplayName = displayName
 					}
-					if current, ok := optMap["current"].(bool); ok {
-						currentCopy := current
-						option.Current = &currentCopy
-					}
-					loginOptions = append(loginOptions, option)
+					userOptions = append(userOptions, option)
 				}
 			}
 		}
 
-		return loginOptions
+		return userOptions
 	}
 
 	return nil
