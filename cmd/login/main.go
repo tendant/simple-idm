@@ -18,6 +18,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 
 	// "github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
+
 	"github.com/tendant/simple-idm/pkg/login"
 	loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
@@ -271,10 +272,9 @@ func main() {
 		r.Mount("/idm/logins", loginsRouter)
 
 		// Initialize impersonate service and routes
-		//FIX-ME: impersonate service and routes
-		// impersonateService := impersonate.NewImpersonateService(impersonateQueries)
-		// impersonateHandle := impersonate.NewHandle(impersonateService, *jwtService)
-		// r.Mount("/idm/impersonate", impersonate.Handler(impersonateHandle))
+		// impersonateService := impersonate.NewService(userMapper, nil)
+		// impersonateHandle := impersonateapi.NewHandler(impersonateService, tokenService, tokenCookieService)
+		// r.Mount("/api/idm/impersonate", impersonateapi.Handler(impersonateHandle))
 
 	})
 
