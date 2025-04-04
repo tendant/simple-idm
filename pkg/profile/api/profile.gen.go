@@ -56,18 +56,6 @@ type Login struct {
 	Users []User `json:"users,omitempty"`
 }
 
-// LoginOption defines model for LoginOption.
-type LoginOption struct {
-	// Whether this is the current login
-	Current bool `json:"current,omitempty"`
-
-	// ID of the login
-	ID string `json:"id,omitempty"`
-
-	// Username of the login
-	Username string `json:"username,omitempty"`
-}
-
 // MultiUsersResponse defines model for MultiUsersResponse.
 type MultiUsersResponse struct {
 	Users []User `json:"users,omitempty"`
@@ -103,11 +91,11 @@ type PasswordPolicyResponse struct {
 	RequireUppercase *bool `json:"require_uppercase,omitempty"`
 }
 
-// SelectLoginRequiredResponse defines model for SelectLoginRequiredResponse.
-type SelectLoginRequiredResponse struct {
-	LoginOptions []LoginOption `json:"login_options"`
-	Message      string        `json:"message"`
-	Status       string        `json:"status"`
+// SelectUsersToAssociateRequiredResponse defines model for SelectUsersToAssociateRequiredResponse.
+type SelectUsersToAssociateRequiredResponse struct {
+	Message     string       `json:"message"`
+	Status      string       `json:"status"`
+	UserOptions []UserOption `json:"user_options"`
 }
 
 // Structure added for integration compatibility purposes
@@ -157,6 +145,15 @@ type User struct {
 	Role  string `json:"role"`
 }
 
+// UserOption defines model for UserOption.
+type UserOption struct {
+	// fullname of the user
+	DisplayName string `json:"display_name,omitempty"`
+
+	// ID of the user
+	UserID string `json:"user_id,omitempty"`
+}
+
 // Delete2faJSONBody defines parameters for Delete2fa.
 type Delete2faJSONBody struct {
 	TwofaID   *string                    `json:"twofa_id,omitempty"`
@@ -190,18 +187,6 @@ type Post2faSetupJSONBody struct {
 // Post2faSetupJSONBodyTwofaType defines parameters for Post2faSetup.
 type Post2faSetupJSONBodyTwofaType string
 
-// AssociateLoginJSONBody defines parameters for AssociateLogin.
-type AssociateLoginJSONBody struct {
-	Password string `json:"password"`
-	Username string `json:"username"`
-}
-
-// CompleteLoginAssociationJSONBody defines parameters for CompleteLoginAssociation.
-type CompleteLoginAssociationJSONBody struct {
-	// ID of the login the user selected
-	LoginID string `json:"login_id"`
-}
-
 // ChangePasswordJSONBody defines parameters for ChangePassword.
 type ChangePasswordJSONBody struct {
 	// User's current password
@@ -225,6 +210,15 @@ type ChangeUsernameJSONBody struct {
 	// New username to set
 	NewUsername string `json:"newUsername"`
 }
+
+// AssociateUserJSONBody defines parameters for AssociateUser.
+type AssociateUserJSONBody struct {
+	Password string `json:"password"`
+	Username string `json:"username"`
+}
+
+// CompleteAssociateUserJSONBody defines parameters for CompleteAssociateUser.
+type CompleteAssociateUserJSONBody []UserOption
 
 // Delete2faJSONRequestBody defines body for Delete2fa for application/json ContentType.
 type Delete2faJSONRequestBody Delete2faJSONBody
@@ -258,22 +252,6 @@ func (Post2faSetupJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
-// AssociateLoginJSONRequestBody defines body for AssociateLogin for application/json ContentType.
-type AssociateLoginJSONRequestBody AssociateLoginJSONBody
-
-// Bind implements render.Binder.
-func (AssociateLoginJSONRequestBody) Bind(*http.Request) error {
-	return nil
-}
-
-// CompleteLoginAssociationJSONRequestBody defines body for CompleteLoginAssociation for application/json ContentType.
-type CompleteLoginAssociationJSONRequestBody CompleteLoginAssociationJSONBody
-
-// Bind implements render.Binder.
-func (CompleteLoginAssociationJSONRequestBody) Bind(*http.Request) error {
-	return nil
-}
-
 // ChangePasswordJSONRequestBody defines body for ChangePassword for application/json ContentType.
 type ChangePasswordJSONRequestBody ChangePasswordJSONBody
 
@@ -295,6 +273,22 @@ type ChangeUsernameJSONRequestBody ChangeUsernameJSONBody
 
 // Bind implements render.Binder.
 func (ChangeUsernameJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// AssociateUserJSONRequestBody defines body for AssociateUser for application/json ContentType.
+type AssociateUserJSONRequestBody AssociateUserJSONBody
+
+// Bind implements render.Binder.
+func (AssociateUserJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// CompleteAssociateUserJSONRequestBody defines body for CompleteAssociateUser for application/json ContentType.
+type CompleteAssociateUserJSONRequestBody CompleteAssociateUserJSONBody
+
+// Bind implements render.Binder.
+func (CompleteAssociateUserJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -397,36 +391,6 @@ func Post2faSetupJSON201Response(body SuccessResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        201,
-		contentType: "application/json",
-	}
-}
-
-// AssociateLoginJSON200Response is a constructor method for a AssociateLogin response.
-// A *Response is returned with the configured status code and content type from the spec.
-func AssociateLoginJSON200Response(body SuccessResponse) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
-		contentType: "application/json",
-	}
-}
-
-// AssociateLoginJSON202Response is a constructor method for a AssociateLogin response.
-// A *Response is returned with the configured status code and content type from the spec.
-func AssociateLoginJSON202Response(body interface{}) *Response {
-	return &Response{
-		body:        body,
-		Code:        202,
-		contentType: "application/json",
-	}
-}
-
-// CompleteLoginAssociationJSON200Response is a constructor method for a CompleteLoginAssociation response.
-// A *Response is returned with the configured status code and content type from the spec.
-func CompleteLoginAssociationJSON200Response(body SuccessResponse) *Response {
-	return &Response{
-		body:        body,
-		Code:        200,
 		contentType: "application/json",
 	}
 }
@@ -575,6 +539,26 @@ func FindUsersWithLoginJSON200Response(body interface{}) *Response {
 	}
 }
 
+// AssociateUserJSON202Response is a constructor method for a AssociateUser response.
+// A *Response is returned with the configured status code and content type from the spec.
+func AssociateUserJSON202Response(body interface{}) *Response {
+	return &Response{
+		body:        body,
+		Code:        202,
+		contentType: "application/json",
+	}
+}
+
+// CompleteAssociateUserJSON200Response is a constructor method for a CompleteAssociateUser response.
+// A *Response is returned with the configured status code and content type from the spec.
+func CompleteAssociateUserJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Get login 2FA methods
@@ -592,12 +576,6 @@ type ServerInterface interface {
 	// Create a new 2FA method
 	// (POST /2fa/setup)
 	Post2faSetup(w http.ResponseWriter, r *http.Request) *Response
-	// Associate a login
-	// (POST /login/associate)
-	AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
-	// Complete login association after user selection
-	// (POST /login/associate/complete)
-	CompleteLoginAssociation(w http.ResponseWriter, r *http.Request) *Response
 	// Change user password
 	// (PUT /password)
 	ChangePassword(w http.ResponseWriter, r *http.Request) *Response
@@ -613,6 +591,12 @@ type ServerInterface interface {
 	// Get a list of users associated with the current login
 	// (GET /users)
 	FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Associate a user to the current login
+	// (POST /users/associate)
+	AssociateUser(w http.ResponseWriter, r *http.Request) *Response
+	// Complete user association after user selection
+	// (POST /users/associate/complete)
+	CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -711,42 +695,6 @@ func (siw *ServerInterfaceWrapper) Post2faSetup(w http.ResponseWriter, r *http.R
 	handler(w, r.WithContext(ctx))
 }
 
-// AssociateLogin operation middleware
-func (siw *ServerInterfaceWrapper) AssociateLogin(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.AssociateLogin(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
-// CompleteLoginAssociation operation middleware
-func (siw *ServerInterfaceWrapper) CompleteLoginAssociation(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := siw.Handler.CompleteLoginAssociation(w, r)
-		if resp != nil {
-			if resp.body != nil {
-				render.Render(w, r, resp)
-			} else {
-				w.WriteHeader(resp.Code)
-			}
-		}
-	})
-
-	handler(w, r.WithContext(ctx))
-}
-
 // ChangePassword operation middleware
 func (siw *ServerInterfaceWrapper) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -829,6 +777,42 @@ func (siw *ServerInterfaceWrapper) FindUsersWithLogin(w http.ResponseWriter, r *
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.FindUsersWithLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// AssociateUser operation middleware
+func (siw *ServerInterfaceWrapper) AssociateUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.AssociateUser(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// CompleteAssociateUser operation middleware
+func (siw *ServerInterfaceWrapper) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.CompleteAssociateUser(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -961,13 +945,13 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Post("/2fa/disable", wrapper.Post2faDisable)
 		r.Post("/2fa/enable", wrapper.Post2faEnable)
 		r.Post("/2fa/setup", wrapper.Post2faSetup)
-		r.Post("/login/associate", wrapper.AssociateLogin)
-		r.Post("/login/associate/complete", wrapper.CompleteLoginAssociation)
 		r.Put("/password", wrapper.ChangePassword)
 		r.Get("/password/policy", wrapper.GetPasswordPolicy)
 		r.Post("/user/switch", wrapper.PostUserSwitch)
 		r.Put("/username", wrapper.ChangeUsername)
 		r.Get("/users", wrapper.FindUsersWithLogin)
+		r.Post("/users/associate", wrapper.AssociateUser)
+		r.Post("/users/associate/complete", wrapper.CompleteAssociateUser)
 	})
 	return r
 }
@@ -993,44 +977,43 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"mfNqtVr9JwAA//91wBDSLjEAAA==",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
