@@ -8,5 +8,5 @@ import (
 )
 
 type DelegationRepository interface {
-	FindDelegatedUsers(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error)
+	FindDelegators(ctx context.Context, delegateeUuid uuid.UUID) ([]mapper.User, error)
 }
