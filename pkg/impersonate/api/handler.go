@@ -50,7 +50,15 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 	}
 
 	// Get the login UUID from authUser (it's already a uuid.UUID type)
-	loginUuid := authUser.LoginID
+	delegateeUuidStr := authUser.UserId
+	delegateeUuid, err := uuid.Parse(delegateeUuidStr)
+	if err != nil {
+		slog.Error("Failed to parse delegatee UUID", "error", err)
+		return CreateImpersonateJSON400Response(ErrorResponse{
+			Error: "Invalid delegatee UUID",
+			Code:  stringPtr("invalid_uuid"),
+		})
+	}
 
 	// Parse request body
 	var reqBody CreateImpersonateJSONRequestBody
@@ -73,9 +81,9 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 	}
 
 	// Get delegated users for the current user
-	delegatedUsers, err := h.service.GetDelegatedUsers(r.Context(), loginUuid)
+	delegators, err := h.service.FindDelegators(r.Context(), delegateeUuid)
 	if err != nil {
-		slog.Error("Failed to get delegated users", "error", err, "user_id", loginUuid)
+		slog.Error("Failed to get delegators", "error", err, "delegatee_user_id", delegateeUuid)
 		return CreateImpersonateJSON403Response(ErrorResponse{
 			Error: "Failed to get delegated users",
 			Code:  stringPtr("server_error"),
@@ -86,7 +94,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 	var foundDelegator bool
 	var selectedUser mapper.User
 
-	for _, user := range delegatedUsers {
+	for _, user := range delegators {
 		if user.UserId == delegatorUserUUID.String() {
 			foundDelegator = true
 			selectedUser = user
