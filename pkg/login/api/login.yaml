@@ -510,7 +510,7 @@ paths:
               schema:
                 oneOf:
                   - $ref: "#/components/schemas/SelectUserRequiredResponse"
-                  - $ref: "#/components/schemas/SelectLoginRequiredResponse"
+                  - $ref: "#/components/schemas/SelectUsersToAssociateRequiredResponse"
 components:
   schemas:
     MultiUsersResponse:
@@ -743,30 +743,31 @@ components:
       required:
         - access_token
         - refresh_token
-    SelectLoginRequiredResponse:
+    SelectUsersToAssociateRequiredResponse:
       x-go-optional-value: true
       type: object
       properties:
         status:
           type: string
-          example: "login_selection_required"
+          example: "select_user_to_associate_required"
         message:
           type: string
-          example: "Please select a login"
-        login_options:
+          example: "Please select users to associate"
+        user_options:
           type: array
           items:
-            $ref: "#/components/schemas/LoginOption"
-    LoginOption:
+            $ref: "#/components/schemas/UserOption"
+    UserOption:
+      x-go-optional-value: true
       type: object
       properties:
-        id:
+        user_id:
           type: string
           format: uuid
-        username:
+          description: ID of the user
+        display_name:
           type: string
-        current:
-          type: boolean
+          description: fullname of the user
   securitySchemes:
     BearerAuth:
       type: http
