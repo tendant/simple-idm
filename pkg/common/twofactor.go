@@ -45,7 +45,7 @@ func Check2FAEnabled(
 	twoFactorService twofa.TwoFactorService,
 	tokenService tg.TokenService,
 	tokenCookieService tg.TokenCookieService,
-	loginOptions interface{},
+	userOptions interface{},
 ) (bool, []TwoFactorMethod, *tg.TokenValue, error) {
 	if twoFactorService == nil {
 		return false, nil, nil, nil
@@ -98,9 +98,9 @@ func Check2FAEnabled(
 		"login_id": loginID.String(),
 		"users":    apiUsers,
 	}
-	// Add login options to extra claims if provided
-	if loginOptions != nil {
-		extraClaims["login_options"] = loginOptions
+	// Add user options to extra claims if provided
+	if userOptions != nil {
+		extraClaims["user_options"] = userOptions
 	}
 
 	// Updated to use the new TokenService interface
