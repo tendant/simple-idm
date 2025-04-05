@@ -666,6 +666,7 @@ func (h Handle) validateRefreshToken(tokenString string) (*jwt.Token, jwt.MapCla
 	return token, claims, nil
 }
 
+// This API is currently unused, similar API has been moved to pkg/profile
 // Get a list of users associated with the current login
 // (GET /users)
 func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Response {
@@ -881,7 +882,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		h.twoFactorService,
 		h.tokenService,
 		h.tokenCookieService,
-		nil, // No login options for this flow
+		nil, // No user options for this flow
 	)
 	if err != nil {
 		slog.Error("Failed to check 2FA", "err", err)
@@ -1660,10 +1661,13 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 // (GET /mobile/users)
 func (h Handle) MobileFindUsersWithLogin(w http.ResponseWriter, r *http.Request, params MobileFindUsersWithLoginParams) *Response {
 	var tokenStr string
+	var tokenType string
 	if params.TempToken != nil && *params.TempToken != "" {
 		tokenStr = *params.TempToken
+		tokenType = tg.TEMP_TOKEN_NAME
 	} else if params.AccessToken != nil && *params.AccessToken != "" {
 		tokenStr = *params.AccessToken
+		tokenType = tg.ACCESS_TOKEN_NAME
 	} else {
 		// If not in request body, check Authorization header
 		authHeader := r.Header.Get("Authorization")
@@ -1675,6 +1679,7 @@ func (h Handle) MobileFindUsersWithLogin(w http.ResponseWriter, r *http.Request,
 			}
 		}
 		tokenStr = authHeader[7:] // Remove "Bearer " prefix
+		tokenType = tg.ACCESS_TOKEN_NAME
 	}
 
 	// Parse and validate token
@@ -1686,6 +1691,16 @@ func (h Handle) MobileFindUsersWithLogin(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
+	if tokenType == tg.TEMP_TOKEN_NAME {
+		twofaVerified, err := common.Get2FAVerifiedFromClaims(token.Claims)
+		if err != nil || !twofaVerified {
+			slog.Error("2FA not verified", "err", err)
+			return &Response{
+				Code: http.StatusUnauthorized,
+				body: "2FA not verified",
+			}
+		}
+	}
 	// Extract login ID using the helper method
 	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
