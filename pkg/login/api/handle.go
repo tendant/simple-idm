@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -18,7 +19,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
-	"golang.org/x/exp/slog"
 )
 
 const (
@@ -202,21 +202,6 @@ func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMetho
 	}
 }
 
-// prepareLoginSelectionRequiredResponse prepares a login selection required response
-func (h Handle) prepareLoginSelectionRequiredResponse(loginOptions []LoginOption) *Response {
-	resp := SelectLoginRequiredResponse{
-		Status:       "login_selection_required",
-		Message:      "Please select a login",
-		LoginOptions: loginOptions,
-	}
-
-	return &Response{
-		Code:        http.StatusAccepted,
-		body:        resp,
-		contentType: "application/json",
-	}
-}
-
 // checkMultipleUsers checks if there are multiple users for the login and returns a temp token if needed
 // Returns: (isMultipleUsers, tempToken, error)
 func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, loginID uuid.UUID, idmUsers []mapper.User) (bool, *tg.TokenValue, error) {
@@ -226,7 +211,8 @@ func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, l
 
 	// Create temp token with the custom claims for user selection
 	extraClaims := map[string]interface{}{
-		"login_id": loginID.String(),
+		"login_id":     loginID.String(),
+		"2fa_verified": true, // This method will only be called if 2FA is not enabled or 2FA validation is passed
 	}
 	tempTokenMap, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
 	if err != nil {
@@ -245,6 +231,57 @@ func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, l
 
 	tempToken := tempTokenMap[tg.TEMP_TOKEN_NAME]
 	return true, &tempToken, nil
+}
+
+// prepareUserAssociationSelectionResponse prepares a response for user association selection
+// It generates a temporary token with the necessary claims and returns a properly formatted response
+func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID, userID string, userOptions []UserOption) *Response {
+	// Prepare extra claims for the temp token
+	extraClaims := map[string]interface{}{
+		"login_id":     loginID,
+		"2fa_verified": true,
+	}
+
+	// Add user options to extra claims
+	if userOptions != nil {
+		extraClaims["user_options"] = userOptions
+	}
+
+	// Generate a temporary token with the necessary claims
+	tempTokenMap, err := h.tokenService.GenerateTempToken(userID, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to generate temp token: " + err.Error(),
+		}
+	}
+
+	// Set the token cookie if a response writer is provided
+	if w != nil {
+		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to set temp token cookie: " + err.Error(),
+			}
+		}
+	}
+
+	// Prepare the response with user options for selection
+	resp := SelectUsersToAssociateRequiredResponse{
+		Status:      "user_association_selection_required",
+		Message:     "Please select users to associate",
+		UserOptions: userOptions,
+	}
+
+	slog.Info("Returning user selection options", "user_id", userID, "option_count", len(userOptions))
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        resp,
+		contentType: "application/json",
+	}
 }
 
 // Login a user
@@ -519,7 +556,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 // Returns the user ID, user object, and any error
 func (h Handle) getUserFromToken(ctx context.Context, token *jwt.Token) (string, mapper.User, error) {
 	// Get user ID from claims using the common implementation
-	userId, err := h.GetUserIDFromClaims(token.Claims)
+	userId, err := common.GetUserIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract user ID from token", "err", err)
 		return "", mapper.User{}, fmt.Errorf("invalid token: %w", err)
@@ -653,7 +690,7 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	}
 
 	// Get login ID from token claims
-	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to get login ID from claims", "err", err)
 		return &Response{
@@ -714,8 +751,17 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
+	twofaVerified, err := common.Get2FAVerifiedFromClaims(token.Claims)
+	if err != nil || !twofaVerified {
+		slog.Error("2FA not verified", "err", err)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "2FA not verified",
+		}
+	}
+
 	// Extract login ID using the helper method
-	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{
@@ -1061,7 +1107,7 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Extract login ID using the helper method
-	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{
@@ -1125,7 +1171,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Extract login ID using the helper method
-	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{
@@ -1167,13 +1213,21 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	// Extract login options from claims using the helper method
-	loginOptions := h.ExtractLoginOptionsFromClaims(token.Claims)
+	// Extract user options from claims using the helper method
+	userOptions := h.ExtractUserOptionsFromClaims(token.Claims)
 
-	// If we have login options, return a login selection required response
-	if len(loginOptions) > 0 {
-		slog.Info("Returning login selection response", "options", loginOptions)
-		return h.prepareLoginSelectionRequiredResponse(loginOptions)
+	// If we have user options, return a user selection required response
+	if len(userOptions) > 0 {
+		// Extract user ID from token claims
+		userID, err := common.GetUserIDFromClaims(token.Claims)
+		if err != nil {
+			slog.Error("Failed to extract user ID from token claims", "err", err)
+			return &Response{
+				Code: http.StatusUnauthorized,
+				body: "Invalid token: " + err.Error(),
+			}
+		}
+		return h.prepareUserAssociationSelectionResponse(w, loginIdStr, userID, userOptions)
 	}
 
 	// 2FA validation successful, create access and refresh tokens
@@ -1238,53 +1292,47 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	return Post2faValidateJSON200Response(resp)
 }
 
-func (h Handle) ExtractLoginOptionsFromClaims(claims jwt.Claims) []LoginOption {
+func (h Handle) ExtractUserOptionsFromClaims(claims jwt.Claims) []UserOption {
 	additionalClaims := make(map[string]interface{})
 	if mapClaims, ok := claims.(jwt.MapClaims); ok {
 		slog.Info("Claims", "claims", mapClaims)
 
-		// Login options are nested inside extra_claims
+		// User options are nested inside extra_claims
 		if extraClaims, exists := mapClaims["extra_claims"].(map[string]interface{}); exists {
 			slog.Info("Extra claims", "extraClaims", extraClaims)
 
-			// Extract login options from extra_claims
-			if loginOptions, exists := extraClaims["login_options"]; exists {
-				slog.Info("Login options found", "loginOptions", loginOptions)
-				additionalClaims["login_options"] = loginOptions
+			// Extract user options from extra_claims
+			if userOptions, exists := extraClaims["user_options"]; exists {
+				slog.Info("User options found", "userOptions", userOptions)
+				additionalClaims["user_options"] = userOptions
 			}
 		}
 	}
 
-	// Check if we have login options to return
-	if loginOptionsData, exists := additionalClaims["login_options"]; exists && loginOptionsData != nil {
-		slog.Info("Login options found", "loginOptions", loginOptionsData)
+	// Check if we have user options to return
+	if userOptionsData, exists := additionalClaims["user_options"]; exists && userOptionsData != nil {
+		slog.Info("User options found", "userOptions", userOptionsData)
 
 		// Convert to the expected type
-		var loginOptions []LoginOption
+		var userOptions []UserOption
 
-		// Handle different possible formats of login options
-		if optionsSlice, ok := loginOptionsData.([]interface{}); ok {
+		// Handle different possible formats of user options
+		if optionsSlice, ok := userOptionsData.([]interface{}); ok {
 			for _, opt := range optionsSlice {
 				if optMap, ok := opt.(map[string]interface{}); ok {
-					option := LoginOption{}
-					if id, ok := optMap["id"].(string); ok {
-						idCopy := id
-						option.ID = &idCopy
+					option := UserOption{}
+					if id, ok := optMap["user_id"].(string); ok {
+						option.UserID = id
 					}
-					if username, ok := optMap["username"].(string); ok {
-						usernameCopy := username
-						option.Username = &usernameCopy
+					if displayName, ok := optMap["display_name"].(string); ok {
+						option.DisplayName = displayName
 					}
-					if current, ok := optMap["current"].(bool); ok {
-						currentCopy := current
-						option.Current = &currentCopy
-					}
-					loginOptions = append(loginOptions, option)
+					userOptions = append(userOptions, option)
 				}
 			}
 		}
 
-		return loginOptions
+		return userOptions
 	}
 
 	return nil
@@ -1320,74 +1368,6 @@ func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request, p
 	return GetPasswordResetPolicyJSON200Response(response)
 }
 
-func (h Handle) GetUserIDFromClaims(claims jwt.Claims) (string, error) {
-	// First try to get from subject
-	subject, err := claims.GetSubject()
-	if err == nil && subject != "" {
-		return subject, nil
-	}
-
-	// If subject is empty or not available, try to get from extra claims
-	mapClaims, ok := claims.(jwt.MapClaims)
-	if !ok {
-		return "", fmt.Errorf("invalid claims format")
-	}
-
-	// Try to extract from extra_claims
-	extraClaimsRaw, ok := mapClaims["extra_claims"]
-	if !ok {
-		return "", fmt.Errorf("extra_claims not found in token")
-	}
-
-	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("extra_claims has invalid format")
-	}
-
-	// Try user_id first, then fall back to other common ID field names
-	for _, field := range []string{"user_id", "user_uuid", "userId", "id", "sub"} {
-		if idValue, ok := extraClaims[field]; ok {
-			if idStr, ok := idValue.(string); ok && idStr != "" {
-				return idStr, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("user ID not found in token claims")
-}
-
-func (h Handle) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
-	mapClaims, ok := claims.(jwt.MapClaims)
-	if !ok {
-		return "", fmt.Errorf("invalid claims format")
-	}
-
-	// Try to extract from extra_claims
-	extraClaimsRaw, ok := mapClaims["extra_claims"]
-	if !ok {
-		return "", fmt.Errorf("extra_claims not found in token")
-	}
-
-	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("extra_claims has invalid format")
-	}
-
-	// Look for login_id in extra claims
-	loginIDValue, ok := extraClaims["login_id"]
-	if !ok {
-		return "", fmt.Errorf("login_id not found in token claims")
-	}
-
-	loginIDStr, ok := loginIDValue.(string)
-	if !ok || loginIDStr == "" {
-		return "", fmt.Errorf("login_id is not a valid string")
-	}
-
-	return loginIDStr, nil
-}
-
-// (POST /mobile/2fa/send)
 func (h Handle) PostMobile2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	var resp SuccessResponse
 
@@ -1420,7 +1400,7 @@ func (h Handle) PostMobile2faSend(w http.ResponseWriter, r *http.Request) *Respo
 	}
 
 	// Extract login ID using the helper method
-	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{
@@ -1489,7 +1469,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	}
 
 	// Extract login ID using the helper method
-	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{
@@ -1557,6 +1537,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	// Single user case - proceed with normal flow
 	user := idmUsers[0]
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(user)
+	extraClaims["2fa_verified"] = true
 
 	tokens, err := h.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
@@ -1613,7 +1594,7 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 	}
 
 	// Extract login ID using the helper method
-	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{
@@ -1706,7 +1687,7 @@ func (h Handle) MobileFindUsersWithLogin(w http.ResponseWriter, r *http.Request,
 	}
 
 	// Extract login ID using the helper method
-	loginIdStr, err := h.GetLoginIDFromClaims(token.Claims)
+	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
 		slog.Error("Failed to extract login ID from token", "err", err)
 		return &Response{

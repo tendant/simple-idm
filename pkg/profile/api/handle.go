@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/copier"
@@ -380,120 +381,127 @@ func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 
 // Associate a login
 // (POST /login/associate)
-func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response {
+func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response {
+	// Extract authenticated user from context
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
-		slog.Error("Failed getting AuthUser", "ok", ok)
+		slog.Error("Failed getting AuthUser from context", "ok", ok)
 		return &Response{
 			body: http.StatusText(http.StatusUnauthorized),
 			Code: http.StatusUnauthorized,
 		}
 	}
 
+	// Parse the original login ID from the authenticated user
 	originalLoginId, err := uuid.Parse(authUser.LoginId)
 	if err != nil {
-		slog.Error("Failed to parse login ID", "err", err)
+		slog.Error("Failed to parse login ID from auth user", "login_id", authUser.LoginId, "err", err)
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "Failed to parse login ID: " + err.Error(),
 		}
 	}
-	originalLogin, err := h.profileService.GetLoginById(r.Context(), originalLoginId)
-	if err != nil {
-		slog.Error("Failed to get original login", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to get original login: " + err.Error(),
-		}
-	}
-	slog.Info("Current user", "user_uuid", authUser.UserId, "original login", originalLogin)
 
-	data := AssociateLoginJSONRequestBody{}
+	// Decode the request body into AssociateUserJSONRequestBody struct
+	data := AssociateUserJSONRequestBody{}
 	err = render.DecodeJSON(r.Body, &data)
 	if err != nil {
+		slog.Error("Failed to decode request body", "err", err)
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: ErrInvalidCredentials,
 		}
 	}
 
+	// Validate request parameters
 	if data.Username == "" || data.Password == "" {
-		slog.Error("Invalid username or password", "username", data.Username, "password length", len(data.Password))
+		slog.Error("Missing required credentials", "username_empty", data.Username == "", "password_empty", data.Password == "")
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: ErrInvalidCredentials,
 		}
 	}
 
-	// Find login by username
+	// Find login by username in the database
 	login, err := h.loginService.FindLoginByUsername(r.Context(), data.Username)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			slog.Error("no login found with username: %s", data.Username)
+			slog.Error("No login found with username", "username", data.Username)
 			return &Response{
 				Code: http.StatusBadRequest,
 				body: ErrInvalidCredentials,
 			}
 		}
-		slog.Error("error finding login with username: %s", data.Username)
+		slog.Error("Database error finding login with username", "username", data.Username, "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: ErrInvalidCredentials,
 		}
 	}
 
-	slog.Info("found login with username: %s", data.Username, "login", login.ID)
+	slog.Info("Found login with username", "username", data.Username, "login_id", login.ID)
 
-	// Check if login is already associated with user
+	// Check if the login is already associated with the user
 	if login.ID == originalLoginId {
-		slog.Warn("login already associated with user", "login_id", login.ID, "user_id", originalLoginId)
+		slog.Warn("Login already associated with user", "login_id", login.ID, "user_id", originalLoginId)
 		return &Response{
 			Code: http.StatusOK,
 			body: "Login already associated with user",
 		}
 	}
 
-	// Hash the password for logging purposes only
+	// Hash the password for logging purposes only (never log actual passwords)
 	hashedForLogging := fmt.Sprintf("%x", sha256.Sum256([]byte(data.Password)))
-	slog.Info("password hash for logging", "password_hash", hashedForLogging)
+	slog.Info("Verifying password", "password_hash", hashedForLogging)
 
-	// Verify password
-	slog.Info("hashed password", "hashed_password", string(login.Password))
+	// Verify the provided password against the stored hash
 	valid, err := h.loginService.CheckPasswordByLoginId(r.Context(), login.ID, data.Password, string(login.Password))
-	if err != nil || !valid {
-		slog.Error("error checking password: %w", err)
+	if err != nil {
+		slog.Error("Error during password verification", "login_id", login.ID, "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: ErrInvalidCredentials,
+		}
+	}
+
+	if !valid {
+		slog.Error("Invalid password provided", "login_id", login.ID)
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: ErrInvalidCredentials,
 		}
 	}
 
-	slog.Info("password verified successfully", "login", login.ID)
+	slog.Info("Password verified successfully", "login_id", login.ID)
 
-	// Check if 2FA is enabled for this login
+	// Retrieve all users associated with this login ID
 	idmUsers, err := h.profileService.GetUsersByLoginId(r.Context(), login.ID)
 	if err != nil {
-		slog.Error("Failed to get users by login ID", "err", err)
+		slog.Error("Failed to get users by login ID", "login_id", login.ID, "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to get users by login ID",
 		}
 	}
 
-	// Prepare login selection required response
-	loginOptions := []LoginOption{
-		{
-			ID:       authUser.LoginId,
-			Username: originalLogin.Username,
-			Current:  true,
-		},
-		{
-			ID:       login.ID.String(),
-			Username: login.Username,
-			Current:  false,
-		},
+	if len(idmUsers) == 0 {
+		slog.Error("No users found for login ID", "login_id", login.ID)
+		return &Response{
+			Code: http.StatusNotFound,
+			body: "No users found for login ID",
+		}
 	}
 
+	// Prepare user options for selection response
+	userOptions := []UserOption{}
+	for _, user := range idmUsers {
+		userOptions = append(userOptions, UserOption{
+			UserID:      user.UserId,
+			DisplayName: user.DisplayName,
+		})
+	}
+
+	// Check if 2FA is enabled for any of the users associated with this login
 	is2FAEnabled, commonMethods, tempToken, err := common.Check2FAEnabled(
 		r.Context(),
 		w,
@@ -502,22 +510,229 @@ func (h Handle) AssociateLogin(w http.ResponseWriter, r *http.Request) *Response
 		h.twoFaService,
 		h.tokenService,
 		h.tokenCookieService,
-		loginOptions,
+		userOptions,
 	)
 	if err != nil {
-		slog.Error("Failed to check 2FA", "err", err)
+		slog.Error("Failed to check 2FA status", "login_id", login.ID, "err", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
-			body: "Failed to check 2FA",
+			body: "Failed to check 2FA status: " + err.Error(),
 		}
 	}
 
+	// If 2FA is enabled, return a 2FA required response
 	if is2FAEnabled {
-		// Return 2FA required response
+		slog.Info("2FA required for login association", "login_id", login.ID, "methods", commonMethods)
 		return h.prepare2FARequiredResponse(commonMethods, tempToken)
 	}
 
-	return h.prepareLoginSelectionRequiredResponse(loginOptions)
+	// If 2FA is not enabled, return a user selection response
+	return h.prepareUserAssociationSelectionResponse(w, idmUsers[0].UserId, authUser.LoginId, userOptions)
+}
+
+// CompleteAssociateUser handles the final step of user association after the user has selected which users to associate
+// This endpoint processes the user selection and updates the login ID for each selected user
+// (POST /users/associate)
+func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *Response {
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed to extract AuthUser from context", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	loginIDStr := authUser.LoginId
+	loginID, err := uuid.Parse(loginIDStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "login_id", loginIDStr, "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Failed to parse login ID: " + err.Error(),
+		}
+	}
+
+	// Parse request body
+	data := &CompleteAssociateUserJSONRequestBody{}
+	if err := render.DecodeJSON(r.Body, data); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Invalid request body: " + err.Error(),
+		}
+	}
+
+	// Validate that at least one user is being associated
+	if len(data.SelectedUsers) == 0 {
+		slog.Error("No users provided for association")
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "At least one user must be provided for association",
+		}
+	}
+
+	// Validate the token and extract claims
+	token, loginIDFromClaims, err := h.validateTokenAndExtractClaims(r, data.LoginID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: err.Error(),
+		}
+	}
+
+	slog.Info("Processing user associations", "user_count", len(data.SelectedUsers), "token_valid", token != nil)
+
+	// Process each user option in the request
+	for i, userOption := range data.SelectedUsers {
+		// Validate the user ID
+		if userOption.UserID == "" {
+			slog.Error("Empty user ID provided", "index", i)
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: "User ID cannot be empty",
+			}
+		}
+
+		// Parse the user ID to ensure it's a valid UUID
+		userId, err := uuid.Parse(userOption.UserID)
+		if err != nil {
+			slog.Error("Invalid user ID format", "user_id", userOption.UserID, "err", err)
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: "Invalid user ID format: " + err.Error(),
+			}
+		}
+
+		slog.Info("Associating user with login", "user_id", userId, "original_login_id", loginIDFromClaims, "display_name", userOption.DisplayName)
+
+		// Update the user's login ID in the database
+		updatedLoginID, err := h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
+			ID:      userId,
+			LoginID: utils.ToNullUUID(loginID),
+		})
+		if err != nil {
+			slog.Error("Failed to update login ID for user", "user_id", userId, "login_id", loginID, "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: ErrAssociationFailed + ": " + err.Error(),
+			}
+		}
+
+		slog.Info("User successfully associated with login",
+			"user_id", userId,
+			"login_id", updatedLoginID,
+			"display_name", userOption.DisplayName,
+		)
+	}
+
+	// Prepare success response
+	resp := SuccessResponse{
+		Result: "Success",
+	}
+
+	slog.Info("User association completed successfully", "user_count", len(data.SelectedUsers), "login_id", loginID)
+	return CompleteAssociateUserJSON200Response(resp)
+}
+
+// validateTokenAndExtractClaims validates a temporary token and extracts the necessary claims
+// It checks for 2FA verification and login ID match
+func (h Handle) validateTokenAndExtractClaims(r *http.Request, expectedLoginID string) (*jwt.Token, string, error) {
+	slog.Info("Validating token and extracting claims")
+	// Extract and validate the token from the request
+	tempToken, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	if err != nil {
+		slog.Error("Failed to get temp token", "err", err)
+		return nil, "", fmt.Errorf("temp token not found")
+	}
+
+	// Parse and validate the token
+	token, err := h.tokenService.ParseToken(tempToken.Value)
+	if err != nil {
+		slog.Error("Failed to parse token", "err", err)
+		return nil, "", fmt.Errorf("invalid token: %w", err)
+	}
+
+	// Extract and verify 2FA status from token claims
+	twofaVerified, err := common.Get2FAVerifiedFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to verify 2FA status from token claims", "err", err)
+		return nil, "", fmt.Errorf("invalid token claims")
+	}
+
+	if !twofaVerified {
+		slog.Error("2FA verification required", "verified", twofaVerified)
+		return nil, "", fmt.Errorf("2FA verification required")
+	}
+
+	// Extract login ID from claims
+	loginIDFromClaims, err := common.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to get login ID from claims", "err", err)
+		return nil, "", fmt.Errorf("invalid token claims")
+	}
+
+	slog.Info("Login ID from claims", "login_id", loginIDFromClaims)
+	slog.Info("Expected login ID", "expected_login_id", expectedLoginID)
+
+	// If an expected login ID was provided, validate it matches
+	if expectedLoginID != "" && loginIDFromClaims != expectedLoginID {
+		slog.Error("Login ID from claims does not match expected ID",
+			"login_id_from_claims", loginIDFromClaims,
+			"expected_login_id", expectedLoginID)
+		return nil, "", fmt.Errorf("invalid token claims")
+	}
+
+	return token, loginIDFromClaims, nil
+}
+
+// prepareUserAssociationSelectionResponse prepares a response for user association selection
+// It generates a temporary token with the necessary claims and returns a properly formatted response
+func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, userID string, authLoginID string, userOptions []UserOption) *Response {
+	extraClaims := map[string]interface{}{
+		"login_id":     authLoginID,
+		"2fa_verified": true,
+	}
+	// Add user options to extra claims if provided
+	if userOptions != nil {
+		extraClaims["user_options"] = userOptions
+	}
+
+	// Generate a temporary token with the necessary claims
+	tempTokenMap, err := h.tokenService.GenerateTempToken(userID, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to generate temp token: " + err.Error(),
+		}
+	}
+
+	// Set the token cookie if a response writer is provided
+	if w != nil {
+		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to set temp token cookie: " + err.Error(),
+			}
+		}
+	}
+
+	// Prepare the response with user options for selection
+	resp := SelectUsersToAssociateRequiredResponse{
+		Status:      "user_association_selection_required",
+		UserOptions: userOptions,
+		Message:     "Please select which user to use for this account",
+	}
+
+	slog.Info("Returning user selection options", "login_id", authLoginID, "option_count", len(userOptions))
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        resp,
+		contentType: "application/json",
+	}
 }
 
 // prepare2FARequiredResponse prepares a 2FA required response
@@ -548,77 +763,6 @@ func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMetho
 		body:        twoFAResp,
 		contentType: "application/json",
 	}
-}
-
-// prepareLoginSelectionRequiredResponse prepares a login selection required response
-func (h Handle) prepareLoginSelectionRequiredResponse(loginOptions []LoginOption) *Response {
-	resp := SelectLoginRequiredResponse{
-		Status:       "login_selection_required",
-		LoginOptions: loginOptions,
-		Message:      "Please select which login to use for this account",
-	}
-
-	return &Response{
-		Code:        http.StatusAccepted,
-		body:        resp,
-		contentType: "application/json",
-	}
-}
-
-// CompleteLoginAssociation handles the final step of login association after the user has selected which login to use
-func (h Handle) CompleteLoginAssociation(w http.ResponseWriter, r *http.Request) *Response {
-	// Get authenticated user from context
-	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
-	if !ok {
-		slog.Error("Failed getting AuthUser", "ok", ok)
-		return &Response{
-			body: http.StatusText(http.StatusUnauthorized),
-			Code: http.StatusUnauthorized,
-		}
-	}
-
-	// Parse request body
-	data := CompleteLoginAssociationJSONBody{}
-	err := render.DecodeJSON(r.Body, &data)
-	if err != nil {
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Invalid request body",
-		}
-	}
-
-	// Validate login ID
-	loginID, err := uuid.Parse(data.LoginID)
-	if err != nil {
-		slog.Error("Invalid login ID format", "login_id", data.LoginID, "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Invalid login ID format",
-		}
-	}
-
-	// Update the user's login ID
-	_, err = h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
-		ID:      authUser.UserUuid,
-		LoginID: utils.ToNullUUID(loginID),
-	})
-	if err != nil {
-		slog.Error("error updating login ID", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: ErrAssociationFailed,
-		}
-	}
-
-	slog.Info("login associated successfully",
-		"login_id", loginID,
-		"user_id", authUser.UserUuid,
-	)
-
-	resp := SuccessResponse{
-		Result: "Success",
-	}
-	return CompleteLoginAssociationJSON200Response(resp)
 }
 
 // Switch to a different user when multiple users are available for the same login

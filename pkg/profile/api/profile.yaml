@@ -319,10 +319,10 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/MultiUsersResponse"
                   - $ref: "#/components/schemas/SingleUserResponse"
-  /login/associate:
+  /users/associate:
     post:
-      summary: Associate a login
-      operationId: associate_login
+      summary: Associate a user to the current login
+      operationId: associate_user
       requestBody:
         required: true
         content:
@@ -338,64 +338,59 @@ paths:
                 - password
                 - username
       responses:
-        "200":
-          description: Login associated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SuccessResponse'
         "202":
-          description: Login association successful but further action required (2FA or login selection)
+          description: further action required (2FA or login selection)
           content:
             application/json:
               schema:
                 oneOf:
-                  - $ref: "#/components/schemas/SelectLoginRequiredResponse"
+                  - $ref: "#/components/schemas/SelectUsersToAssociateRequiredResponse"
                   - $ref: "#/components/schemas/TwoFactorRequiredResponse"
         "400":
           description: Invalid request parameters
         "404":
           description: Login not found
-  /login/associate/complete:
+  /users/associate/complete:
     post:
-      summary: Complete login association after user selection
-      operationId: complete_login_association
+      summary: Complete user association after user selection
+      operationId: complete_associate_user
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              x-go-optional-value: true
+              required:
+                - selected_users
               properties:
                 login_id:
                   type: string
-                  format: uuid
-                  description: ID of the login the user selected
-              required:
-                - login_id
+                  description: Optional login ID to associate with. If not provided, the current login will be used.
+                selected_users:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/UserOption'
       responses:
         "200":
-          description: Login association completed successfully
+          description: User association completed successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse'
 components:
   schemas:
-    LoginOption:
+    UserOption:
       x-go-optional-value: true
       type: object
       properties:
-        id:
+        user_id:
           type: string
           format: uuid
-          description: ID of the login
-        username:
+          description: ID of the user
+        display_name:
           type: string
-          description: Username of the login
-        current:
-          type: boolean
-          description: Whether this is the current login
+          description: fullname of the user
     SuccessResponse:
       x-go-optional-value: true
       type: object
@@ -563,20 +558,20 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/User"
-    SelectLoginRequiredResponse:
+    SelectUsersToAssociateRequiredResponse:
       type: object
       properties:
-        login_options:
+        user_options:
           type: array
           items:
-            $ref: '#/components/schemas/LoginOption'
+            $ref: '#/components/schemas/UserOption'
         status:
           type: string
-          example: "login_selection_required"
+          example: "user_selection_required"
         message:
           type: string
       required:
-        - login_options
+        - user_options
         - status
         - message
     TwoFactorRequiredResponse:
