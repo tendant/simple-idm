@@ -359,9 +359,18 @@ paths:
         content:
           application/json:
             schema:
-              type: array
-              items:
-                $ref: '#/components/schemas/UserOption'
+              type: object
+              x-go-optional-value: true
+              required:
+                - selected_users
+              properties:
+                login_id:
+                  type: string
+                  description: Optional login ID to associate with. If not provided, the current login will be used.
+                selected_users:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/UserOption'
       responses:
         "200":
           description: User association completed successfully
