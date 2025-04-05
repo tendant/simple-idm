@@ -532,6 +532,7 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 		return h.prepareUserAssociationSelectionResponse(w, idmUsers[0].UserId, authUser.LoginId, userOptions)
 	}
 
+	// If 2FA is not enabled and there is only one user, associate user with current login
 	_, err = h.updateUserLoginID(r.Context(), userOptions[0].UserID, originalLoginId, authUser.DisplayName)
 	if err != nil {
 		return &Response{
@@ -540,10 +541,9 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 		}
 	}
 
-	// If 2FA is not enabled and there is only one user, return a user switch response
 	return &Response{
 		Code: http.StatusOK,
-		body: "User switch successful",
+		body: "User association successful",
 	}
 }
 
