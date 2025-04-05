@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/copier"
-
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/common"
 	"github.com/tendant/simple-idm/pkg/login"
@@ -535,7 +534,6 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 // This endpoint processes the user selection and updates the login ID for each selected user
 // (POST /users/associate)
 func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *Response {
-	// Extract the authenticated user from the request context
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed to extract AuthUser from context", "ok", ok)
@@ -545,52 +543,19 @@ func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *R
 		}
 	}
 
-	// Get the login ID from the authenticated user
-	loginID := authUser.LoginID
-	slog.Info("Processing user association request", "login_id", loginID)
-
-	// Extract and validate the token from the request
-	tempToken, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	loginIDStr := authUser.LoginId
+	loginID, err := uuid.Parse(loginIDStr)
 	if err != nil {
-		slog.Error("Failed to get temp token", "err", err)
+		slog.Error("Failed to parse login ID", "login_id", loginIDStr, "err", err)
 		return &Response{
-			Code: http.StatusUnauthorized,
-			body: "Temp token not found",
+			Code: http.StatusBadRequest,
+			body: "Failed to parse login ID: " + err.Error(),
 		}
 	}
 
-	// Parse and validate the token
-	token, err := h.tokenService.ParseToken(tempToken.Value)
-	if err != nil {
-		slog.Error("Failed to parse token", "err", err)
-		return &Response{
-			Code: http.StatusUnauthorized,
-			body: "Invalid token: " + err.Error(),
-		}
-	}
-
-	// Extract and verify 2FA status from token claims
-	twofaVerified, err := h.get2FAVerifiedFromClaims(token.Claims)
-	if err != nil {
-		slog.Error("Failed to verify 2FA status from token claims", "err", err)
-		return &Response{
-			Code: http.StatusUnauthorized,
-			body: "Invalid token claims",
-		}
-	}
-
-	if !twofaVerified {
-		slog.Error("2FA verification required", "verified", twofaVerified)
-		return &Response{
-			Code: http.StatusUnauthorized,
-			body: "2FA verification required",
-		}
-	}
-
-	// Parse and validate the request body
-	data := CompleteAssociateUserJSONBody{}
-	err = render.DecodeJSON(r.Body, &data)
-	if err != nil {
+	// Parse request body
+	data := &CompleteAssociateUserJSONRequestBody{}
+	if err := render.DecodeJSON(r.Body, data); err != nil {
 		slog.Error("Failed to decode request body", "err", err)
 		return &Response{
 			Code: http.StatusBadRequest,
@@ -599,7 +564,7 @@ func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *R
 	}
 
 	// Validate that at least one user is being associated
-	if len(data) == 0 {
+	if len(data.SelectedUsers) == 0 {
 		slog.Error("No users provided for association")
 		return &Response{
 			Code: http.StatusBadRequest,
@@ -607,10 +572,19 @@ func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *R
 		}
 	}
 
-	slog.Info("Processing user associations", "user_count", len(data))
+	// Validate the token and extract claims
+	token, loginIDFromClaims, err := h.validateTokenAndExtractClaims(r, data.LoginID)
+	if err != nil {
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: err.Error(),
+		}
+	}
+
+	slog.Info("Processing user associations", "user_count", len(data.SelectedUsers), "token_valid", token != nil)
 
 	// Process each user option in the request
-	for i, userOption := range data {
+	for i, userOption := range data.SelectedUsers {
 		// Validate the user ID
 		if userOption.UserID == "" {
 			slog.Error("Empty user ID provided", "index", i)
@@ -630,7 +604,7 @@ func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *R
 			}
 		}
 
-		slog.Info("Associating user with login", "user_id", userId, "login_id", loginID, "display_name", userOption.DisplayName)
+		slog.Info("Associating user with login", "user_id", userId, "original_login_id", loginIDFromClaims, "display_name", userOption.DisplayName)
 
 		// Update the user's login ID in the database
 		updatedLoginID, err := h.profileService.UpdateLoginId(r.Context(), profile.UpdateLoginIdParam{
@@ -657,34 +631,59 @@ func (h Handle) CompleteAssociateUser(w http.ResponseWriter, r *http.Request) *R
 		Result: "Success",
 	}
 
-	slog.Info("User association completed successfully", "user_count", len(data), "login_id", loginID)
+	slog.Info("User association completed successfully", "user_count", len(data.SelectedUsers), "login_id", loginID)
 	return CompleteAssociateUserJSON200Response(resp)
 }
 
-func (h Handle) get2FAVerifiedFromClaims(claims jwt.Claims) (bool, error) {
-	mapClaims, ok := claims.(jwt.MapClaims)
-	if !ok {
-		return false, fmt.Errorf("invalid claims format")
+// validateTokenAndExtractClaims validates a temporary token and extracts the necessary claims
+// It checks for 2FA verification and login ID match
+func (h Handle) validateTokenAndExtractClaims(r *http.Request, expectedLoginID string) (*jwt.Token, string, error) {
+	slog.Info("Validating token and extracting claims")
+	// Extract and validate the token from the request
+	tempToken, err := r.Cookie(tg.TEMP_TOKEN_NAME)
+	if err != nil {
+		slog.Error("Failed to get temp token", "err", err)
+		return nil, "", fmt.Errorf("temp token not found")
 	}
 
-	// Try to extract from extra_claims
-	extraClaimsRaw, ok := mapClaims["extra_claims"]
-	if !ok {
-		return false, fmt.Errorf("extra_claims not found in token")
+	// Parse and validate the token
+	token, err := h.tokenService.ParseToken(tempToken.Value)
+	if err != nil {
+		slog.Error("Failed to parse token", "err", err)
+		return nil, "", fmt.Errorf("invalid token: %w", err)
 	}
 
-	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
-	if !ok {
-		return false, fmt.Errorf("extra_claims has invalid format")
+	// Extract and verify 2FA status from token claims
+	twofaVerified, err := common.Get2FAVerifiedFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to verify 2FA status from token claims", "err", err)
+		return nil, "", fmt.Errorf("invalid token claims")
 	}
 
-	// Look for 2fa_verified in extra claims
-	twofaVerified, ok := extraClaims["2fa_verified"].(bool)
-	if !ok {
-		return false, fmt.Errorf("2fa_verified not found in token claims")
+	if !twofaVerified {
+		slog.Error("2FA verification required", "verified", twofaVerified)
+		return nil, "", fmt.Errorf("2FA verification required")
 	}
 
-	return twofaVerified, nil
+	// Extract login ID from claims
+	loginIDFromClaims, err := common.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to get login ID from claims", "err", err)
+		return nil, "", fmt.Errorf("invalid token claims")
+	}
+
+	slog.Info("Login ID from claims", "login_id", loginIDFromClaims)
+	slog.Info("Expected login ID", "expected_login_id", expectedLoginID)
+
+	// If an expected login ID was provided, validate it matches
+	if expectedLoginID != "" && loginIDFromClaims != expectedLoginID {
+		slog.Error("Login ID from claims does not match expected ID",
+			"login_id_from_claims", loginIDFromClaims,
+			"expected_login_id", expectedLoginID)
+		return nil, "", fmt.Errorf("invalid token claims")
+	}
+
+	return token, loginIDFromClaims, nil
 }
 
 // prepareUserAssociationSelectionResponse prepares a response for user association selection
