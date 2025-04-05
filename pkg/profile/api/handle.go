@@ -485,6 +485,14 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 		}
 	}
 
+	if len(idmUsers) == 0 {
+		slog.Error("No users found for login ID", "login_id", login.ID)
+		return &Response{
+			Code: http.StatusNotFound,
+			body: "No users found for login ID",
+		}
+	}
+
 	// Prepare user options for selection response
 	userOptions := []UserOption{}
 	for _, user := range idmUsers {
