@@ -126,6 +126,9 @@ func (g *TempTokenGenerator) GenerateToken(subject string, expiry time.Duration,
 	if _, exists := extraClaims["user_options"]; exists {
 		tempClaims["user_options"] = extraClaims["user_options"]
 	}
+	if _, exists := extraClaims["2fa_verified"]; exists {
+		tempClaims["2fa_verified"] = extraClaims["2fa_verified"]
+	}
 
 	// Create claims with shorter tolerance for time skew
 	claims := Claims{
