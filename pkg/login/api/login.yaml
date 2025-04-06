@@ -511,6 +511,7 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/SelectUserRequiredResponse"
                   - $ref: "#/components/schemas/SelectUsersToAssociateRequiredResponse"
+                  - $ref: "#/components/schemas/AssociateUserResponse"
 components:
   schemas:
     MultiUsersResponse:
@@ -753,6 +754,9 @@ components:
         message:
           type: string
           example: "Please select users to associate"
+        login_id:
+          type: string
+          format: uuid
         user_options:
           type: array
           items:
@@ -768,6 +772,22 @@ components:
         display_name:
           type: string
           description: fullname of the user
+    AssociateUserResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "select_user_to_associate_required"
+        message:
+          type: string
+          example: "Please select users to associate"
+        login_id:
+          type: string
+          format: uuid
+        user_option:
+          type: object
+          $ref: "#/components/schemas/UserOption"
   securitySchemes:
     BearerAuth:
       type: http
