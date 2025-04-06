@@ -233,9 +233,9 @@ func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, l
 	return true, &tempToken, nil
 }
 
-// prepareUserAssociationSelectionResponse prepares a response for user association selection
+// prepareAssociateUsersResponse prepares a response for user association selection
 // It generates a temporary token with the necessary claims and returns a properly formatted response
-func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID, userID string, userOptions []UserOption) *Response {
+func (h Handle) prepareAssociateUsersResponse(w http.ResponseWriter, loginID, userID string, userOptions []UserOption) *Response {
 	// Prepare extra claims for the temp token
 	extraClaims := map[string]interface{}{
 		"login_id":     loginID,
@@ -243,9 +243,14 @@ func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, l
 	}
 
 	// Add user options to extra claims
-	if userOptions != nil {
-		extraClaims["user_options"] = userOptions
+	if userOptions == nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "No users found with login provided",
+		}
 	}
+
+	extraClaims["user_options"] = userOptions
 
 	// Generate a temporary token with the necessary claims
 	tempTokenMap, err := h.tokenService.GenerateTempToken(userID, nil, extraClaims)
@@ -269,19 +274,36 @@ func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, l
 		}
 	}
 
-	// Prepare the response with user options for selection
-	resp := SelectUsersToAssociateRequiredResponse{
-		Status:      "user_association_selection_required",
-		Message:     "Please select users to associate",
-		UserOptions: userOptions,
+	if len(userOptions) > 1 {
+		// Prepare the response with user options for selection
+		resp := SelectUsersToAssociateRequiredResponse{
+			Status:      "user_association_selection_required",
+			Message:     "Please select users to associate",
+			LoginID:     loginID,
+			UserOptions: userOptions,
+		}
+
+		slog.Info("Returning user selection options", "user_id", userID, "option_count", len(userOptions))
+		return &Response{
+			Code:        http.StatusAccepted,
+			body:        resp,
+			contentType: "application/json",
+		}
 	}
 
-	slog.Info("Returning user selection options", "user_id", userID, "option_count", len(userOptions))
+	resp := AssociateUserResponse{
+		Status:     "user_association_required",
+		Message:    "Please call user association endpoint",
+		LoginID:    loginID,
+		UserOption: userOptions[0],
+	}
+
 	return &Response{
 		Code:        http.StatusAccepted,
 		body:        resp,
 		contentType: "application/json",
 	}
+
 }
 
 // Login a user
@@ -1228,7 +1250,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 				body: "Invalid token: " + err.Error(),
 			}
 		}
-		return h.prepareUserAssociationSelectionResponse(w, loginIdStr, userID, userOptions)
+		return h.prepareAssociateUsersResponse(w, loginIdStr, userID, userOptions)
 	}
 
 	// 2FA validation successful, create access and refresh tokens
