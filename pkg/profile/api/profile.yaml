@@ -560,7 +560,11 @@ components:
             $ref: "#/components/schemas/User"
     SelectUsersToAssociateRequiredResponse:
       type: object
+      x-go-optional-value: true
       properties:
+        login_id:
+          type: string
+          format: uuid
         user_options:
           type: array
           items:
