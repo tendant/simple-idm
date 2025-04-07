@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/ilyakaznacheev/cleanenv"
 	dbutils "github.com/tendant/db-utils/db"
+	"github.com/tendant/simple-idm/pkg/iam"
+	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/logins"
@@ -53,16 +55,24 @@ type Config struct {
 	PasswordComplexityConfig PasswordComplexityConfig
 }
 
+type UserInfo struct {
+	Email    string
+	Username string
+	Password string
+	RoleName string
+}
+
 func main() {
 	// Parse command line arguments
 	username := flag.String("username", "", "Username for the new user (required)")
 	password := flag.String("password", "", "Password for the new user (required)")
 	roleName := flag.String("role", "", "Role to assign to the user (required)")
+	email := flag.String("email", "", "Email for the new user (required)")
 	flag.Parse()
 
 	// Validate required arguments
-	if *username == "" || *password == "" || *roleName == "" {
-		fmt.Println("Error: username, password, and role are required")
+	if *username == "" || *password == "" || *roleName == "" || *email == "" {
+		fmt.Println("Error: username, password, role, and email are required")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -91,6 +101,7 @@ func main() {
 	loginQueries := logindb.New(pool)
 	loginsQueries := loginsdb.New(pool)
 	roleQueries := roledb.New(pool)
+	iamQueries := iamdb.New(pool)
 
 	// Create password policy and manager
 	passwordPolicy := createPasswordPolicy(&config.PasswordComplexityConfig)
@@ -104,6 +115,8 @@ func main() {
 	})
 	roleRepo := role.NewPostgresRoleRepository(roleQueries)
 	roleService := role.NewRoleService(roleRepo)
+	iamRepo := iam.NewPostgresIamRepository(iamQueries)
+	iamService := iam.NewIamService(iamRepo)
 
 	// Start a transaction
 	tx, err := pool.Begin(context.Background())
@@ -138,28 +151,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create the user
-	slog.Info("Creating user", "username", *username)
-	user, err := loginsService.CreateLogin(context.Background(), logins.LoginCreateRequest{
+	// Create the login record
+	slog.Info("Creating login record", "username", *username)
+	login, err := loginsService.CreateLogin(context.Background(), logins.LoginCreateRequest{
 		Username: *username,
 		Password: *password,
 	}, "init-user-cmd")
 	if err != nil {
-		slog.Error("Failed to create user", "error", err)
+		slog.Error("Failed to create login record", "error", err)
 		os.Exit(1)
 	}
 
-	// Assign the role to the user
-	slog.Info("Assigning role to user", "role", *roleName, "username", *username)
-	userID, err := uuid.Parse(user.ID)
-	if err != nil {
-		slog.Error("Failed to parse user ID", "error", err)
-		os.Exit(1)
-	}
+	// We don't need to parse the login ID as the CreateUser method accepts it as a string
 
-	err = roleService.AddUserToRole(context.Background(), roleID, userID, *username)
+	// Create the user record and associate with login
+	slog.Info("Creating user record", "email", *email)
+	userWithRoles, err := iamService.CreateUser(
+		context.Background(),
+		*email,
+		*username,
+		*username, // Using username as name if no separate name is provided
+		[]uuid.UUID{roleID},
+		login.ID,
+	)
 	if err != nil {
-		slog.Error("Failed to assign role to user", "error", err)
+		slog.Error("Failed to create user record", "error", err)
 		os.Exit(1)
 	}
 
@@ -170,7 +186,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	slog.Info("User created successfully", "username", *username, "role", *roleName, "id", user.ID)
+	slog.Info("User created successfully", "username", *username, "email", *email, "role", *roleName, "login_id", login.ID, "user_id", userWithRoles.ID)
 }
 
 func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolicy {
