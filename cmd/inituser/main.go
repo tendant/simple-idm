@@ -146,9 +146,17 @@ func main() {
 		}
 	}
 
+	// Create the role if it doesn't exist
 	if !roleFound {
-		slog.Error("Role not found", "role", *roleName)
-		os.Exit(1)
+		slog.Info("Role not found, creating new role", "role", *roleName)
+		roleID, err = roleService.CreateRole(context.Background(), *roleName)
+		if err != nil {
+			slog.Error("Failed to create role", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("Role created successfully", "role", *roleName, "id", roleID)
+	} else {
+		slog.Info("Using existing role", "role", *roleName, "id", roleID)
 	}
 
 	// Create the login record
