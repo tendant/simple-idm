@@ -1,7 +1,6 @@
+include .env
+export
+
 run:
-	go run main.go
+	arelo -t . -t '../..' -p '**/*.go' -i '**/.*' -i '**/*_test.go' -- go run .
 
-build:
-	go build -o init-user
-
-.PHONY: run build
