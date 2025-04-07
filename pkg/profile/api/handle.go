@@ -743,6 +743,7 @@ func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, u
 
 	// Prepare the response with user options for selection
 	resp := SelectUsersToAssociateRequiredResponse{
+		LoginID:     authLoginID,
 		Status:      "user_association_selection_required",
 		UserOptions: userOptions,
 		Message:     "Please select which user to use for this account",
