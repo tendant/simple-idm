@@ -1,7 +1,8 @@
+import { useLocation, useNavigate } from '@solidjs/router';
 import { Component, createSignal, onMount } from 'solid-js';
-import { useNavigate, useLocation } from '@solidjs/router';
 import { loginApi } from '../api/login';
 import { userApi } from '../api/user';
+import { Input } from '@/components/ui/input';
 
 const CreateLogin: Component = () => {
   const navigate = useNavigate();
@@ -127,14 +128,13 @@ const CreateLogin: Component = () => {
                   Username <span class="text-red-500">*</span>
                 </label>
                 <div class="mt-1">
-                  <input
+                  <Input
                     type="text"
                     name="username"
                     id="username"
                     required
                     value={username()}
                     onInput={(e) => setUsername(e.currentTarget.value)}
-                    class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   />
                 </div>
               </div>
@@ -144,14 +144,13 @@ const CreateLogin: Component = () => {
                   Password <span class="text-red-500">*</span>
                 </label>
                 <div class="mt-1">
-                  <input
+                  <Input
                     type="password"
                     name="password"
                     id="password"
                     required
                     value={password()}
                     onInput={(e) => setPassword(e.currentTarget.value)}
-                    class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   />
                 </div>
               </div>
@@ -161,14 +160,13 @@ const CreateLogin: Component = () => {
                   Confirm Password <span class="text-red-500">*</span>
                 </label>
                 <div class="mt-1">
-                  <input
+                  <Input
                     type="password"
                     name="confirmPassword"
                     id="confirmPassword"
                     required
                     value={confirmPassword()}
                     onInput={(e) => setConfirmPassword(e.currentTarget.value)}
-                    class="block w-full rounded-lg border-gray-6 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   />
                 </div>
               </div>
