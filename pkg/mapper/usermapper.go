@@ -16,6 +16,8 @@ type UserMapper interface {
 	FindUsernamesByEmail(ctx context.Context, email string) ([]string, error)
 	//TODO: add convertion to claim
 	ToTokenClaims(user User) (rootModifications map[string]interface{}, extraClaims map[string]interface{})
+	// FilterUsers filters the list of users that can log in
+	FilterUsers(ctx context.Context, users []User) ([]User, error)
 }
 
 // DefaultUserMapper implements the UserMapper interface
@@ -160,4 +162,11 @@ func (m *DefaultUserMapper) ToTokenClaims(user User) (rootModifications map[stri
 	}
 
 	return
+}
+
+// FilterUsers filters the list of users that can log in
+func (m *DefaultUserMapper) FilterUsers(ctx context.Context, users []User) ([]User, error) {
+	// This would need to be implemented based on your filtering logic
+	// For now, returning the original list of users
+	return users, nil
 }
