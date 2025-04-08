@@ -759,7 +759,7 @@ func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, u
 			}
 		}
 	}
-	return h.responseHandler.PrepareUserAssociationSelectionResponse(w, loginID, users)
+	return h.responseHandler.PrepareUserAssociationSelectionResponse(loginID, users)
 }
 
 // Switch to a different user when multiple users are available for the same login
@@ -889,7 +889,7 @@ type ResponseHandler interface {
 	// PrepareUserSwitchResponse prepares a response for user switch
 	PrepareUserSwitchResponse(users []mapper.User) *Response
 	// PrepareUserAssociationSelectionResponse prepares a response for user association selection
-	PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, users []mapper.User) *Response
+	PrepareUserAssociationSelectionResponse(loginID string, users []mapper.User) *Response
 }
 
 // DefaultResponseHandler is the default implementation of ResponseHandler
@@ -959,7 +959,7 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 }
 
 // PrepareUserAssociationSelectionResponse prepares a response for user association selection
-func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, users []mapper.User) *Response {
+func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(loginID string, users []mapper.User) *Response {
 
 	// Convert users to user options
 	userOptions := []UserOption{}

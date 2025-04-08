@@ -62,7 +62,7 @@ type ResponseHandler interface {
 	// PrepareTokenResponse prepares a response with access and refresh tokens
 	PrepareTokenResponse(tokens map[string]tg.TokenValue) *Response
 	// PrepareUserAssociationSelectionResponse prepares a response for user association selection
-	PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, users []mapper.User) *Response
+	PrepareUserAssociationSelectionResponse(loginID string, users []mapper.User) *Response
 }
 
 // DefaultResponseHandler is the default implementation of ResponseHandler
@@ -178,7 +178,7 @@ func (h *DefaultResponseHandler) PrepareTokenResponse(tokens map[string]tg.Token
 }
 
 // PrepareUserAssociationSelectionResponse prepares a response for user association selection
-func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, users []mapper.User) *Response {
+func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(loginID string, users []mapper.User) *Response {
 	// Convert mapper.User objects to UserOption objects
 	var userOptions []UserOption
 	for _, user := range users {
@@ -307,7 +307,7 @@ func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, l
 	}
 
 	if len(userOptions) > 1 {
-		return h.responseHandler.PrepareUserAssociationSelectionResponse(w, loginID, userOptions)
+		return h.responseHandler.PrepareUserAssociationSelectionResponse(loginID, userOptions)
 	}
 
 	user := UserOption{
