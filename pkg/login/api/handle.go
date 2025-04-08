@@ -351,6 +351,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	loginParams := LoginParams{
 		Username: data.Username,
 	}
+
+	// Get users matching the login credentials
 	idmUsers, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
@@ -360,47 +362,43 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	if len(idmUsers) == 0 {
-		slog.Error("No user found after login")
+	// Apply user filtering
+	filteredUsers, err := h.userMapper.FilterUsers(r.Context(), idmUsers)
+	if err != nil {
+		slog.Error("User filtering failed", "err", err)
 		return &Response{
+			Code: http.StatusInternalServerError,
 			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
 		}
 	}
 
-	// Get the first user
-	tokenUser := idmUsers[0]
+	slog.Info("User filtered", "users before filter", len(idmUsers), "users after filter", len(filteredUsers))
 
-	// Convert mapped users to API users
-	apiUsers := make([]User, len(idmUsers))
-	for i, mu := range idmUsers {
-		// Extract email and name from claims
-		email, _ := mu.ExtraClaims["email"].(string)
-		name := mu.DisplayName
+	// If no users are available after filtering, return unauthorized
+	if len(filteredUsers) == 0 {
+		slog.Info("No users available after filtering", "username", loginParams.Username)
+		return &Response{
+			Code: http.StatusUnauthorized,
+			body: "Username/Password is wrong",
+		}
+	}
 
-		apiUsers[i] = User{
-			ID:    mu.UserId,
-			Name:  name,
-			Email: email,
+	// Get the login ID from the first user
+	loginID, err := uuid.Parse(filteredUsers[0].LoginID)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "loginID", filteredUsers[0].LoginID, "error", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Invalid login ID format",
 		}
 	}
 
 	// Check if 2FA is enabled for current login
-	loginID, err := uuid.Parse(idmUsers[0].LoginID)
-	if err != nil {
-		slog.Error("Failed to parse login ID", "loginID", idmUsers[0].LoginID, "error", err)
-		return &Response{
-			body: "Invalid login ID",
-			Code: http.StatusInternalServerError,
-		}
-	}
-
-	// Check if 2FA is enabled
 	enabled, commonMethods, tempToken, err := common.Check2FAEnabled(
 		r.Context(),
 		w,
 		loginID,
-		idmUsers,
+		filteredUsers,
 		h.twoFactorService,
 		h.tokenService,
 		h.tokenCookieService,
@@ -420,7 +418,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Check if there are multiple users
-	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginID, idmUsers)
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginID, filteredUsers)
 	if err != nil {
 		return &Response{
 			body: err.Error(),
@@ -430,14 +428,14 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	if isMultipleUsers {
 		// Prepare user selection response
-		respBody := h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
+		respBody := h.responseHandler.PrepareUserSelectionResponse(filteredUsers, loginID, tempToken.Token)
 		return respBody
 	}
 
 	// Create JWT tokens using the JwtService
-	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(filteredUsers[0])
 
-	tokens, err := h.tokenService.GenerateTokens(tokenUser.UserId, rootModifications, extraClaims)
+	tokens, err := h.tokenService.GenerateTokens(filteredUsers[0].UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
@@ -448,10 +446,24 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	err = h.tokenCookieService.SetTokensCookie(w, tokens)
 	if err != nil {
-		slog.Error("Failed to set access token cookie", "err", err)
+		slog.Error("Failed to set tokens in cookies", "err", err)
 		return &Response{
-			body: "Failed to set access token cookie",
+			body: "Failed to set tokens in cookies",
 			Code: http.StatusInternalServerError,
+		}
+	}
+
+	// Convert mapped users to API users
+	apiUsers := make([]User, len(filteredUsers))
+	for i, mu := range filteredUsers {
+		// Extract email and name from claims
+		email, _ := mu.ExtraClaims["email"].(string)
+		name := mu.DisplayName
+
+		apiUsers[i] = User{
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
 		}
 	}
 
@@ -837,6 +849,16 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
+	filteredUsers, err := h.userMapper.FilterUsers(r.Context(), users)
+	if err != nil {
+		slog.Error("Error filtering users", "err", err)
+		return &Response{
+			body: "Error during user switch process",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	users = filteredUsers
+
 	// Check if the requested user is in the list
 	var targetUser mapper.User
 	found := false
@@ -902,13 +924,24 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	if len(idmUsers) == 0 {
-		slog.Error("No user found after login")
+	// Apply user filtering
+	filteredUsers, err := h.userMapper.FilterUsers(r.Context(), idmUsers)
+	if err != nil {
+		slog.Error("Error filtering users", "err", err)
 		return &Response{
-			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
+			body: "Error during login process",
+			Code: http.StatusInternalServerError,
 		}
 	}
+
+	if len(filteredUsers) == 0 {
+		slog.Error("No users available after filtering")
+		return &Response{
+			body: "No authorized users found",
+			Code: http.StatusForbidden,
+		}
+	}
+	idmUsers = filteredUsers
 
 	// Check if 2FA is enabled for current login
 	loginID, err := uuid.Parse(idmUsers[0].LoginID)
@@ -934,7 +967,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	if err != nil {
 		slog.Error("Failed to check 2FA", "err", err)
 		return &Response{
-			body: err.Error(),
+			body: "Failed to check 2FA",
 			Code: http.StatusInternalServerError,
 		}
 	}
@@ -954,7 +987,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	if isMultipleUsers {
-		// Return user selection response
+		// Prepare user selection response
 		return h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
 	}
 
@@ -963,7 +996,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
 	tokens, err := h.tokenService.GenerateTokens(tokenUser.UserId, rootModifications, extraClaims)
 	if err != nil {
-		slog.Error("Failed to create tokens", "user", tokenUser, "err", err)
+		slog.Error("Failed to create tokens", "err", err)
 		return &Response{
 			body: "Failed to create tokens",
 			Code: http.StatusInternalServerError,
@@ -1683,6 +1716,16 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 		}
 	}
 
+	filteredUsers, err := h.userMapper.FilterUsers(r.Context(), users)
+	if err != nil {
+		slog.Error("Error filtering users", "err", err)
+		return &Response{
+			body: "Error during login process",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	users = filteredUsers
+
 	// Check if the requested user is in the list
 	var targetUser mapper.User
 	found := false
@@ -1789,7 +1832,16 @@ func (h Handle) MobileFindUsersWithLogin(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	return h.responseHandler.PrepareUserListResponse(users)
+	filteredUsers, err := h.userMapper.FilterUsers(r.Context(), users)
+	if err != nil {
+		slog.Error("Error filtering users", "err", err)
+		return &Response{
+			body: "Error during login process",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	return h.responseHandler.PrepareUserListResponse(filteredUsers)
 }
 
 // Helper function to create a pointer to a string
