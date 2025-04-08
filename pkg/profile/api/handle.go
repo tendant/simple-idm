@@ -493,15 +493,6 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 		}
 	}
 
-	// Prepare user options for selection response
-	userOptions := []UserOption{}
-	for _, user := range idmUsers {
-		userOptions = append(userOptions, UserOption{
-			UserID:      user.UserId,
-			DisplayName: user.DisplayName,
-		})
-	}
-
 	// Check if 2FA is enabled for any of the users associated with this login
 	is2FAEnabled, commonMethods, tempToken, err := common.Check2FAEnabled(
 		r.Context(),
@@ -511,7 +502,7 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 		h.twoFaService,
 		h.tokenService,
 		h.tokenCookieService,
-		userOptions,
+		idmUsers,
 	)
 	if err != nil {
 		slog.Error("Failed to check 2FA status", "login_id", login.ID, "err", err)
@@ -528,41 +519,12 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 	}
 
 	// If 2FA is not enabled and there are multiple users, return a user selection response
-	if len(userOptions) > 1 {
-		// Generate a temporary token with the necessary claims
-		extraClaims := map[string]interface{}{
-			"login_id":     authUser.LoginID,
-			"2fa_verified": true,
-		}
-		// Add user options to extra claims if provided
-		if userOptions != nil {
-			extraClaims["user_options"] = userOptions
-		}
-		tempTokenMap, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
-		if err != nil {
-			slog.Error("Failed to generate temp token", "err", err)
-			return &Response{
-				Code: http.StatusInternalServerError,
-				body: "Failed to generate temp token: " + err.Error(),
-			}
-		}
-
-		// Set the token cookie if a response writer is provided
-		if w != nil {
-			err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
-			if err != nil {
-				slog.Error("Failed to set temp token cookie", "err", err)
-				return &Response{
-					Code: http.StatusInternalServerError,
-					body: "Failed to set temp token cookie: " + err.Error(),
-				}
-			}
-		}
-		return h.responseHandler.PrepareUserAssociationSelectionResponse(w, authUser.LoginId, userOptions)
+	if len(idmUsers) > 1 {
+		return h.prepareTemporaryTokenAndResponse(w, idmUsers[0].UserId, authUser.LoginId, idmUsers, true)
 	}
 
 	// If 2FA is not enabled and there is only one user, associate user with current login
-	_, err = h.updateUserLoginID(r.Context(), userOptions[0].UserID, originalLoginId, authUser.DisplayName)
+	_, err = h.updateUserLoginID(r.Context(), idmUsers[0].UserId, originalLoginId, authUser.DisplayName)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
@@ -766,6 +728,40 @@ func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMetho
 	}
 }
 
+// prepareTemporaryTokenAndResponse generates a temporary token with claims and prepares a user association selection response
+func (h Handle) prepareTemporaryTokenAndResponse(w http.ResponseWriter, userID string, loginID string, users []mapper.User, twoFAVerified bool) *Response {
+	// Generate a temporary token with the necessary claims
+	extraClaims := map[string]interface{}{
+		"login_id":     loginID,
+		"2fa_verified": twoFAVerified,
+	}
+	// Add user options to extra claims if provided
+	if users != nil && len(users) > 0 {
+		extraClaims["user_options"] = users
+	}
+	tempTokenMap, err := h.tokenService.GenerateTempToken(userID, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to generate temp token: " + err.Error(),
+		}
+	}
+
+	// Set the token cookie if a response writer is provided
+	if w != nil {
+		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to set temp token cookie: " + err.Error(),
+			}
+		}
+	}
+	return h.responseHandler.PrepareUserAssociationSelectionResponse(w, loginID, users)
+}
+
 // Switch to a different user when multiple users are available for the same login
 // (POST /user/switch)
 func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response {
@@ -893,7 +889,7 @@ type ResponseHandler interface {
 	// PrepareUserSwitchResponse prepares a response for user switch
 	PrepareUserSwitchResponse(users []mapper.User) *Response
 	// PrepareUserAssociationSelectionResponse prepares a response for user association selection
-	PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, userOptions []UserOption) *Response
+	PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, users []mapper.User) *Response
 }
 
 // DefaultResponseHandler is the default implementation of ResponseHandler
@@ -963,7 +959,23 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 }
 
 // PrepareUserAssociationSelectionResponse prepares a response for user association selection
-func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, userOptions []UserOption) *Response {
+func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, users []mapper.User) *Response {
+
+	// Convert users to user options
+	userOptions := []UserOption{}
+
+	for _, user := range users {
+		email, _ := user.ExtraClaims["email"].(string)
+		// Check if email is available in UserInfo
+		if user.UserInfo.Email != "" {
+			email = user.UserInfo.Email
+		}
+		userOptions = append(userOptions, UserOption{
+			UserID:      user.UserId,
+			DisplayName: user.DisplayName,
+			Email:       email,
+		})
+	}
 
 	// Prepare the response with user options for selection
 	resp := SelectUsersToAssociateRequiredResponse{
@@ -973,7 +985,7 @@ func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(w http.
 		Message:     "Please select which user to use for this account",
 	}
 
-	slog.Info("Returning user selection options", "login_id", loginID, "option_count", len(userOptions))
+	slog.Info("Returning user selection options", "login_id", loginID, "option_count", len(users))
 	return &Response{
 		Code:        http.StatusAccepted,
 		body:        resp,
