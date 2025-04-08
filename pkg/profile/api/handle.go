@@ -520,7 +520,7 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 
 	// If 2FA is not enabled and there are multiple users, return a user selection response
 	if len(idmUsers) > 1 {
-		return h.prepareTemporaryTokenAndResponse(w, idmUsers[0].UserId, authUser.LoginId, idmUsers, true)
+		return h.prepareUserAssociationSelectionResponse(w, idmUsers[0].UserId, authUser.LoginId, idmUsers, true)
 	}
 
 	// If 2FA is not enabled and there is only one user, associate user with current login
@@ -729,7 +729,7 @@ func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMetho
 }
 
 // prepareTemporaryTokenAndResponse generates a temporary token with claims and prepares a user association selection response
-func (h Handle) prepareTemporaryTokenAndResponse(w http.ResponseWriter, userID string, loginID string, users []mapper.User, twoFAVerified bool) *Response {
+func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, userID string, loginID string, users []mapper.User, twoFAVerified bool) *Response {
 	// Generate a temporary token with the necessary claims
 	extraClaims := map[string]interface{}{
 		"login_id":     loginID,
