@@ -373,6 +373,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	slog.Info("User filtered", "users before filter", len(idmUsers), "users after filter", len(filteredUsers))
+	idmUsers = filteredUsers
 
 	// If no users are available after filtering, return unauthorized
 	if len(filteredUsers) == 0 {
@@ -1296,6 +1297,15 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	// Extract user options from claims using the helper method
 	userOptions := h.ExtractUserOptionsFromClaims(token.Claims)
+	filteredUserOptions, err := h.userMapper.FilterUsers(r.Context(), userOptions)
+	if err != nil {
+		slog.Error("Error filtering user options", "err", err)
+		return &Response{
+			body: "Error during login process",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	userOptions = filteredUserOptions
 
 	// If we have user options, return a user association selection required response
 	if len(userOptions) > 0 {
@@ -1321,6 +1331,16 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
+	filteredIdmUsers, err := h.userMapper.FilterUsers(r.Context(), idmUsers)
+	if err != nil {
+		slog.Error("Error filtering user options", "err", err)
+		return &Response{
+			body: "Error during login process",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	idmUsers = filteredIdmUsers
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after 2fa")
 		return &Response{
@@ -1605,6 +1625,16 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 			body: "failed to get user roles: " + err.Error(),
 		}
 	}
+
+	filteredIdmUsers, err := h.userMapper.FilterUsers(r.Context(), idmUsers)
+	if err != nil {
+		slog.Error("Error filtering user options", "err", err)
+		return &Response{
+			body: "Error during login process",
+			Code: http.StatusInternalServerError,
+		}
+	}
+	idmUsers = filteredIdmUsers
 
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after 2fa")
