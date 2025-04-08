@@ -529,7 +529,36 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 
 	// If 2FA is not enabled and there are multiple users, return a user selection response
 	if len(userOptions) > 1 {
-		return h.prepareUserAssociationSelectionResponse(w, idmUsers[0].UserId, authUser.LoginId, userOptions)
+		// Generate a temporary token with the necessary claims
+		extraClaims := map[string]interface{}{
+			"login_id":     authUser.LoginID,
+			"2fa_verified": true,
+		}
+		// Add user options to extra claims if provided
+		if userOptions != nil {
+			extraClaims["user_options"] = userOptions
+		}
+		tempTokenMap, err := h.tokenService.GenerateTempToken(idmUsers[0].UserId, nil, extraClaims)
+		if err != nil {
+			slog.Error("Failed to generate temp token", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to generate temp token: " + err.Error(),
+			}
+		}
+
+		// Set the token cookie if a response writer is provided
+		if w != nil {
+			err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
+			if err != nil {
+				slog.Error("Failed to set temp token cookie", "err", err)
+				return &Response{
+					Code: http.StatusInternalServerError,
+					body: "Failed to set temp token cookie: " + err.Error(),
+				}
+			}
+		}
+		return h.responseHandler.PrepareUserAssociationSelectionResponse(w, authUser.LoginId, userOptions)
 	}
 
 	// If 2FA is not enabled and there is only one user, associate user with current login
@@ -707,56 +736,6 @@ func (h Handle) validateTokenAndExtractClaims(r *http.Request, expectedLoginID s
 	return token, nil
 }
 
-// prepareUserAssociationSelectionResponse prepares a response for user association selection
-// It generates a temporary token with the necessary claims and returns a properly formatted response
-func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, userID string, authLoginID string, userOptions []UserOption) *Response {
-	extraClaims := map[string]interface{}{
-		"login_id":     authLoginID,
-		"2fa_verified": true,
-	}
-	// Add user options to extra claims if provided
-	if userOptions != nil {
-		extraClaims["user_options"] = userOptions
-	}
-
-	// Generate a temporary token with the necessary claims
-	tempTokenMap, err := h.tokenService.GenerateTempToken(userID, nil, extraClaims)
-	if err != nil {
-		slog.Error("Failed to generate temp token", "err", err)
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "Failed to generate temp token: " + err.Error(),
-		}
-	}
-
-	// Set the token cookie if a response writer is provided
-	if w != nil {
-		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
-		if err != nil {
-			slog.Error("Failed to set temp token cookie", "err", err)
-			return &Response{
-				Code: http.StatusInternalServerError,
-				body: "Failed to set temp token cookie: " + err.Error(),
-			}
-		}
-	}
-
-	// Prepare the response with user options for selection
-	resp := SelectUsersToAssociateRequiredResponse{
-		LoginID:     authLoginID,
-		Status:      "user_association_selection_required",
-		UserOptions: userOptions,
-		Message:     "Please select which user to use for this account",
-	}
-
-	slog.Info("Returning user selection options", "login_id", authLoginID, "option_count", len(userOptions))
-	return &Response{
-		Code:        http.StatusAccepted,
-		body:        resp,
-		contentType: "application/json",
-	}
-}
-
 // prepare2FARequiredResponse prepares a 2FA required response
 func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMethod, tempToken *tg.TokenValue) *Response {
 	// Convert common.TwoFactorMethod to api.TwoFactorMethodSelection
@@ -913,6 +892,8 @@ type ResponseHandler interface {
 	PrepareUserListResponse(users []mapper.User) *Response
 	// PrepareUserSwitchResponse prepares a response for user switch
 	PrepareUserSwitchResponse(users []mapper.User) *Response
+	// PrepareUserAssociationSelectionResponse prepares a response for user association selection
+	PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, userOptions []UserOption) *Response
 }
 
 // DefaultResponseHandler is the default implementation of ResponseHandler
@@ -979,4 +960,23 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 	}
 
 	return PostUserSwitchJSON200Response(response)
+}
+
+// PrepareUserAssociationSelectionResponse prepares a response for user association selection
+func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, userOptions []UserOption) *Response {
+
+	// Prepare the response with user options for selection
+	resp := SelectUsersToAssociateRequiredResponse{
+		LoginID:     loginID,
+		Status:      "user_association_selection_required",
+		UserOptions: userOptions,
+		Message:     "Please select which user to use for this account",
+	}
+
+	slog.Info("Returning user selection options", "login_id", loginID, "option_count", len(userOptions))
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        resp,
+		contentType: "application/json",
+	}
 }
