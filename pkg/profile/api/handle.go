@@ -30,6 +30,7 @@ type Handle struct {
 	tokenService       tg.TokenService
 	tokenCookieService tg.TokenCookieService
 	loginService       *login.LoginService
+	userMapper         mapper.UserMapper
 }
 
 func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService, responseHandler ResponseHandler) Handle {
@@ -485,6 +486,16 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 		}
 	}
 
+	filteredUsers, err := h.userMapper.FilterUsers(r.Context(), idmUsers)
+	if err != nil {
+		slog.Error("User filtering failed", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to filter users",
+		}
+	}
+	idmUsers = filteredUsers
+
 	if len(idmUsers) == 0 {
 		slog.Error("No users found for login ID", "login_id", login.ID)
 		return &Response{
@@ -804,6 +815,16 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
+	filteredUsers, err := h.userMapper.FilterUsers(r.Context(), users)
+	if err != nil {
+		slog.Error("Failed to filter users", "err", err)
+		return &Response{
+			body: "Failed to filter users: " + err.Error(),
+			Code: http.StatusInternalServerError,
+		}
+	}
+	users = filteredUsers
+
 	// Check if the requested user is in the list
 	var targetUser mapper.User
 	found := false
@@ -878,6 +899,15 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 			Code: http.StatusInternalServerError,
 		}
 	}
+	filteredUsers, err := h.userMapper.FilterUsers(r.Context(), users)
+	if err != nil {
+		slog.Error("Failed to filter users", "err", err)
+		return &Response{
+			body: "Failed to filter users: " + err.Error(),
+			Code: http.StatusInternalServerError,
+		}
+	}
+	users = filteredUsers
 
 	return h.responseHandler.PrepareUserListResponse(users)
 }
