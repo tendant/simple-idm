@@ -45,7 +45,7 @@ func Check2FAEnabled(
 	twoFactorService twofa.TwoFactorService,
 	tokenService tg.TokenService,
 	tokenCookieService tg.TokenCookieService,
-	userOptions interface{},
+	userOptions []mapper.User,
 ) (bool, []TwoFactorMethod, *tg.TokenValue, error) {
 	if twoFactorService == nil {
 		return false, nil, nil, nil
@@ -99,7 +99,7 @@ func Check2FAEnabled(
 		"users":    apiUsers,
 	}
 	// Add user options to extra claims if provided
-	if userOptions != nil {
+	if userOptions != nil && len(userOptions) > 0 {
 		extraClaims["user_options"] = userOptions
 	}
 

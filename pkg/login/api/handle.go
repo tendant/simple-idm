@@ -61,6 +61,8 @@ type ResponseHandler interface {
 	PrepareUserSwitchResponse(users []mapper.User) *Response
 	// PrepareTokenResponse prepares a response with access and refresh tokens
 	PrepareTokenResponse(tokens map[string]tg.TokenValue) *Response
+	// PrepareUserAssociationSelectionResponse prepares a response for user association selection
+	PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, users []mapper.User) *Response
 }
 
 // DefaultResponseHandler is the default implementation of ResponseHandler
@@ -175,6 +177,36 @@ func (h *DefaultResponseHandler) PrepareTokenResponse(tokens map[string]tg.Token
 	}
 }
 
+// PrepareUserAssociationSelectionResponse prepares a response for user association selection
+func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID string, users []mapper.User) *Response {
+	// Convert mapper.User objects to UserOption objects
+	var userOptions []UserOption
+	for _, user := range users {
+		option := UserOption{
+			UserID:      user.UserId,
+			DisplayName: user.DisplayName,
+			Email:       user.UserInfo.Email,
+		}
+
+		userOptions = append(userOptions, option)
+	}
+
+	// Prepare the response with user options for selection
+	resp := SelectUsersToAssociateRequiredResponse{
+		Status:      "user_association_selection_required",
+		Message:     "Please select users to associate",
+		LoginID:     loginID,
+		UserOptions: userOptions,
+	}
+
+	slog.Info("Returning user selection options", "login_id", loginID, "option_count", len(users))
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        resp,
+		contentType: "application/json",
+	}
+}
+
 // prepare2FARequiredResponse prepares a 2FA required response
 // helper method for login handler, private since no need for separate implementation
 func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMethod, tempToken *tg.TokenValue) *Response {
@@ -233,9 +265,9 @@ func (h Handle) checkMultipleUsers(ctx context.Context, w http.ResponseWriter, l
 	return true, &tempToken, nil
 }
 
-// prepareAssociateUsersResponse prepares a response for user association selection
+// prepareUserAssociationSelectionResponse prepares a response for user association selection
 // It generates a temporary token with the necessary claims and returns a properly formatted response
-func (h Handle) prepareAssociateUsersResponse(w http.ResponseWriter, loginID, userID string, userOptions []UserOption) *Response {
+func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID, userID string, userOptions []mapper.User) *Response {
 	// Prepare extra claims for the temp token
 	extraClaims := map[string]interface{}{
 		"login_id":     loginID,
@@ -275,27 +307,20 @@ func (h Handle) prepareAssociateUsersResponse(w http.ResponseWriter, loginID, us
 	}
 
 	if len(userOptions) > 1 {
-		// Prepare the response with user options for selection
-		resp := SelectUsersToAssociateRequiredResponse{
-			Status:      "user_association_selection_required",
-			Message:     "Please select users to associate",
-			LoginID:     loginID,
-			UserOptions: userOptions,
-		}
+		return h.responseHandler.PrepareUserAssociationSelectionResponse(w, loginID, userOptions)
+	}
 
-		slog.Info("Returning user selection options", "user_id", userID, "option_count", len(userOptions))
-		return &Response{
-			Code:        http.StatusAccepted,
-			body:        resp,
-			contentType: "application/json",
-		}
+	user := UserOption{
+		UserID:      userOptions[0].UserId,
+		DisplayName: userOptions[0].DisplayName,
+		Email:       userOptions[0].UserInfo.Email,
 	}
 
 	resp := AssociateUserResponse{
 		Status:     "user_association_required",
 		Message:    "Please call user association endpoint",
 		LoginID:    loginID,
-		UserOption: userOptions[0],
+		UserOption: user,
 	}
 
 	return &Response{
@@ -379,7 +404,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		h.twoFactorService,
 		h.tokenService,
 		h.tokenCookieService,
-		nil, // No login options for this flow
+		nil, // No user options for this flow
 	)
 	if err != nil {
 		slog.Error("Failed to check 2FA", "err", err)
@@ -1239,7 +1264,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	// Extract user options from claims using the helper method
 	userOptions := h.ExtractUserOptionsFromClaims(token.Claims)
 
-	// If we have user options, return a user selection required response
+	// If we have user options, return a user association selection required response
 	if len(userOptions) > 0 {
 		// Extract user ID from token claims
 		userID, err := common.GetUserIDFromClaims(token.Claims)
@@ -1250,7 +1275,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 				body: "Invalid token: " + err.Error(),
 			}
 		}
-		return h.prepareAssociateUsersResponse(w, loginIdStr, userID, userOptions)
+		return h.prepareUserAssociationSelectionResponse(w, loginIdStr, userID, userOptions)
 	}
 
 	// 2FA validation successful, create access and refresh tokens
@@ -1315,7 +1340,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	return Post2faValidateJSON200Response(resp)
 }
 
-func (h Handle) ExtractUserOptionsFromClaims(claims jwt.Claims) []UserOption {
+func (h Handle) ExtractUserOptionsFromClaims(claims jwt.Claims) []mapper.User {
 	additionalClaims := make(map[string]interface{})
 	if mapClaims, ok := claims.(jwt.MapClaims); ok {
 		slog.Info("Claims", "claims", mapClaims)
@@ -1337,20 +1362,33 @@ func (h Handle) ExtractUserOptionsFromClaims(claims jwt.Claims) []UserOption {
 		slog.Info("User options found", "userOptions", userOptionsData)
 
 		// Convert to the expected type
-		var userOptions []UserOption
+		var userOptions []mapper.User
 
 		// Handle different possible formats of user options
 		if optionsSlice, ok := userOptionsData.([]interface{}); ok {
 			for _, opt := range optionsSlice {
 				if optMap, ok := opt.(map[string]interface{}); ok {
-					option := UserOption{}
+					user := mapper.User{}
+
+					// Extract user ID
 					if id, ok := optMap["user_id"].(string); ok {
-						option.UserID = id
+						user.UserId = id
 					}
 					if displayName, ok := optMap["display_name"].(string); ok {
-						option.DisplayName = displayName
+						user.DisplayName = displayName
 					}
-					userOptions = append(userOptions, option)
+
+					// Handle UserInfo if present
+					if userInfo, ok := optMap["user_info"].(map[string]interface{}); ok {
+						if email, ok := userInfo["email"].(string); ok && email != "" {
+							user.UserInfo.Email = email
+						}
+					}
+
+					userOptions = append(userOptions, user)
+				} else if user, ok := opt.(mapper.User); ok {
+					// If the option is already a mapper.User, use it directly
+					userOptions = append(userOptions, user)
 				}
 			}
 		}

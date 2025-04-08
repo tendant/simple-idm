@@ -391,6 +391,9 @@ components:
         display_name:
           type: string
           description: fullname of the user
+        email:
+          type: string
+          
     SuccessResponse:
       x-go-optional-value: true
       type: object
