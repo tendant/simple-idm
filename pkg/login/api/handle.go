@@ -376,7 +376,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	idmUsers = filteredUsers
 
 	// If no users are available after filtering, return unauthorized
-	if len(filteredUsers) == 0 {
+	if len(idmUsers) == 0 {
 		slog.Info("No users available after filtering", "username", loginParams.Username)
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -385,9 +385,9 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Get the login ID from the first user
-	loginID, err := uuid.Parse(filteredUsers[0].LoginID)
+	loginID, err := uuid.Parse(idmUsers[0].LoginID)
 	if err != nil {
-		slog.Error("Failed to parse login ID", "loginID", filteredUsers[0].LoginID, "error", err)
+		slog.Error("Failed to parse login ID", "loginID", idmUsers[0].LoginID, "error", err)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Invalid login ID format",
@@ -399,7 +399,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		r.Context(),
 		w,
 		loginID,
-		filteredUsers,
+		idmUsers,
 		h.twoFactorService,
 		h.tokenService,
 		h.tokenCookieService,
@@ -419,7 +419,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Check if there are multiple users
-	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginID, filteredUsers)
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginID, idmUsers)
 	if err != nil {
 		return &Response{
 			body: err.Error(),
@@ -429,14 +429,14 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	if isMultipleUsers {
 		// Prepare user selection response
-		respBody := h.responseHandler.PrepareUserSelectionResponse(filteredUsers, loginID, tempToken.Token)
+		respBody := h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
 		return respBody
 	}
 
 	// Create JWT tokens using the JwtService
-	rootModifications, extraClaims := h.loginService.ToTokenClaims(filteredUsers[0])
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(idmUsers[0])
 
-	tokens, err := h.tokenService.GenerateTokens(filteredUsers[0].UserId, rootModifications, extraClaims)
+	tokens, err := h.tokenService.GenerateTokens(idmUsers[0].UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
 		return &Response{
@@ -455,8 +455,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Convert mapped users to API users
-	apiUsers := make([]User, len(filteredUsers))
-	for i, mu := range filteredUsers {
+	apiUsers := make([]User, len(idmUsers))
+	for i, mu := range idmUsers {
 		// Extract email and name from claims
 		email, _ := mu.ExtraClaims["email"].(string)
 		name := mu.DisplayName
