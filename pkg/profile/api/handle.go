@@ -33,8 +33,20 @@ type Handle struct {
 	userMapper         mapper.UserMapper
 }
 
-func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService, responseHandler ResponseHandler) Handle {
-	return Handle{
+// Option is a function that configures a Handle
+type Option func(*Handle)
+
+// WithUserMapper returns an Option to set the user mapper
+func WithUserMapper(userMapper mapper.UserMapper) Option {
+	return func(h *Handle) {
+		h.userMapper = userMapper
+	}
+}
+
+// NewHandle creates a new Handle with default values
+func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService, responseHandler ResponseHandler, opts ...Option) Handle {
+	// Create handle with default values
+	h := Handle{
 		profileService:     profileService,
 		twoFaService:       twoFaService,
 		responseHandler:    responseHandler,
@@ -42,6 +54,13 @@ func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFa
 		tokenCookieService: tokenCookieService,
 		loginService:       loginService,
 	}
+
+	// Apply all options
+	for _, opt := range opts {
+		opt(&h)
+	}
+
+	return h
 }
 
 const (
@@ -814,7 +833,6 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 			Code: http.StatusInternalServerError,
 		}
 	}
-
 	filteredUsers, err := h.userMapper.FilterUsers(r.Context(), users)
 	if err != nil {
 		slog.Error("Failed to filter users", "err", err)
