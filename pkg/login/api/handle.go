@@ -1378,16 +1378,9 @@ func (h Handle) ExtractUserOptionsFromClaims(claims jwt.Claims) []mapper.User {
 						user.DisplayName = displayName
 					}
 
-					// Extract email if available
-					if email, ok := optMap["email"].(string); ok {
-						if user.ExtraClaims == nil {
-							user.ExtraClaims = make(map[string]interface{})
-						}
-						user.ExtraClaims["email"] = email
-					}
 					// Handle UserInfo if present
-					if userInfo, ok := optMap["UserInfo"].(map[string]interface{}); ok {
-						if email, ok := userInfo["Email"].(string); ok && email != "" {
+					if userInfo, ok := optMap["user_info"].(map[string]interface{}); ok {
+						if email, ok := userInfo["email"].(string); ok && email != "" {
 							user.UserInfo.Email = email
 						}
 					}
