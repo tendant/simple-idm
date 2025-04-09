@@ -64,20 +64,6 @@ func Check2FAEnabled(
 
 	slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
 
-	// Convert mapped users to API users for token claims
-	apiUsers := make([]User, len(idmUsers))
-	for i, mu := range idmUsers {
-		// Extract email and name from claims
-		email, _ := mu.ExtraClaims["email"].(string)
-		name := mu.DisplayName
-
-		apiUsers[i] = User{
-			ID:    mu.UserId,
-			Name:  name,
-			Email: email,
-		}
-	}
-
 	// If email 2FA is enabled, get unique emails from users
 	var twoFactorMethods []TwoFactorMethod
 	for _, method := range enabledTwoFAs {
@@ -96,7 +82,7 @@ func Check2FAEnabled(
 
 	extraClaims := map[string]interface{}{
 		"login_id": loginID.String(),
-		"users":    apiUsers,
+		"users":    idmUsers,
 	}
 	// Add user options to extra claims if provided
 	if userOptions != nil && len(userOptions) > 0 {
