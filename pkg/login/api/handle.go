@@ -1385,6 +1385,10 @@ func (h Handle) ExtractUserOptionsFromClaims(claims jwt.Claims) []mapper.User {
 						}
 					}
 
+					if extraClaims, ok := optMap["extra_claims"].(map[string]interface{}); ok {
+						user.ExtraClaims = extraClaims
+					}
+
 					userOptions = append(userOptions, user)
 				} else if user, ok := opt.(mapper.User); ok {
 					// If the option is already a mapper.User, use it directly
