@@ -105,11 +105,13 @@ func MaskEmail(email string) string {
 	localPart := parts[0]
 	domain := parts[1]
 
-	// Show first character and mask the rest, keeping the domain
-	if len(localPart) > 1 {
-		return localPart[:1] + "***@" + domain
+	// Show first and last character, mask the middle
+	if len(localPart) > 2 {
+		return localPart[:1] + "***" + localPart[len(localPart)-1:] + "@" + domain
+	} else if len(localPart) == 2 {
+		return localPart[:1] + "*" + localPart[1:] + "@" + domain
 	}
-	return "***@" + domain
+	return localPart + "@" + domain // For single character local parts, don't mask
 }
 
 // NullStringToNullUUID converts a sql.NullString to uuid.NullUUID
