@@ -404,7 +404,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		h.twoFactorService,
 		h.tokenService,
 		h.tokenCookieService,
-		nil, // No user options for this flow
+		false, // Not associate user in this API
 	)
 	if err != nil {
 		slog.Error("Failed to check 2FA", "err", err)
@@ -929,7 +929,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		h.twoFactorService,
 		h.tokenService,
 		h.tokenCookieService,
-		nil, // No user options for this flow
+		false, // Not associate user in this API
 	)
 	if err != nil {
 		slog.Error("Failed to check 2FA", "err", err)
@@ -1260,12 +1260,20 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 			body: "2fa validation failed",
 		}
 	}
+	// 2FA validation successful, get users by login ID
+	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to get user roles: " + err.Error(),
+		}
+	}
 
 	// Extract user options from claims using the helper method
-	userOptions := h.ExtractUserOptionsFromClaims(token.Claims)
+	isAssociateUser := h.checkAssociateUser(token.Claims)
 
 	// If we have user options, return a user association selection required response
-	if len(userOptions) > 0 {
+	if isAssociateUser {
 		// Extract user ID from token claims
 		userID, err := common.GetUserIDFromClaims(token.Claims)
 		if err != nil {
@@ -1275,17 +1283,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 				body: "Invalid token: " + err.Error(),
 			}
 		}
-		return h.prepareUserAssociationSelectionResponse(w, loginIdStr, userID, userOptions)
-	}
-
-	// 2FA validation successful, create access and refresh tokens
-	// Extract user data from claims to use for token creation
-	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
-	if err != nil {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "failed to get user roles: " + err.Error(),
-		}
+		return h.prepareUserAssociationSelectionResponse(w, loginIdStr, userID, idmUsers)
 	}
 
 	if len(idmUsers) == 0 {
@@ -1340,8 +1338,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	return Post2faValidateJSON200Response(resp)
 }
 
-func (h Handle) ExtractUserOptionsFromClaims(claims jwt.Claims) []mapper.User {
-	additionalClaims := make(map[string]interface{})
+func (h Handle) checkAssociateUser(claims jwt.Claims) bool {
 	if mapClaims, ok := claims.(jwt.MapClaims); ok {
 		slog.Info("Claims", "claims", mapClaims)
 
@@ -1350,57 +1347,13 @@ func (h Handle) ExtractUserOptionsFromClaims(claims jwt.Claims) []mapper.User {
 			slog.Info("Extra claims", "extraClaims", extraClaims)
 
 			// Extract user options from extra_claims
-			if userOptions, exists := extraClaims["user_options"]; exists {
-				slog.Info("User options found", "userOptions", userOptions)
-				additionalClaims["user_options"] = userOptions
+			if associateUser, exists := extraClaims["associate_users"]; exists {
+				slog.Info("Current 2FA is in associate user flow", "associateUser", associateUser)
+				return associateUser.(bool)
 			}
 		}
 	}
-
-	// Check if we have user options to return
-	if userOptionsData, exists := additionalClaims["user_options"]; exists && userOptionsData != nil {
-		slog.Info("User options found", "userOptions", userOptionsData)
-
-		// Convert to the expected type
-		var userOptions []mapper.User
-
-		// Handle different possible formats of user options
-		if optionsSlice, ok := userOptionsData.([]interface{}); ok {
-			for _, opt := range optionsSlice {
-				if optMap, ok := opt.(map[string]interface{}); ok {
-					user := mapper.User{}
-
-					// Extract user ID
-					if id, ok := optMap["user_id"].(string); ok {
-						user.UserId = id
-					}
-					if displayName, ok := optMap["display_name"].(string); ok {
-						user.DisplayName = displayName
-					}
-
-					// Handle UserInfo if present
-					if userInfo, ok := optMap["user_info"].(map[string]interface{}); ok {
-						if email, ok := userInfo["email"].(string); ok && email != "" {
-							user.UserInfo.Email = email
-						}
-					}
-
-					if extraClaims, ok := optMap["extra_claims"].(map[string]interface{}); ok {
-						user.ExtraClaims = extraClaims
-					}
-
-					userOptions = append(userOptions, user)
-				} else if user, ok := opt.(mapper.User); ok {
-					// If the option is already a mapper.User, use it directly
-					userOptions = append(userOptions, user)
-				}
-			}
-		}
-
-		return userOptions
-	}
-
-	return nil
+	return false
 }
 
 // GetPasswordResetPolicy returns the current password policy

@@ -502,7 +502,7 @@ func (h Handle) AssociateUser(w http.ResponseWriter, r *http.Request) *Response 
 		h.twoFaService,
 		h.tokenService,
 		h.tokenCookieService,
-		idmUsers,
+		true, // associate user is true in this API
 	)
 	if err != nil {
 		slog.Error("Failed to check 2FA status", "login_id", login.ID, "err", err)
