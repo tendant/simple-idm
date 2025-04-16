@@ -19,16 +19,18 @@ const (
 
 // Default token expiry durations
 const (
-	DefaultAccessTokenExpiry  = 5 * time.Minute
-	DefaultRefreshTokenExpiry = 15 * time.Minute
-	DefaultTempTokenExpiry    = 10 * time.Minute
-	DefaultLogoutTokenExpiry  = -1 * time.Second
+	DefaultAccessTokenExpiry        = 5 * time.Minute
+	DefaultRefreshTokenExpiry       = 15 * time.Minute
+	DefaultMobileRefreshTokenExpiry = 90 * 24 * 60 * time.Minute
+	DefaultTempTokenExpiry          = 10 * time.Minute
+	DefaultLogoutTokenExpiry        = -1 * time.Second
 )
 
 type TokenService interface {
 	// Token generation methods
 	GenerateTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error)
 	GenerateTempToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error)
+	GenerateMobileTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error)
 	GenerateLogoutToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error)
 	ParseToken(tokenStr string) (*jwt.Token, error)
 }
@@ -66,6 +68,36 @@ func (d *DefaultTokenService) GenerateTokens(subject string, rootModifications m
 
 	tokenName = REFRESH_TOKEN_NAME
 	refreshToken, refreshTokenExpiry, err := d.refreshTokenGenerator.GenerateToken(subject, DefaultRefreshTokenExpiry, rootModifications, extraClaims)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
+	}
+
+	result := map[string]TokenValue{
+		ACCESS_TOKEN_NAME: {
+			Name:   ACCESS_TOKEN_NAME,
+			Token:  accessToken,
+			Expiry: accessTokenExpiry,
+		},
+		REFRESH_TOKEN_NAME: {
+			Name:   REFRESH_TOKEN_NAME,
+			Token:  refreshToken,
+			Expiry: refreshTokenExpiry,
+		},
+	}
+
+	return result, nil
+}
+
+func (d *DefaultTokenService) GenerateMobileTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error) {
+	tokenName := ACCESS_TOKEN_NAME
+	accessToken, accessTokenExpiry, err := d.accessTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
+	}
+
+	// mobile has different refresh token expiry
+	tokenName = REFRESH_TOKEN_NAME
+	refreshToken, refreshTokenExpiry, err := d.refreshTokenGenerator.GenerateToken(subject, DefaultMobileRefreshTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}

@@ -667,7 +667,7 @@ func (h Handle) PostMobileTokenRefresh(w http.ResponseWriter, r *http.Request) *
 	// Generate token claims
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
 
-	tokens, err := h.tokenService.GenerateTokens(userId, rootModifications, extraClaims)
+	tokens, err := h.tokenService.GenerateMobileTokens(userId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create tokens", "err", err)
 		return &Response{
@@ -961,7 +961,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	// Create JWT tokens
 	tokenUser := idmUsers[0]
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
-	tokens, err := h.tokenService.GenerateTokens(tokenUser.UserId, rootModifications, extraClaims)
+	tokens, err := h.tokenService.GenerateMobileTokens(tokenUser.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create tokens", "user", tokenUser, "err", err)
 		return &Response{
@@ -1604,7 +1604,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(user)
 	extraClaims["2fa_verified"] = true
 
-	tokens, err := h.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
+	tokens, err := h.tokenService.GenerateMobileTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create tokens", "err", err)
 		return &Response{
@@ -1708,7 +1708,7 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(targetUser)
 
-	tokens, err := h.tokenService.GenerateTokens(targetUser.UserId, rootModifications, extraClaims)
+	tokens, err := h.tokenService.GenerateMobileTokens(targetUser.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create tokens", "err", err)
 		return &Response{
