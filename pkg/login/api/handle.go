@@ -1260,8 +1260,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 			body: "2fa validation failed",
 		}
 	}
-	// 2FA validation successful, create access and refresh tokens
-	// Extract user data from claims to use for token creation
+	// 2FA validation successful, get users by login ID
 	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
 	if err != nil {
 		return &Response{
