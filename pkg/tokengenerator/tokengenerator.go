@@ -123,8 +123,8 @@ func (g *TempTokenGenerator) GenerateToken(subject string, expiry time.Duration,
 	tempClaims := map[string]interface{}{
 		"login_id": extraClaims["login_id"],
 	}
-	if _, exists := extraClaims["user_options"]; exists {
-		tempClaims["user_options"] = extraClaims["user_options"]
+	if _, exists := extraClaims["associate_users"]; exists {
+		tempClaims["associate_users"] = extraClaims["associate_users"]
 	}
 	if _, exists := extraClaims["2fa_verified"]; exists {
 		tempClaims["2fa_verified"] = extraClaims["2fa_verified"]
