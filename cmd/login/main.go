@@ -78,6 +78,7 @@ type EmailConfig struct {
 	Username string `env:"EMAIL_USERNAME" env-default:"noreply@example.com"`
 	Password string `env:"EMAIL_PASSWORD" env-default:"pwd"`
 	From     string `env:"EMAIL_FROM" env-default:"noreply@example.com"`
+	TLS      bool   `env:"EMAIL_TLS" env-default:"false"`
 }
 
 type PasswordComplexityConfig struct {
@@ -140,7 +141,7 @@ func main() {
 		Username: config.EmailConfig.Username,
 		Password: config.EmailConfig.Password,
 		From:     config.EmailConfig.From,
-		NoTLS:    true,
+		TLS:      config.EmailConfig.TLS,
 	})
 	if err != nil {
 		slog.Error("Failed initialize notification manager", "err", err)

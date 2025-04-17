@@ -13,7 +13,7 @@ import (
 type SMTPConfig struct {
 	Host     string
 	Port     int
-	NoTLS    bool
+	TLS      bool
 	Username string
 	Password string
 	From     string
@@ -44,7 +44,7 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 		)
 	}
 
-	if config.NoTLS {
+	if !config.TLS {
 		slog.Info("NoTLS")
 		opts = append(opts,
 			mail.WithTLSConfig(&tls.Config{ // Configure TLS settings
@@ -60,7 +60,7 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 
 	slog.Info("Creating mail client", "Host", config.Host, "Port", config.Port)
 	client, err := mail.NewClient(config.Host, opts...)
-	if config.NoTLS {
+	if !config.TLS {
 		client.SetSSL(false)
 	}
 	if err != nil {
