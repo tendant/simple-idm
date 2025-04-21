@@ -13,6 +13,34 @@ import (
 	"github.com/google/uuid"
 )
 
+const findUsernamesByEmail = `-- name: FindUsernamesByEmail :many
+SELECT l.username
+FROM login l
+JOIN users u ON l.id = u.login_id
+WHERE u.email = $1
+AND l.deleted_at IS NULL
+`
+
+func (q *Queries) FindUsernamesByEmail(ctx context.Context, email string) ([]sql.NullString, error) {
+	rows, err := q.db.Query(ctx, findUsernamesByEmail, email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []sql.NullString
+	for rows.Next() {
+		var username sql.NullString
+		if err := rows.Scan(&username); err != nil {
+			return nil, err
+		}
+		items = append(items, username)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserById = `-- name: GetUserById :one
 SELECT u.id, u.name, u.email, u.created_at, u.last_modified_at,
        COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles, u.login_id
