@@ -133,9 +133,21 @@ func (m *DefaultUserMapper) FindUsernamesByEmail(ctx context.Context, email stri
 		return nil, fmt.Errorf("queries not initialized")
 	}
 
-	// This would need to be implemented based on your database schema
-	// For now, returning a placeholder implementation
-	return []string{}, nil
+	usernames, err := m.queries.FindUsernamesByEmail(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("error finding usernames: %w", err)
+	}
+
+	var res []string
+	for _, username := range usernames {
+		if username.Valid {
+			res = append(res, username.String)
+		}
+	}
+
+	slog.Info("Found usernames by email", "usernames", res)
+
+	return res, nil
 }
 
 // ToTokenClaims converts a User to rootModifications and extraClaims maps for token generation
