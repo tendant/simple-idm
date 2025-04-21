@@ -18,3 +18,11 @@ LEFT JOIN roles r ON ur.role_id = r.id
 WHERE u.id = $1
 AND u.deleted_at IS NULL
 GROUP BY u.id, u.name, u.email, u.created_at, u.last_modified_at, u.login_id;
+
+
+-- name: FindUsernamesByEmail :many
+SELECT l.username
+FROM login l
+JOIN users u ON l.id = u.login_id
+WHERE u.email = $1
+AND l.deleted_at IS NULL;
