@@ -32,7 +32,7 @@ AND deleted_at IS NULL;
 -- name: UpdateUsername :exec
 UPDATE login
 SET username = $2,
-    last_modified_at = NOW()
+    updated_at = NOW()
 WHERE id = $1;
 
 -- name: FindUserByUsername :many
