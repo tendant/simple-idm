@@ -164,27 +164,13 @@ func NewProfileService(repository ProfileRepository, passwordManager *login.Pass
 }
 
 type UpdateUsernameParams struct {
-	UserId          uuid.UUID
+	LoginID         uuid.UUID
 	CurrentPassword string
 	NewUsername     string
 }
 
 // UpdateUsername updates a user's username after verifying their password
 func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUsernameParams) error {
-	// Get the user to verify they exist and check password
-	user, err := s.repository.GetUserById(ctx, params.UserId)
-	if err != nil {
-		slog.Error("Failed to find user", "uuid", params.UserId, "err", err)
-		return fmt.Errorf("user not found")
-	}
-
-	// Verify the current password
-	match, err := s.passwordManager.CheckPasswordHash(params.CurrentPassword, string(user.Password), login.PasswordV1)
-	if err != nil || !match {
-		slog.Error("Invalid current password", "uuid", params.UserId)
-		return fmt.Errorf("invalid current password")
-	}
-
 	// Check if the new username is already taken
 	existingUsers, err := s.repository.FindUserByUsername(ctx, params.NewUsername)
 	if err != nil {
@@ -197,11 +183,11 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 
 	// Update the username
 	err = s.repository.UpdateUsername(ctx, UpdateUsernameParam{
-		ID:       user.LoginID,
+		ID:       params.LoginID,
 		Username: params.NewUsername,
 	})
 	if err != nil {
-		slog.Error("Failed to update username", "uuid", params.UserId, "err", err)
+		slog.Error("Failed to update username", "uuid", params.LoginID, "err", err)
 		return fmt.Errorf("failed to update username")
 	}
 
