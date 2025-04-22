@@ -123,11 +123,80 @@ func (h Handle) ChangePassword(w http.ResponseWriter, r *http.Request) *Response
 }
 
 func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response {
-	// TODO: Implement Change Username
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Parse request body
+	var data ChangeUsernameJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Invalid new username",
+			},
+		}
+	}
+
+	if data.NewUsername == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Invalid new username",
+			},
+		}
+	}
+
+	loginId, err := uuid.Parse(authUser.LoginId)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to update username",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	err = h.profileService.UpdateUsername(r.Context(), profile.UpdateUsernameParams{
+		LoginID:     loginId,
+		NewUsername: data.NewUsername,
+	})
+
+	if err != nil {
+		slog.Error("Failed to update username", "err", err)
+		
+		// Check for specific error message
+		if err.Error() == "username already taken" {
+			return &Response{
+				Code: http.StatusConflict,
+				body: map[string]string{
+					"status":  "username_conflict",
+					"message": "Username already taken",
+				},
+			}
+		}
+		
+		// Handle other errors
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"status":  "internal_error",
+				"message": "Failed to update username",
+			},
+		}
+	}
+
 	return &Response{
-		Code: http.StatusNotImplemented,
+		Code: http.StatusOK,
 		body: map[string]string{
-			"message": "Change username not implemented",
+			"message": "Username updated successfully",
 		},
 	}
 }
