@@ -123,7 +123,7 @@ func (h Handle) ChangePassword(w http.ResponseWriter, r *http.Request) *Response
 }
 
 func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response {
-	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	_, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
@@ -145,7 +145,7 @@ func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	if data.NewUsername == "" {
+	if data.NewUsername == "" || data.LoginID == "" {
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: map[string]string{
@@ -155,7 +155,7 @@ func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	loginId, err := uuid.Parse(authUser.LoginId)
+	loginId, err := uuid.Parse(data.LoginID)
 	if err != nil {
 		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
@@ -171,7 +171,7 @@ func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response
 
 	if err != nil {
 		slog.Error("Failed to update username", "err", err)
-		
+
 		// Check for specific error message
 		if err.Error() == "username already taken" {
 			return &Response{
@@ -182,7 +182,7 @@ func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response
 				},
 			}
 		}
-		
+
 		// Handle other errors
 		return &Response{
 			Code: http.StatusInternalServerError,
