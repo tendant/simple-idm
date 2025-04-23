@@ -567,8 +567,10 @@ func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (s
 
 	// If no usernames found, return empty with false flag
 	if len(usernames) == 0 {
+		slog.Info("No usernames found for email", "email", email)
 		return "", false, nil
 	}
+	slog.Info("Usernames found for email", "email", email, "usernames", usernames)
 
 	// Return the first username found
 	return usernames[0], true, nil
