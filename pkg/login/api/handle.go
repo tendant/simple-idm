@@ -555,7 +555,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	// Validate the refresh token
-	token, claims, err := h.validateRefreshToken(cookie.Value)
+	token, _, err := h.validateRefreshToken(cookie.Value)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -574,15 +574,6 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 
 	// Generate token claims
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
-	delegatorUserId := h.getDelegateUserIdFromToken(claims)
-	impersonateUserId := h.getImpersonateUserIdFromToken(claims)
-
-	if delegatorUserId != "" {
-		extraClaims["delegate_user_id"] = delegatorUserId
-	}
-	if impersonateUserId != "" {
-		extraClaims["impersonate_user_id"] = impersonateUserId
-	}
 
 	tokens, err := h.tokenService.GenerateTokens(userId, rootModifications, extraClaims)
 	if err != nil {
@@ -608,44 +599,6 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 }
 
-func (h Handle) getImpersonateUserIdFromToken(claims jwt.MapClaims) string {
-	// Try to extract from extra_claims
-	extraClaimsRaw, ok := claims["extra_claims"]
-	if !ok {
-		return ""
-	}
-
-	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	if impersonateUserUuid, ok := extraClaims["impersonate_user_id"].(string); ok && impersonateUserUuid != "" {
-		return impersonateUserUuid
-	}
-
-	return ""
-}
-
-func (h Handle) getDelegateUserIdFromToken(claims jwt.MapClaims) string {
-	// Try to extract from extra_claims
-	extraClaimsRaw, ok := claims["extra_claims"]
-	if !ok {
-		return ""
-	}
-
-	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	if delegateUserId, ok := extraClaims["delegate_user_id"].(string); ok && delegateUserId != "" {
-		return delegateUserId
-	}
-
-	return ""
-}
-
 // getUserFromToken extracts user information from token claims
 // Returns the user ID, user object, and any error
 func (h Handle) getUserFromToken(ctx context.Context, token *jwt.Token) (string, mapper.User, error) {
@@ -666,6 +619,16 @@ func (h Handle) getUserFromToken(ctx context.Context, token *jwt.Token) (string,
 	if err != nil {
 		slog.Error("Failed to get user by user ID", "err", err, "user_id", userId)
 		return "", mapper.User{}, fmt.Errorf("failed to get user by user ID: %w", err)
+	}
+
+	extraClaims := token.Claims.(jwt.MapClaims)
+	for key, claim := range extraClaims {
+		if tokenUser.ExtraClaims == nil {
+			tokenUser.ExtraClaims = make(map[string]interface{})
+		}
+		if tokenUser.ExtraClaims[key] == nil {
+			tokenUser.ExtraClaims[key] = claim
+		}
 	}
 
 	return userId, tokenUser, nil
