@@ -555,7 +555,7 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 	}
 
 	// Validate the refresh token
-	token, _, err := h.validateRefreshToken(cookie.Value)
+	token, claims, err := h.validateRefreshToken(cookie.Value)
 	if err != nil {
 		return &Response{
 			Code: http.StatusUnauthorized,
@@ -574,6 +574,15 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 
 	// Generate token claims
 	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
+	delegatorUserId := h.getDelegateUserIdFromToken(claims)
+	impersonateUserId := h.getImpersonateUserIdFromToken(claims)
+
+	if delegatorUserId != "" {
+		extraClaims["delegate_user_id"] = delegatorUserId
+	}
+	if impersonateUserId != "" {
+		extraClaims["impersonate_user_id"] = impersonateUserId
+	}
 
 	tokens, err := h.tokenService.GenerateTokens(userId, rootModifications, extraClaims)
 	if err != nil {
@@ -597,6 +606,44 @@ func (h Handle) PostTokenRefresh(w http.ResponseWriter, r *http.Request) *Respon
 		Code: http.StatusOK,
 		body: "",
 	}
+}
+
+func (h Handle) getImpersonateUserIdFromToken(claims jwt.MapClaims) string {
+	// Try to extract from extra_claims
+	extraClaimsRaw, ok := claims["extra_claims"]
+	if !ok {
+		return ""
+	}
+
+	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	if impersonateUserUuid, ok := extraClaims["impersonate_user_id"].(string); ok && impersonateUserUuid != "" {
+		return impersonateUserUuid
+	}
+
+	return ""
+}
+
+func (h Handle) getDelegateUserIdFromToken(claims jwt.MapClaims) string {
+	// Try to extract from extra_claims
+	extraClaimsRaw, ok := claims["extra_claims"]
+	if !ok {
+		return ""
+	}
+
+	extraClaims, ok := extraClaimsRaw.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	if delegateUserId, ok := extraClaims["delegate_user_id"].(string); ok && delegateUserId != "" {
+		return delegateUserId
+	}
+
+	return ""
 }
 
 // getUserFromToken extracts user information from token claims
