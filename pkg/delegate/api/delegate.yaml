@@ -4,8 +4,8 @@ info:
     email: ivan@torpago.com
     name: Torpago Team
     url: https://www.torpago.com
-  description: Impersonate API for delegated user access
-  title: Impersonate API
+  description: Delegate API for delegated user access
+  title: Delegate API
   version: 1.0.0
 servers:
   - description: Production
@@ -21,9 +21,9 @@ servers:
 paths:
   /:
     post:
-      operationId: CreateImpersonate
-      summary: Create impersonation session
-      description: Creates an impersonation session allowing a delegatee to access a delegator's account
+      operationId: CreateDelegate
+      summary: Create delegate session
+      description: Creates a delegate session allowing a delegatee to access a delegator's account
       requestBody:
         required: true
         content:
@@ -39,7 +39,7 @@ paths:
                 - delegator_user_uuid
       responses:
         "200":
-          description: Successfully generated impersonate tokens
+          description: Successfully generated delegate tokens
           content:
             application/json:
               schema:
@@ -57,16 +57,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         "403":
-          description: Forbidden - User does not have permission to impersonate
+          description: Forbidden - User does not have permission to delegate
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
   /back:
     post:
-      operationId: CreateImpersonateBack
-      summary: End impersonation session
-      description: Ends the current impersonation session and returns to the original user context
+      operationId: CreateDelegateBack
+      summary: End delegate session
+      description: Ends the current delegate session and returns to the original user context
       responses:
         "200":
           description: Successfully generated tokens to return to original user
