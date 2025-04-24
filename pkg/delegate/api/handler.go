@@ -1,4 +1,4 @@
-package impersonate
+package api
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/client"
-	"github.com/tendant/simple-idm/pkg/impersonate"
+	delegate "github.com/tendant/simple-idm/pkg/delegate"
 	"github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -22,13 +22,13 @@ const (
 
 // Handler implements the ServerInterface for impersonate API
 type Handle struct {
-	service            *impersonate.Service
+	service            *delegate.Service
 	tokenService       tg.TokenService
 	tokenCookieService tg.TokenCookieService
 }
 
 // NewHandler creates a new impersonate API handler
-func NewHandler(service *impersonate.Service, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService) *Handle {
+func NewHandler(service *delegate.Service, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService) *Handle {
 	return &Handle{
 		service:            service,
 		tokenService:       tokenService,
@@ -38,12 +38,12 @@ func NewHandler(service *impersonate.Service, tokenService tg.TokenService, toke
 
 // CreateImpersonate handles the POST /impersonate endpoint
 // It creates an impersonation session allowing a delegatee to access a delegator's account
-func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Response {
+func (h *Handle) CreateDelegation(w http.ResponseWriter, r *http.Request) *Response {
 	// Get the current user from context (this would be set by your auth middleware)
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed to get authenticated user from context")
-		return CreateImpersonateJSON401Response(ErrorResponse{
+		return CreateDelegateJSON401Response(ErrorResponse{
 			Error: "Unauthorized",
 			Code:  stringPtr("unauthorized"),
 		})
@@ -54,17 +54,17 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 	delegateeUuid, err := uuid.Parse(delegateeUuidStr)
 	if err != nil {
 		slog.Error("Failed to parse delegatee UUID", "error", err)
-		return CreateImpersonateJSON400Response(ErrorResponse{
+		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Invalid delegatee UUID",
 			Code:  stringPtr("invalid_uuid"),
 		})
 	}
 
 	// Parse request body
-	var reqBody CreateImpersonateJSONRequestBody
+	var reqBody CreateDelegateJSONRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		slog.Error("Failed to decode request body", "error", err)
-		return CreateImpersonateJSON400Response(ErrorResponse{
+		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Invalid request body",
 			Code:  stringPtr("invalid_request"),
 		})
@@ -74,7 +74,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 	delegatorUserUUID, err := uuid.Parse(reqBody.DelegatorUserUUID)
 	if err != nil {
 		slog.Error("Invalid delegator_user_uuid", "error", err)
-		return CreateImpersonateJSON400Response(ErrorResponse{
+		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Invalid delegator user UUID",
 			Code:  stringPtr("invalid_uuid"),
 		})
@@ -84,7 +84,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 	delegators, err := h.service.FindDelegators(r.Context(), delegateeUuid)
 	if err != nil {
 		slog.Error("Failed to get delegators", "error", err, "delegatee_user_id", delegateeUuid)
-		return CreateImpersonateJSON403Response(ErrorResponse{
+		return CreateDelegateJSON403Response(ErrorResponse{
 			Error: "Failed to get delegated users",
 			Code:  stringPtr("server_error"),
 		})
@@ -106,7 +106,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 
 	if !foundDelegator {
 		slog.Error("User not authorized to impersonate the requested delegator", "delegator_uuid", delegatorUserUUID)
-		return CreateImpersonateJSON403Response(ErrorResponse{
+		return CreateDelegateJSON403Response(ErrorResponse{
 			Error: "Not authorized to impersonate this user",
 			Code:  stringPtr("forbidden"),
 		})
@@ -141,7 +141,7 @@ func (h *Handle) CreateImpersonate(w http.ResponseWriter, r *http.Request) *Resp
 	// Return the success response
 	resp := SuccessResponse{}
 	resp["message"] = "success"
-	return CreateImpersonateJSON200Response(resp)
+	return CreateDelegateJSON200Response(resp)
 }
 
 // CreateImpersonateBack handles the POST /impersonate/back endpoint
@@ -151,7 +151,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed to get authenticated user from context")
-		return CreateImpersonateBackJSON401Response(ErrorResponse{
+		return CreateDelegateJSON401Response(ErrorResponse{
 			Error: "Unauthorized",
 			Code:  stringPtr("unauthorized"),
 		})
@@ -162,7 +162,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	accessTokenCookie, err := r.Cookie(ACCESS_TOKEN_NAME)
 	if err != nil {
 		slog.Error("Failed to get access token cookie", "error", err)
-		return CreateImpersonateBackJSON401Response(ErrorResponse{
+		return CreateDelegateJSON401Response(ErrorResponse{
 			Error: "No access token found",
 			Code:  stringPtr("unauthorized"),
 		})
@@ -172,7 +172,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	token, err := h.tokenService.ParseToken(accessTokenCookie.Value)
 	if err != nil {
 		slog.Error("Failed to parse access token", "error", err)
-		return CreateImpersonateBackJSON401Response(ErrorResponse{
+		return CreateDelegateJSON401Response(ErrorResponse{
 			Error: "Invalid access token",
 			Code:  stringPtr("unauthorized"),
 		})
@@ -182,7 +182,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		slog.Error("Failed to get claims from token")
-		return CreateImpersonateBackJSON400Response(ErrorResponse{
+		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Not in an impersonation session",
 			Code:  stringPtr("not_impersonating"),
 		})
@@ -192,7 +192,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	extraClaimsRaw, ok := claims["extra_claims"]
 	if !ok {
 		slog.Error("No extra claims found in token")
-		return CreateImpersonateBackJSON400Response(ErrorResponse{
+		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Not in an impersonation session",
 			Code:  stringPtr("not_impersonating"),
 		})
@@ -202,7 +202,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	extraClaimsMap, ok := extraClaimsRaw.(map[string]interface{})
 	if !ok {
 		slog.Error("Extra claims is not a map")
-		return CreateImpersonateBackJSON400Response(ErrorResponse{
+		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Invalid token format",
 			Code:  stringPtr("invalid_token"),
 		})
@@ -212,7 +212,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	origUserID, ok := extraClaimsMap["orig_user_id"].(string)
 	if !ok {
 		slog.Error("No original user ID found in token claims")
-		return CreateImpersonateBackJSON400Response(ErrorResponse{
+		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Not in an impersonation session",
 			Code:  stringPtr("not_impersonating"),
 		})
@@ -221,7 +221,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 
 	if origUserID == authUser.UserId {
 		slog.Error("Original user ID matches current user ID")
-		return CreateImpersonateBackJSON400Response(ErrorResponse{
+		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Not in an impersonation session",
 			Code:  stringPtr("not_impersonating"),
 		})
@@ -233,7 +233,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	origUserUUID, err := uuid.Parse(origUserID)
 	if err != nil {
 		slog.Error("Invalid original user ID in token claims", "error", err)
-		return CreateImpersonateBackJSON400Response(ErrorResponse{
+		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Invalid impersonation data",
 			Code:  stringPtr("invalid_impersonation"),
 		})
@@ -276,7 +276,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	// Return the success response
 	resp := SuccessResponse{}
 	resp["message"] = "success"
-	return CreateImpersonateJSON200Response(resp)
+	return CreateDelegateJSON200Response(resp)
 }
 
 // Helper function to create a string pointer
