@@ -112,9 +112,9 @@ func (h *Handle) CreateDelegation(w http.ResponseWriter, r *http.Request) *Respo
 		})
 	}
 
-	// generate extra_claims and add orig_user_uuid into extra_claims
+	// generate extra_claims and add delegate_user_id into extra_claims
 	_, extraClaims := h.service.ToTokenClaims(selectedUser)
-	extraClaims["orig_user_id"] = authUser.UserId
+	extraClaims["delegate_user_id"] = authUser.UserId
 
 	// Generate tokens using the token service
 	tokens, err := h.tokenService.GenerateTokens(selectedUser.UserId, nil, extraClaims)
@@ -209,30 +209,30 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	}
 
 	// Check for original user information in the claims
-	origUserID, ok := extraClaimsMap["orig_user_id"].(string)
+	delegateUserID, ok := extraClaimsMap["delegate_user_id"].(string)
 	if !ok {
-		slog.Error("No original user ID found in token claims")
+		slog.Error("No delegate user ID found in token claims")
 		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Not in an impersonation session",
 			Code:  stringPtr("not_impersonating"),
 		})
 	}
-	slog.Info("Original user ID found in token claims", "orig_user_id", origUserID)
+	slog.Info("Delegate user ID found in token claims", "delegate_user_id", delegateUserID)
 
-	if origUserID == authUser.UserId {
-		slog.Error("Original user ID matches current user ID")
+	if delegateUserID == authUser.UserId {
+		slog.Error("Delegate user ID matches current user ID")
 		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Not in an impersonation session",
 			Code:  stringPtr("not_impersonating"),
 		})
 	}
 
-	slog.Info("Impersonation session found", "orig_user_id", origUserID, "user_id", authUser.UserId)
+	slog.Info("Impersonation session found", "delegate_user_id", delegateUserID, "user_id", authUser.UserId)
 
 	// Parse the original user ID
-	origUserUUID, err := uuid.Parse(origUserID)
+	delegateUserUUID, err := uuid.Parse(delegateUserID)
 	if err != nil {
-		slog.Error("Invalid original user ID in token claims", "error", err)
+		slog.Error("Invalid delegate user ID in token claims", "error", err)
 		return CreateDelegateJSON400Response(ErrorResponse{
 			Error: "Invalid impersonation data",
 			Code:  stringPtr("invalid_impersonation"),
@@ -240,7 +240,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 	}
 
 	// Create a mappedUser for token generation
-	originalUser, err := h.service.GetOriginalUser(r.Context(), origUserUUID)
+	originalUser, err := h.service.GetOriginalUser(r.Context(), delegateUserUUID)
 	if err != nil {
 		slog.Error("Failed to get original user", "error", err)
 		return &Response{
