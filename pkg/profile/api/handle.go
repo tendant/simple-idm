@@ -123,7 +123,7 @@ func (h Handle) ChangePassword(w http.ResponseWriter, r *http.Request) *Response
 }
 
 func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response {
-	_, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
@@ -145,7 +145,7 @@ func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	if data.NewUsername == "" || data.LoginID == "" {
+	if data.NewUsername == "" {
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: map[string]string{
@@ -155,7 +155,7 @@ func (h Handle) ChangeUsername(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	loginId, err := uuid.Parse(data.LoginID)
+	loginId, err := uuid.Parse(authUser.LoginId)
 	if err != nil {
 		slog.Error("Failed to parse login ID", "err", err)
 		return &Response{
