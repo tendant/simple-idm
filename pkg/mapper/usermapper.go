@@ -16,6 +16,8 @@ type UserMapper interface {
 	FindUsernamesByEmail(ctx context.Context, email string) ([]string, error)
 	//TODO: add convertion to claim
 	ToTokenClaims(user User) (rootModifications map[string]interface{}, extraClaims map[string]interface{})
+	// ExtractTokenClaims extracts claims from a token and adds them to the user's extra claims
+	ExtractTokenClaims(user User, claims map[string]interface{}) User
 }
 
 // DefaultUserMapper implements the UserMapper interface
@@ -172,4 +174,28 @@ func (m *DefaultUserMapper) ToTokenClaims(user User) (rootModifications map[stri
 	}
 
 	return
+}
+
+// ExtractTokenClaims extracts claims from a token and adds them to the user's extra claims
+func (m *DefaultUserMapper) ExtractTokenClaims(user User, claims map[string]interface{}) User {
+	// Initialize extra claims map if it doesn't exist
+	if user.ExtraClaims == nil {
+		user.ExtraClaims = make(map[string]interface{})
+	}
+
+	slog.Info("Extracting token claims", "claims", claims)
+
+	// Copy claims that don't already exist in the user's extra claims
+	if claims["extra_claims"] != nil {
+		extraClaims := claims["extra_claims"].(map[string]interface{})
+		if extraClaims["extra_claims"] != nil {
+			extraClaims = extraClaims["extra_claims"].(map[string]interface{})
+			for key, claim := range extraClaims {
+				if user.ExtraClaims[key] == nil {
+					user.ExtraClaims[key] = claim
+				}
+			}
+		}
+	}
+	return user
 }

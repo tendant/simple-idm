@@ -20,14 +20,14 @@ const (
 	REFRESH_TOKEN_NAME = api.REFRESH_TOKEN_NAME
 )
 
-// Handler implements the ServerInterface for impersonate API
+// Handler implements the ServerInterface for delegation API
 type Handle struct {
 	service            *delegate.Service
 	tokenService       tg.TokenService
 	tokenCookieService tg.TokenCookieService
 }
 
-// NewHandler creates a new impersonate API handler
+// NewHandler creates a new delegation API handler
 func NewHandler(service *delegate.Service, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService) *Handle {
 	return &Handle{
 		service:            service,
@@ -36,9 +36,9 @@ func NewHandler(service *delegate.Service, tokenService tg.TokenService, tokenCo
 	}
 }
 
-// CreateImpersonate handles the POST /impersonate endpoint
+// CreateDelegate handles the POST /delegate endpoint
 // It creates an impersonation session allowing a delegatee to access a delegator's account
-func (h *Handle) CreateDelegation(w http.ResponseWriter, r *http.Request) *Response {
+func (h *Handle) CreateDelegate(w http.ResponseWriter, r *http.Request) *Response {
 	// Get the current user from context (this would be set by your auth middleware)
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
@@ -105,9 +105,9 @@ func (h *Handle) CreateDelegation(w http.ResponseWriter, r *http.Request) *Respo
 	}
 
 	if !foundDelegator {
-		slog.Error("User not authorized to impersonate the requested delegator", "delegator_uuid", delegatorUserUUID)
+		slog.Error("User not authorized to delegate the requested delegator", "delegator_uuid", delegatorUserUUID)
 		return CreateDelegateJSON403Response(ErrorResponse{
-			Error: "Not authorized to impersonate this user",
+			Error: "Not authorized to delegate this user",
 			Code:  stringPtr("forbidden"),
 		})
 	}
@@ -144,9 +144,9 @@ func (h *Handle) CreateDelegation(w http.ResponseWriter, r *http.Request) *Respo
 	return CreateDelegateJSON200Response(resp)
 }
 
-// CreateImpersonateBack handles the POST /impersonate/back endpoint
-// It ends the current impersonation session and returns to the original user context
-func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *Response {
+// CreateDelegateBack handles the POST /delegate/back endpoint
+// It ends the current delegation session and returns to the original user context
+func (h *Handle) CreateDelegateBack(w http.ResponseWriter, r *http.Request) *Response {
 	// Get the current user from context (this would be set by your auth middleware)
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
@@ -271,7 +271,7 @@ func (h *Handle) CreateImpersonateBack(w http.ResponseWriter, r *http.Request) *
 			Code: http.StatusInternalServerError,
 		}
 	}
-	slog.Info("Impersonate back succeed")
+	slog.Info("Delegation back succeed")
 
 	// Return the success response
 	resp := SuccessResponse{}
