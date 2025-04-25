@@ -621,15 +621,8 @@ func (h Handle) getUserFromToken(ctx context.Context, token *jwt.Token) (string,
 		return "", mapper.User{}, fmt.Errorf("failed to get user by user ID: %w", err)
 	}
 
-	extraClaims := token.Claims.(jwt.MapClaims)
-	for key, claim := range extraClaims {
-		if tokenUser.ExtraClaims == nil {
-			tokenUser.ExtraClaims = make(map[string]interface{})
-		}
-		if tokenUser.ExtraClaims[key] == nil {
-			tokenUser.ExtraClaims[key] = claim
-		}
-	}
+	// Extract claims from token and add them to the user's extra claims
+	tokenUser = h.userMapper.ExtractTokenClaims(tokenUser, token.Claims.(jwt.MapClaims))
 
 	return userId, tokenUser, nil
 }
