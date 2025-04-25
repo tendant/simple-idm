@@ -44,8 +44,7 @@ func NewJwtTokenGenerator(secret, issuer, audience string) *JwtTokenGenerator {
 // GenerateToken creates a new token with the given subject and claims
 func (g *JwtTokenGenerator) GenerateToken(subject string, expiry time.Duration, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (string, time.Time, error) {
 	claims := Claims{
-		ExtraClaims:  extraClaims,
-		CustomClaims: extraClaims,
+		ExtraClaims: extraClaims,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
@@ -133,7 +132,6 @@ func (g *TempTokenGenerator) GenerateToken(subject string, expiry time.Duration,
 	// Create claims with shorter tolerance for time skew
 	claims := Claims{
 		ExtraClaims: tempClaims,
-		// CustomClaims: tempClaims,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
