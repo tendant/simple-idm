@@ -1,4 +1,4 @@
-package impersonate
+package delegate
 
 import (
 	"context"
@@ -43,7 +43,7 @@ func (s *Service) FindDelegators(ctx context.Context, delegateeUuid uuid.UUID) (
 // GetOriginalUser retrieves a user by their user ID
 func (s *Service) GetOriginalUser(ctx context.Context, userId uuid.UUID) (mapper.User, error) {
 	if s.usermapper == nil {
-		slog.Warn("Impersonate service usermapper is nil")
+		slog.Warn("delegation service usermapper is nil")
 		return mapper.User{}, fmt.Errorf("usermapper not available")
 	}
 
