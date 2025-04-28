@@ -21,6 +21,10 @@ paths:
                   x-go-optional-value: true
                   type: string
                   description: 2FA verification code if enabled
+                remember_device:
+                  x-go-optional-value: true
+                  type: boolean
+                  description: Whether to remember this device for 90 days (skips 2FA)
               required:
                 - username
                 - password
@@ -599,6 +603,9 @@ components:
             $ref: "#/components/schemas/User"
         user:
           $ref: "#/components/schemas/User"
+        remember_device:
+          type: boolean
+          description: Whether the device was remembered for this login
         requires2FA:
           type: boolean
           description: Whether 2FA verification is required
