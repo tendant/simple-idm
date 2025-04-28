@@ -80,7 +80,6 @@ func TestInMemDeviceRepository_FindDevices(t *testing.T) {
 	devices := []Device{
 		{
 			Fingerprint:    "fingerprint-1",
-			UserAgent:      "user-agent-1",
 			LastLogin:      now,
 			CreatedAt:      now,
 			LastModifiedAt: now,
@@ -125,7 +124,6 @@ func TestInMemDeviceRepository_UpdateDeviceLastLogin(t *testing.T) {
 	initialTime := time.Now().UTC().Add(-24 * time.Hour) // 1 day ago
 	device := Device{
 		Fingerprint:    fingerprint,
-		UserAgent:      "test-user-agent",
 		LastLogin:      initialTime,
 		CreatedAt:      initialTime,
 		LastModifiedAt: initialTime,
