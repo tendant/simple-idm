@@ -32,9 +32,9 @@ type CreateDeviceRequest struct {
 
 // CreateDeviceResponse represents the response body for creating a device
 type CreateDeviceResponse struct {
-	Status      string         `json:"status"`
-	Message     string         `json:"message"`
-	Device      device.Device  `json:"device"`
+	Status  string        `json:"status"`
+	Message string        `json:"message"`
+	Device  device.Device `json:"device"`
 }
 
 // LinkDeviceRequest represents the request body for linking a device to a login
@@ -45,9 +45,9 @@ type LinkDeviceRequest struct {
 
 // LinkDeviceResponse represents the response body for linking a device to a login
 type LinkDeviceResponse struct {
-	Status      string `json:"status"`
-	Message     string `json:"message"`
-	ExpiresAt   string `json:"expires_at"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+	ExpiresAt string `json:"expires_at"`
 }
 
 // SuccessResponse represents a generic success response
@@ -78,8 +78,8 @@ type LoginInfo struct {
 
 // ListDevicesResponse represents the response body for listing devices
 type ListDevicesResponse struct {
-	Status  string           `json:"status"`
-	Message string           `json:"message"`
+	Status  string            `json:"status"`
+	Message string            `json:"message"`
 	Devices []DeviceWithLogin `json:"devices"`
 }
 
@@ -99,7 +99,7 @@ func (h *DeviceHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 		deviceWithLogin := DeviceWithLogin{
 			Device: d,
 		}
-		
+
 		// Get linked logins for this device
 		linkedLogins, err := h.deviceService.FindLoginsByDevice(r.Context(), d.Fingerprint)
 		if err != nil {
@@ -108,7 +108,7 @@ func (h *DeviceHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 			devicesWithLogin = append(devicesWithLogin, deviceWithLogin)
 			continue
 		}
-		
+
 		// Add login info to the response
 		loginInfos := make([]LoginInfo, 0, len(linkedLogins))
 		for _, login := range linkedLogins {
@@ -118,7 +118,7 @@ func (h *DeviceHandler) ListDevices(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 		deviceWithLogin.LinkedLogins = loginInfos
-		
+
 		devicesWithLogin = append(devicesWithLogin, deviceWithLogin)
 	}
 
@@ -197,7 +197,7 @@ func (h *DeviceHandler) LinkDeviceToLogin(w http.ResponseWriter, r *http.Request
 	// Determine which login ID to use
 	var loginID uuid.UUID
 	var err error
-	
+
 	// If a specific login ID is provided in the request, use it (admin only)
 	if req.LoginID != "" {
 		// Check if the user has admin privileges
@@ -205,7 +205,7 @@ func (h *DeviceHandler) LinkDeviceToLogin(w http.ResponseWriter, r *http.Request
 			renderErrorResponse(w, r, http.StatusForbidden, "Permission denied", "Only administrators can link devices to specific logins")
 			return
 		}
-		
+
 		// Parse the provided login ID
 		loginID, err = uuid.Parse(req.LoginID)
 		if err != nil {
@@ -233,14 +233,15 @@ func (h *DeviceHandler) LinkDeviceToLogin(w http.ResponseWriter, r *http.Request
 
 	// Get expiry information by calling the repository directly
 	// We'll need to modify this if we add GetLoginDeviceWithExpiry to the service
-	loginDevice, isExpired, err := h.deviceService.IsDeviceLinkedToLoginWithDetails(r.Context(), loginID, req.Fingerprint)
+	loginDevice, err := h.deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), req.Fingerprint, loginID)
+
 	if err != nil {
-		slog.Error("Failed to get device expiry", "error", err)
-		renderErrorResponse(w, r, http.StatusInternalServerError, "Failed to get device expiry", err.Error())
+		slog.Error("Failed to get device link", "error", err)
+		renderErrorResponse(w, r, http.StatusInternalServerError, "Failed to get device link", err.Error())
 		return
 	}
 
-	if isExpired {
+	if loginDevice.IsExpired() {
 		renderErrorResponse(w, r, http.StatusBadRequest, "Device link expired", "")
 		return
 	}
@@ -279,11 +280,13 @@ func (h *DeviceHandler) GetDeviceStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	isLinked, err := h.deviceService.IsDeviceLinkedToLogin(r.Context(), loginID, fingerprint)
+	isLinked := false
+
+	_, err := h.deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), fingerprint, loginID)
 	if err != nil {
-		slog.Error("Failed to check device link", "error", err)
-		renderErrorResponse(w, r, http.StatusInternalServerError, "Failed to check device link", err.Error())
-		return
+		slog.Error("Failed to get device link", "error", err)
+	} else {
+		isLinked = true
 	}
 
 	// Return status
@@ -361,7 +364,7 @@ func (h *DeviceHandler) GetDevicesByLogin(w http.ResponseWriter, r *http.Request
 			devicesWithLogin = append(devicesWithLogin, deviceWithLogin)
 			continue
 		}
-		
+
 		deviceWithLogin := DeviceWithLogin{
 			Device: d,
 			LinkedLogins: []LoginInfo{
@@ -404,11 +407,11 @@ func renderErrorResponse(w http.ResponseWriter, r *http.Request, statusCode int,
 		Status:  "error",
 		Message: message,
 	}
-	
+
 	if errorDetail != "" {
 		response.Error = errorDetail
 	}
-	
+
 	render.Status(r, statusCode)
 	render.JSON(w, r, response)
 }

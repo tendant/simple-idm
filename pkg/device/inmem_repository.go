@@ -64,30 +64,6 @@ func (r *InMemDeviceRepository) FindDevices(ctx context.Context) ([]Device, erro
 	return devices, nil
 }
 
-// FindDevicesByLoginID returns all devices linked to a specific login ID
-func (r *InMemDeviceRepository) FindDevicesByLoginID(ctx context.Context, loginID uuid.UUID) ([]Device, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	// First find all login devices for this login ID
-	linkedFingerprints := make(map[string]struct{})
-	for _, loginDevice := range r.loginDevices {
-		if loginDevice.LoginID == loginID {
-			linkedFingerprints[loginDevice.Fingerprint] = struct{}{}
-		}
-	}
-
-	// Then collect all devices with those fingerprints
-	devices := make([]Device, 0)
-	for fingerprint := range linkedFingerprints {
-		if device, exists := r.devices[fingerprint]; exists {
-			devices = append(devices, device)
-		}
-	}
-
-	return devices, nil
-}
-
 // FindDevicesByLogin returns all devices linked to a specific login
 func (r *InMemDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID uuid.UUID) ([]Device, error) {
 	r.mu.RLock()
@@ -96,13 +72,13 @@ func (r *InMemDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID 
 	var devices []Device
 	// Map to track fingerprints we've already added to avoid duplicates
 	fingerprintMap := make(map[string]bool)
-	
+
 	for _, link := range r.loginDevices {
 		if link.LoginID == loginID {
 			// Only process each fingerprint once
 			if _, exists := fingerprintMap[link.Fingerprint]; !exists {
 				fingerprintMap[link.Fingerprint] = true
-				
+
 				// Find the device with this fingerprint
 				for _, device := range r.devices {
 					if device.Fingerprint == link.Fingerprint {
@@ -125,14 +101,14 @@ func (r *InMemDeviceRepository) FindLoginsByDevice(ctx context.Context, fingerpr
 	var loginInfos []LoginInfo
 	// Map to track login IDs we've already added to avoid duplicates
 	loginMap := make(map[uuid.UUID]bool)
-	
+
 	// Find all login devices with this fingerprint
 	for _, link := range r.loginDevices {
 		if link.Fingerprint == fingerprint {
 			// Only process each login once
 			if _, exists := loginMap[link.LoginID]; !exists {
 				loginMap[link.LoginID] = true
-				
+
 				// For a real implementation, we would query the login service
 				// to get the username. For this in-memory implementation,
 				// we'll use a placeholder username based on the login ID
@@ -140,7 +116,7 @@ func (r *InMemDeviceRepository) FindLoginsByDevice(ctx context.Context, fingerpr
 					ID:       link.LoginID,
 					Username: fmt.Sprintf("user-%s", link.LoginID.String()[:8]),
 				}
-				
+
 				loginInfos = append(loginInfos, loginInfo)
 			}
 		}

@@ -23,6 +23,11 @@ type LoginDevice struct {
 	ExpiresAt   time.Time // When this link expires (90 days from creation by default)
 }
 
+// IsExpired checks if the login device link has expired
+func (ld *LoginDevice) IsExpired() bool {
+	return time.Now().UTC().After(ld.ExpiresAt)
+}
+
 type LoginInfo struct {
 	ID       uuid.UUID
 	Username string
@@ -43,7 +48,6 @@ type DeviceRepository interface {
 	LinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, error)
 
 	// Expiration operations
-	GetLoginDeviceWithExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, bool, error) // Returns device, isExpired, error
 	ExtendLoginDeviceExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string, newExpiryDate time.Time) error
 
 	// Transaction support

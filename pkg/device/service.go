@@ -75,34 +75,6 @@ func (s *DeviceService) LinkDeviceToLogin(ctx context.Context, loginID uuid.UUID
 	return nil
 }
 
-// IsDeviceLinkedToLogin checks if a device is linked to a login and not expired
-func (s *DeviceService) IsDeviceLinkedToLogin(ctx context.Context, loginID uuid.UUID, fingerprint string) (bool, error) {
-	// Get device link with expiry information
-	_, isExpired, err := s.deviceRepository.GetLoginDeviceWithExpiry(ctx, loginID, fingerprint)
-	if err != nil {
-		return false, fmt.Errorf("error checking device link: %w", err)
-	}
-
-	// If link exists but is expired, it's not considered valid
-	if isExpired {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-// IsDeviceLinkedToLoginWithDetails checks if a device is linked to a login and returns details
-// This is similar to IsDeviceLinkedToLogin but also returns the LoginDevice object
-func (s *DeviceService) IsDeviceLinkedToLoginWithDetails(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, bool, error) {
-	// Get device link with expiry information
-	loginDevice, isExpired, err := s.deviceRepository.GetLoginDeviceWithExpiry(ctx, loginID, fingerprint)
-	if err != nil {
-		return LoginDevice{}, false, fmt.Errorf("error checking device link: %w", err)
-	}
-
-	return loginDevice, isExpired, nil
-}
-
 // FindAllDevices returns all devices in the system
 func (s *DeviceService) FindAllDevices(ctx context.Context) ([]Device, error) {
 	devices, err := s.deviceRepository.FindDevices(ctx)
@@ -159,4 +131,8 @@ func (s *DeviceService) ExtendLoginDeviceExpiry(ctx context.Context, loginID uui
 		return fmt.Errorf("failed to extend login device expiry: %w", err)
 	}
 	return nil
+}
+
+func (s *DeviceService) GetDeviceByFingerprint(ctx context.Context, fingerprint string) (Device, error) {
+	return s.deviceRepository.GetDeviceByFingerprint(ctx, fingerprint)
 }
