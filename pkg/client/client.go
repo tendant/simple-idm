@@ -175,3 +175,18 @@ func TempTokenFromCookie(r *http.Request) string {
 func TempTokenFromHeader(r *http.Request) string {
 	return r.Header.Get(TEMP_TOKEN_NAME)
 }
+
+// IsAdmin checks if the user has admin privileges
+func IsAdmin(user *AuthUser) bool {
+	if user == nil || user.ExtraClaims.Roles == nil {
+		return false
+	}
+	
+	for _, role := range user.ExtraClaims.Roles {
+		if role == "admin" || role == "superadmin" {
+			return true
+		}
+	}
+	
+	return false
+}
