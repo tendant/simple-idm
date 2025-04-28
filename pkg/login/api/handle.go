@@ -1303,6 +1303,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// if user selects to remember device, link device to login
+	slog.Info("User selected to remember device", "remember_device_2fa", data.RememberDevice2fa)
 	if data.RememberDevice2fa {
 		common.RememberDevice(r, loginId, h.deviceService)
 	}

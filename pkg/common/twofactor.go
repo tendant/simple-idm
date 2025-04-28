@@ -141,6 +141,8 @@ func RememberDevice(r *http.Request, loginID uuid.UUID, deviceService device.Dev
 	fingerprint := device.ExtractFingerprintDataFromRequest(r)
 	fingerprintStr := device.GenerateFingerprint(fingerprint)
 
+	slog.Info("Remembering device", "fingerprint", fingerprintStr, "loginID", loginID)
+
 	// check if device is already linked to login and not expired
 	loginDevice, err := deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), fingerprintStr, loginID)
 	if err == nil && loginDevice != nil && !loginDevice.IsExpired() {
@@ -149,15 +151,18 @@ func RememberDevice(r *http.Request, loginID uuid.UUID, deviceService device.Dev
 		return true, nil
 	}
 
+	slog.Info("Device not recognized or expired", "fingerprint", fingerprintStr, "loginID", loginID)
 	// register new device
 	_, err = deviceService.GetDeviceByFingerprint(r.Context(), fingerprintStr)
 	if err != nil {
+		slog.Info("registering device", "fingerprint", fingerprintStr)
 		_, err = deviceService.RegisterDevice(r.Context(), fingerprintStr, r.UserAgent())
 		if err != nil {
 			slog.Error("Failed to register device", "err", err)
 			return false, err
 		}
 	}
+	slog.Info("linking device to login", "fingerprint", fingerprintStr, "loginID", loginID)
 	err = deviceService.LinkDeviceToLogin(r.Context(), loginID, fingerprintStr)
 	if err != nil {
 		slog.Error("Failed to link device to login", "err", err)
