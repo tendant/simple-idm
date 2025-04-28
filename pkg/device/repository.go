@@ -16,10 +16,16 @@ type Device struct {
 }
 
 type LoginDevice struct {
+	ID          uuid.UUID
 	LoginID     uuid.UUID
 	Fingerprint string
 	LinkedAt    time.Time
 	ExpiresAt   time.Time // When this link expires (90 days from creation by default)
+}
+
+type LoginInfo struct {
+	ID       uuid.UUID
+	Username string
 }
 
 // DeviceRepository defines the interface for device storage operations
@@ -27,7 +33,11 @@ type DeviceRepository interface {
 	// CRUD operations (delete is not supported for now)
 	CreateDevice(ctx context.Context, device Device) (Device, error)
 	GetDeviceByFingerprint(ctx context.Context, fingerprint string) (Device, error)
+	FindDevices(ctx context.Context) ([]Device, error)
+	FindDevicesByLogin(ctx context.Context, loginID uuid.UUID) ([]Device, error)
 	UpdateDeviceLastLogin(ctx context.Context, fingerprint string, lastLogin time.Time) (Device, error)
+	FindLoginsByDevice(ctx context.Context, fingerprint string) ([]LoginInfo, error)
+	FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (*LoginDevice, error)
 
 	// Link operations
 	LinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, error)
