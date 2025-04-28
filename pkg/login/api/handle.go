@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/common"
+	"github.com/tendant/simple-idm/pkg/device"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -34,15 +35,17 @@ type Handle struct {
 	tokenService       tg.TokenService
 	tokenCookieService tg.TokenCookieService
 	userMapper         mapper.UserMapper
+	deviceService      device.DeviceService
 	responseHandler    ResponseHandler
 }
 
-func NewHandle(loginService *login.LoginService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, userMapper mapper.UserMapper, opts ...Option) Handle {
+func NewHandle(loginService *login.LoginService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, userMapper mapper.UserMapper, deviceService device.DeviceService, opts ...Option) Handle {
 	h := Handle{
 		loginService:       loginService,
 		tokenService:       tokenService,
 		tokenCookieService: tokenCookieService,
 		userMapper:         userMapper,
+		deviceService:      deviceService,
 		responseHandler:    NewDefaultResponseHandler(),
 	}
 	for _, opt := range opts {
@@ -395,28 +398,46 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Check if 2FA is enabled
-	enabled, commonMethods, tempToken, err := common.Check2FAEnabled(
-		r.Context(),
-		w,
-		loginID,
-		idmUsers,
-		h.twoFactorService,
-		h.tokenService,
-		h.tokenCookieService,
-		false, // Not associate user in this API
-	)
-	if err != nil {
-		slog.Error("Failed to check 2FA", "err", err)
-		return &Response{
-			body: err.Error(),
-			Code: http.StatusInternalServerError,
+	// Check if the device is recognized for this login
+	// Get device fingerprint from request
+	fingerprint := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr := device.GenerateFingerprint(fingerprint)
+	deviceRecognized := false
+
+	if fingerprintStr != "" {
+		// Check if this device is linked to the login
+		loginDevice, err := h.deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), fingerprintStr, loginID)
+		if err == nil && loginDevice != nil && !loginDevice.IsExpired() {
+			// Device is recognized and not expired, skip 2FA
+			slog.Info("Device recognized, skipping 2FA", "fingerprint", fingerprintStr, "loginID", loginID)
+			deviceRecognized = true
 		}
 	}
 
-	if enabled {
-		// Return 2FA required response
-		return h.prepare2FARequiredResponse(commonMethods, tempToken)
+	if !deviceRecognized {
+		// Check if 2FA is enabled
+		enabled, commonMethods, tempToken, err := common.Check2FAEnabled(
+			r.Context(),
+			w,
+			loginID,
+			idmUsers,
+			h.twoFactorService,
+			h.tokenService,
+			h.tokenCookieService,
+			false, // Not associate user in this API
+		)
+		if err != nil {
+			slog.Error("Failed to check 2FA", "err", err)
+			return &Response{
+				body: err.Error(),
+				Code: http.StatusInternalServerError,
+			}
+		}
+
+		if enabled {
+			// Return 2FA required response
+			return h.prepare2FARequiredResponse(commonMethods, tempToken)
+		}
 	}
 
 	// Check if there are multiple users
@@ -455,11 +476,26 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// if user selects to remember device, link device to login
+	if data.RememberDevice && !deviceRecognized {
+		_, err := h.deviceService.GetDeviceByFingerprint(r.Context(), fingerprintStr)
+		if err != nil {
+			_, err = h.deviceService.RegisterDevice(r.Context(), fingerprintStr, r.UserAgent())
+			if err != nil {
+				slog.Error("Failed to register device", "err", err)
+			}
+		}
+		err = h.deviceService.LinkDeviceToLogin(r.Context(), loginID, fingerprintStr)
+		if err != nil {
+			slog.Error("Failed to link device to login", "err", err)
+		}
+	}
 	response := Login{
-		Status:  "success",
-		Message: "Login successful",
-		User:    apiUsers[0],
-		Users:   apiUsers,
+		Status:         "success",
+		Message:        "Login successful",
+		User:           apiUsers[0],
+		Users:          apiUsers,
+		RememberDevice: &data.RememberDevice,
 	}
 
 	return PostLoginJSON200Response(response)
@@ -923,28 +959,46 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	// Check if 2FA is enabled - pass nil for ResponseWriter to skip cookie setting
-	enabled, commonMethods, tempToken, err := common.Check2FAEnabled(
-		r.Context(),
-		nil,
-		loginID,
-		idmUsers,
-		h.twoFactorService,
-		h.tokenService,
-		h.tokenCookieService,
-		false, // Not associate user in this API
-	)
-	if err != nil {
-		slog.Error("Failed to check 2FA", "err", err)
-		return &Response{
-			body: err.Error(),
-			Code: http.StatusInternalServerError,
+	// Check if the device is recognized for this login
+	// Get device fingerprint from request
+	fingerprint := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr := device.GenerateFingerprint(fingerprint)
+	deviceRecognized := false
+
+	if fingerprintStr != "" {
+		// Check if this device is linked to the login
+		loginDevice, err := h.deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), fingerprintStr, loginID)
+		if err == nil && loginDevice != nil && !loginDevice.IsExpired() {
+			// Device is recognized and not expired, skip 2FA
+			slog.Info("Device recognized, skipping 2FA", "fingerprint", fingerprintStr, "loginID", loginID)
+			deviceRecognized = true
 		}
 	}
 
-	if enabled {
-		// Return 2FA required response for mobile
-		return h.prepare2FARequiredResponse(commonMethods, tempToken)
+	if !deviceRecognized {
+		// Check if 2FA is enabled - pass nil for ResponseWriter to skip cookie setting
+		enabled, commonMethods, tempToken, err := common.Check2FAEnabled(
+			r.Context(),
+			nil,
+			loginID,
+			idmUsers,
+			h.twoFactorService,
+			h.tokenService,
+			h.tokenCookieService,
+			false, // Not associate user in this API
+		)
+		if err != nil {
+			slog.Error("Failed to check 2FA", "err", err)
+			return &Response{
+				body: err.Error(),
+				Code: http.StatusInternalServerError,
+			}
+		}
+
+		if enabled {
+			// Return 2FA required response
+			return h.prepare2FARequiredResponse(commonMethods, tempToken)
+		}
 	}
 
 	// Check if there are multiple users - pass nil for ResponseWriter to skip cookie setting
@@ -957,7 +1011,6 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	if isMultipleUsers {
-		// Return user selection response
 		return h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
 	}
 
@@ -970,6 +1023,21 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		return &Response{
 			body: "Failed to create tokens",
 			Code: http.StatusInternalServerError,
+		}
+	}
+
+	// if user selects to remember device, link device to login
+	if data.RememberDevice && !deviceRecognized {
+		_, err := h.deviceService.GetDeviceByFingerprint(r.Context(), fingerprintStr)
+		if err != nil {
+			_, err = h.deviceService.RegisterDevice(r.Context(), fingerprintStr, r.UserAgent())
+			if err != nil {
+				slog.Error("Failed to register device", "err", err)
+			}
+		}
+		err = h.deviceService.LinkDeviceToLogin(r.Context(), loginID, fingerprintStr)
+		if err != nil {
+			slog.Error("Failed to link device to login", "err", err)
 		}
 	}
 
