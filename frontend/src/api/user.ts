@@ -16,8 +16,6 @@ export interface TwoFactorMethod {
   delivery_options: DeliveryOption[];
 }
 
-// Removing this duplicate interface
-
 export interface LoginResponse {
   id?: string;
   email?: string;
@@ -180,7 +178,7 @@ export const userApi = {
   },
 
   findUsername: async (email: string): Promise<void> => {
-    const response = await apiClient.post('/api/idm/auth/find-username', { email }, { skipAuth: true });
+    const response = await apiClient.post('/api/idm/auth/username/find', { email }, { skipAuth: true });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);

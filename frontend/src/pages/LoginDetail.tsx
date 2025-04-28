@@ -3,6 +3,7 @@ import { useNavigate, useParams } from '@solidjs/router';
 import { loginApi, type Login, type TwoFactorMethod, type TwoFactorMethods } from '../api/login';
 import { userApi, type User } from '../api/user';
 import { twoFactorApi } from '../api/twoFactor';
+import { deviceApi, type Device } from '../api/device';
 
 const LoginDetail: Component = () => {
   const params = useParams();
@@ -11,11 +12,13 @@ const LoginDetail: Component = () => {
   const [associatedUsers, setAssociatedUsers] = createSignal<User[]>([]);
   const [twoFactorMethodsResponse, setTwoFactorMethodsResponse] = createSignal<TwoFactorMethods>({ count: 0, methods: [] });
   const [twoFactorMethods, setTwoFactorMethods] = createSignal<TwoFactorMethod[]>([]);
+  const [linkedDevices, setLinkedDevices] = createSignal<Device[]>([]);
   const [error, setError] = createSignal<string | null>(null);
   const [successMessage, setSuccessMessage] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [loadingUsers, setLoadingUsers] = createSignal(true);
   const [loadingTwoFactorMethods, setLoadingTwoFactorMethods] = createSignal(true);
+  const [loadingDevices, setLoadingDevices] = createSignal(true);
   const [processingMethod, setProcessingMethod] = createSignal<string | null>(null);
   const [deletingMethod, setDeletingMethod] = createSignal<string | null>(null);
   const [showCreateModal, setShowCreateModal] = createSignal(false);
@@ -26,6 +29,7 @@ const LoginDetail: Component = () => {
     fetchLogin();
     fetchAssociatedUsers();
     fetchTwoFactorMethods();
+    fetchLinkedDevices();
   });
 
   const fetchLogin = async () => {
@@ -60,6 +64,17 @@ const LoginDetail: Component = () => {
       console.error('Failed to fetch 2FA methods:', err);
     } finally {
       setLoadingTwoFactorMethods(false);
+    }
+  };
+
+  const fetchLinkedDevices = async () => {
+    try {
+      const devices = await deviceApi.listDevicesByLogin(params.id);
+      setLinkedDevices(devices);
+    } catch (err) {
+      console.error('Failed to fetch linked devices:', err);
+    } finally {
+      setLoadingDevices(false);
     }
   };
 
@@ -155,6 +170,20 @@ const LoginDetail: Component = () => {
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleString();
+  };
+
+  const isExpiringSoon = (dateString: string) => {
+    if (!dateString) return false;
+    
+    const expiryDate = new Date(dateString);
+    const now = new Date();
+    
+    // Calculate the difference in days
+    const diffTime = expiryDate.getTime() - now.getTime();
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
+    
+    // Return true if the expiry date is within the next 7 days
+    return diffDays > 0 && diffDays <= 7;
   };
 
   return (
@@ -366,6 +395,99 @@ const LoginDetail: Component = () => {
           </Show>
         </div>
 
+        {/* Linked Devices Section */}
+        <div class="mt-8">
+          <h2 class="text-xl font-semibold text-gray-11">Linked Devices</h2>
+          <p class="mt-2 text-sm text-gray-9">
+            Devices linked to this login account.
+          </p>
+
+          <Show when={loadingDevices()}>
+            <div class="mt-4 text-center">
+              <p>Loading linked devices...</p>
+            </div>
+          </Show>
+
+          <Show when={!loadingDevices() && linkedDevices().length === 0}>
+            <div class="mt-4 bg-yellow-50 p-4 rounded-lg">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.257 3.099zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <h3 class="text-sm font-medium text-yellow-800">No devices linked to this login</h3>
+                </div>
+              </div>
+            </div>
+          </Show>
+
+          <Show when={!loadingDevices() && linkedDevices().length > 0}>
+            <div class="mt-4 overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+              <table class="min-w-full divide-y divide-gray-6">
+                <thead>
+                  <tr>
+                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-11 sm:pl-6">
+                      Device ID
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                      User Agent
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                      Last Login
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                      Created
+                    </th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-11">
+                      Expires
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-6">
+                  <For each={linkedDevices()}>
+                    {(device) => (
+                      <tr>
+                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-11 sm:pl-6">
+                          <span class="font-mono">{device.fingerprint.substring(0, 8)}...</span>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                          <div class="max-w-xs truncate" title={device.user_agent}>
+                            {device.user_agent || 'Unknown'}
+                          </div>
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                          {formatDate(device.last_login)}
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                          {formatDate(device.created_at)}
+                        </td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-11">
+                          {device.expires_at ? (
+                            <div class="flex items-center">
+                              <span class={`mr-2 ${isExpiringSoon(device.expires_at) ? 'text-amber-600' : 'text-green-600'}`}>
+                                {formatDate(device.expires_at)}
+                              </span>
+                              {isExpiringSoon(device.expires_at) && (
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                  Expiring soon
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            'N/A'
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
+            </div>
+          </Show>
+        </div>
+
         {/* Associated Users Section */}
         <div class="mt-8">
           <h2 class="text-xl font-semibold text-gray-11">Associated Users</h2>
@@ -384,7 +506,7 @@ const LoginDetail: Component = () => {
               <div class="flex">
                 <div class="flex-shrink-0">
                   <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.257 3.099zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
                   </svg>
                 </div>
                 <div class="ml-3">
