@@ -196,9 +196,13 @@ func main() {
 		http.SameSiteLaxMode,
 	)
 
+	// Initialize device recognition service and routes
+	deviceRepo := device.NewInMemDeviceRepository()
+	deviceService := device.NewDeviceService(deviceRepo, loginRepository)
+
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
-	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, loginapi.WithTwoFactorService(twoFaService), loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()))
+	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, *deviceService, loginapi.WithTwoFactorService(twoFaService), loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()))
 
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 
@@ -260,9 +264,6 @@ func main() {
 		twoFaHandle := twofaapi.NewHandle(twoFaService, tokenService, tokenCookieService, userMapper)
 		r.Mount("/idm/2fa", twofaapi.TwoFaHandler(twoFaHandle))
 
-		// Initialize device recognition service and routes
-		deviceRepo := device.NewInMemDeviceRepository()
-		deviceService := device.NewDeviceService(deviceRepo, loginRepository)
 		deviceHandle := deviceapi.NewDeviceHandler(deviceService)
 		r.Mount("/api/idm/device", deviceapi.Handler(deviceHandle))
 
