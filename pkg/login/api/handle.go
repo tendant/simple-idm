@@ -476,26 +476,11 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// if user selects to remember device, link device to login
-	if data.RememberDevice && !deviceRecognized {
-		_, err := h.deviceService.GetDeviceByFingerprint(r.Context(), fingerprintStr)
-		if err != nil {
-			_, err = h.deviceService.RegisterDevice(r.Context(), fingerprintStr, r.UserAgent())
-			if err != nil {
-				slog.Error("Failed to register device", "err", err)
-			}
-		}
-		err = h.deviceService.LinkDeviceToLogin(r.Context(), loginID, fingerprintStr)
-		if err != nil {
-			slog.Error("Failed to link device to login", "err", err)
-		}
-	}
 	response := Login{
-		Status:         "success",
-		Message:        "Login successful",
-		User:           apiUsers[0],
-		Users:          apiUsers,
-		RememberDevice: &data.RememberDevice,
+		Status:  "success",
+		Message: "Login successful",
+		User:    apiUsers[0],
+		Users:   apiUsers,
 	}
 
 	return PostLoginJSON200Response(response)
@@ -1026,21 +1011,6 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	// if user selects to remember device, link device to login
-	if data.RememberDevice && !deviceRecognized {
-		_, err := h.deviceService.GetDeviceByFingerprint(r.Context(), fingerprintStr)
-		if err != nil {
-			_, err = h.deviceService.RegisterDevice(r.Context(), fingerprintStr, r.UserAgent())
-			if err != nil {
-				slog.Error("Failed to register device", "err", err)
-			}
-		}
-		err = h.deviceService.LinkDeviceToLogin(r.Context(), loginID, fingerprintStr)
-		if err != nil {
-			slog.Error("Failed to link device to login", "err", err)
-		}
-	}
-
 	// Return tokens in response
 	return h.responseHandler.PrepareTokenResponse(tokens)
 }
@@ -1331,6 +1301,12 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 			body: "2fa validation failed",
 		}
 	}
+
+	// if user selects to remember device, link device to login
+	if data.RememberDevice2fa {
+		common.RememberDevice(r, loginId, h.deviceService)
+	}
+
 	// 2FA validation successful, get users by login ID
 	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
 	if err != nil {
@@ -1590,6 +1566,11 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 			Code: http.StatusBadRequest,
 			body: "2fa validation failed",
 		}
+	}
+
+	// if user selects to remember device, link device to login
+	if data.RememberDevice2fa {
+		common.RememberDevice(r, loginId, h.deviceService)
 	}
 
 	// 2FA validation successful, get users for the login ID
