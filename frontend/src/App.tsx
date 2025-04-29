@@ -17,7 +17,6 @@ import PasswordReset from './pages/PasswordReset';
 import Settings from './pages/Settings';
 import FindUsername from './pages/FindUsername';
 import TwoFactorVerification from './pages/TwoFactorVerification';
-import Devices from './pages/Devices';
 
 const UsersPage: Component = () => {
   return (
@@ -148,17 +147,6 @@ const SettingsPage: Component = () => {
   );
 };
 
-const DevicesPage: Component = () => {
-  return (
-    <div class="min-h-screen bg-gray-1">
-      <main class="py-10 px-4 sm:px-6 lg:px-8">
-        <Navigation />
-        <Devices />
-      </main>
-    </div>
-  );
-};
-
 const App: Component = () => {
   return (
     <Router>
@@ -175,7 +163,6 @@ const App: Component = () => {
       <Route path="/logins/create" component={CreateLoginPage} />
       <Route path="/logins/:id/detail" component={LoginDetailPage} />
       <Route path="/logins/:id/edit" component={EditLoginPage} />
-      <Route path="/devices" component={DevicesPage} />
       <Route path="/password-reset-init" component={PasswordResetInit} />
       <Route path="/password-reset/:code" component={PasswordReset} />
       <Route path="/find-username" component={FindUsername} />
