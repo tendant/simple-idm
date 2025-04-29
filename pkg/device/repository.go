@@ -21,6 +21,7 @@ type LoginDevice struct {
 	Fingerprint string
 	LinkedAt    time.Time
 	ExpiresAt   time.Time // When this link expires (90 days from creation by default)
+	DeletedAt   time.Time
 }
 
 // IsExpired checks if the login device link has expired

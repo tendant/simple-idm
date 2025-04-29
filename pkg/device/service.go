@@ -93,27 +93,6 @@ func (s *DeviceService) FindDevicesByLogin(ctx context.Context, loginID uuid.UUI
 	return devices, nil
 }
 
-// FindLoginsByDevice returns all logins linked to a specific device
-func (s *DeviceService) FindLoginsByDevice(ctx context.Context, fingerprint string) ([]LoginInfo, error) {
-	logins, err := s.deviceRepository.FindLoginsByDevice(ctx, fingerprint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find logins for device: %w", err)
-	}
-	res := []LoginInfo{}
-	for _, login := range logins {
-		loginInfo, err := s.loginRepository.GetLoginById(ctx, login.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get login info: %w", err)
-		}
-		login.Username = loginInfo.Username
-		res = append(res, LoginInfo{
-			ID:       login.ID,
-			Username: login.Username,
-		})
-	}
-	return res, nil
-}
-
 // FindLoginDeviceByFingerprintAndLoginID returns the login-device link for a specific fingerprint and login ID
 func (s *DeviceService) FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (*LoginDevice, error) {
 	loginDevice, err := s.deviceRepository.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
