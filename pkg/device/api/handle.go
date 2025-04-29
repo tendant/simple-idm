@@ -23,38 +23,6 @@ func NewDeviceHandler(deviceService *device.DeviceService) *DeviceHandler {
 	}
 }
 
-// CreateDeviceRequest represents the request body for creating a device
-type CreateDeviceRequest struct {
-	Fingerprint string `json:"fingerprint"`
-	UserAgent   string `json:"user_agent"`
-}
-
-// CreateDeviceResponse represents the response body for creating a device
-type CreateDeviceResponse struct {
-	Status  string        `json:"status"`
-	Message string        `json:"message"`
-	Device  device.Device `json:"device"`
-}
-
-// LinkDeviceRequest represents the request body for linking a device to a login
-type LinkDeviceRequest struct {
-	Fingerprint string `json:"fingerprint"`
-	LoginID     string `json:"login_id,omitempty"`
-}
-
-// LinkDeviceResponse represents the response body for linking a device to a login
-type LinkDeviceResponse struct {
-	Status    string `json:"status"`
-	Message   string `json:"message"`
-	ExpiresAt string `json:"expires_at"`
-}
-
-// SuccessResponse represents a generic success response
-type SuccessResponse struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
-
 // ErrorResponse represents an error response
 type ErrorResponse struct {
 	Status  string `json:"status"`
