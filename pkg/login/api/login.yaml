@@ -262,10 +262,15 @@ paths:
                   type: string
                 temp_token:
                   type: string
+                remember_device_2fa:
+                  x-go-optional-value: true
+                  type: boolean
+                  description: Whether to remember this device for 90 days (skips 2FA)
               required:
                 - passcode
                 - twofa_type
                 - temp_token
+                - remember_device_2fa
       responses:
         "200":
           description: 2fa validated successfully
@@ -493,9 +498,14 @@ paths:
                   type: string
                 passcode:
                   type: string
+                remember_device_2fa:
+                  x-go-optional-value: true
+                  type: boolean
+                  description: Whether to remember this device for 90 days (skips 2FA)
               required:
                 - passcode
                 - twofa_type
+                - remember_device_2fa
       responses:
         "200":
           description: 2fa validated successfully

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from '@solidjs/router';
 import { loginApi, type Login, type TwoFactorMethod, type TwoFactorMethods } from '../api/login';
 import { userApi, type User } from '../api/user';
 import { twoFactorApi } from '../api/twoFactor';
+import { deviceApi, type Device } from '../api/device';
 
 const LoginDetail: Component = () => {
   const params = useParams();
@@ -11,13 +12,16 @@ const LoginDetail: Component = () => {
   const [associatedUsers, setAssociatedUsers] = createSignal<User[]>([]);
   const [twoFactorMethodsResponse, setTwoFactorMethodsResponse] = createSignal<TwoFactorMethods>({ count: 0, methods: [] });
   const [twoFactorMethods, setTwoFactorMethods] = createSignal<TwoFactorMethod[]>([]);
+  const [linkedDevices, setLinkedDevices] = createSignal<Device[]>([]);
   const [error, setError] = createSignal<string | null>(null);
   const [successMessage, setSuccessMessage] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [loadingUsers, setLoadingUsers] = createSignal(true);
   const [loadingTwoFactorMethods, setLoadingTwoFactorMethods] = createSignal(true);
+  const [loadingDevices, setLoadingDevices] = createSignal(true);
   const [processingMethod, setProcessingMethod] = createSignal<string | null>(null);
   const [deletingMethod, setDeletingMethod] = createSignal<string | null>(null);
+  const [unlinkingDevice, setUnlinkingDevice] = createSignal<string | null>(null);
   const [showCreateModal, setShowCreateModal] = createSignal(false);
   const [selectedMethodType, setSelectedMethodType] = createSignal<string>('email');
   const [creatingMethod, setCreatingMethod] = createSignal(false);
@@ -26,6 +30,7 @@ const LoginDetail: Component = () => {
     fetchLogin();
     fetchAssociatedUsers();
     fetchTwoFactorMethods();
+    fetchLinkedDevices();
   });
 
   const fetchLogin = async () => {
@@ -60,6 +65,17 @@ const LoginDetail: Component = () => {
       console.error('Failed to fetch 2FA methods:', err);
     } finally {
       setLoadingTwoFactorMethods(false);
+    }
+  };
+
+  const fetchLinkedDevices = async () => {
+    try {
+      const devices = await deviceApi.listDevicesByLogin(params.id);
+      setLinkedDevices(devices);
+    } catch (err) {
+      console.error('Failed to fetch linked devices:', err);
+    } finally {
+      setLoadingDevices(false);
     }
   };
 
@@ -155,6 +171,44 @@ const LoginDetail: Component = () => {
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleString();
+  };
+
+  const isExpiringSoon = (dateString: string) => {
+    if (!dateString) return false;
+    
+    const expiryDate = new Date(dateString);
+    const now = new Date();
+    
+    // Calculate the difference in days
+    const diffTime = expiryDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Return true if expiring within 7 days
+    return diffDays > 0 && diffDays <= 7;
+  };
+
+  const handleUnlinkDevice = async (fingerprint: string) => {
+    setUnlinkingDevice(fingerprint);
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      await deviceApi.unlinkDeviceFromLogin(params.id, fingerprint);
+      setSuccessMessage('Device unlinked successfully');
+      
+      // Refresh the linked devices list
+      await fetchLinkedDevices();
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to unlink device');
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setUnlinkingDevice(null);
+    }
   };
 
   return (
@@ -366,6 +420,81 @@ const LoginDetail: Component = () => {
           </Show>
         </div>
 
+        {/* Linked Devices Section */}
+        <Show when={!loading()}>
+          <div class="bg-white shadow sm:rounded-lg mt-6">
+            <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+              <div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Linked Devices</h3>
+                <p class="mt-1 max-w-2xl text-sm text-gray-500">Devices that are trusted for this login</p>
+              </div>
+            </div>
+            
+            <Show when={loadingDevices()}>
+              <div class="px-4 py-5 sm:p-6">
+                <p class="text-sm text-gray-500">Loading devices...</p>
+              </div>
+            </Show>
+            
+            <Show when={!loadingDevices() && linkedDevices().length === 0}>
+              <div class="px-4 py-5 sm:p-6 border-t border-gray-200">
+                <p class="text-sm text-gray-500">No devices linked to this login.</p>
+              </div>
+            </Show>
+            
+            <Show when={!loadingDevices() && linkedDevices().length > 0}>
+              <div class="border-t border-gray-200">
+                <div class="overflow-x-auto">
+                  <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Fingerprint</th>
+                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Login</th>
+                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Expires</th>
+                        <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                          <span class="sr-only">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                      <For each={linkedDevices()}>
+                        {(device) => (
+                          <tr>
+                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                              <div class="flex flex-col">
+                                <span class="font-mono">{device.fingerprint.substring(0, 16)}...</span>
+                                <span class="text-xs text-gray-500">{device.user_agent || 'Unknown device'}</span>
+                              </div>
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                              {formatDate(device.last_login)}
+                            </td>
+                            <td class="whitespace-nowrap px-3 py-4 text-sm">
+                              <span class={`${isExpiringSoon(device.expires_at || '') ? 'text-yellow-600' : 'text-gray-500'}`}>
+                                {formatDate(device.expires_at)}
+                              </span>
+                            </td>
+                            <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                              <button
+                                onClick={() => handleUnlinkDevice(device.fingerprint)}
+                                disabled={unlinkingDevice() === device.fingerprint}
+                                class="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {unlinkingDevice() === device.fingerprint ? 'Unlinking...' : 'Unlink'}
+                                <span class="sr-only">, {device.fingerprint}</span>
+                              </button>
+                            </td>
+                          </tr>
+                        )}
+                      </For>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </Show>
+          </div>
+        </Show>
+        
         {/* Associated Users Section */}
         <div class="mt-8">
           <h2 class="text-xl font-semibold text-gray-11">Associated Users</h2>
@@ -384,7 +513,7 @@ const LoginDetail: Component = () => {
               <div class="flex">
                 <div class="flex-shrink-0">
                   <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.257 3.099zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
                   </svg>
                 </div>
                 <div class="ml-3">

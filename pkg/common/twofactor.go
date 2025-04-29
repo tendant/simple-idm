@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/device"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
@@ -133,4 +134,39 @@ func getUniqueEmailsFromUsers(users []mapper.User) []DeliveryOption {
 	}
 
 	return deliveryOptions
+}
+
+func RememberDevice(r *http.Request, loginID uuid.UUID, deviceService device.DeviceService) (bool, error) {
+	// get fingerprint from request
+	fingerprint := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr := device.GenerateFingerprint(fingerprint)
+
+	slog.Info("Remembering device", "fingerprint", fingerprintStr, "loginID", loginID)
+
+	// check if device is already linked to login and not expired
+	loginDevice, err := deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), fingerprintStr, loginID)
+	if err == nil && loginDevice != nil && !loginDevice.IsExpired() {
+		// Device is recognized and not expired, skip 2FA
+		slog.Info("Device recognized", "fingerprint", fingerprintStr, "loginID", loginID)
+		return true, nil
+	}
+
+	slog.Info("Device not recognized or expired", "fingerprint", fingerprintStr, "loginID", loginID)
+	// register new device
+	_, err = deviceService.GetDeviceByFingerprint(r.Context(), fingerprintStr)
+	if err != nil {
+		slog.Info("registering device", "fingerprint", fingerprintStr)
+		_, err = deviceService.RegisterDevice(r.Context(), fingerprintStr, r.UserAgent())
+		if err != nil {
+			slog.Error("Failed to register device", "err", err)
+			return false, err
+		}
+	}
+	slog.Info("linking device to login", "fingerprint", fingerprintStr, "loginID", loginID)
+	err = deviceService.LinkDeviceToLogin(r.Context(), loginID, fingerprintStr)
+	if err != nil {
+		slog.Error("Failed to link device to login", "err", err)
+		return false, err
+	}
+	return true, nil
 }

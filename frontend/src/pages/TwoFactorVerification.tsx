@@ -22,6 +22,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
   const [selectedMethod, setSelectedMethod] = createSignal<TwoFactorMethod | null>(null);
   const [selectedDeliveryOption, setSelectedDeliveryOption] = createSignal<DeliveryOption | null>(null);
   const [verificationCode, setVerificationCode] = createSignal('');
+  const [rememberDevice, setRememberDevice] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
   const [sendingCode, setSendingCode] = createSignal(false);
@@ -208,7 +209,8 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
         
         const response = await twoFactorApi.verifyCode(token, {
           twofa_type: method.type,
-          passcode: verificationCode()
+          passcode: verificationCode(),
+          remember_device_2fa: rememberDevice()
         });
 
         // Check if user selection is required
@@ -370,6 +372,20 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                       Click "{selectedMethod()?.type === 'email' ? 'Send Code to Email' : 'Send Verification Code'}" to receive your verification code
                     </div>
                   )}
+
+                  <div class="flex items-center mb-6">
+                    <input
+                      id="remember-device"
+                      name="remember-device"
+                      type="checkbox"
+                      checked={rememberDevice()}
+                      onChange={(e) => setRememberDevice(e.currentTarget.checked)}
+                      class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-7 rounded"
+                    />
+                    <label for="remember-device" class="ml-2 block text-sm text-gray-11">
+                      Remember this device for 90 days
+                    </label>
+                  </div>
 
                   {error() && (
                     <div class="rounded-lg bg-red-2 p-4">

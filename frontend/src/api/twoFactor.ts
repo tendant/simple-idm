@@ -10,6 +10,7 @@ export interface TwoFactorSendRequest {
 export interface TwoFactorVerifyRequest {
   twofa_type: string;
   passcode: string;
+  remember_device_2fa?: boolean;
 }
 
 export interface UserData {
