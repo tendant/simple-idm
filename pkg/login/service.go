@@ -383,14 +383,16 @@ type SendPasswordResetEmailParams struct {
 	Email      string
 	UserId     string
 	ResetToken string
+	Username   string
 }
 
 func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPasswordResetEmailParams) error {
 	resetLink := fmt.Sprintf("%s/auth/user/reset-password?token=%s", s.notificationManager.BaseUrl, param.ResetToken)
 	slog.Info("Sending password reset email", "email", param.Email, "resetLink", resetLink)
 	data := map[string]string{
-		"Link":   resetLink,
-		"UserId": param.UserId,
+		"Link":     resetLink,
+		"UserId":   param.UserId,
+		"Username": param.Username,
 	}
 	return s.notificationManager.Send(notice.PasswordResetInit, notification.NotificationData{
 		To:   param.Email,
@@ -496,6 +498,7 @@ func (s *LoginService) InitPasswordReset(ctx context.Context, username string) e
 			Email:      user.UserInfo.Email,
 			UserId:     user.UserId,
 			ResetToken: resetToken,
+			Username:   username,
 		})
 		if err != nil {
 			slog.Error("Error sending password reset email", "err", err, "user", user.UserId)
