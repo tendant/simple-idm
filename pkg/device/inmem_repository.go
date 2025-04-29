@@ -156,7 +156,7 @@ func (r *InMemDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID u
 	key := loginID.String() + ":" + fingerprint
 
 	// Check if link already exists
-	if existingLink, exists := r.loginDevices[key]; exists {
+	if existingLink, exists := r.loginDevices[key]; exists && !existingLink.DeletedAt.IsZero() {
 		// Update the expiry date
 		existingLink.ExpiresAt = CalculateExpiryDate(DefaultDeviceExpiryDays)
 		r.loginDevices[key] = existingLink
@@ -206,8 +206,8 @@ func (r *InMemDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, log
 	key := loginID.String() + ":" + fingerprint
 
 	loginDevice, exists := r.loginDevices[key]
-	if !exists {
-		return errors.New("login device link not found")
+	if !exists || !loginDevice.DeletedAt.IsZero() {
+		return errors.New("login device link not found or deleted")
 	}
 
 	loginDevice.ExpiresAt = newExpiryDate
@@ -242,7 +242,7 @@ func (r *InMemDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx conte
 	defer r.mu.RUnlock()
 
 	for _, link := range r.loginDevices {
-		if link.Fingerprint == fingerprint && link.LoginID == loginID {
+		if link.Fingerprint == fingerprint && link.LoginID == loginID && link.DeletedAt.IsZero() {
 			// Return a copy to avoid race conditions
 			linkCopy := link
 			return &linkCopy, nil
