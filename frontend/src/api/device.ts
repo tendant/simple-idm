@@ -36,4 +36,22 @@ export const deviceApi = {
     const data = await response.json();
     return data.devices || [];
   },
+
+  // Unlink a device from a login
+  async unlinkDeviceFromLogin(loginId: string, fingerprint: string): Promise<void> {
+    const response = await fetchWithAuth(`/api/idm/device/login/${loginId}/unlink`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fingerprint,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to unlink device from login');
+    }
+  },
 };
