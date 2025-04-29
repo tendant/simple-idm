@@ -74,7 +74,7 @@ func (r *InMemDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID 
 	fingerprintMap := make(map[string]bool)
 
 	for _, link := range r.loginDevices {
-		if link.LoginID == loginID {
+		if link.LoginID == loginID && link.DeletedAt.IsZero() {
 			// Only process each fingerprint once
 			if _, exists := fingerprintMap[link.Fingerprint]; !exists {
 				fingerprintMap[link.Fingerprint] = true
@@ -213,6 +213,26 @@ func (r *InMemDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, log
 	loginDevice.ExpiresAt = newExpiryDate
 	r.loginDevices[key] = loginDevice
 
+	return nil
+}
+
+// UnlinkLoginToDevice removes the link between a login and a device
+func (r *InMemDeviceRepository) UnlinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Create a key for the login device map
+	key := loginID.String() + ":" + fingerprint
+
+	// Check if link exists
+	if _, exists := r.loginDevices[key]; !exists {
+		return errors.New("login device link not found")
+	}
+
+	// Remove the link
+	loginDevice := r.loginDevices[key]
+	loginDevice.DeletedAt = time.Now().UTC()
+	r.loginDevices[key] = loginDevice
 	return nil
 }
 

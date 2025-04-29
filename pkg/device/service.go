@@ -115,3 +115,21 @@ func (s *DeviceService) ExtendLoginDeviceExpiry(ctx context.Context, loginID uui
 func (s *DeviceService) GetDeviceByFingerprint(ctx context.Context, fingerprint string) (Device, error) {
 	return s.deviceRepository.GetDeviceByFingerprint(ctx, fingerprint)
 }
+
+// UnlinkLoginFromDevice removes the link between a login and a device
+func (s *DeviceService) UnlinkLoginFromDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) error {
+	// Ensure device exists
+	_, err := s.deviceRepository.GetDeviceByFingerprint(ctx, fingerprint)
+	if err != nil {
+		return fmt.Errorf("device not found: %w", err)
+	}
+
+	// Unlink device from login
+	err = s.deviceRepository.UnlinkLoginToDevice(ctx, loginID, fingerprint)
+	if err != nil {
+		return fmt.Errorf("failed to unlink device from login: %w", err)
+	}
+
+	slog.Info("Device unlinked from login", "fingerprint", fingerprint, "loginID", loginID)
+	return nil
+}

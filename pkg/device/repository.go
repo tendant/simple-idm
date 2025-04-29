@@ -42,11 +42,11 @@ type DeviceRepository interface {
 	FindDevices(ctx context.Context) ([]Device, error)
 	FindDevicesByLogin(ctx context.Context, loginID uuid.UUID) ([]Device, error)
 	UpdateDeviceLastLogin(ctx context.Context, fingerprint string, lastLogin time.Time) (Device, error)
-	FindLoginsByDevice(ctx context.Context, fingerprint string) ([]LoginInfo, error)
 	FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (*LoginDevice, error)
 
 	// Link operations
 	LinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, error)
+	UnlinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) error
 
 	// Expiration operations
 	ExtendLoginDeviceExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string, newExpiryDate time.Time) error
