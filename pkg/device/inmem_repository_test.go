@@ -2,6 +2,7 @@ package device
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -19,11 +20,22 @@ func TestInMemDeviceRepository_CreateDevice(t *testing.T) {
 	fingerprint := "test-fingerprint"
 	now := time.Now().UTC()
 	device := Device{
-		Fingerprint:    fingerprint,
-		UserAgent:      "test-user-agent",
-		LastLogin:      now,
-		CreatedAt:      now,
-		LastModifiedAt: now,
+		Fingerprint: fingerprint,
+		UserAgent:   "test-user-agent",
+		AcceptHeaders: sql.NullString{
+			String: "accept-headers",
+			Valid:  true,
+		},
+		Timezone: sql.NullString{
+			String: "UTC+0",
+			Valid:  true,
+		},
+		ScreenResolution: sql.NullString{
+			String: "1920x1080",
+			Valid:  true,
+		},
+		LastLogin:   now,
+		CreatedAt:   now,
 	}
 
 	// Test creating a new device
@@ -31,6 +43,9 @@ func TestInMemDeviceRepository_CreateDevice(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, device.Fingerprint, createdDevice.Fingerprint)
 	assert.Equal(t, device.UserAgent, createdDevice.UserAgent)
+	assert.Equal(t, device.AcceptHeaders, createdDevice.AcceptHeaders)
+	assert.Equal(t, device.Timezone, createdDevice.Timezone)
+	assert.Equal(t, device.ScreenResolution, createdDevice.ScreenResolution)
 
 	// Test creating a device with the same fingerprint (should fail)
 	_, err = repo.CreateDevice(ctx, device)
@@ -47,11 +62,22 @@ func TestInMemDeviceRepository_GetDeviceByFingerprint(t *testing.T) {
 	fingerprint := "test-fingerprint"
 	now := time.Now().UTC()
 	device := Device{
-		Fingerprint:    fingerprint,
-		UserAgent:      "test-user-agent",
-		LastLogin:      now,
-		CreatedAt:      now,
-		LastModifiedAt: now,
+		Fingerprint: fingerprint,
+		UserAgent:   "test-user-agent",
+		AcceptHeaders: sql.NullString{
+			String: "accept-headers",
+			Valid:  true,
+		},
+		Timezone: sql.NullString{
+			String: "UTC+0",
+			Valid:  true,
+		},
+		ScreenResolution: sql.NullString{
+			String: "1920x1080",
+			Valid:  true,
+		},
+		LastLogin:   now,
+		CreatedAt:   now,
 	}
 
 	// Add the device to the repository
@@ -63,9 +89,52 @@ func TestInMemDeviceRepository_GetDeviceByFingerprint(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, device.Fingerprint, retrievedDevice.Fingerprint)
 	assert.Equal(t, device.UserAgent, retrievedDevice.UserAgent)
+	assert.Equal(t, device.AcceptHeaders, retrievedDevice.AcceptHeaders)
+	assert.Equal(t, device.Timezone, retrievedDevice.Timezone)
+	assert.Equal(t, device.ScreenResolution, retrievedDevice.ScreenResolution)
 
 	// Test getting a non-existent device
 	_, err = repo.GetDeviceByFingerprint(ctx, "non-existent-fingerprint")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestInMemDeviceRepository_UpdateDeviceLastLogin(t *testing.T) {
+	// Setup
+	repo := NewInMemDeviceRepository()
+	ctx := context.Background()
+
+	// Create a test device
+	fingerprint := "test-fingerprint"
+	initialTime := time.Now().UTC().Add(-24 * time.Hour) // 1 day ago
+	device := Device{
+		Fingerprint: fingerprint,
+		UserAgent:   "test-user-agent",
+		AcceptHeaders: sql.NullString{
+			String: "accept-headers",
+			Valid:  true,
+		},
+		LastLogin:   initialTime,
+		CreatedAt:   initialTime,
+	}
+
+	// Add the device to the repository
+	_, err := repo.CreateDevice(ctx, device)
+	require.NoError(t, err)
+
+	// Update the last login time
+	newLoginTime := time.Now().UTC()
+	updatedDevice, err := repo.UpdateDeviceLastLogin(ctx, fingerprint, newLoginTime)
+	require.NoError(t, err)
+
+	// Verify the last login time was updated
+	assert.Equal(t, newLoginTime, updatedDevice.LastLogin)
+	// Verify other fields remain unchanged
+	assert.Equal(t, device.UserAgent, updatedDevice.UserAgent)
+	assert.Equal(t, device.AcceptHeaders, updatedDevice.AcceptHeaders)
+
+	// Test updating a non-existent device
+	_, err = repo.UpdateDeviceLastLogin(ctx, "non-existent-fingerprint", newLoginTime)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
@@ -79,17 +148,32 @@ func TestInMemDeviceRepository_FindDevices(t *testing.T) {
 	now := time.Now().UTC()
 	devices := []Device{
 		{
-			Fingerprint:    "fingerprint-1",
-			LastLogin:      now,
-			CreatedAt:      now,
-			LastModifiedAt: now,
+			Fingerprint: "fingerprint-1",
+			UserAgent:   "user-agent-1",
+			AcceptHeaders: sql.NullString{
+				String: "accept-headers-1",
+				Valid:  true,
+			},
+			Timezone: sql.NullString{
+				String: "UTC+0",
+				Valid:  true,
+			},
+			LastLogin:   now,
+			CreatedAt:   now,
 		},
 		{
-			Fingerprint:    "fingerprint-2",
-			UserAgent:      "user-agent-2",
-			LastLogin:      now,
-			CreatedAt:      now,
-			LastModifiedAt: now,
+			Fingerprint: "fingerprint-2",
+			UserAgent:   "user-agent-2",
+			AcceptHeaders: sql.NullString{
+				String: "accept-headers-2",
+				Valid:  true,
+			},
+			ScreenResolution: sql.NullString{
+				String: "1920x1080",
+				Valid:  true,
+			},
+			LastLogin:   now,
+			CreatedAt:   now,
 		},
 	}
 
@@ -114,40 +198,6 @@ func TestInMemDeviceRepository_FindDevices(t *testing.T) {
 	}
 }
 
-func TestInMemDeviceRepository_UpdateDeviceLastLogin(t *testing.T) {
-	// Setup
-	repo := NewInMemDeviceRepository()
-	ctx := context.Background()
-
-	// Create a test device
-	fingerprint := "test-fingerprint"
-	initialTime := time.Now().UTC().Add(-24 * time.Hour) // 1 day ago
-	device := Device{
-		Fingerprint:    fingerprint,
-		LastLogin:      initialTime,
-		CreatedAt:      initialTime,
-		LastModifiedAt: initialTime,
-	}
-
-	// Add the device to the repository
-	_, err := repo.CreateDevice(ctx, device)
-	require.NoError(t, err)
-
-	// Update the last login time
-	newLoginTime := time.Now().UTC()
-	updatedDevice, err := repo.UpdateDeviceLastLogin(ctx, fingerprint, newLoginTime)
-	require.NoError(t, err)
-
-	// Verify the last login time was updated
-	assert.Equal(t, newLoginTime, updatedDevice.LastLogin)
-	assert.True(t, updatedDevice.LastModifiedAt.After(initialTime))
-
-	// Test updating a non-existent device
-	_, err = repo.UpdateDeviceLastLogin(ctx, "non-existent-fingerprint", newLoginTime)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
-}
-
 func TestInMemDeviceRepository_LinkLoginToDevice(t *testing.T) {
 	// Setup
 	repo := NewInMemDeviceRepository()
@@ -157,11 +207,10 @@ func TestInMemDeviceRepository_LinkLoginToDevice(t *testing.T) {
 	fingerprint := "test-fingerprint"
 	now := time.Now().UTC()
 	device := Device{
-		Fingerprint:    fingerprint,
-		UserAgent:      "test-user-agent",
-		LastLogin:      now,
-		CreatedAt:      now,
-		LastModifiedAt: now,
+		Fingerprint: fingerprint,
+		UserAgent:   "test-user-agent",
+		LastLogin:   now,
+		CreatedAt:   now,
 	}
 
 	// Add the device to the repository
@@ -202,11 +251,10 @@ func TestInMemDeviceRepository_GetLoginDeviceWithExpiry(t *testing.T) {
 	fingerprint := "test-fingerprint"
 	now := time.Now().UTC()
 	device := Device{
-		Fingerprint:    fingerprint,
-		UserAgent:      "test-user-agent",
-		LastLogin:      now,
-		CreatedAt:      now,
-		LastModifiedAt: now,
+		Fingerprint: fingerprint,
+		UserAgent:   "test-user-agent",
+		LastLogin:   now,
+		CreatedAt:   now,
 	}
 
 	// Add the device to the repository
@@ -265,7 +313,71 @@ func TestInMemDeviceRepository_GetLoginDeviceWithExpiry(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-func TestInMemDeviceRepository_ExtendLoginDeviceExpiry(t *testing.T) {
+func TestInMemDeviceRepository_FindDevicesByLogin(t *testing.T) {
+	// Setup
+	repo := NewInMemDeviceRepository()
+	ctx := context.Background()
+
+	// Create test devices
+	now := time.Now().UTC()
+	device1 := Device{
+		Fingerprint: "fingerprint-1",
+		UserAgent:   "user-agent-1",
+		LastLogin:   now,
+		CreatedAt:   now,
+	}
+	device2 := Device{
+		Fingerprint: "fingerprint-2",
+		UserAgent:   "user-agent-2",
+		LastLogin:   now,
+		CreatedAt:   now,
+	}
+
+	// Add devices to the repository
+	_, err := repo.CreateDevice(ctx, device1)
+	require.NoError(t, err)
+	_, err = repo.CreateDevice(ctx, device2)
+	require.NoError(t, err)
+
+	// Create login IDs
+	loginID1 := uuid.New()
+	loginID2 := uuid.New()
+
+	// Link devices to logins
+	_, err = repo.LinkLoginToDevice(ctx, loginID1, device1.Fingerprint)
+	require.NoError(t, err)
+	_, err = repo.LinkLoginToDevice(ctx, loginID1, device2.Fingerprint)
+	require.NoError(t, err)
+	_, err = repo.LinkLoginToDevice(ctx, loginID2, device2.Fingerprint)
+	require.NoError(t, err)
+
+	// Test finding devices by login
+	devices, err := repo.FindDevicesByLogin(ctx, loginID1)
+	require.NoError(t, err)
+	assert.Len(t, devices, 2)
+
+	devices, err = repo.FindDevicesByLogin(ctx, loginID2)
+	require.NoError(t, err)
+	assert.Len(t, devices, 1)
+	assert.Equal(t, device2.Fingerprint, devices[0].Fingerprint)
+
+	// Test finding devices for a login with no linked devices
+	nonExistentLoginID := uuid.New()
+	devices, err = repo.FindDevicesByLogin(ctx, nonExistentLoginID)
+	require.NoError(t, err)
+	assert.Len(t, devices, 0)
+
+	// Test that unlinked (deleted) devices are not returned
+	err = repo.UnlinkLoginToDevice(ctx, loginID1, device1.Fingerprint)
+	require.NoError(t, err)
+
+	devices, err = repo.FindDevicesByLogin(ctx, loginID1)
+	require.NoError(t, err)
+	assert.Len(t, devices, 1)
+	assert.Equal(t, device2.Fingerprint, devices[0].Fingerprint)
+}
+
+func TestInMemDeviceRepository_UnlinkLoginToDevice(t *testing.T) {
 	// Setup
 	repo := NewInMemDeviceRepository()
 	ctx := context.Background()
@@ -274,11 +386,10 @@ func TestInMemDeviceRepository_ExtendLoginDeviceExpiry(t *testing.T) {
 	fingerprint := "test-fingerprint"
 	now := time.Now().UTC()
 	device := Device{
-		Fingerprint:    fingerprint,
-		UserAgent:      "test-user-agent",
-		LastLogin:      now,
-		CreatedAt:      now,
-		LastModifiedAt: now,
+		Fingerprint: fingerprint,
+		UserAgent:   "test-user-agent",
+		LastLogin:   now,
+		CreatedAt:   now,
 	}
 
 	// Add the device to the repository
@@ -287,25 +398,76 @@ func TestInMemDeviceRepository_ExtendLoginDeviceExpiry(t *testing.T) {
 
 	// Link a login to the device
 	loginID := uuid.New()
-	loginDevice, err := repo.LinkLoginToDevice(ctx, loginID, fingerprint)
+	_, err = repo.LinkLoginToDevice(ctx, loginID, fingerprint)
 	require.NoError(t, err)
 
-	// Extend the expiry date
-	originalExpiry := loginDevice.ExpiresAt
-	newExpiry := now.Add(365 * 24 * time.Hour) // 1 year from now
-	err = repo.ExtendLoginDeviceExpiry(ctx, loginID, fingerprint, newExpiry)
+	// Verify the link exists
+	loginDevice, err := repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
+	require.NoError(t, err)
+	assert.NotNil(t, loginDevice)
+	assert.False(t, loginDevice.DeletedAt.Valid)
+
+	// Unlink the device
+	err = repo.UnlinkLoginToDevice(ctx, loginID, fingerprint)
 	require.NoError(t, err)
 
-	// Verify the expiry date was extended
-	retrievedDevice, _, err := repo.GetLoginDeviceWithExpiry(ctx, loginID, fingerprint)
-	require.NoError(t, err)
-	assert.True(t, retrievedDevice.ExpiresAt.After(originalExpiry))
-	assert.Equal(t, newExpiry, retrievedDevice.ExpiresAt)
-
-	// Test extending a non-existent link
-	nonExistentLoginID := uuid.New()
-	err = repo.ExtendLoginDeviceExpiry(ctx, nonExistentLoginID, fingerprint, newExpiry)
+	// Verify the link is marked as deleted
+	loginDevice, err = repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
 	assert.Error(t, err)
+	assert.Nil(t, loginDevice)
+	assert.Contains(t, err.Error(), "not found")
+
+	// Test unlinking a non-existent link
+	nonExistentLoginID := uuid.New()
+	err = repo.UnlinkLoginToDevice(ctx, nonExistentLoginID, fingerprint)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestInMemDeviceRepository_FindLoginDeviceByFingerprintAndLoginID(t *testing.T) {
+	// Setup
+	repo := NewInMemDeviceRepository()
+	ctx := context.Background()
+
+	// Create a test device
+	fingerprint := "test-fingerprint"
+	now := time.Now().UTC()
+	device := Device{
+		Fingerprint: fingerprint,
+		UserAgent:   "test-user-agent",
+		LastLogin:   now,
+		CreatedAt:   now,
+	}
+
+	// Add the device to the repository
+	_, err := repo.CreateDevice(ctx, device)
+	require.NoError(t, err)
+
+	// Link a login to the device
+	loginID := uuid.New()
+	_, err = repo.LinkLoginToDevice(ctx, loginID, fingerprint)
+	require.NoError(t, err)
+
+	// Test finding an existing link
+	loginDevice, err := repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
+	require.NoError(t, err)
+	assert.NotNil(t, loginDevice)
+	assert.Equal(t, loginID, loginDevice.LoginID)
+	assert.Equal(t, fingerprint, loginDevice.Fingerprint)
+
+	// Test finding a non-existent link
+	nonExistentLoginID := uuid.New()
+	loginDevice, err = repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, nonExistentLoginID)
+	assert.Error(t, err)
+	assert.Nil(t, loginDevice)
+
+	// Test that deleted links are not found
+	err = repo.UnlinkLoginToDevice(ctx, loginID, fingerprint)
+	require.NoError(t, err)
+
+	loginDevice, err = repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
+	assert.Error(t, err)
+	assert.Nil(t, loginDevice)
 	assert.Contains(t, err.Error(), "not found")
 }
 
