@@ -2,7 +2,6 @@ package device
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
@@ -19,23 +18,18 @@ func TestInMemDeviceRepository_CreateDevice(t *testing.T) {
 	// Create a test device
 	fingerprint := "test-fingerprint"
 	now := time.Now().UTC()
+	acceptHeaders := "accept-headers"
+	timezone := "UTC+0"
+	screenResolution := "1920x1080"
+	
 	device := Device{
-		Fingerprint: fingerprint,
-		UserAgent:   "test-user-agent",
-		AcceptHeaders: sql.NullString{
-			String: "accept-headers",
-			Valid:  true,
-		},
-		Timezone: sql.NullString{
-			String: "UTC+0",
-			Valid:  true,
-		},
-		ScreenResolution: sql.NullString{
-			String: "1920x1080",
-			Valid:  true,
-		},
-		LastLoginAt: now,
-		CreatedAt:   now,
+		Fingerprint:      fingerprint,
+		UserAgent:        "test-user-agent",
+		AcceptHeaders:    acceptHeaders,
+		Timezone:         timezone,
+		ScreenResolution: screenResolution,
+		LastLoginAt:      now,
+		CreatedAt:        now,
 	}
 
 	// Test creating a new device
@@ -61,23 +55,18 @@ func TestInMemDeviceRepository_GetDeviceByFingerprint(t *testing.T) {
 	// Create a test device
 	fingerprint := "test-fingerprint"
 	now := time.Now().UTC()
+	acceptHeaders := "accept-headers"
+	timezone := "UTC+0"
+	screenResolution := "1920x1080"
+	
 	device := Device{
-		Fingerprint: fingerprint,
-		UserAgent:   "test-user-agent",
-		AcceptHeaders: sql.NullString{
-			String: "accept-headers",
-			Valid:  true,
-		},
-		Timezone: sql.NullString{
-			String: "UTC+0",
-			Valid:  true,
-		},
-		ScreenResolution: sql.NullString{
-			String: "1920x1080",
-			Valid:  true,
-		},
-		LastLoginAt: now,
-		CreatedAt:   now,
+		Fingerprint:      fingerprint,
+		UserAgent:        "test-user-agent",
+		AcceptHeaders:    acceptHeaders,
+		Timezone:         timezone,
+		ScreenResolution: screenResolution,
+		LastLoginAt:      now,
+		CreatedAt:        now,
 	}
 
 	// Add the device to the repository
@@ -107,15 +96,18 @@ func TestInMemDeviceRepository_UpdateDeviceLastLogin(t *testing.T) {
 	// Create a test device
 	fingerprint := "test-fingerprint"
 	initialTime := time.Now().UTC().Add(-24 * time.Hour) // 1 day ago
+	acceptHeaders := "accept-headers"
+	timezone := "UTC+0"
+	screenResolution := "1920x1080"
+	
 	device := Device{
-		Fingerprint: fingerprint,
-		UserAgent:   "test-user-agent",
-		AcceptHeaders: sql.NullString{
-			String: "accept-headers",
-			Valid:  true,
-		},
-		LastLoginAt: initialTime,
-		CreatedAt:   initialTime,
+		Fingerprint:      fingerprint,
+		UserAgent:        "test-user-agent",
+		AcceptHeaders:    acceptHeaders,
+		Timezone:         timezone,
+		ScreenResolution: screenResolution,
+		LastLoginAt:      initialTime,
+		CreatedAt:        initialTime,
 	}
 
 	// Add the device to the repository
@@ -150,30 +142,18 @@ func TestInMemDeviceRepository_FindDevices(t *testing.T) {
 		{
 			Fingerprint: "fingerprint-1",
 			UserAgent:   "user-agent-1",
-			AcceptHeaders: sql.NullString{
-				String: "accept-headers-1",
-				Valid:  true,
-			},
-			Timezone: sql.NullString{
-				String: "UTC+0",
-				Valid:  true,
-			},
-			LastLoginAt: now,
-			CreatedAt:   now,
+			AcceptHeaders: "accept-headers-1",
+			Timezone:     "UTC+0",
+			LastLoginAt:  now,
+			CreatedAt:    now,
 		},
 		{
 			Fingerprint: "fingerprint-2",
 			UserAgent:   "user-agent-2",
-			AcceptHeaders: sql.NullString{
-				String: "accept-headers-2",
-				Valid:  true,
-			},
-			ScreenResolution: sql.NullString{
-				String: "1920x1080",
-				Valid:  true,
-			},
-			LastLoginAt: now,
-			CreatedAt:   now,
+			AcceptHeaders: "accept-headers-2",
+			ScreenResolution: "1920x1080",
+			LastLoginAt:      now,
+			CreatedAt:        now,
 		},
 	}
 
@@ -405,7 +385,7 @@ func TestInMemDeviceRepository_UnlinkLoginToDevice(t *testing.T) {
 	loginDevice, err := repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
 	require.NoError(t, err)
 	assert.NotNil(t, loginDevice)
-	assert.False(t, loginDevice.DeletedAt.Valid)
+	assert.Nil(t, loginDevice.DeletedAt)
 
 	// Unlink the device
 	err = repo.UnlinkLoginToDevice(ctx, loginID, fingerprint)

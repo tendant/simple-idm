@@ -2,7 +2,6 @@ package device
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log/slog"
 	"time"
@@ -46,18 +45,9 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, fingerprint string, 
 	newDevice := Device{
 		Fingerprint: fingerprint,
 		UserAgent:   fingerprintData.UserAgent,
-		AcceptHeaders: sql.NullString{
-			String: fingerprintData.AcceptHeaders,
-			Valid:  fingerprintData.AcceptHeaders != "",
-		},
-		Timezone: sql.NullString{
-			String: fingerprintData.Timezone,
-			Valid:  fingerprintData.Timezone != "",
-		},
-		ScreenResolution: sql.NullString{
-			String: fingerprintData.ScreenResolution,
-			Valid:  fingerprintData.ScreenResolution != "",
-		},
+		AcceptHeaders: fingerprintData.AcceptHeaders,
+		Timezone: fingerprintData.Timezone,
+		ScreenResolution: fingerprintData.ScreenResolution,
 		LastLoginAt: now,
 		CreatedAt:   now,
 	}
@@ -82,8 +72,8 @@ func (s *DeviceService) LinkDeviceToLogin(ctx context.Context, loginID uuid.UUID
 		"fingerprint", fingerprint,
 		"loginID", loginID,
 		"userAgent", device.UserAgent,
-		"timezone", device.Timezone.String,
-		"screenResolution", device.ScreenResolution.String)
+		"timezone", device.Timezone,
+		"screenResolution", device.ScreenResolution)
 
 	// Link device to login with default expiry
 	loginDevice, err := s.deviceRepository.LinkLoginToDevice(ctx, loginID, fingerprint)

@@ -2,7 +2,6 @@ package device
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -83,7 +82,7 @@ func (r *InMemDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID 
 	slog.Debug("Finding devices for login", "loginID", loginID)
 	deviceCount := 0
 	for _, link := range r.loginDevices {
-		if link.LoginID == loginID && !link.DeletedAt.Valid {
+		if link.LoginID == loginID && link.DeletedAt.IsZero() {
 			// Only process each fingerprint once
 			if _, exists := fingerprintMap[link.Fingerprint]; !exists {
 				fingerprintMap[link.Fingerprint] = true
@@ -169,7 +168,7 @@ func (r *InMemDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID u
 	key := loginID.String() + ":" + fingerprint
 
 	// Check if link already exists
-	if existingLink, exists := r.loginDevices[key]; exists && !existingLink.DeletedAt.Valid {
+	if existingLink, exists := r.loginDevices[key]; exists && existingLink.DeletedAt.IsZero() {
 		// Update the expiry date
 		slog.Debug("Updating existing device link", "fingerprint", fingerprint, "loginID", loginID,
 			"oldExpiry", existingLink.ExpiresAt.Format(time.RFC3339))
@@ -228,7 +227,7 @@ func (r *InMemDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, log
 	key := loginID.String() + ":" + fingerprint
 
 	loginDevice, exists := r.loginDevices[key]
-	if !exists || loginDevice.DeletedAt.Valid {
+	if !exists || !loginDevice.DeletedAt.IsZero() {
 		slog.Debug("Login device link not found or deleted when extending expiry", "fingerprint", fingerprint, "loginID", loginID)
 		return errors.New("login device link not found or deleted")
 	}
@@ -256,10 +255,10 @@ func (r *InMemDeviceRepository) UnlinkLoginToDevice(ctx context.Context, loginID
 
 	// Remove the link
 	loginDevice := r.loginDevices[key]
-	loginDevice.DeletedAt = sql.NullTime{Time: time.Now().UTC(), Valid: true}
+	loginDevice.DeletedAt = time.Now().UTC()
 	r.loginDevices[key] = loginDevice
 	slog.Debug("Device link marked as deleted", "fingerprint", fingerprint, "loginID", loginID,
-		"deletedAt", loginDevice.DeletedAt.Time.Format(time.RFC3339))
+		"deletedAt", loginDevice.DeletedAt.Format(time.RFC3339))
 	return nil
 }
 
@@ -270,7 +269,7 @@ func (r *InMemDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx conte
 
 	slog.Debug("Finding login device link", "fingerprint", fingerprint, "loginID", loginID)
 	for _, link := range r.loginDevices {
-		if link.Fingerprint == fingerprint && link.LoginID == loginID && !link.DeletedAt.Valid {
+		if link.Fingerprint == fingerprint && link.LoginID == loginID && link.DeletedAt.IsZero() {
 			// Return a copy to avoid race conditions
 			linkCopy := link
 			slog.Debug("Found login device link", "fingerprint", fingerprint, "loginID", loginID,

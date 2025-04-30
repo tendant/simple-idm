@@ -46,12 +46,12 @@ func TestDeviceService_RegisterDevice(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fingerprint, device.Fingerprint)
 	assert.Equal(t, fingerprintData.UserAgent, device.UserAgent)
-	assert.Equal(t, fingerprintData.AcceptHeaders, device.AcceptHeaders.String)
-	assert.Equal(t, fingerprintData.Timezone, device.Timezone.String)
-	assert.Equal(t, fingerprintData.ScreenResolution, device.ScreenResolution.String)
-	assert.True(t, device.AcceptHeaders.Valid)
-	assert.True(t, device.Timezone.Valid)
-	assert.True(t, device.ScreenResolution.Valid)
+	assert.Equal(t, fingerprintData.AcceptHeaders, device.AcceptHeaders)
+	assert.Equal(t, fingerprintData.Timezone, device.Timezone)
+	assert.Equal(t, fingerprintData.ScreenResolution, device.ScreenResolution)
+	assert.NotEmpty(t, device.AcceptHeaders)
+	assert.NotEmpty(t, device.Timezone)
+	assert.NotEmpty(t, device.ScreenResolution)
 
 	// Test registering the same device again (should update last login)
 	initialLastLogin := device.LastLoginAt
