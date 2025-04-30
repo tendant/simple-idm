@@ -2,6 +2,7 @@ package device
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"time"
@@ -25,7 +26,7 @@ func NewDeviceService(deviceRepository DeviceRepository, loginRepository login.L
 }
 
 // RegisterDevice registers a new device or updates an existing one
-func (s *DeviceService) RegisterDevice(ctx context.Context, fingerprint, userAgent string) (Device, error) {
+func (s *DeviceService) RegisterDevice(ctx context.Context, fingerprint string, fingerprintData FingerprintData) (Device, error) {
 	// Check if device already exists
 	_, err := s.deviceRepository.GetDeviceByFingerprint(ctx, fingerprint)
 	if err == nil {
@@ -43,13 +44,23 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, fingerprint, userAge
 	// Create new device
 	now := time.Now().UTC()
 	newDevice := Device{
-		Fingerprint:    fingerprint,
-		UserAgent:      userAgent,
-		LastLogin:      now,
-		CreatedAt:      now,
-		LastModifiedAt: now,
+		Fingerprint: fingerprint,
+		UserAgent:   fingerprintData.UserAgent,
+		AcceptHeaders: sql.NullString{
+			String: fingerprintData.AcceptHeaders,
+			Valid:  fingerprintData.AcceptHeaders != "",
+		},
+		Timezone: sql.NullString{
+			String: fingerprintData.Timezone,
+			Valid:  fingerprintData.Timezone != "",
+		},
+		ScreenResolution: sql.NullString{
+			String: fingerprintData.ScreenResolution,
+			Valid:  fingerprintData.ScreenResolution != "",
+		},
+		LastLogin: now,
+		CreatedAt: now,
 	}
-
 	createdDevice, err := s.deviceRepository.CreateDevice(ctx, newDevice)
 	if err != nil {
 		return Device{}, fmt.Errorf("failed to create device: %w", err)
@@ -100,16 +111,6 @@ func (s *DeviceService) FindLoginDeviceByFingerprintAndLoginID(ctx context.Conte
 		return nil, fmt.Errorf("failed to find login device: %w", err)
 	}
 	return loginDevice, nil
-}
-
-// ExtendLoginDeviceExpiry extends the expiration date of a login-device link
-func (s *DeviceService) ExtendLoginDeviceExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string, days int) error {
-	newExpiryDate := CalculateExpiryDate(days)
-	err := s.deviceRepository.ExtendLoginDeviceExpiry(ctx, loginID, fingerprint, newExpiryDate)
-	if err != nil {
-		return fmt.Errorf("failed to extend login device expiry: %w", err)
-	}
-	return nil
 }
 
 func (s *DeviceService) GetDeviceByFingerprint(ctx context.Context, fingerprint string) (Device, error) {
