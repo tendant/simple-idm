@@ -29,6 +29,13 @@ const (
 	LOGOUT_TOKEN_NAME  = "logout_token"
 )
 
+// LoginResponseWithWarnings extends the standard login response with password warnings
+type LoginResponseWithWarnings struct {
+	AccessToken     string `json:"access_token"`
+	RefreshToken    string `json:"refresh_token"`
+	PasswordStatus  string `json:"password_status"`
+	PasswordMessage string `json:"password_message"`
+}
 type Handle struct {
 	loginService       *login.LoginService
 	twoFactorService   twofa.TwoFactorService
@@ -64,6 +71,8 @@ type ResponseHandler interface {
 	PrepareUserSwitchResponse(users []mapper.User) *Response
 	// PrepareTokenResponse prepares a response with access and refresh tokens
 	PrepareTokenResponse(tokens map[string]tg.TokenValue) *Response
+	// PrepareTokenResponseWithWarnings prepares a response with access and refresh tokens plus password warnings
+	PrepareTokenResponseWithWarnings(tokens map[string]tg.TokenValue, passwordStatus, passwordMessage string) *Response
 	// PrepareUserAssociationSelectionResponse prepares a response for user association selection
 	PrepareUserAssociationSelectionResponse(loginID string, users []mapper.User) *Response
 }
@@ -175,6 +184,32 @@ func (h *DefaultResponseHandler) PrepareTokenResponse(tokens map[string]tg.Token
 		body: LoginResponse{
 			AccessToken:  accessToken.Token,
 			RefreshToken: refreshToken.Token,
+		},
+		contentType: "application/json",
+	}
+}
+
+// PrepareTokenResponseWithWarnings prepares a response with access and refresh tokens plus password warnings
+func (h *DefaultResponseHandler) PrepareTokenResponseWithWarnings(tokens map[string]tg.TokenValue, passwordStatus, passwordMessage string) *Response {
+	accessToken, hasAccess := tokens[tg.ACCESS_TOKEN_NAME]
+	refreshToken, hasRefresh := tokens[tg.REFRESH_TOKEN_NAME]
+
+	if !hasAccess || !hasRefresh {
+		slog.Error("Missing required tokens", "has_access", hasAccess, "has_refresh", hasRefresh)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Internal server error: insufficient tokens",
+		}
+	}
+
+	// Create a response with password warnings
+	return &Response{
+		Code: http.StatusOK,
+		body: LoginResponseWithWarnings{
+			AccessToken:     accessToken.Token,
+			RefreshToken:    refreshToken.Token,
+			PasswordStatus:  passwordStatus,
+			PasswordMessage: passwordMessage,
 		},
 		contentType: "application/json",
 	}
@@ -357,6 +392,16 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	idmUsers, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
+
+		// Check if this is a password expiration error
+		if strings.Contains(err.Error(), "password has expired") {
+			return &Response{
+				Code:        http.StatusForbidden,
+				body:        "Your password has expired and must be changed before you can log in.",
+				contentType: "application/json",
+			}
+		}
+
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
@@ -467,6 +512,10 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// Check if password is expired or about to expire
+	daysLeft, warningMsg := h.checkPasswordExpiration(r.Context(), loginID.String())
+
+	// Set tokens in cookies
 	err = h.tokenCookieService.SetTokensCookie(w, tokens)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
@@ -476,11 +525,17 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// Create response with user information
 	response := Login{
 		Status:  "success",
 		Message: "Login successful",
 		User:    apiUsers[0],
 		Users:   apiUsers,
+	}
+
+	// Add password warnings if applicable
+	if daysLeft <= 14 {
+		response.Message = warningMsg
 	}
 
 	return PostLoginJSON200Response(response)
@@ -920,6 +975,16 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	idmUsers, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
+
+		// Check if this is a password expiration error
+		if strings.Contains(err.Error(), "password has expired") {
+			return &Response{
+				Code:        http.StatusForbidden,
+				body:        "Your password has expired and must be changed before you can log in.",
+				contentType: "application/json",
+			}
+		}
+
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
@@ -1011,7 +1076,15 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	// Return tokens in response
+	// Check if password is expired or about to expire
+	daysLeft, warningMsg := h.checkPasswordExpiration(r.Context(), loginID.String())
+
+	// Return tokens with password warnings if applicable
+	if daysLeft <= 14 {
+		return h.responseHandler.PrepareTokenResponseWithWarnings(tokens, "password_about_to_expire", warningMsg)
+	}
+
+	// Return tokens in response for mobile
 	return h.responseHandler.PrepareTokenResponse(tokens)
 }
 
@@ -1372,6 +1445,9 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
+	// Check if password is expired or about to expire
+	daysLeft, warningMsg := h.checkPasswordExpiration(r.Context(), loginId.String())
+
 	err = h.tokenCookieService.SetTokensCookie(w, tokens)
 	if err != nil {
 		slog.Error("Failed to set tokens cookie", "err", err)
@@ -1383,6 +1459,21 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	// Include tokens in response
 	resp.Result = "success"
+
+	// For password warnings, we'll use a custom response instead of modifying SuccessResponse
+	if daysLeft <= 14 {
+		// Following the established pattern of standardized responses with clear status indicators
+		return &Response{
+			Code: http.StatusOK,
+			body: map[string]interface{}{
+				"result":  "success",
+				"status":  "password_about_to_expire",
+				"message": warningMsg,
+			},
+			contentType: "application/json",
+		}
+	}
+
 	return Post2faValidateJSON200Response(resp)
 }
 
@@ -1619,6 +1710,14 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 		}
 	}
 
+	// Check if password is expired or about to expire
+	daysLeft, warningMsg := h.checkPasswordExpiration(r.Context(), loginId.String())
+
+	// Return tokens with password warnings if applicable
+	if daysLeft <= 14 {
+		return h.responseHandler.PrepareTokenResponseWithWarnings(tokens, "password_about_to_expire", warningMsg)
+	}
+
 	// Return tokens in response
 	return h.responseHandler.PrepareTokenResponse(tokens)
 }
@@ -1723,6 +1822,14 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 		}
 	}
 
+	// Check if password is expired or about to expire
+	daysLeft, warningMsg := h.checkPasswordExpiration(r.Context(), loginId.String())
+
+	// Return tokens with password warnings if applicable
+	if daysLeft <= 14 {
+		return h.responseHandler.PrepareTokenResponseWithWarnings(tokens, "password_about_to_expire", warningMsg)
+	}
+
 	// Return tokens in response for mobile
 	return h.responseHandler.PrepareTokenResponse(tokens)
 }
@@ -1805,4 +1912,20 @@ func (h Handle) MobileFindUsersWithLogin(w http.ResponseWriter, r *http.Request,
 // Helper function to create a pointer to a string
 func ptr(s string) *string {
 	return &s
+}
+
+// checkPasswordExpiration checks if a password is about to expire and adds a warning message if needed
+// Returns the days left until expiration and a warning message if applicable
+func (h Handle) checkPasswordExpiration(ctx context.Context, loginID string) (int, string) {
+	_, daysLeft, err := h.loginService.IsPasswordExpired(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to check password expiration", "err", err)
+		return 0, ""
+	}
+
+	if daysLeft <= 14 {
+		return daysLeft, fmt.Sprintf("Your password will expire in %d days. Please change it soon.", daysLeft)
+	}
+
+	return daysLeft, ""
 }
