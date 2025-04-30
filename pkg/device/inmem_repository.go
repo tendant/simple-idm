@@ -2,6 +2,7 @@ package device
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sync"
@@ -74,7 +75,7 @@ func (r *InMemDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID 
 	fingerprintMap := make(map[string]bool)
 
 	for _, link := range r.loginDevices {
-		if link.LoginID == loginID && link.DeletedAt.IsZero() {
+		if link.LoginID == loginID && !link.DeletedAt.Valid {
 			// Only process each fingerprint once
 			if _, exists := fingerprintMap[link.Fingerprint]; !exists {
 				fingerprintMap[link.Fingerprint] = true
@@ -136,7 +137,6 @@ func (r *InMemDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, finge
 	}
 
 	device.LastLogin = lastLogin
-	device.LastModifiedAt = time.Now().UTC()
 	r.devices[fingerprint] = device
 
 	return device, nil
@@ -156,7 +156,7 @@ func (r *InMemDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID u
 	key := loginID.String() + ":" + fingerprint
 
 	// Check if link already exists
-	if existingLink, exists := r.loginDevices[key]; exists && !existingLink.DeletedAt.IsZero() {
+	if existingLink, exists := r.loginDevices[key]; exists && !existingLink.DeletedAt.Valid {
 		// Update the expiry date
 		existingLink.ExpiresAt = CalculateExpiryDate(DefaultDeviceExpiryDays)
 		r.loginDevices[key] = existingLink
@@ -206,7 +206,7 @@ func (r *InMemDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, log
 	key := loginID.String() + ":" + fingerprint
 
 	loginDevice, exists := r.loginDevices[key]
-	if !exists || !loginDevice.DeletedAt.IsZero() {
+	if !exists || loginDevice.DeletedAt.Valid {
 		return errors.New("login device link not found or deleted")
 	}
 
@@ -231,7 +231,7 @@ func (r *InMemDeviceRepository) UnlinkLoginToDevice(ctx context.Context, loginID
 
 	// Remove the link
 	loginDevice := r.loginDevices[key]
-	loginDevice.DeletedAt = time.Now().UTC()
+	loginDevice.DeletedAt = sql.NullTime{Time: time.Now().UTC(), Valid: true}
 	r.loginDevices[key] = loginDevice
 	return nil
 }
@@ -242,7 +242,7 @@ func (r *InMemDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx conte
 	defer r.mu.RUnlock()
 
 	for _, link := range r.loginDevices {
-		if link.Fingerprint == fingerprint && link.LoginID == loginID && link.DeletedAt.IsZero() {
+		if link.Fingerprint == fingerprint && link.LoginID == loginID && !link.DeletedAt.Valid {
 			// Return a copy to avoid race conditions
 			linkCopy := link
 			return &linkCopy, nil
