@@ -2,17 +2,20 @@ package device
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 type Device struct {
-	Fingerprint    string    `json:"fingerprint"` // Unique device ID
-	UserAgent      string    `json:"user_agent"`
-	LastLogin      time.Time `json:"last_login"`
-	CreatedAt      time.Time `json:"created_at"`
-	LastModifiedAt time.Time `json:"last_modified_at"`
+	Fingerprint      string         `json:"fingerprint"` // Unique device ID
+	UserAgent        string         `json:"user_agent"`
+	AcceptHeaders    sql.NullString `json:"accept_headers"`
+	Timezone         sql.NullString `json:"timezone"`
+	ScreenResolution sql.NullString `json:"screen_resolution"`
+	LastLogin        time.Time      `json:"last_login"`
+	CreatedAt        time.Time      `json:"created_at"`
 }
 
 type LoginDevice struct {
@@ -21,7 +24,7 @@ type LoginDevice struct {
 	Fingerprint string
 	LinkedAt    time.Time
 	ExpiresAt   time.Time // When this link expires (90 days from creation by default)
-	DeletedAt   time.Time
+	DeletedAt   sql.NullTime
 }
 
 // IsExpired checks if the login device link has expired
@@ -47,9 +50,6 @@ type DeviceRepository interface {
 	// Link operations
 	LinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, error)
 	UnlinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) error
-
-	// Expiration operations
-	ExtendLoginDeviceExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string, newExpiryDate time.Time) error
 
 	// Transaction support
 	WithTx(tx interface{}) DeviceRepository
