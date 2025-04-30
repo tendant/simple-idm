@@ -49,7 +49,7 @@ type Login struct {
 	PasswordVersion       pgtype.Int4    `json:"password_version"`
 	PasswordResetRequired sql.NullBool   `json:"password_reset_required"`
 	PasswordUpdatedAt     sql.NullTime   `json:"password_updated_at"`
-	PasswordExpireAt      sql.NullTime   `json:"password_expire_at"`
+	PasswordExpiresAt     sql.NullTime   `json:"password_expires_at"`
 	FailedLoginAttempts   pgtype.Int4    `json:"failed_login_attempts"`
 	LockedUntil           sql.NullTime   `json:"locked_until"`
 	LastFailedAttemptAt   sql.NullTime   `json:"last_failed_attempt_at"`
