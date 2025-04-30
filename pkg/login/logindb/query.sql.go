@@ -316,6 +316,20 @@ func (q *Queries) GetPasswordHistory(ctx context.Context, arg GetPasswordHistory
 	return items, nil
 }
 
+const getPasswordUpdatedAt = `-- name: GetPasswordUpdatedAt :one
+SELECT password_updated_at
+FROM login
+WHERE id = $1
+AND deleted_at IS NULL
+`
+
+func (q *Queries) GetPasswordUpdatedAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error) {
+	row := q.db.QueryRow(ctx, getPasswordUpdatedAt, id)
+	var password_updated_at sql.NullTime
+	err := row.Scan(&password_updated_at)
+	return password_updated_at, err
+}
+
 const getPasswordVersion = `-- name: GetPasswordVersion :one
 SELECT password_version
 FROM login
@@ -475,6 +489,25 @@ type UpdatePasswordResetRequiredParams struct {
 
 func (q *Queries) UpdatePasswordResetRequired(ctx context.Context, arg UpdatePasswordResetRequiredParams) error {
 	_, err := q.db.Exec(ctx, updatePasswordResetRequired, arg.ID, arg.PasswordResetRequired)
+	return err
+}
+
+const updatePasswordTimestamps = `-- name: UpdatePasswordTimestamps :exec
+UPDATE login
+SET password_updated_at = $2,
+    password_expire_at = $3
+WHERE id = $1
+AND deleted_at IS NULL
+`
+
+type UpdatePasswordTimestampsParams struct {
+	ID                uuid.UUID    `json:"id"`
+	PasswordUpdatedAt sql.NullTime `json:"password_updated_at"`
+	PasswordExpireAt  sql.NullTime `json:"password_expire_at"`
+}
+
+func (q *Queries) UpdatePasswordTimestamps(ctx context.Context, arg UpdatePasswordTimestampsParams) error {
+	_, err := q.db.Exec(ctx, updatePasswordTimestamps, arg.ID, arg.PasswordUpdatedAt, arg.PasswordExpireAt)
 	return err
 }
 
