@@ -29,13 +29,6 @@ const (
 	LOGOUT_TOKEN_NAME  = "logout_token"
 )
 
-// LoginResponseWithWarnings extends the standard login response with password warnings
-type LoginResponseWithWarnings struct {
-	AccessToken     string `json:"access_token"`
-	RefreshToken    string `json:"refresh_token"`
-	PasswordStatus  string `json:"password_status"`
-	PasswordMessage string `json:"password_message"`
-}
 type Handle struct {
 	loginService       *login.LoginService
 	twoFactorService   twofa.TwoFactorService
