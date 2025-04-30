@@ -269,6 +269,20 @@ func (q *Queries) GetLoginByUserId(ctx context.Context, id uuid.UUID) (GetLoginB
 	return i, err
 }
 
+const getPasswordExpireAt = `-- name: GetPasswordExpireAt :one
+SELECT password_expire_at
+FROM login
+WHERE id = $1
+AND deleted_at IS NULL
+`
+
+func (q *Queries) GetPasswordExpireAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error) {
+	row := q.db.QueryRow(ctx, getPasswordExpireAt, id)
+	var password_expire_at sql.NullTime
+	err := row.Scan(&password_expire_at)
+	return password_expire_at, err
+}
+
 const getPasswordHistory = `-- name: GetPasswordHistory :many
 SELECT id, login_id, password_hash, password_version, created_at
 FROM login_password_history
