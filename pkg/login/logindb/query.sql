@@ -173,9 +173,13 @@ FROM login
 WHERE id = $1
 AND deleted_at IS NULL;
 
--- name: UpdatePasswordTimestamps :exec
-UPDATE login
-SET password_updated_at = $2,
-    password_expire_at = $3
+-- name: GetPasswordExpireAt :one
+SELECT password_expire_at
+FROM login
 WHERE id = $1
 AND deleted_at IS NULL;
+
+-- name: UpdatePasswordTimestamps :exec
+UPDATE login
+SET password_updated_at = $2, password_expire_at = $3
+WHERE login_id = $1;
