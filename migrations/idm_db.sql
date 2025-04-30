@@ -60,7 +60,7 @@ CREATE TABLE public.device (
     accept_headers text,
     timezone character varying(100),
     screen_resolution character varying(50),
-    last_login timestamp without time zone NOT NULL,
+    last_login_at timestamp without time zone NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL
 );
 

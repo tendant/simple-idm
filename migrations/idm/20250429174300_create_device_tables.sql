@@ -7,7 +7,7 @@ CREATE TABLE device (
     accept_headers TEXT,
     timezone VARCHAR(100),
     screen_resolution VARCHAR(50),
-    last_login TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    last_login_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc') NOT NULL,
     PRIMARY KEY (fingerprint)
 );
