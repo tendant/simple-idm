@@ -2,20 +2,19 @@ package device
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 type Device struct {
-	Fingerprint      string         `json:"fingerprint"` // Unique device ID
-	UserAgent        string         `json:"user_agent"`
-	AcceptHeaders    sql.NullString `json:"accept_headers"`
-	Timezone         sql.NullString `json:"timezone"`
-	ScreenResolution sql.NullString `json:"screen_resolution"`
-	LastLoginAt      time.Time      `json:"last_login_at"`
-	CreatedAt        time.Time      `json:"created_at"`
+	Fingerprint      string
+	UserAgent        string
+	AcceptHeaders    string
+	Timezone         string
+	ScreenResolution string
+	LastLoginAt      time.Time
+	CreatedAt        time.Time
 }
 
 type LoginDevice struct {
@@ -23,8 +22,8 @@ type LoginDevice struct {
 	LoginID     uuid.UUID
 	Fingerprint string
 	LinkedAt    time.Time
-	ExpiresAt   time.Time // When this link expires (90 days from creation by default)
-	DeletedAt   sql.NullTime
+	ExpiresAt   time.Time
+	DeletedAt   time.Time
 }
 
 // IsExpired checks if the login device link has expired
