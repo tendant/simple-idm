@@ -166,3 +166,16 @@ JOIN users u ON u.login_id = l.id
 WHERE u.email = $1
 AND u.deleted_at IS NULL
 LIMIT 1;
+
+-- name: GetPasswordUpdatedAt :one
+SELECT password_updated_at
+FROM login
+WHERE id = $1
+AND deleted_at IS NULL;
+
+-- name: UpdatePasswordTimestamps :exec
+UPDATE login
+SET password_updated_at = $2,
+    password_expire_at = $3
+WHERE id = $1
+AND deleted_at IS NULL;
