@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -290,6 +291,15 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	}
 	slog.Info("token validated")
 
+	// Check if password change is allowed (minimum password age)
+	allowed, err := pm.IsPasswordChangeAllowed(ctx, tokenInfo.LoginID)
+	if err != nil {
+		slog.Error("Failed to check if password change is allowed", "err", err)
+		// Continue with password change even if check fails
+	} else if !allowed {
+		return "", fmt.Errorf("password was changed too recently. Please try again later")
+	}
+
 	// Check if the new password meets complexity requirements
 	if err := pm.CheckPasswordComplexity(newPassword); err != nil {
 		slog.Error("Failed to check password complexity", "err", err)
@@ -351,6 +361,18 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	}
 	slog.Info("Password updated")
 
+	// Update password timestamps
+	now := time.Now().UTC()
+	expireAt := now.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
+	err = pm.repository.UpdatePasswordTimestamps(ctx, tokenInfo.LoginID,
+		sql.NullTime{Time: now, Valid: true},
+		sql.NullTime{Time: expireAt, Valid: true})
+	if err != nil {
+		slog.Error("Failed to update password timestamps", "err", err)
+		// Don't return error here, as the password was already changed
+	}
+	slog.Info("Password timestamps updated")
+
 	// Mark token as used
 	err = pm.repository.MarkPasswordResetTokenUsed(ctx, token)
 	if err != nil {
@@ -381,6 +403,15 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 		return err
 	}
 	slog.Info("User found", "user", login.Username)
+
+	// Check if password change is allowed (minimum password age)
+	allowed, err := pm.IsPasswordChangeAllowed(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to check if password change is allowed", "err", err)
+		// Continue with password change even if check fails
+	} else if !allowed {
+		return fmt.Errorf("password was changed too recently. Please try again later")
+	}
 
 	// Get the password version
 	version, isValid, err := pm.repository.GetPasswordVersion(ctx, login.ID)
@@ -449,6 +480,15 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 	}
 	slog.Info("Updated password and version")
 
+	// Update password timestamps
+	now := time.Now().UTC()
+	expireAt := now.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
+	err = pm.repository.UpdatePasswordTimestamps(ctx, login.ID, sql.NullTime{Time: now, Valid: true}, sql.NullTime{Time: expireAt, Valid: true})
+	if err != nil {
+		slog.Error("Failed to update password timestamps", "err", err)
+		// Don't return error here, as the password was already changed
+	}
+
 	err = pm.repository.UpdatePasswordResetRequired(ctx, login.ID, false)
 	if err != nil {
 		slog.Error("Failed to update password reset required", "err", err)
@@ -457,6 +497,33 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 	slog.Info("Updated password reset required to false")
 
 	return nil
+}
+
+// IsPasswordChangeAllowed checks if enough time has passed since the last password change
+func (pm *PasswordManager) IsPasswordChangeAllowed(ctx context.Context, loginID uuid.UUID) (bool, error) {
+	// Get the last password change timestamp
+	lastChanged, err := pm.repository.GetPasswordUpdatedAt(ctx, loginID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get password last changed timestamp: %w", err)
+	}
+
+	// If this is a new user or first password change, allow it
+	if !lastChanged.Valid {
+		return true, nil
+	}
+
+	// Calculate the minimum valid time for a new password change (24 hours)
+	minValidTime := lastChanged.Time.Add(24 * time.Hour)
+
+	// Check if enough time has passed
+	now := time.Now().UTC()
+	if now.Before(minValidTime) {
+		// Not enough time has passed
+		return false, nil
+	}
+
+	// Enough time has passed
+	return true, nil
 }
 
 // IsPasswordExpired checks if a password has expired based on policy
