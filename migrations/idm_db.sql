@@ -117,11 +117,11 @@ CREATE TABLE public.login (
     username character varying(255),
     password_version integer DEFAULT 1,
     password_reset_required boolean,
-    password_updated_at timestamp with time zone,
-    password_expire_at timestamp with time zone,
+    password_updated_at timestamp without time zone,
+    password_expire_at timestamp without time zone,
     failed_login_attempts integer DEFAULT 0,
-    locked_until timestamp with time zone,
-    last_failed_attempt_at timestamp with time zone
+    locked_until timestamp without time zone,
+    last_failed_attempt_at timestamp without time zone
 );
 
 

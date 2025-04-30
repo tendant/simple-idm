@@ -1,10 +1,10 @@
 -- +goose Up
 -- +goose StatementBegin
-ALTER TABLE login ADD COLUMN password_updated_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE login ADD COLUMN password_expire_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE login ADD COLUMN password_updated_at TIMESTAMP WITHOUT TIME ZONE;
+ALTER TABLE login ADD COLUMN password_expire_at TIMESTAMP WITHOUT TIME ZONE;
 ALTER TABLE login ADD COLUMN failed_login_attempts INTEGER DEFAULT 0;
-ALTER TABLE login ADD COLUMN locked_until TIMESTAMP WITH TIME ZONE;
-ALTER TABLE login ADD COLUMN last_failed_attempt_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE login ADD COLUMN locked_until TIMESTAMP WITHOUT TIME ZONE;
+ALTER TABLE login ADD COLUMN last_failed_attempt_at TIMESTAMP WITHOUT TIME ZONE;
 
 -- Set default values for existing records
 UPDATE login 
