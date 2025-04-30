@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
+	"golang.org/x/exp/slog"
 )
 
 // Domain models for the login repository
@@ -105,9 +106,9 @@ type LoginRepository interface {
 	UpdateUserPasswordAndVersion(ctx context.Context, arg PasswordParams) error
 
 	// Password age and expiration operations
-	GetPasswordUpdatedAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error)
-	GetPasswordExpireAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error)
-	UpdatePasswordTimestamps(ctx context.Context, id uuid.UUID, updatedAt, expireAt sql.NullTime) error
+	GetPasswordUpdatedAt(ctx context.Context, id uuid.UUID) (time.Time, bool, error)
+	GetPasswordExpiresAt(ctx context.Context, id uuid.UUID) (time.Time, bool, error)
+	UpdatePasswordTimestamps(ctx context.Context, id uuid.UUID, updatedAt, expiresAt time.Time) error
 
 	// Password reset token operations
 	InitPasswordResetToken(ctx context.Context, arg PasswordResetTokenParams) error
@@ -430,20 +431,30 @@ func (r *PostgresLoginRepository) WithPgxTx(tx pgx.Tx) LoginRepository {
 }
 
 // GetPasswordUpdatedAt gets the password updated at timestamp for a login
-func (r *PostgresLoginRepository) GetPasswordUpdatedAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error) {
-	return r.queries.GetPasswordUpdatedAt(ctx, id)
+func (r *PostgresLoginRepository) GetPasswordUpdatedAt(ctx context.Context, id uuid.UUID) (time.Time, bool, error) {
+	dbUpdatedAt, err := r.queries.GetPasswordUpdatedAt(ctx, id)
+	if err != nil {
+		slog.Error("Failed to get password updated at", "err", err)
+		return time.Time{}, false, err
+	}
+	return dbUpdatedAt.Time, dbUpdatedAt.Valid, nil
 }
 
-// GetPasswordExpireAt gets the password expire at timestamp for a login
-func (r *PostgresLoginRepository) GetPasswordExpireAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error) {
-	return r.queries.GetPasswordExpireAt(ctx, id)
+// GetPasswordExpiresAt gets the password expire at timestamp for a login
+func (r *PostgresLoginRepository) GetPasswordExpiresAt(ctx context.Context, id uuid.UUID) (time.Time, bool, error) {
+	dbExpiresAt, err := r.queries.GetPasswordExpiresAt(ctx, id)
+	if err != nil {
+		slog.Error("Failed to get password expires at", "err", err)
+		return time.Time{}, false, err
+	}
+	return dbExpiresAt.Time, dbExpiresAt.Valid, nil
 }
 
 // UpdatePasswordTimestamps updates the password updated at and expire at timestamps for a login
-func (r *PostgresLoginRepository) UpdatePasswordTimestamps(ctx context.Context, id uuid.UUID, updatedAt, expireAt sql.NullTime) error {
+func (r *PostgresLoginRepository) UpdatePasswordTimestamps(ctx context.Context, id uuid.UUID, updatedAt, expiresAt time.Time) error {
 	return r.queries.UpdatePasswordTimestamps(ctx, logindb.UpdatePasswordTimestampsParams{
 		ID:                id,
-		PasswordUpdatedAt: updatedAt,
-		PasswordExpireAt:  expireAt,
+		PasswordUpdatedAt: sql.NullTime{Time: updatedAt, Valid: true},
+		PasswordExpiresAt: sql.NullTime{Time: expiresAt, Valid: true},
 	})
 }

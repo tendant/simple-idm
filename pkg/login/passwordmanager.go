@@ -2,7 +2,6 @@ package login
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
@@ -193,6 +191,8 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, loginID, ne
 		version = 1
 	}
 
+	slog.Info("Password version", "version", version)
+
 	// Check if the new password matches the current password
 	match, err := pm.VerifyPasswordWithVersion(newPassword, string(login.Password), PasswordVersion(version))
 	if err != nil {
@@ -241,14 +241,8 @@ func (pm *PasswordManager) InitPasswordReset(ctx context.Context, loginID uuid.U
 	resetToken := utils.GenerateRandomString(32)
 
 	// Set expiration time (24 hours from now)
-	expireAt := pgtype.Timestamptz{}
-	err := expireAt.Scan(time.Now().UTC().Add(24 * time.Hour))
-	if err != nil {
-		slog.Error("Failed to create expiry time", "err", err)
-		return "", fmt.Errorf("failed to create expiry time: %w", err)
-	}
-
-	err = pm.repository.ExpirePasswordResetToken(ctx, loginID)
+	expiresAt := time.Now().UTC().Add(24 * time.Hour)
+	err := pm.repository.ExpirePasswordResetToken(ctx, loginID)
 	if err != nil {
 		slog.Error("Failed to expire existing reset token", "err", err)
 		return "", err
@@ -258,7 +252,7 @@ func (pm *PasswordManager) InitPasswordReset(ctx context.Context, loginID uuid.U
 	err = pm.repository.InitPasswordResetToken(ctx, PasswordResetTokenParams{
 		LoginID:  loginID,
 		Token:    resetToken,
-		ExpireAt: time.Time(expireAt.Time),
+		ExpireAt: expiresAt,
 	})
 	if err != nil {
 		slog.Error("Failed to save reset token", "err", err)
@@ -363,10 +357,8 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 
 	// Update password timestamps
 	now := time.Now().UTC()
-	expireAt := now.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
-	err = pm.repository.UpdatePasswordTimestamps(ctx, tokenInfo.LoginID,
-		sql.NullTime{Time: now, Valid: true},
-		sql.NullTime{Time: expireAt, Valid: true})
+	expiresAt := now.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
+	err = pm.repository.UpdatePasswordTimestamps(ctx, tokenInfo.LoginID, now, expiresAt)
 	if err != nil {
 		slog.Error("Failed to update password timestamps", "err", err)
 		// Don't return error here, as the password was already changed
@@ -482,8 +474,8 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 
 	// Update password timestamps
 	now := time.Now().UTC()
-	expireAt := now.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
-	err = pm.repository.UpdatePasswordTimestamps(ctx, login.ID, sql.NullTime{Time: now, Valid: true}, sql.NullTime{Time: expireAt, Valid: true})
+	expiresAt := now.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
+	err = pm.repository.UpdatePasswordTimestamps(ctx, login.ID, now, expiresAt)
 	if err != nil {
 		slog.Error("Failed to update password timestamps", "err", err)
 		// Don't return error here, as the password was already changed
@@ -502,18 +494,18 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 // IsPasswordChangeAllowed checks if enough time has passed since the last password change
 func (pm *PasswordManager) IsPasswordChangeAllowed(ctx context.Context, loginID uuid.UUID) (bool, error) {
 	// Get the last password change timestamp
-	lastChanged, err := pm.repository.GetPasswordUpdatedAt(ctx, loginID)
+	lastChanged, valid, err := pm.repository.GetPasswordUpdatedAt(ctx, loginID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get password last changed timestamp: %w", err)
 	}
 
 	// If this is a new user or first password change, allow it
-	if !lastChanged.Valid {
+	if !valid || lastChanged.IsZero() {
 		return true, nil
 	}
 
-	// Calculate the minimum valid time for a new password change (24 hours)
-	minValidTime := lastChanged.Time.Add(time.Duration(pm.policyChecker.GetPolicy().MinPasswordAge) * time.Hour)
+	// If this is not a new user or first password change, check if enough time has passed
+	minValidTime := lastChanged.Add(time.Duration(pm.policyChecker.GetPolicy().MinPasswordAge) * time.Hour)
 
 	// Check if enough time has passed
 	now := time.Now().UTC()
@@ -540,21 +532,19 @@ func (pm *PasswordManager) IsPasswordExpired(ctx context.Context, loginID string
 	}
 
 	// Get the password expiration timestamp
-	expireAt, err := pm.repository.GetPasswordExpireAt(ctx, loginUUID)
+	expiresAt, valid, err := pm.repository.GetPasswordExpiresAt(ctx, loginUUID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get password expiration: %w", err)
 	}
 
-	// If password_expire_at is not set, set it now based on policy
-	if !expireAt.Valid {
+	// If password_expires_at is not set, set it now based on policy
+	if !valid || expiresAt.IsZero() {
 		// Use updated_at as the base time if available, otherwise current time
 		baseTime := login.UpdatedAt
-		expireTime := baseTime.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
+		expiresTime := baseTime.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
 
 		// Update the expiration time in the database
-		err = pm.repository.UpdatePasswordTimestamps(ctx, loginUUID,
-			sql.NullTime{Time: baseTime, Valid: true},
-			sql.NullTime{Time: expireTime, Valid: true})
+		err = pm.repository.UpdatePasswordTimestamps(ctx, loginUUID, baseTime, expiresTime)
 		if err != nil {
 			slog.Error("Failed to set initial password expiration", "err", err)
 			// Continue with the check using the calculated expiration
@@ -562,12 +552,12 @@ func (pm *PasswordManager) IsPasswordExpired(ctx context.Context, loginID string
 
 		// Check if the calculated expiration is in the past
 		now := time.Now().UTC()
-		return now.After(expireTime), nil
+		return now.After(expiresTime), nil
 	}
 
 	// Check if the current time is after the expiration time
 	now := time.Now().UTC()
-	return now.After(expireAt.Time), nil
+	return now.After(expiresAt), nil
 }
 
 // GetPasswordExpirationInfo returns information about password expiration
@@ -579,13 +569,13 @@ func (pm *PasswordManager) GetPasswordExpirationInfo(ctx context.Context, loginI
 	}
 
 	// Get the password expiration timestamp
-	expireAt, err := pm.repository.GetPasswordExpireAt(ctx, loginUUID)
+	expiresAt, valid, err := pm.repository.GetPasswordExpiresAt(ctx, loginUUID)
 	if err != nil {
 		return false, 0, fmt.Errorf("failed to get password expiration: %w", err)
 	}
 
-	// If password_expire_at is not set, get it from the login entity
-	if !expireAt.Valid {
+	// If password_expires_at is not set, get it from the login entity
+	if !valid || expiresAt.IsZero() {
 		login, err := pm.repository.GetLoginById(ctx, loginUUID)
 		if err != nil {
 			return false, 0, fmt.Errorf("failed to get login: %w", err)
@@ -593,35 +583,33 @@ func (pm *PasswordManager) GetPasswordExpirationInfo(ctx context.Context, loginI
 
 		// Use updated_at as the base time
 		baseTime := login.UpdatedAt
-		expireTime := baseTime.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
+		expiresTime := baseTime.AddDate(0, 0, pm.policyChecker.GetPolicy().ExpirationDays)
 
 		// Update the expiration time in the database
-		err = pm.repository.UpdatePasswordTimestamps(ctx, loginUUID,
-			sql.NullTime{Time: baseTime, Valid: true},
-			sql.NullTime{Time: expireTime, Valid: true})
+		err = pm.repository.UpdatePasswordTimestamps(ctx, loginUUID, baseTime, expiresTime)
 		if err != nil {
 			slog.Error("Failed to set initial password expiration", "err", err)
 		}
 
 		// Check expiration against calculated time
 		now := time.Now().UTC()
-		if now.After(expireTime) {
+		if now.After(expiresTime) {
 			return true, 0, nil
 		}
 
 		// Calculate days until expiration
-		daysUntilExpiration := int(expireTime.Sub(now).Hours() / 24)
+		daysUntilExpiration := int(expiresTime.Sub(now).Hours() / 24)
 		return false, daysUntilExpiration, nil
 	}
 
 	// Check if the password is already expired
 	now := time.Now().UTC()
-	if now.After(expireAt.Time) {
+	if now.After(expiresAt) {
 		return true, 0, nil
 	}
 
 	// Calculate days until expiration
-	daysUntilExpiration := int(expireAt.Time.Sub(now).Hours() / 24)
+	daysUntilExpiration := int(expiresAt.Sub(now).Hours() / 24)
 	return false, daysUntilExpiration, nil
 }
 
