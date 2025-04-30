@@ -106,6 +106,7 @@ type LoginRepository interface {
 
 	// Password age and expiration operations
 	GetPasswordUpdatedAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error)
+	GetPasswordExpireAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error)
 	UpdatePasswordTimestamps(ctx context.Context, id uuid.UUID, updatedAt, expireAt sql.NullTime) error
 
 	// Password reset token operations
@@ -431,6 +432,11 @@ func (r *PostgresLoginRepository) WithPgxTx(tx pgx.Tx) LoginRepository {
 // GetPasswordUpdatedAt gets the password updated at timestamp for a login
 func (r *PostgresLoginRepository) GetPasswordUpdatedAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error) {
 	return r.queries.GetPasswordUpdatedAt(ctx, id)
+}
+
+// GetPasswordExpireAt gets the password expire at timestamp for a login
+func (r *PostgresLoginRepository) GetPasswordExpireAt(ctx context.Context, id uuid.UUID) (sql.NullTime, error) {
+	return r.queries.GetPasswordExpireAt(ctx, id)
 }
 
 // UpdatePasswordTimestamps updates the password updated at and expire at timestamps for a login
