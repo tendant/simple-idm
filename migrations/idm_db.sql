@@ -51,6 +51,23 @@ CREATE TABLE public.backup_codes (
 ALTER TABLE public.backup_codes OWNER TO idm;
 
 --
+-- Name: device; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.device (
+    fingerprint character varying(255) NOT NULL,
+    user_agent text NOT NULL,
+    accept_headers text,
+    timezone character varying(100),
+    screen_resolution character varying(50),
+    last_login timestamp without time zone NOT NULL,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL
+);
+
+
+ALTER TABLE public.device OWNER TO idm;
+
+--
 -- Name: goose_db_version; Type: TABLE; Schema: public; Owner: idm
 --
 
@@ -123,6 +140,22 @@ CREATE TABLE public.login_2fa (
 
 
 ALTER TABLE public.login_2fa OWNER TO idm;
+
+--
+-- Name: login_device; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.login_device (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    login_id uuid NOT NULL,
+    fingerprint character varying(255) NOT NULL,
+    linked_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
+    expires_at timestamp without time zone NOT NULL,
+    deleted_at timestamp without time zone
+);
+
+
+ALTER TABLE public.login_device OWNER TO idm;
 
 --
 -- Name: login_password_history; Type: TABLE; Schema: public; Owner: idm
@@ -224,6 +257,14 @@ ALTER TABLE ONLY public.backup_codes
 
 
 --
+-- Name: device device_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.device
+    ADD CONSTRAINT device_pkey PRIMARY KEY (fingerprint);
+
+
+--
 -- Name: goose_db_version goose_db_version_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
@@ -237,6 +278,14 @@ ALTER TABLE ONLY public.goose_db_version
 
 ALTER TABLE ONLY public.login_2fa
     ADD CONSTRAINT login_2fa_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: login_device login_device_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login_device
+    ADD CONSTRAINT login_device_pkey PRIMARY KEY (id);
 
 
 --
@@ -318,6 +367,27 @@ CREATE INDEX idx_backup_codes_user_uuid ON public.backup_codes USING btree (user
 
 
 --
+-- Name: idx_login_device_expires_at; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_login_device_expires_at ON public.login_device USING btree (expires_at);
+
+
+--
+-- Name: idx_login_device_fingerprint; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_login_device_fingerprint ON public.login_device USING btree (fingerprint);
+
+
+--
+-- Name: idx_login_device_login_id; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_login_device_login_id ON public.login_device USING btree (login_id);
+
+
+--
 -- Name: idx_login_password_reset_tokens_login_id; Type: INDEX; Schema: public; Owner: idm
 --
 
@@ -352,6 +422,22 @@ ALTER TABLE ONLY public.backup_codes
 
 ALTER TABLE ONLY public.login_2fa
     ADD CONSTRAINT login_2fa_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
+
+
+--
+-- Name: login_device login_device_fingerprint_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login_device
+    ADD CONSTRAINT login_device_fingerprint_fkey FOREIGN KEY (fingerprint) REFERENCES public.device(fingerprint);
+
+
+--
+-- Name: login_device login_device_login_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login_device
+    ADD CONSTRAINT login_device_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
 
 
 --
