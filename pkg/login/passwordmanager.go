@@ -513,7 +513,7 @@ func (pm *PasswordManager) IsPasswordChangeAllowed(ctx context.Context, loginID 
 	}
 
 	// Calculate the minimum valid time for a new password change (24 hours)
-	minValidTime := lastChanged.Time.Add(24 * time.Hour)
+	minValidTime := lastChanged.Time.Add(time.Duration(pm.policyChecker.GetPolicy().MinPasswordAge) * time.Hour)
 
 	// Check if enough time has passed
 	now := time.Now().UTC()

@@ -18,6 +18,7 @@ type PasswordPolicy struct {
 	HistoryCheckCount   int
 	ExpirationDays      int
 	CommonPasswordsPath string
+	MinPasswordAge      int
 }
 
 // PasswordValidationErrors represents a collection of password validation errors
