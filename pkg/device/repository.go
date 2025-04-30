@@ -14,7 +14,7 @@ type Device struct {
 	AcceptHeaders    sql.NullString `json:"accept_headers"`
 	Timezone         sql.NullString `json:"timezone"`
 	ScreenResolution sql.NullString `json:"screen_resolution"`
-	LastLogin        time.Time      `json:"last_login"`
+	LastLoginAt      time.Time      `json:"last_login_at"`
 	CreatedAt        time.Time      `json:"created_at"`
 }
 

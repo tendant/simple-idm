@@ -34,7 +34,7 @@ func TestInMemDeviceRepository_CreateDevice(t *testing.T) {
 			String: "1920x1080",
 			Valid:  true,
 		},
-		LastLogin:   now,
+		LastLoginAt: now,
 		CreatedAt:   now,
 	}
 
@@ -76,7 +76,7 @@ func TestInMemDeviceRepository_GetDeviceByFingerprint(t *testing.T) {
 			String: "1920x1080",
 			Valid:  true,
 		},
-		LastLogin:   now,
+		LastLoginAt: now,
 		CreatedAt:   now,
 	}
 
@@ -114,7 +114,7 @@ func TestInMemDeviceRepository_UpdateDeviceLastLogin(t *testing.T) {
 			String: "accept-headers",
 			Valid:  true,
 		},
-		LastLogin:   initialTime,
+		LastLoginAt: initialTime,
 		CreatedAt:   initialTime,
 	}
 
@@ -128,7 +128,7 @@ func TestInMemDeviceRepository_UpdateDeviceLastLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the last login time was updated
-	assert.Equal(t, newLoginTime, updatedDevice.LastLogin)
+	assert.Equal(t, newLoginTime, updatedDevice.LastLoginAt)
 	// Verify other fields remain unchanged
 	assert.Equal(t, device.UserAgent, updatedDevice.UserAgent)
 	assert.Equal(t, device.AcceptHeaders, updatedDevice.AcceptHeaders)
@@ -158,7 +158,7 @@ func TestInMemDeviceRepository_FindDevices(t *testing.T) {
 				String: "UTC+0",
 				Valid:  true,
 			},
-			LastLogin:   now,
+			LastLoginAt: now,
 			CreatedAt:   now,
 		},
 		{
@@ -172,7 +172,7 @@ func TestInMemDeviceRepository_FindDevices(t *testing.T) {
 				String: "1920x1080",
 				Valid:  true,
 			},
-			LastLogin:   now,
+			LastLoginAt: now,
 			CreatedAt:   now,
 		},
 	}
@@ -209,7 +209,7 @@ func TestInMemDeviceRepository_LinkLoginToDevice(t *testing.T) {
 	device := Device{
 		Fingerprint: fingerprint,
 		UserAgent:   "test-user-agent",
-		LastLogin:   now,
+		LastLoginAt: now,
 		CreatedAt:   now,
 	}
 
@@ -253,7 +253,7 @@ func TestInMemDeviceRepository_GetLoginDeviceWithExpiry(t *testing.T) {
 	device := Device{
 		Fingerprint: fingerprint,
 		UserAgent:   "test-user-agent",
-		LastLogin:   now,
+		LastLoginAt: now,
 		CreatedAt:   now,
 	}
 
@@ -323,13 +323,13 @@ func TestInMemDeviceRepository_FindDevicesByLogin(t *testing.T) {
 	device1 := Device{
 		Fingerprint: "fingerprint-1",
 		UserAgent:   "user-agent-1",
-		LastLogin:   now,
+		LastLoginAt: now,
 		CreatedAt:   now,
 	}
 	device2 := Device{
 		Fingerprint: "fingerprint-2",
 		UserAgent:   "user-agent-2",
-		LastLogin:   now,
+		LastLoginAt: now,
 		CreatedAt:   now,
 	}
 
@@ -388,7 +388,7 @@ func TestInMemDeviceRepository_UnlinkLoginToDevice(t *testing.T) {
 	device := Device{
 		Fingerprint: fingerprint,
 		UserAgent:   "test-user-agent",
-		LastLogin:   now,
+		LastLoginAt: now,
 		CreatedAt:   now,
 	}
 
@@ -435,7 +435,7 @@ func TestInMemDeviceRepository_FindLoginDeviceByFingerprintAndLoginID(t *testing
 	device := Device{
 		Fingerprint: fingerprint,
 		UserAgent:   "test-user-agent",
-		LastLogin:   now,
+		LastLoginAt: now,
 		CreatedAt:   now,
 	}
 

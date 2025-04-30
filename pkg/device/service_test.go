@@ -54,12 +54,12 @@ func TestDeviceService_RegisterDevice(t *testing.T) {
 	assert.True(t, device.ScreenResolution.Valid)
 
 	// Test registering the same device again (should update last login)
-	initialLastLogin := device.LastLogin
+	initialLastLogin := device.LastLoginAt
 	time.Sleep(10 * time.Millisecond) // Ensure time difference
 	updatedDevice, err := service.RegisterDevice(ctx, fingerprint, fingerprintData)
 	require.NoError(t, err)
 	assert.Equal(t, fingerprint, updatedDevice.Fingerprint)
-	assert.True(t, updatedDevice.LastLogin.After(initialLastLogin))
+	assert.True(t, updatedDevice.LastLoginAt.After(initialLastLogin))
 }
 
 func TestDeviceService_LinkDeviceToLogin(t *testing.T) {

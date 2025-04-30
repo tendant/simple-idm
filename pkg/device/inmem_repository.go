@@ -138,7 +138,7 @@ func (r *InMemDeviceRepository) FindLoginsByDevice(ctx context.Context, fingerpr
 }
 
 // UpdateDeviceLastLogin updates the last login time of a device
-func (r *InMemDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fingerprint string, lastLogin time.Time) (Device, error) {
+func (r *InMemDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fingerprint string, lastLoginAt time.Time) (Device, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -148,9 +148,9 @@ func (r *InMemDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, finge
 		return Device{}, errors.New("device not found")
 	}
 
-	device.LastLogin = lastLogin
+	device.LastLoginAt = lastLoginAt
 	r.devices[fingerprint] = device
-	slog.Debug("Device last login updated", "fingerprint", fingerprint, "lastLogin", lastLogin)
+	slog.Debug("Device last login updated", "fingerprint", fingerprint, "lastLogin", lastLoginAt)
 	return device, nil
 }
 
@@ -171,11 +171,11 @@ func (r *InMemDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID u
 	// Check if link already exists
 	if existingLink, exists := r.loginDevices[key]; exists && !existingLink.DeletedAt.Valid {
 		// Update the expiry date
-		slog.Debug("Updating existing device link", "fingerprint", fingerprint, "loginID", loginID, 
+		slog.Debug("Updating existing device link", "fingerprint", fingerprint, "loginID", loginID,
 			"oldExpiry", existingLink.ExpiresAt.Format(time.RFC3339))
 		existingLink.ExpiresAt = CalculateExpiryDate(DefaultDeviceExpiryDays)
 		r.loginDevices[key] = existingLink
-		slog.Debug("Device link updated", "fingerprint", fingerprint, "loginID", loginID, 
+		slog.Debug("Device link updated", "fingerprint", fingerprint, "loginID", loginID,
 			"newExpiry", existingLink.ExpiresAt.Format(time.RFC3339))
 		return existingLink, nil
 	}
@@ -190,7 +190,7 @@ func (r *InMemDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID u
 		ExpiresAt:   CalculateExpiryDate(DefaultDeviceExpiryDays),
 	}
 
-	slog.Debug("Creating new device link", "fingerprint", fingerprint, "loginID", loginID, 
+	slog.Debug("Creating new device link", "fingerprint", fingerprint, "loginID", loginID,
 		"expiry", loginDevice.ExpiresAt.Format(time.RFC3339))
 	r.loginDevices[key] = loginDevice
 	return loginDevice, nil
@@ -214,7 +214,7 @@ func (r *InMemDeviceRepository) GetLoginDeviceWithExpiry(ctx context.Context, lo
 	now := time.Now().UTC()
 	isExpired := loginDevice.ExpiresAt.Before(now)
 
-	slog.Debug("Login device link found", "fingerprint", fingerprint, "loginID", loginID, 
+	slog.Debug("Login device link found", "fingerprint", fingerprint, "loginID", loginID,
 		"isExpired", isExpired)
 	return loginDevice, isExpired, nil
 }
@@ -235,7 +235,7 @@ func (r *InMemDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, log
 
 	loginDevice.ExpiresAt = newExpiryDate
 	r.loginDevices[key] = loginDevice
-	slog.Debug("Login device link expiry extended", "fingerprint", fingerprint, "loginID", loginID, 
+	slog.Debug("Login device link expiry extended", "fingerprint", fingerprint, "loginID", loginID,
 		"newExpiry", loginDevice.ExpiresAt.Format(time.RFC3339))
 	return nil
 }
@@ -258,7 +258,7 @@ func (r *InMemDeviceRepository) UnlinkLoginToDevice(ctx context.Context, loginID
 	loginDevice := r.loginDevices[key]
 	loginDevice.DeletedAt = sql.NullTime{Time: time.Now().UTC(), Valid: true}
 	r.loginDevices[key] = loginDevice
-	slog.Debug("Device link marked as deleted", "fingerprint", fingerprint, "loginID", loginID, 
+	slog.Debug("Device link marked as deleted", "fingerprint", fingerprint, "loginID", loginID,
 		"deletedAt", loginDevice.DeletedAt.Time.Format(time.RFC3339))
 	return nil
 }
@@ -273,8 +273,8 @@ func (r *InMemDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx conte
 		if link.Fingerprint == fingerprint && link.LoginID == loginID && !link.DeletedAt.Valid {
 			// Return a copy to avoid race conditions
 			linkCopy := link
-			slog.Debug("Found login device link", "fingerprint", fingerprint, "loginID", loginID, 
-				"linkedAt", link.LinkedAt.Format(time.RFC3339), 
+			slog.Debug("Found login device link", "fingerprint", fingerprint, "loginID", loginID,
+				"linkedAt", link.LinkedAt.Format(time.RFC3339),
 				"expiresAt", link.ExpiresAt.Format(time.RFC3339))
 			return &linkCopy, nil
 		}

@@ -58,8 +58,8 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, fingerprint string, 
 			String: fingerprintData.ScreenResolution,
 			Valid:  fingerprintData.ScreenResolution != "",
 		},
-		LastLogin: now,
-		CreatedAt: now,
+		LastLoginAt: now,
+		CreatedAt:   now,
 	}
 	createdDevice, err := s.deviceRepository.CreateDevice(ctx, newDevice)
 	if err != nil {
@@ -78,9 +78,9 @@ func (s *DeviceService) LinkDeviceToLogin(ctx context.Context, loginID uuid.UUID
 		return fmt.Errorf("device not found: %w", err)
 	}
 
-	slog.Info("Linking device to login", 
-		"fingerprint", fingerprint, 
-		"loginID", loginID, 
+	slog.Info("Linking device to login",
+		"fingerprint", fingerprint,
+		"loginID", loginID,
 		"userAgent", device.UserAgent,
 		"timezone", device.Timezone.String,
 		"screenResolution", device.ScreenResolution.String)
@@ -92,9 +92,9 @@ func (s *DeviceService) LinkDeviceToLogin(ctx context.Context, loginID uuid.UUID
 		return fmt.Errorf("failed to link device to login: %w", err)
 	}
 
-	slog.Info("Device successfully linked to login", 
-		"fingerprint", fingerprint, 
-		"loginID", loginID, 
+	slog.Info("Device successfully linked to login",
+		"fingerprint", fingerprint,
+		"loginID", loginID,
 		"expiresAt", loginDevice.ExpiresAt.Format(time.RFC3339))
 
 	return nil
@@ -143,11 +143,11 @@ func (s *DeviceService) UnlinkLoginFromDevice(ctx context.Context, loginID uuid.
 		return fmt.Errorf("device not found: %w", err)
 	}
 
-	slog.Info("Unlinking device from login", 
-		"fingerprint", fingerprint, 
-		"loginID", loginID, 
+	slog.Info("Unlinking device from login",
+		"fingerprint", fingerprint,
+		"loginID", loginID,
 		"userAgent", device.UserAgent,
-		"lastLogin", device.LastLogin.Format(time.RFC3339))
+		"lastLogin", device.LastLoginAt.Format(time.RFC3339))
 
 	// Unlink device from login
 	err = s.deviceRepository.UnlinkLoginToDevice(ctx, loginID, fingerprint)
