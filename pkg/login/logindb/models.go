@@ -24,7 +24,7 @@ type BackupCode struct {
 type Device struct {
 	Fingerprint      string         `json:"fingerprint"`
 	UserAgent        string         `json:"user_agent"`
-	AcceptHeaders    pgtype.Text    `json:"accept_headers"`
+	AcceptHeaders    sql.NullString `json:"accept_headers"`
 	Timezone         sql.NullString `json:"timezone"`
 	ScreenResolution sql.NullString `json:"screen_resolution"`
 	LastLoginAt      time.Time      `json:"last_login_at"`
@@ -58,13 +58,24 @@ type Login struct {
 type Login2fa struct {
 	ID                   uuid.UUID      `json:"id"`
 	LoginID              uuid.UUID      `json:"login_id"`
-	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
+	TwoFactorSecret      sql.NullString `json:"two_factor_secret"`
 	TwoFactorEnabled     sql.NullBool   `json:"two_factor_enabled"`
 	TwoFactorType        sql.NullString `json:"two_factor_type"`
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            sql.NullTime   `json:"updated_at"`
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
+}
+
+type LoginAttempt struct {
+	ID                uuid.UUID      `json:"id"`
+	LoginID           uuid.UUID      `json:"login_id"`
+	CreatedAt         time.Time      `json:"created_at"`
+	IpAddress         sql.NullString `json:"ip_address"`
+	UserAgent         sql.NullString `json:"user_agent"`
+	Success           bool           `json:"success"`
+	FailureReason     sql.NullString `json:"failure_reason"`
+	DeviceFingerprint sql.NullString `json:"device_fingerprint"`
 }
 
 type LoginDevice struct {
@@ -96,9 +107,9 @@ type LoginPasswordResetToken struct {
 }
 
 type Role struct {
-	ID          uuid.UUID   `json:"id"`
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
 }
 
 type User struct {

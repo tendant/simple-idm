@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -20,6 +21,18 @@ import (
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
+)
+
+// Response status constants
+const (
+	STATUS_SUCCESS                    = "success"
+	STATUS_MULTIPLE_USERS             = "multiple_users"
+	STATUS_USER_ASSOCIATION_REQUIRED  = "user_association_required"
+	STATUS_USER_ASSOCIATION_SELECTION = "user_association_selection_required"
+	STATUS_2FA_REQUIRED               = "2fa_required"
+	STATUS_ACCOUNT_LOCKED             = "account_locked"
+	STATUS_PASSWORD_EXPIRED           = "password_expired"
+	STATUS_PASSWORD_ABOUT_TO_EXPIRE   = "password_about_to_expire"
 )
 
 const (
@@ -93,7 +106,7 @@ func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.
 	}
 
 	return PostLoginJSON202Response(SelectUserRequiredResponse{
-		Status:    "multiple_users",
+		Status:    STATUS_MULTIPLE_USERS,
 		Message:   "Multiple users found, please select one",
 		TempToken: tempTokenStr,
 		Users:     apiUsers,
@@ -149,7 +162,7 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 	}
 
 	response := Login{
-		Status:  "success",
+		Status:  STATUS_SUCCESS,
 		Message: "Successfully switched user",
 		Users:   apiUsers,
 	}
@@ -196,7 +209,7 @@ func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(loginID
 
 	// Prepare the response with user options for selection
 	resp := SelectUsersToAssociateRequiredResponse{
-		Status:      "user_association_selection_required",
+		Status:      STATUS_USER_ASSOCIATION_SELECTION,
 		Message:     "Please select users to associate",
 		LoginID:     loginID,
 		UserOptions: userOptions,
@@ -227,7 +240,7 @@ func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMetho
 	twoFARequiredResp := TwoFactorRequiredResponse{
 		TempToken:        tempToken.Token,
 		TwoFactorMethods: twoFactorMethods,
-		Status:           "2fa_required",
+		Status:           STATUS_2FA_REQUIRED,
 		Message:          "Two-factor authentication is required",
 	}
 
@@ -320,7 +333,7 @@ func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, l
 	}
 
 	resp := AssociateUserResponse{
-		Status:     "user_association_required",
+		Status:     STATUS_USER_ASSOCIATION_REQUIRED,
 		Message:    "Please call user association endpoint",
 		LoginID:    loginID,
 		UserOption: user,
@@ -350,13 +363,33 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	passwordHash := fmt.Sprintf("%x", sha256.Sum256([]byte(data.Password)))
 	slog.Info("Login request", "username", data.Username, "password_hash", passwordHash)
 
+	// Get IP address and user agent for login attempt recording
+	ipAddress := getIPAddressFromRequest(r)
+	userAgent := getUserAgentFromRequest(r)
+	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr := device.GenerateFingerprint(fingerprintData)
+
 	// Call login service
 	loginParams := LoginParams{
 		Username: data.Username,
 	}
-	idmUsers, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
+	loginResult, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
+
 	if err != nil {
 		slog.Error("Login failed", "err", err)
+
+		// Record the login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, loginResult.FailureReason)
+
+		// Check if this is an account lockout error
+		if login.IsAccountLockedError(err) {
+			// Return a standardized response for account lockout
+			return &Response{
+				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been locked due to too many failed login attempts. Please try again later.",
+				contentType: "application/json",
+			}
+		}
 
 		// Check if this is a password expiration error
 		if strings.Contains(err.Error(), "password has expired") {
@@ -373,8 +406,11 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	idmUsers := loginResult.Users
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after login")
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
@@ -402,6 +438,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	loginID, err := uuid.Parse(idmUsers[0].LoginID)
 	if err != nil {
 		slog.Error("Failed to parse login ID", "loginID", idmUsers[0].LoginID, "error", err)
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			body: "Invalid login ID",
 			Code: http.StatusInternalServerError,
@@ -409,9 +447,6 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Check if the device is recognized for this login
-	// Get device fingerprint from request
-	fingerprint := device.ExtractFingerprintDataFromRequest(r)
-	fingerprintStr := device.GenerateFingerprint(fingerprint)
 	deviceRecognized := false
 
 	if fingerprintStr != "" {
@@ -438,6 +473,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		)
 		if err != nil {
 			slog.Error("Failed to check 2FA", "err", err)
+			// Record failed login attempt
+			h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 			return &Response{
 				body: err.Error(),
 				Code: http.StatusInternalServerError,
@@ -453,6 +490,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Check if there are multiple users
 	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginID, idmUsers)
 	if err != nil {
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			body: err.Error(),
 			Code: http.StatusInternalServerError,
@@ -481,15 +520,20 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	err = h.tokenCookieService.SetTokensCookie(w, tokens)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			body: "Failed to set access token cookie",
 			Code: http.StatusInternalServerError,
 		}
 	}
 
+	// Record successful login attempt
+	h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, true, "")
+
 	// Create response with user information
 	response := Login{
-		Status:  "success",
+		Status:  STATUS_SUCCESS,
 		Message: "Login successful",
 		User:    apiUsers[0],
 		Users:   apiUsers,
@@ -924,14 +968,33 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 			body: "Unable to parse request body",
 		}
 	}
+	// Get IP address and user agent for login attempt recording
+	ipAddress := getIPAddressFromRequest(r)
+	userAgent := getUserAgentFromRequest(r)
+	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr := device.GenerateFingerprint(fingerprintData)
 
 	// Call login service
 	loginParams := LoginParams{
 		Username: data.Username,
 	}
-	idmUsers, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
+	loginResult, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
+
 	if err != nil {
 		slog.Error("Login failed", "err", err)
+
+		// Record the login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, loginResult.FailureReason)
+
+		// Check if this is an account lockout error
+		if login.IsAccountLockedError(err) {
+			// Return a standardized response for account lockout
+			return &Response{
+				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been locked due to too many failed login attempts. Please try again later.",
+				contentType: "application/json",
+			}
+		}
 
 		// Check if this is a password expiration error
 		if strings.Contains(err.Error(), "password has expired") {
@@ -948,8 +1011,12 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
+	idmUsers := loginResult.Users
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after login")
+
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
@@ -960,6 +1027,10 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	loginID, err := uuid.Parse(idmUsers[0].LoginID)
 	if err != nil {
 		slog.Error("Failed to parse login ID", "loginID", idmUsers[0].LoginID, "error", err)
+
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+
 		return &Response{
 			body: "Invalid login ID",
 			Code: http.StatusInternalServerError,
@@ -967,9 +1038,6 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	// Check if the device is recognized for this login
-	// Get device fingerprint from request
-	fingerprint := device.ExtractFingerprintDataFromRequest(r)
-	fingerprintStr := device.GenerateFingerprint(fingerprint)
 	deviceRecognized := false
 
 	if fingerprintStr != "" {
@@ -996,6 +1064,10 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		)
 		if err != nil {
 			slog.Error("Failed to check 2FA", "err", err)
+
+			// Record failed login attempt
+			h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+
 			return &Response{
 				body: err.Error(),
 				Code: http.StatusInternalServerError,
@@ -1011,6 +1083,10 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	// Check if there are multiple users - pass nil for ResponseWriter to skip cookie setting
 	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), nil, loginID, idmUsers)
 	if err != nil {
+
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+
 		return &Response{
 			body: err.Error(),
 			Code: http.StatusInternalServerError,
@@ -1027,11 +1103,18 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	tokens, err := h.tokenService.GenerateMobileTokens(tokenUser.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create tokens", "user", tokenUser, "err", err)
+
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+
 		return &Response{
 			body: "Failed to create tokens",
 			Code: http.StatusInternalServerError,
 		}
 	}
+
+	// Record successful login
+	h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, true, "")
 
 	// Return tokens in response for mobile
 	return h.responseHandler.PrepareTokenResponse(tokens)
@@ -1309,8 +1392,22 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
+	var ipAddress string
+	var userAgent string
+	var fingerprintStr string
+
+	ipAddress = getIPAddressFromRequest(r)
+	userAgent = getUserAgentFromRequest(r)
+	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr = device.GenerateFingerprint(fingerprintData)
+
 	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
 	if err != nil {
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+
+		if strings.Contains(err.Error(), "failed to validate 2FA passcode") {
+			h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		}
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "failed to validate 2fa: " + err.Error(),
@@ -1318,6 +1415,8 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	}
 
 	if !valid {
+		// Record failed 2FA validation attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "2fa validation failed",
@@ -1333,6 +1432,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	// 2FA validation successful, get users by login ID
 	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
 	if err != nil {
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "failed to get user roles: " + err.Error(),
@@ -1348,6 +1448,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		userID, err := common.GetUserIDFromClaims(token.Claims)
 		if err != nil {
 			slog.Error("Failed to extract user ID from token claims", "err", err)
+			h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 			return &Response{
 				Code: http.StatusUnauthorized,
 				body: "Invalid token: " + err.Error(),
@@ -1358,6 +1459,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after 2fa")
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 		return &Response{
 			body: "2fa validation failed",
 			Code: http.StatusNotFound,
@@ -1367,6 +1469,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	// Check if there are multiple users
 	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginId, idmUsers)
 	if err != nil {
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			body: err.Error(),
 			Code: http.StatusInternalServerError,
@@ -1388,6 +1491,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	tokens, err := h.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create access token", "err", err)
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to create access token",
@@ -1397,11 +1501,15 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	err = h.tokenCookieService.SetTokensCookie(w, tokens)
 	if err != nil {
 		slog.Error("Failed to set tokens cookie", "err", err)
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to set tokens cookie",
 		}
 	}
+
+	// Record successful login
+	h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, true, "")
 
 	// Include tokens in response
 	resp.Result = "success"
@@ -1576,9 +1684,23 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 		}
 	}
 
+	var ipAddress string
+	var userAgent string
+	var fingerprintStr string
+
+	ipAddress = getIPAddressFromRequest(r)
+	userAgent = getUserAgentFromRequest(r)
+	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr = device.GenerateFingerprint(fingerprintData)
+
 	// Validate the 2FA passcode
 	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
 	if err != nil {
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+
+		if strings.Contains(err.Error(), "failed to validate 2FA passcode") {
+			h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		}
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "failed to validate 2fa: " + err.Error(),
@@ -1586,6 +1708,9 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	}
 
 	if !valid {
+		// Record failed 2FA validation attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "2fa validation failed",
@@ -1600,6 +1725,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	// 2FA validation successful, get users for the login ID
 	idmUsers, err := h.userMapper.FindUsersByLoginID(r.Context(), loginId)
 	if err != nil {
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "failed to get user roles: " + err.Error(),
@@ -1608,6 +1734,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after 2fa")
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 		return &Response{
 			body: "2fa validation failed",
 			Code: http.StatusNotFound,
@@ -1617,6 +1744,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	// Check if there are multiple users
 	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), nil, loginId, idmUsers)
 	if err != nil {
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			body: err.Error(),
 			Code: http.StatusInternalServerError,
@@ -1636,6 +1764,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	tokens, err := h.tokenService.GenerateMobileTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to create tokens", "err", err)
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to create tokens",
@@ -1659,12 +1788,15 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 
 	// Get token from either request body or Authorization header
 	var tokenStr string
+	var tokenType string
 
 	// Check if token is in the request body
 	if data.TempToken != nil && *data.TempToken != "" {
 		tokenStr = *data.TempToken
+		tokenType = tg.TEMP_TOKEN_NAME
 	} else if data.AccessToken != nil && *data.AccessToken != "" {
 		tokenStr = *data.AccessToken
+		tokenType = tg.ACCESS_TOKEN_NAME
 	} else {
 		// If not in request body, check Authorization header
 		authHeader := r.Header.Get("Authorization")
@@ -1676,6 +1808,7 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 			}
 		}
 		tokenStr = authHeader[7:] // Remove "Bearer " prefix
+		tokenType = tg.ACCESS_TOKEN_NAME
 	}
 
 	// Parse and validate token
@@ -1687,6 +1820,16 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 		}
 	}
 
+	if tokenType == tg.TEMP_TOKEN_NAME {
+		twofaVerified, err := common.Get2FAVerifiedFromClaims(token.Claims)
+		if err != nil || !twofaVerified {
+			slog.Error("2FA not verified", "err", err)
+			return &Response{
+				Code: http.StatusUnauthorized,
+				body: "2FA not verified",
+			}
+		}
+	}
 	// Extract login ID using the helper method
 	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
 	if err != nil {
@@ -1828,4 +1971,33 @@ func (h Handle) MobileFindUsersWithLogin(w http.ResponseWriter, r *http.Request,
 // Helper function to create a pointer to a string
 func ptr(s string) *string {
 	return &s
+}
+
+// Helper functions to extract request information
+func getIPAddressFromRequest(r *http.Request) string {
+	// Try X-Forwarded-For header first (for clients behind proxy)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For can contain multiple IPs, take the first one
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
+	}
+
+	// Try X-Real-IP header next
+	if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
+		return xrip
+	}
+
+	// Fall back to RemoteAddr
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		// If there's an error, just return the RemoteAddr as is
+		return r.RemoteAddr
+	}
+	return ip
+}
+
+func getUserAgentFromRequest(r *http.Request) string {
+	return r.Header.Get("User-Agent")
 }

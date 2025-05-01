@@ -50,6 +50,12 @@ paths:
                   message:
                     type: string
                     example: "Username/Password is wrong"
+        "429":
+          description: Account locked due to too many failed login attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountLockedResponse"
   /password/reset/init:
     post:
       summary: Initiate password reset using username
@@ -800,6 +806,23 @@ components:
         user_option:
           type: object
           $ref: "#/components/schemas/UserOption"
+    AccountLockedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "account_locked"
+        message:
+          type: string
+          example: "Your account has been locked due to too many failed login attempts. Please try again in 30 minutes."
+        locked_until:
+          type: string
+          format: date-time
+          example: "2023-06-01T12:00:00Z"
+      required:
+        - status
+        - message
+        - locked_until
   securitySchemes:
     BearerAuth:
       type: http

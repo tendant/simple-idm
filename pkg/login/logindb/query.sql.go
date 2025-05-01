@@ -57,19 +57,23 @@ func (q *Queries) FindEmailByEmail(ctx context.Context, email string) (string, e
 }
 
 const findLoginByUsername = `-- name: FindLoginByUsername :one
-SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at
+SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at,
+       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until
 FROM login l
 WHERE l.username = $1
 AND l.deleted_at IS NULL
 `
 
 type FindLoginByUsernameRow struct {
-	ID              uuid.UUID      `json:"id"`
-	Username        sql.NullString `json:"username"`
-	Password        []byte         `json:"password"`
-	PasswordVersion pgtype.Int4    `json:"password_version"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
+	ID                  uuid.UUID      `json:"id"`
+	Username            sql.NullString `json:"username"`
+	Password            []byte         `json:"password"`
+	PasswordVersion     pgtype.Int4    `json:"password_version"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	FailedLoginAttempts pgtype.Int4    `json:"failed_login_attempts"`
+	LastFailedAttemptAt sql.NullTime   `json:"last_failed_attempt_at"`
+	LockedUntil         sql.NullTime   `json:"locked_until"`
 }
 
 func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullString) (FindLoginByUsernameRow, error) {
@@ -82,6 +86,9 @@ func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullStri
 		&i.PasswordVersion,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FailedLoginAttempts,
+		&i.LastFailedAttemptAt,
+		&i.LockedUntil,
 	)
 	return i, err
 }
@@ -189,9 +196,9 @@ LIMIT 1
 
 // This query is no longer valid as two_factor_secret has been removed
 // Keeping the query name for compatibility but returning NULL
-func (q *Queries) Get2FAByLoginId(ctx context.Context, id uuid.UUID) (pgtype.Text, error) {
+func (q *Queries) Get2FAByLoginId(ctx context.Context, id uuid.UUID) (sql.NullString, error) {
 	row := q.db.QueryRow(ctx, get2FAByLoginId, id)
-	var two_factor_secret pgtype.Text
+	var two_factor_secret sql.NullString
 	err := row.Scan(&two_factor_secret)
 	return two_factor_secret, err
 }
@@ -205,26 +212,49 @@ AND deleted_at IS NULL
 
 // This query is no longer valid as two_factor_secret has been removed
 // Keeping the query name for compatibility but returning NULL
-func (q *Queries) Get2FASecret(ctx context.Context, id uuid.UUID) (pgtype.Text, error) {
+func (q *Queries) Get2FASecret(ctx context.Context, id uuid.UUID) (sql.NullString, error) {
 	row := q.db.QueryRow(ctx, get2FASecret, id)
-	var two_factor_secret pgtype.Text
+	var two_factor_secret sql.NullString
 	err := row.Scan(&two_factor_secret)
 	return two_factor_secret, err
 }
 
+const getFailedLoginAttempts = `-- name: GetFailedLoginAttempts :one
+SELECT failed_login_attempts, last_failed_attempt_at, locked_until
+FROM login
+WHERE id = $1
+`
+
+type GetFailedLoginAttemptsRow struct {
+	FailedLoginAttempts pgtype.Int4  `json:"failed_login_attempts"`
+	LastFailedAttemptAt sql.NullTime `json:"last_failed_attempt_at"`
+	LockedUntil         sql.NullTime `json:"locked_until"`
+}
+
+func (q *Queries) GetFailedLoginAttempts(ctx context.Context, id uuid.UUID) (GetFailedLoginAttemptsRow, error) {
+	row := q.db.QueryRow(ctx, getFailedLoginAttempts, id)
+	var i GetFailedLoginAttemptsRow
+	err := row.Scan(&i.FailedLoginAttempts, &i.LastFailedAttemptAt, &i.LockedUntil)
+	return i, err
+}
+
 const getLoginById = `-- name: GetLoginById :one
-SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at
+SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at,
+       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until
 FROM login l
 WHERE l.id = $1
 AND l.deleted_at IS NULL
 `
 
 type GetLoginByIdRow struct {
-	LoginID   uuid.UUID      `json:"login_id"`
-	Username  sql.NullString `json:"username"`
-	Password  []byte         `json:"password"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	LoginID             uuid.UUID      `json:"login_id"`
+	Username            sql.NullString `json:"username"`
+	Password            []byte         `json:"password"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	FailedLoginAttempts pgtype.Int4    `json:"failed_login_attempts"`
+	LastFailedAttemptAt sql.NullTime   `json:"last_failed_attempt_at"`
+	LockedUntil         sql.NullTime   `json:"locked_until"`
 }
 
 func (q *Queries) GetLoginById(ctx context.Context, id uuid.UUID) (GetLoginByIdRow, error) {
@@ -236,12 +266,16 @@ func (q *Queries) GetLoginById(ctx context.Context, id uuid.UUID) (GetLoginByIdR
 		&i.Password,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FailedLoginAttempts,
+		&i.LastFailedAttemptAt,
+		&i.LockedUntil,
 	)
 	return i, err
 }
 
 const getLoginByUserId = `-- name: GetLoginByUserId :one
-SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at
+SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at,
+       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until
 FROM login l
 JOIN users u ON l.id = u.login_id
 WHERE u.id = $1
@@ -249,11 +283,14 @@ AND l.deleted_at IS NULL
 `
 
 type GetLoginByUserIdRow struct {
-	LoginID   uuid.UUID      `json:"login_id"`
-	Username  sql.NullString `json:"username"`
-	Password  []byte         `json:"password"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	LoginID             uuid.UUID      `json:"login_id"`
+	Username            sql.NullString `json:"username"`
+	Password            []byte         `json:"password"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	FailedLoginAttempts pgtype.Int4    `json:"failed_login_attempts"`
+	LastFailedAttemptAt sql.NullTime   `json:"last_failed_attempt_at"`
+	LockedUntil         sql.NullTime   `json:"locked_until"`
 }
 
 func (q *Queries) GetLoginByUserId(ctx context.Context, id uuid.UUID) (GetLoginByUserIdRow, error) {
@@ -265,6 +302,9 @@ func (q *Queries) GetLoginByUserId(ctx context.Context, id uuid.UUID) (GetLoginB
 		&i.Password,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FailedLoginAttempts,
+		&i.LastFailedAttemptAt,
+		&i.LockedUntil,
 	)
 	return i, err
 }
@@ -358,6 +398,26 @@ func (q *Queries) GetPasswordVersion(ctx context.Context, id uuid.UUID) (pgtype.
 	return password_version, err
 }
 
+const getRecentFailedAttempts = `-- name: GetRecentFailedAttempts :one
+SELECT COUNT(*) 
+FROM login_attempts 
+WHERE login_id = $1 
+AND success = false 
+AND created_at > $2
+`
+
+type GetRecentFailedAttemptsParams struct {
+	LoginID   uuid.UUID `json:"login_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (q *Queries) GetRecentFailedAttempts(ctx context.Context, arg GetRecentFailedAttemptsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getRecentFailedAttempts, arg.LoginID, arg.CreatedAt)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getUsersByLoginId = `-- name: GetUsersByLoginId :many
 SELECT u.id, u.name, u.email, u.created_at, u.last_modified_at,
        COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
@@ -405,6 +465,18 @@ func (q *Queries) GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) 
 	return items, nil
 }
 
+const incrementFailedLoginAttempts = `-- name: IncrementFailedLoginAttempts :exec
+UPDATE login
+SET failed_login_attempts = failed_login_attempts + 1,
+    last_failed_attempt_at = now() at time zone 'UTC'
+WHERE id = $1
+`
+
+func (q *Queries) IncrementFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, incrementFailedLoginAttempts, id)
+	return err
+}
+
 const initPasswordByUsername = `-- name: InitPasswordByUsername :one
 SELECT id
 FROM login
@@ -434,6 +506,41 @@ func (q *Queries) InitPasswordResetToken(ctx context.Context, arg InitPasswordRe
 	return err
 }
 
+const isAccountLocked = `-- name: IsAccountLocked :one
+SELECT 
+    CASE 
+        WHEN locked_until IS NULL THEN false
+        WHEN locked_until <= now() THEN false
+        ELSE true
+    END as is_locked
+FROM login
+WHERE id = $1
+`
+
+func (q *Queries) IsAccountLocked(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, isAccountLocked, id)
+	var is_locked bool
+	err := row.Scan(&is_locked)
+	return is_locked, err
+}
+
+const lockAccount = `-- name: LockAccount :exec
+UPDATE login
+SET locked_until = $2, 
+    updated_at = now() at time zone 'UTC'
+WHERE id = $1
+`
+
+type LockAccountParams struct {
+	ID          uuid.UUID    `json:"id"`
+	LockedUntil sql.NullTime `json:"locked_until"`
+}
+
+func (q *Queries) LockAccount(ctx context.Context, arg LockAccountParams) error {
+	_, err := q.db.Exec(ctx, lockAccount, arg.ID, arg.LockedUntil)
+	return err
+}
+
 const markBackupCodeUsed = `-- name: MarkBackupCodeUsed :exec
 SELECT 1
 `
@@ -453,6 +560,62 @@ WHERE token = $1
 
 func (q *Queries) MarkPasswordResetTokenUsed(ctx context.Context, token string) error {
 	_, err := q.db.Exec(ctx, markPasswordResetTokenUsed, token)
+	return err
+}
+
+const recordLoginAttempt = `-- name: RecordLoginAttempt :exec
+INSERT INTO login_attempts (
+    id,
+    login_id,
+    ip_address,
+    user_agent,
+    success,
+    failure_reason,
+    device_fingerprint
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+)
+`
+
+type RecordLoginAttemptParams struct {
+	ID                uuid.UUID      `json:"id"`
+	LoginID           uuid.UUID      `json:"login_id"`
+	IpAddress         sql.NullString `json:"ip_address"`
+	UserAgent         sql.NullString `json:"user_agent"`
+	Success           bool           `json:"success"`
+	FailureReason     sql.NullString `json:"failure_reason"`
+	DeviceFingerprint sql.NullString `json:"device_fingerprint"`
+}
+
+func (q *Queries) RecordLoginAttempt(ctx context.Context, arg RecordLoginAttemptParams) error {
+	_, err := q.db.Exec(ctx, recordLoginAttempt,
+		arg.ID,
+		arg.LoginID,
+		arg.IpAddress,
+		arg.UserAgent,
+		arg.Success,
+		arg.FailureReason,
+		arg.DeviceFingerprint,
+	)
+	return err
+}
+
+const resetFailedLoginAttempts = `-- name: ResetFailedLoginAttempts :exec
+UPDATE login
+SET failed_login_attempts = 0,
+    locked_until = NULL,
+    updated_at = now() at time zone 'UTC'
+WHERE id = $1
+`
+
+func (q *Queries) ResetFailedLoginAttempts(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, resetFailedLoginAttempts, id)
 	return err
 }
 
