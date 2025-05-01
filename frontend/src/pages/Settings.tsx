@@ -58,7 +58,7 @@ const Settings: Component = () => {
     }
 
     try {
-      await request('/profile/password', {
+      await request('/api/idm/profile/password', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
