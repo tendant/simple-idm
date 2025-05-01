@@ -116,7 +116,12 @@ CREATE TABLE public.login (
     password bytea,
     username character varying(255),
     password_version integer DEFAULT 1,
-    password_reset_required boolean
+    password_reset_required boolean,
+    password_updated_at timestamp without time zone,
+    password_expires_at timestamp without time zone,
+    failed_login_attempts integer DEFAULT 0,
+    locked_until timestamp without time zone,
+    last_failed_attempt_at timestamp without time zone
 );
 
 

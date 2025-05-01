@@ -18,6 +18,7 @@ type PasswordPolicy struct {
 	HistoryCheckCount   int
 	ExpirationDays      int
 	CommonPasswordsPath string
+	MinPasswordAge      int
 }
 
 // PasswordValidationErrors represents a collection of password validation errors
@@ -144,6 +145,7 @@ func DefaultPasswordPolicy() *PasswordPolicy {
 		MaxRepeatedChars:   3,
 		HistoryCheckCount:  5,
 		ExpirationDays:     90,
+		MinPasswordAge:     1,
 	}
 }
 

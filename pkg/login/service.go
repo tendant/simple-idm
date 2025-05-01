@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"log/slog"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
@@ -12,7 +14,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/utils"
-	"golang.org/x/exp/slog"
 )
 
 type LoginService struct {
@@ -194,6 +195,15 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 	if !valid {
 		slog.Error("invalid username or password from check password by login id")
 		return []mapper.User{}, fmt.Errorf("invalid username or password")
+	}
+
+	// Check if password is expired
+	isExpired, err := s.passwordManager.IsPasswordExpired(ctx, loginUser.ID.String())
+	if err != nil {
+		slog.Error("Failed to check password expiration", "err", err)
+		// Don't block login if we can't check expiration
+	} else if isExpired {
+		return []mapper.User{}, fmt.Errorf("password has expired and must be changed")
 	}
 
 	// Get users associated with this login ID using the UserRepository
@@ -557,6 +567,11 @@ func (s *LoginService) ToTokenClaims(user mapper.User) (rootModifications map[st
 		return map[string]interface{}{}, map[string]interface{}{}
 	}
 	return s.userMapper.ToTokenClaims(user)
+}
+
+// IsPasswordExpired checks if a password is expired or about to expire
+func (s *LoginService) IsPasswordExpired(ctx context.Context, loginID string) (bool, int, error) {
+	return s.passwordManager.GetPasswordExpirationInfo(ctx, loginID)
 }
 
 // FindUsernameByEmail finds a username by email address

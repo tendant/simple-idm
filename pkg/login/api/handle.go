@@ -357,6 +357,16 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	idmUsers, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
+
+		// Check if this is a password expiration error
+		if strings.Contains(err.Error(), "password has expired") {
+			return &Response{
+				Code:        http.StatusForbidden,
+				body:        "Your password has expired and must be changed before you can log in.",
+				contentType: "application/json",
+			}
+		}
+
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
@@ -467,6 +477,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// Set tokens in cookies
 	err = h.tokenCookieService.SetTokensCookie(w, tokens)
 	if err != nil {
 		slog.Error("Failed to set access token cookie", "err", err)
@@ -476,6 +487,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// Create response with user information
 	response := Login{
 		Status:  "success",
 		Message: "Login successful",
@@ -920,6 +932,16 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	idmUsers, err := h.loginService.Login(r.Context(), loginParams.Username, data.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
+
+		// Check if this is a password expiration error
+		if strings.Contains(err.Error(), "password has expired") {
+			return &Response{
+				Code:        http.StatusForbidden,
+				body:        "Your password has expired and must be changed before you can log in.",
+				contentType: "application/json",
+			}
+		}
+
 		return &Response{
 			body: "Username/Password is wrong",
 			Code: http.StatusBadRequest,
@@ -1011,7 +1033,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		}
 	}
 
-	// Return tokens in response
+	// Return tokens in response for mobile
 	return h.responseHandler.PrepareTokenResponse(tokens)
 }
 
@@ -1383,6 +1405,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	// Include tokens in response
 	resp.Result = "success"
+
 	return Post2faValidateJSON200Response(resp)
 }
 
