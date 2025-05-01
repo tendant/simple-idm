@@ -18,13 +18,16 @@ import (
 
 // LoginEntity represents a user login record in the domain model
 type LoginEntity struct {
-	ID              uuid.UUID
-	Username        string
-	UsernameValid   bool
-	Password        []byte
-	PasswordVersion int32
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                  uuid.UUID
+	Username            string
+	UsernameValid       bool
+	Password            []byte
+	PasswordVersion     int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	FailedLoginAttempts int32
+	LastFailedAttemptAt time.Time
+	LockedUntil         time.Time
 }
 
 // PasswordResetToken represents a password reset token
@@ -90,6 +93,18 @@ type PasswordToHistoryParams struct {
 	PasswordVersion int32
 }
 
+// LoginAttempt represents a login attempt record
+type LoginAttempt struct {
+	ID                uuid.UUID
+	LoginID           uuid.UUID
+	IPAddress         string
+	UserAgent         string
+	Success           bool
+	FailureReason     string
+	DeviceFingerprint string
+	CreatedAt         time.Time
+}
+
 // UserRepository defines the interface for user-related database operations
 
 // LoginRepository defines the interface for login-related database operations
@@ -104,11 +119,9 @@ type LoginRepository interface {
 	ResetPasswordById(ctx context.Context, arg PasswordParams) error
 	UpdateUserPassword(ctx context.Context, arg PasswordParams) error
 	UpdateUserPasswordAndVersion(ctx context.Context, arg PasswordParams) error
-
-	// Password age and expiration operations
-	GetPasswordUpdatedAt(ctx context.Context, id uuid.UUID) (time.Time, bool, error)
-	GetPasswordExpiresAt(ctx context.Context, id uuid.UUID) (time.Time, bool, error)
-	UpdatePasswordTimestamps(ctx context.Context, id uuid.UUID, updatedAt, expiresAt time.Time) error
+	GetPasswordUpdatedAt(ctx context.Context, loginID uuid.UUID) (time.Time, bool, error)
+	GetPasswordExpiresAt(ctx context.Context, loginID uuid.UUID) (time.Time, bool, error)
+	UpdatePasswordTimestamps(ctx context.Context, loginID uuid.UUID, updatedAt, expiresAt time.Time) error
 
 	// Password reset token operations
 	InitPasswordResetToken(ctx context.Context, arg PasswordResetTokenParams) error
@@ -122,11 +135,20 @@ type LoginRepository interface {
 	AddPasswordToHistory(ctx context.Context, arg PasswordToHistoryParams) error
 	GetPasswordHistory(ctx context.Context, arg PasswordHistoryParams) ([]PasswordHistoryEntry, error)
 
+	// Login attempt operations
+	RecordLoginAttempt(ctx context.Context, attempt LoginAttempt) error
+	GetRecentFailedAttempts(ctx context.Context, loginID uuid.UUID, since time.Time) (int, error)
+	IsAccountLocked(ctx context.Context, loginID uuid.UUID) (bool, error)
+	IncrementFailedLoginAttempts(ctx context.Context, loginID uuid.UUID) error
+	LockAccount(ctx context.Context, loginID uuid.UUID, lockDuration time.Duration) error
+	ResetFailedLoginAttempts(ctx context.Context, loginID uuid.UUID) error
+	GetFailedLoginAttempts(ctx context.Context, loginID uuid.UUID) (int32, time.Time, time.Time, error)
+
 	// Transaction support
 	WithTx(tx interface{}) LoginRepository
 }
 
-// PostgresLoginRepository implements LoginRepository and UserRepository using PostgreSQL
+// PostgresLoginRepository implements LoginRepository using PostgreSQL
 type PostgresLoginRepository struct {
 	queries *logindb.Queries
 }
@@ -153,47 +175,56 @@ func (r *PostgresLoginRepository) FindLoginByUsername(ctx context.Context, usern
 		return LoginEntity{}, err
 	}
 	return LoginEntity{
-		ID:              dbLogin.ID,
-		Username:        dbLogin.Username.String,
-		UsernameValid:   dbLogin.Username.Valid,
-		Password:        dbLogin.Password,
-		PasswordVersion: dbLogin.PasswordVersion.Int32,
-		CreatedAt:       dbLogin.CreatedAt,
-		UpdatedAt:       dbLogin.UpdatedAt,
+		ID:                  dbLogin.ID,
+		Username:            dbLogin.Username.String,
+		UsernameValid:       dbLogin.Username.Valid,
+		Password:            dbLogin.Password,
+		PasswordVersion:     dbLogin.PasswordVersion.Int32,
+		CreatedAt:           dbLogin.CreatedAt,
+		UpdatedAt:           dbLogin.UpdatedAt,
+		FailedLoginAttempts: dbLogin.FailedLoginAttempts.Int32,
+		LastFailedAttemptAt: dbLogin.LastFailedAttemptAt.Time,
+		LockedUntil:         dbLogin.LockedUntil.Time,
 	}, nil
 }
 
-// GetLoginById gets a login by ID
+// GetLoginById returns a login by ID
 func (r *PostgresLoginRepository) GetLoginById(ctx context.Context, id uuid.UUID) (LoginEntity, error) {
 	dbLogin, err := r.queries.GetLoginById(ctx, id)
 	if err != nil {
 		return LoginEntity{}, err
 	}
 	return LoginEntity{
-		ID:              dbLogin.LoginID,
-		Username:        dbLogin.Username.String,
-		UsernameValid:   dbLogin.Username.Valid,
-		Password:        dbLogin.Password,
-		PasswordVersion: 0, // Not returned by this query
-		CreatedAt:       dbLogin.CreatedAt,
-		UpdatedAt:       dbLogin.UpdatedAt,
+		ID:                  dbLogin.LoginID,
+		Username:            dbLogin.Username.String,
+		UsernameValid:       dbLogin.Username.Valid,
+		Password:            dbLogin.Password,
+		PasswordVersion:     0, // Not returned by this query
+		CreatedAt:           dbLogin.CreatedAt,
+		UpdatedAt:           dbLogin.UpdatedAt,
+		FailedLoginAttempts: dbLogin.FailedLoginAttempts.Int32,
+		LastFailedAttemptAt: dbLogin.LastFailedAttemptAt.Time,
+		LockedUntil:         dbLogin.LockedUntil.Time,
 	}, nil
 }
 
 // GetLoginByUserId gets a login by user ID
-func (r *PostgresLoginRepository) GetLoginByUserId(ctx context.Context, id uuid.UUID) (LoginEntity, error) {
-	dbLogin, err := r.queries.GetLoginByUserId(ctx, id)
+func (r *PostgresLoginRepository) GetLoginByUserId(ctx context.Context, userId uuid.UUID) (LoginEntity, error) {
+	dbLogin, err := r.queries.GetLoginByUserId(ctx, userId)
 	if err != nil {
 		return LoginEntity{}, err
 	}
 	return LoginEntity{
-		ID:              dbLogin.LoginID,
-		Username:        dbLogin.Username.String,
-		UsernameValid:   dbLogin.Username.Valid,
-		Password:        dbLogin.Password,
-		PasswordVersion: 0, // Not returned by this query
-		CreatedAt:       dbLogin.CreatedAt,
-		UpdatedAt:       dbLogin.UpdatedAt,
+		ID:                  dbLogin.LoginID,
+		Username:            dbLogin.Username.String,
+		UsernameValid:       dbLogin.Username.Valid,
+		Password:            dbLogin.Password,
+		PasswordVersion:     0, // Not returned by this query
+		CreatedAt:           dbLogin.CreatedAt,
+		UpdatedAt:           dbLogin.UpdatedAt,
+		FailedLoginAttempts: dbLogin.FailedLoginAttempts.Int32,
+		LastFailedAttemptAt: dbLogin.LastFailedAttemptAt.Time,
+		LockedUntil:         dbLogin.LockedUntil.Time,
 	}, nil
 }
 
@@ -400,6 +431,117 @@ func (r *PostgresLoginRepository) GetUsersByLoginId(ctx context.Context, loginID
 		}
 	}
 	return users, nil
+}
+
+// RecordLoginAttempt records a login attempt
+func (r *PostgresLoginRepository) RecordLoginAttempt(ctx context.Context, attempt LoginAttempt) error {
+	params := logindb.RecordLoginAttemptParams{
+		ID:                uuid.New(),
+		LoginID:           attempt.LoginID,
+		IpAddress:         sql.NullString{String: attempt.IPAddress, Valid: attempt.IPAddress != ""},
+		UserAgent:         sql.NullString{String: attempt.UserAgent, Valid: attempt.UserAgent != ""},
+		Success:           attempt.Success,
+		FailureReason:     sql.NullString{String: attempt.FailureReason, Valid: attempt.FailureReason != ""},
+		DeviceFingerprint: sql.NullString{String: attempt.DeviceFingerprint, Valid: attempt.DeviceFingerprint != ""},
+	}
+
+	err := r.queries.RecordLoginAttempt(ctx, params)
+	if err != nil {
+		slog.Error("Failed to record login attempt", "err", err)
+		return fmt.Errorf("failed to record login attempt: %w", err)
+	}
+	slog.Info("Login attempt recorded successfully", "loginID", attempt.LoginID, "success", attempt.Success)
+
+	return nil
+}
+
+// GetRecentFailedAttempts returns the number of failed login attempts since the given time
+func (r *PostgresLoginRepository) GetRecentFailedAttempts(ctx context.Context, loginID uuid.UUID, since time.Time) (int, error) {
+	count, err := r.queries.GetRecentFailedAttempts(ctx, logindb.GetRecentFailedAttemptsParams{
+		LoginID:   loginID,
+		CreatedAt: since,
+	})
+
+	if err != nil {
+		slog.Error("Failed to get recent failed attempts", "err", err)
+		return 0, fmt.Errorf("failed to get recent failed attempts: %w", err)
+	}
+
+	return int(count), nil
+}
+
+// IsAccountLocked checks if an account is locked
+func (r *PostgresLoginRepository) IsAccountLocked(ctx context.Context, loginID uuid.UUID) (bool, error) {
+	isLocked, err := r.queries.IsAccountLocked(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to check if account is locked", "err", err)
+		return false, fmt.Errorf("failed to check if account is locked: %w", err)
+	}
+
+	return isLocked, nil
+}
+
+// IncrementFailedLoginAttempts increments the failed login attempts for a login
+func (r *PostgresLoginRepository) IncrementFailedLoginAttempts(ctx context.Context, loginID uuid.UUID) error {
+	err := r.queries.IncrementFailedLoginAttempts(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to increment failed login attempts", "err", err)
+		return fmt.Errorf("failed to increment failed login attempts: %w", err)
+	}
+
+	return nil
+}
+
+// LockAccount locks an account
+func (r *PostgresLoginRepository) LockAccount(ctx context.Context, loginID uuid.UUID, lockDuration time.Duration) error {
+	lockedUntil := time.Now().Add(lockDuration)
+	err := r.queries.LockAccount(ctx, logindb.LockAccountParams{
+		ID:          loginID,
+		LockedUntil: sql.NullTime{Time: lockedUntil, Valid: true},
+	})
+
+	if err != nil {
+		slog.Error("Failed to lock account", "err", err)
+		return fmt.Errorf("failed to lock account: %w", err)
+	}
+
+	return nil
+}
+
+// ResetFailedLoginAttempts resets the failed login attempts for a login
+func (r *PostgresLoginRepository) ResetFailedLoginAttempts(ctx context.Context, loginID uuid.UUID) error {
+	err := r.queries.ResetFailedLoginAttempts(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to reset failed login attempts", "err", err)
+		return fmt.Errorf("failed to reset failed login attempts: %w", err)
+	}
+
+	return nil
+}
+
+// GetFailedLoginAttempts gets the failed login attempts for a login
+func (r *PostgresLoginRepository) GetFailedLoginAttempts(ctx context.Context, loginID uuid.UUID) (int32, time.Time, time.Time, error) {
+	row, err := r.queries.GetFailedLoginAttempts(ctx, loginID)
+	if err != nil {
+		return 0, time.Time{}, time.Time{}, err
+	}
+
+	failedAttempts := int32(0)
+	if row.FailedLoginAttempts.Valid {
+		failedAttempts = row.FailedLoginAttempts.Int32
+	}
+
+	lastFailedAt := time.Time{}
+	if row.LastFailedAttemptAt.Valid {
+		lastFailedAt = row.LastFailedAttemptAt.Time
+	}
+
+	lockedUntil := time.Time{}
+	if row.LockedUntil.Valid {
+		lockedUntil = row.LockedUntil.Time
+	}
+
+	return failedAttempts, lastFailedAt, lockedUntil, nil
 }
 
 // WithTx returns a new repository with the given transaction
