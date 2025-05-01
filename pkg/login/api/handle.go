@@ -383,18 +383,10 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 		// Check if this is an account lockout error
 		if login.IsAccountLockedError(err) {
-			lockedUntil, _ := login.GetLockedUntil(err)
-			// Calculate time remaining in minutes
-			remainingMinutes := int(time.Until(lockedUntil).Minutes()) + 1 // Round up
-
 			// Return a standardized response for account lockout
 			return &Response{
-				Code: http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
-				body: AccountLockedResponse{
-					Status:      STATUS_ACCOUNT_LOCKED,
-					Message:     fmt.Sprintf("Your account has been locked due to too many failed login attempts. Please try again in %d minutes.", remainingMinutes),
-					LockedUntil: lockedUntil,
-				},
+				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been locked due to too many failed login attempts. Please try again later.",
 				contentType: "application/json",
 			}
 		}
@@ -996,18 +988,10 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 
 		// Check if this is an account lockout error
 		if login.IsAccountLockedError(err) {
-			lockedUntil, _ := login.GetLockedUntil(err)
-			// Calculate time remaining in minutes
-			remainingMinutes := int(time.Until(lockedUntil).Minutes()) + 1 // Round up
-
 			// Return a standardized response for account lockout
 			return &Response{
-				Code: http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
-				body: AccountLockedResponse{
-					Status:      STATUS_ACCOUNT_LOCKED,
-					Message:     fmt.Sprintf("Your account has been locked due to too many failed login attempts. Please try again in %d minutes.", remainingMinutes),
-					LockedUntil: lockedUntil,
-				},
+				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been locked due to too many failed login attempts. Please try again later.",
 				contentType: "application/json",
 			}
 		}
