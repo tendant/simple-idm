@@ -11,7 +11,8 @@ SET password = $1,
 WHERE username = $2; 
 
 -- name: FindLoginByUsername :one
-SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at
+SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at,
+       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until
 FROM login l
 WHERE l.username = $1
 AND l.deleted_at IS NULL;
@@ -123,13 +124,15 @@ SELECT false AS is_valid;
 SELECT 1;
 
 -- name: GetLoginById :one
-SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at
+SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at,
+       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until
 FROM login l
 WHERE l.id = $1
 AND l.deleted_at IS NULL;
 
 -- name: GetLoginByUserId :one
-SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at
+SELECT l.id as login_id, l.username, l.password, l.created_at, l.updated_at,
+       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until
 FROM login l
 JOIN users u ON l.id = u.login_id
 WHERE u.id = $1
@@ -182,4 +185,64 @@ AND deleted_at IS NULL;
 -- name: UpdatePasswordTimestamps :exec
 UPDATE login
 SET password_updated_at = $2, password_expires_at = $3
+WHERE id = $1;
+
+-- name: RecordLoginAttempt :exec
+INSERT INTO login_attempts (
+    id,
+    login_id,
+    ip_address,
+    user_agent,
+    success,
+    failure_reason,
+    device_fingerprint
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+);
+
+-- name: GetRecentFailedAttempts :one
+SELECT COUNT(*) 
+FROM login_attempts 
+WHERE login_id = $1 
+AND success = false 
+AND created_at > $2;
+
+-- name: IncrementFailedLoginAttempts :exec
+UPDATE login
+SET failed_login_attempts = failed_login_attempts + 1,
+    last_failed_attempt_at = now() at time zone 'UTC'
+WHERE id = $1;
+
+-- name: LockAccount :exec
+UPDATE login
+SET locked_until = $2, 
+    updated_at = now() at time zone 'UTC'
+WHERE id = $1;
+
+-- name: ResetFailedLoginAttempts :exec
+UPDATE login
+SET failed_login_attempts = 0,
+    locked_until = NULL,
+    updated_at = now() at time zone 'UTC'
+WHERE id = $1;
+
+-- name: IsAccountLocked :one
+SELECT 
+    CASE 
+        WHEN locked_until IS NULL THEN false
+        WHEN locked_until <= now() THEN false
+        ELSE true
+    END as is_locked
+FROM login
+WHERE id = $1;
+
+-- name: GetFailedLoginAttempts :one
+SELECT failed_login_attempts, last_failed_attempt_at, locked_until
+FROM login
 WHERE id = $1;
