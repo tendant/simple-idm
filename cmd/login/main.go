@@ -197,8 +197,8 @@ func main() {
 	)
 
 	// Initialize device recognition service and routes
-	deviceRepo := device.NewInMemDeviceRepository()
-	deviceService := device.NewDeviceService(deviceRepo, loginRepository)
+	deviceRepository := device.NewPostgresDeviceRepository(pool)
+	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
