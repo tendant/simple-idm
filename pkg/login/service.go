@@ -266,22 +266,9 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		result.FailureReason = FAILURE_REASON_INVALID_CREDENTIALS
 
 		// Increment failed login attempts counter
-		err = s.repository.IncrementFailedLoginAttempts(ctx, login.ID)
+		_, _, err := s.IncrementFailedAttemptsAndCheckLock(ctx, login.ID)
 		if err != nil {
 			slog.Error("Failed to increment failed login attempts", "err", err)
-		}
-
-		// Check if account should be locked (max failed attempts)
-		failedAttempts, _, _, err := s.repository.GetFailedLoginAttempts(ctx, login.ID)
-		if err != nil {
-			slog.Error("Failed to get failed login attempts", "err", err)
-		} else if failedAttempts >= int32(s.maxFailedAttempts) {
-			// Lock the account
-			err = s.repository.LockAccount(ctx, login.ID, s.lockoutDuration)
-			if err != nil {
-				slog.Error("Failed to lock account", "err", err)
-			}
-			slog.Info("Account locked due to too many failed login attempts", "loginID", login.ID)
 		}
 
 		return result, fmt.Errorf("invalid username or password")
@@ -701,6 +688,38 @@ func (s *LoginService) RecordLoginAttempt(ctx context.Context, loginID uuid.UUID
 		Success:           success,
 		FailureReason:     failureReason,
 	})
+}
+
+// IncrementFailedAttemptsAndCheckLock increments the failed login attempts counter
+// and checks if the account should be locked. Returns true if the account is now locked,
+// along with the lock duration if applicable.
+func (s *LoginService) IncrementFailedAttemptsAndCheckLock(ctx context.Context, loginID uuid.UUID) (bool, time.Duration, error) {
+	// Increment failed login attempts counter
+	err := s.repository.IncrementFailedLoginAttempts(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to increment failed login attempts", "err", err)
+		return false, 0, err
+	}
+
+	// Check if account should be locked (max failed attempts)
+	failedAttempts, _, _, err := s.repository.GetFailedLoginAttempts(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to get failed login attempts", "err", err)
+		return false, 0, err
+	}
+
+	if failedAttempts >= int32(s.maxFailedAttempts) {
+		// Lock the account
+		err = s.repository.LockAccount(ctx, loginID, s.lockoutDuration)
+		if err != nil {
+			slog.Error("Failed to lock account", "err", err)
+			return false, 0, err
+		}
+		slog.Info("Account locked due to too many failed login attempts", "loginID", loginID)
+		return true, s.lockoutDuration, nil
+	}
+
+	return false, 0, nil
 }
 
 // AccountLockedError represents an error when an account is locked due to too many failed login attempts
