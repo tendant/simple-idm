@@ -147,6 +147,14 @@ type LoginResponse struct {
 	LoginId uuid.UUID
 }
 
+type LoginResult struct {
+	Users         []mapper.User
+	LoginID       uuid.UUID
+	Success       bool
+	FailureReason string
+	LockedUntil   time.Time
+}
+
 func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
 	// Get users from repository
 	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
@@ -196,23 +204,27 @@ func (s *LoginService) FindLoginByUsername(ctx context.Context, username string)
 	return login, nil
 }
 
-func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.User, error) {
+func (s *LoginService) Login(ctx context.Context, username, password string) (LoginResult, error) {
+	result := LoginResult{
+		Success: false,
+	}
+
 	// Find user by username
 	login, err := s.FindLoginByUsername(ctx, username)
 	if err != nil {
-		return []mapper.User{}, fmt.Errorf("error finding login: %w", err)
+		result.FailureReason = "internal_error"
+		return result, fmt.Errorf("error finding login: %w", err)
 	}
 
-	// Record login attempt details
-	ipAddress := getIPFromContext(ctx)
-	userAgent := getUserAgentFromContext(ctx)
-	deviceFingerprint := getDeviceFingerprintFromContext(ctx)
+	// Set the login ID in the result
+	result.LoginID = login.ID
 
 	// Check if account is locked
 	isLocked, err := s.repository.IsAccountLocked(ctx, login.ID)
 	if err != nil {
 		slog.Error("Failed to check if account is locked", "err", err)
-		return nil, err
+		result.FailureReason = "internal_error"
+		return result, err
 	}
 
 	if isLocked {
@@ -224,21 +236,46 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 			lockedUntil = time.Now().Add(s.lockoutDuration)
 		}
 
-		// Record failed login attempt due to account being locked
-		s.recordLoginAttempt(ctx, login.ID, ipAddress, userAgent, deviceFingerprint, false, "account_locked")
-		return nil, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
+		// Set failure information
+		result.FailureReason = "account_locked"
+		result.LockedUntil = lockedUntil
+
+		return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
 	}
 
 	// Verify password
 	valid, err := s.CheckPasswordByLoginId(ctx, login.ID, password, string(login.Password))
 	if err != nil {
 		slog.Error("Failed to check password", "err", err)
-		return nil, err
+		result.FailureReason = "internal_error"
+		return result, err
 	}
 	if !valid {
 		slog.Error("invalid username or password from check password by login id")
-		s.recordLoginAttempt(ctx, login.ID, ipAddress, userAgent, deviceFingerprint, false, "invalid_credentials")
-		return []mapper.User{}, fmt.Errorf("invalid username or password")
+
+		// Set failure information
+		result.FailureReason = "invalid_credentials"
+
+		// Increment failed login attempts counter
+		err = s.repository.IncrementFailedLoginAttempts(ctx, login.ID)
+		if err != nil {
+			slog.Error("Failed to increment failed login attempts", "err", err)
+		}
+
+		// Check if account should be locked (max failed attempts)
+		failedAttempts, _, _, err := s.repository.GetFailedLoginAttempts(ctx, login.ID)
+		if err != nil {
+			slog.Error("Failed to get failed login attempts", "err", err)
+		} else if failedAttempts >= int32(s.maxFailedAttempts) {
+			// Lock the account
+			err = s.repository.LockAccount(ctx, login.ID, s.lockoutDuration)
+			if err != nil {
+				slog.Error("Failed to lock account", "err", err)
+			}
+			slog.Info("Account locked due to too many failed login attempts", "loginID", login.ID)
+		}
+
+		return result, fmt.Errorf("invalid username or password")
 	}
 
 	// Check if password is expired
@@ -247,26 +284,29 @@ func (s *LoginService) Login(ctx context.Context, username, password string) ([]
 		slog.Error("Failed to check password expiration", "err", err)
 		// Don't block login if we can't check expiration
 	} else if isExpired {
-		s.recordLoginAttempt(ctx, login.ID, ipAddress, userAgent, deviceFingerprint, false, "password_expired")
-		return []mapper.User{}, fmt.Errorf("password has expired and must be changed")
+		result.FailureReason = "password_expired"
+		return result, fmt.Errorf("password has expired and must be changed")
 	}
 
 	// Get users associated with this login ID using the UserRepository
 	users, err := s.userMapper.FindUsersByLoginID(ctx, login.ID)
 	if err != nil {
 		slog.Error("error getting users by login ID", "err", err)
-		return []mapper.User{}, fmt.Errorf("error getting user information: %w", err)
+		result.FailureReason = "internal_error"
+		return result, fmt.Errorf("error getting user information: %w", err)
 	}
 
-	// Record successful login attempt
-	s.recordLoginAttempt(ctx, login.ID, ipAddress, userAgent, deviceFingerprint, true, "")
-
-	res := LoginResponse{
-		Users:   users,
-		LoginId: login.ID,
+	// If login is successful, reset failed login attempts
+	err = s.repository.ResetFailedLoginAttempts(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to reset failed login attempts", "err", err)
 	}
 
-	return res.Users, nil
+	// Set success information
+	result.Success = true
+	result.Users = users
+
+	return result, nil
 }
 
 type RegisterParam struct {
@@ -642,6 +682,18 @@ func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (s
 	return usernames[0], true, nil
 }
 
+// RecordLoginAttempt records a login attempt
+func (s *LoginService) RecordLoginAttempt(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, deviceFingerprint string, success bool, failureReason string) error {
+	return s.repository.RecordLoginAttempt(ctx, LoginAttempt{
+		LoginID:           loginID,
+		IPAddress:         ipAddress,
+		UserAgent:         userAgent,
+		DeviceFingerprint: deviceFingerprint,
+		Success:           success,
+		FailureReason:     failureReason,
+	})
+}
+
 // AccountLockedError represents an error when an account is locked due to too many failed login attempts
 type AccountLockedError struct {
 	LoginID     uuid.UUID
@@ -686,18 +738,4 @@ func getDeviceFingerprintFromContext(ctx context.Context) string {
 		return fp
 	}
 	return ""
-}
-
-func (s *LoginService) recordLoginAttempt(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, deviceFingerprint string, success bool, failureReason string) {
-	err := s.repository.RecordLoginAttempt(ctx, LoginAttempt{
-		LoginID:           loginID,
-		IPAddress:         ipAddress,
-		UserAgent:         userAgent,
-		DeviceFingerprint: deviceFingerprint,
-		Success:           success,
-		FailureReason:     failureReason,
-	})
-	if err != nil {
-		slog.Error("Failed to record login attempt", "err", err)
-	}
 }
