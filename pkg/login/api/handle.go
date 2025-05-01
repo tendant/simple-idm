@@ -23,6 +23,18 @@ import (
 	"github.com/tendant/simple-idm/pkg/twofa"
 )
 
+// Response status constants
+const (
+	STATUS_SUCCESS                    = "success"
+	STATUS_MULTIPLE_USERS             = "multiple_users"
+	STATUS_USER_ASSOCIATION_REQUIRED  = "user_association_required"
+	STATUS_USER_ASSOCIATION_SELECTION = "user_association_selection_required"
+	STATUS_2FA_REQUIRED               = "2fa_required"
+	STATUS_ACCOUNT_LOCKED             = "account_locked"
+	STATUS_PASSWORD_EXPIRED           = "password_expired"
+	STATUS_PASSWORD_ABOUT_TO_EXPIRE   = "password_about_to_expire"
+)
+
 const (
 	ACCESS_TOKEN_NAME  = "access_token"
 	REFRESH_TOKEN_NAME = "refresh_token"
@@ -94,7 +106,7 @@ func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.
 	}
 
 	return PostLoginJSON202Response(SelectUserRequiredResponse{
-		Status:    "multiple_users",
+		Status:    STATUS_MULTIPLE_USERS,
 		Message:   "Multiple users found, please select one",
 		TempToken: tempTokenStr,
 		Users:     apiUsers,
@@ -150,7 +162,7 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 	}
 
 	response := Login{
-		Status:  "success",
+		Status:  STATUS_SUCCESS,
 		Message: "Successfully switched user",
 		Users:   apiUsers,
 	}
@@ -197,7 +209,7 @@ func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(loginID
 
 	// Prepare the response with user options for selection
 	resp := SelectUsersToAssociateRequiredResponse{
-		Status:      "user_association_selection_required",
+		Status:      STATUS_USER_ASSOCIATION_SELECTION,
 		Message:     "Please select users to associate",
 		LoginID:     loginID,
 		UserOptions: userOptions,
@@ -228,7 +240,7 @@ func (h Handle) prepare2FARequiredResponse(commonMethods []common.TwoFactorMetho
 	twoFARequiredResp := TwoFactorRequiredResponse{
 		TempToken:        tempToken.Token,
 		TwoFactorMethods: twoFactorMethods,
-		Status:           "2fa_required",
+		Status:           STATUS_2FA_REQUIRED,
 		Message:          "Two-factor authentication is required",
 	}
 
@@ -321,7 +333,7 @@ func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, l
 	}
 
 	resp := AssociateUserResponse{
-		Status:     "user_association_required",
+		Status:     STATUS_USER_ASSOCIATION_REQUIRED,
 		Message:    "Please call user association endpoint",
 		LoginID:    loginID,
 		UserOption: user,
@@ -379,7 +391,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			return &Response{
 				Code: http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
 				body: AccountLockedResponse{
-					Status:      "account_locked",
+					Status:      STATUS_ACCOUNT_LOCKED,
 					Message:     fmt.Sprintf("Your account has been locked due to too many failed login attempts. Please try again in %d minutes.", remainingMinutes),
 					LockedUntil: lockedUntil,
 				},
@@ -529,7 +541,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	// Create response with user information
 	response := Login{
-		Status:  "success",
+		Status:  STATUS_SUCCESS,
 		Message: "Login successful",
 		User:    apiUsers[0],
 		Users:   apiUsers,
@@ -992,7 +1004,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 			return &Response{
 				Code: http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
 				body: AccountLockedResponse{
-					Status:      "account_locked",
+					Status:      STATUS_ACCOUNT_LOCKED,
 					Message:     fmt.Sprintf("Your account has been locked due to too many failed login attempts. Please try again in %d minutes.", remainingMinutes),
 					LockedUntil: lockedUntil,
 				},
@@ -1459,7 +1471,6 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	if len(idmUsers) == 0 {
 		slog.Error("No user found after 2fa")
-		// Record failed login attempt
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 		return &Response{
 			body: "2fa validation failed",
