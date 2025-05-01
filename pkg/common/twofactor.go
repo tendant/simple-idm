@@ -156,7 +156,7 @@ func RememberDevice(r *http.Request, loginID uuid.UUID, deviceService device.Dev
 	_, err = deviceService.GetDeviceByFingerprint(r.Context(), fingerprintStr)
 	if err != nil {
 		slog.Info("registering device", "fingerprint", fingerprintStr)
-		_, err = deviceService.RegisterDevice(r.Context(), fingerprintStr, r.UserAgent())
+		_, err = deviceService.RegisterDevice(r.Context(), fingerprintStr, fingerprint)
 		if err != nil {
 			slog.Error("Failed to register device", "err", err)
 			return false, err

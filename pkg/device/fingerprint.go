@@ -47,8 +47,8 @@ func ExtractFingerprintDataFromRequest(r *http.Request) FingerprintData {
 	return FingerprintData{
 		UserAgent:        r.UserAgent(),
 		AcceptHeaders:    acceptHeaders,
-		Timezone:         "", // TODO: implement timezone extraction
-		ScreenResolution: "", // TODO: implement screen resolution extraction
+		Timezone:         r.Header.Get("Timezone"),
+		ScreenResolution: r.Header.Get("Screen-Resolution"),
 	}
 }
 

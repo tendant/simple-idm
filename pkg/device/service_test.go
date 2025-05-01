@@ -1,86 +1,218 @@
 package device
 
 import (
-	"bufio"
 	"context"
-	"fmt"
-	"log/slog"
-	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/login/logindb"
 )
 
-func containerLog(ctx context.Context, container testcontainers.Container) {
-	// Retrieve logs
-	logs, err := container.Logs(ctx)
+func setupDeviceService(t *testing.T) *DeviceService {
+	repo := NewInMemDeviceRepository()
+	connStr := "postgres://login:pwd@localhost:5432/powercard_db"
+	dbPool, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {
-		slog.Error("Failed to get container logs:", "err", err)
+		t.Fatalf("Failed to connect to the database: %v", err)
 	}
-	defer logs.Close()
-
-	// Process and display logs
-	scanner := bufio.NewScanner(logs)
-	for scanner.Scan() {
-		fmt.Println(scanner.Text()) // Print each log line
-	}
-
-	// Check for scanning errors
-	if err := scanner.Err(); err != nil {
-		slog.Error("Error reading logs", "err", err)
-	}
+	loginQueries := logindb.New(dbPool)
+	loginRepository := login.NewPostgresLoginRepository(loginQueries)
+	service := NewDeviceService(repo, loginRepository)
+	return service
 }
 
-func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
+// Test for DeviceService using in-memory repository
+func TestDeviceService_RegisterDevice(t *testing.T) {
+	// Setup
+	service := setupDeviceService(t)
 	ctx := context.Background()
 
-	// Create PostgreSQL container
-	dbName := "idm_db"
-	dbUser := "idm"
-	dbPassword := "pwd"
-
-	container, err := postgres.Run(ctx,
-		"postgres:16-alpine",
-		postgres.WithInitScripts(filepath.Join("../../migrations", "idm_db.sql")),
-		// postgres.WithConfigFile(filepath.Join("testdata", "my-postgres.conf")),
-		postgres.WithDatabase(dbName),
-		postgres.WithUsername(dbUser),
-		postgres.WithPassword(dbPassword),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(5*time.Second)),
-	)
-	require.NoError(t, err)
-	if err != nil {
-		slog.Error("Failed to start container:", "err", err)
+	// Test data
+	fingerprint := "test-fingerprint"
+	fingerprintData := FingerprintData{
+		UserAgent:        "test-user-agent",
+		AcceptHeaders:    "test-accept-headers",
+		Timezone:         "UTC+0",
+		ScreenResolution: "1920x1080",
 	}
 
-	// containerLog(ctx, container)
+	// Test registering a new device
+	device, err := service.RegisterDevice(ctx, fingerprint, fingerprintData)
+	require.NoError(t, err)
+	assert.Equal(t, fingerprint, device.Fingerprint)
+	assert.Equal(t, fingerprintData.UserAgent, device.UserAgent)
+	assert.Equal(t, fingerprintData.AcceptHeaders, device.AcceptHeaders)
+	assert.Equal(t, fingerprintData.Timezone, device.Timezone)
+	assert.Equal(t, fingerprintData.ScreenResolution, device.ScreenResolution)
+	assert.NotEmpty(t, device.AcceptHeaders)
+	assert.NotEmpty(t, device.Timezone)
+	assert.NotEmpty(t, device.ScreenResolution)
 
-	// Generate the connection string
-	connString, err := container.ConnectionString(ctx)
-	fmt.Println("Connection string:", connString)
+	// Test registering the same device again (should update last login)
+	initialLastLogin := device.LastLoginAt
+	time.Sleep(10 * time.Millisecond) // Ensure time difference
+	updatedDevice, err := service.RegisterDevice(ctx, fingerprint, fingerprintData)
+	require.NoError(t, err)
+	assert.Equal(t, fingerprint, updatedDevice.Fingerprint)
+	assert.True(t, updatedDevice.LastLoginAt.After(initialLastLogin))
+}
+
+func TestDeviceService_LinkDeviceToLogin(t *testing.T) {
+	// Setup
+	service := setupDeviceService(t)
+	ctx := context.Background()
+
+	// Create a test device
+	fingerprint := "test-fingerprint"
+	fingerprintData := FingerprintData{
+		UserAgent: "test-user-agent",
+	}
+	_, err := service.RegisterDevice(ctx, fingerprint, fingerprintData)
 	require.NoError(t, err)
 
-	// Create connection pool
-	poolConfig, err := pgxpool.ParseConfig(connString)
+	// Test linking a device to a login
+	loginID := uuid.New()
+	err = service.LinkDeviceToLogin(ctx, loginID, fingerprint)
 	require.NoError(t, err)
 
-	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	// Verify the link was created by finding the device
+	devices, err := service.FindDevicesByLogin(ctx, loginID)
+	require.NoError(t, err)
+	assert.Len(t, devices, 1)
+	assert.Equal(t, fingerprint, devices[0].Fingerprint)
+
+	// Test linking a non-existent device
+	nonExistentFingerprint := "non-existent-fingerprint"
+	err = service.LinkDeviceToLogin(ctx, loginID, nonExistentFingerprint)
+	assert.Error(t, err)
+}
+
+func TestDeviceService_UnlinkLoginFromDevice(t *testing.T) {
+	// Setup
+	service := setupDeviceService(t)
+	ctx := context.Background()
+
+	// Create a test device
+	fingerprint := "test-fingerprint"
+	fingerprintData := FingerprintData{
+		UserAgent: "test-user-agent",
+	}
+	_, err := service.RegisterDevice(ctx, fingerprint, fingerprintData)
 	require.NoError(t, err)
 
-	cleanup := func() {
-		pool.Close()
-		if err := container.Terminate(ctx); err != nil {
-			t.Logf("failed to terminate container: %v", err)
-		}
+	// Link a device to a login
+	loginID := uuid.New()
+	err = service.LinkDeviceToLogin(ctx, loginID, fingerprint)
+	require.NoError(t, err)
+
+	// Verify the link was created
+	devices, err := service.FindDevicesByLogin(ctx, loginID)
+	require.NoError(t, err)
+	assert.Len(t, devices, 1)
+
+	// Unlink the device
+	err = service.UnlinkLoginFromDevice(ctx, loginID, fingerprint)
+	require.NoError(t, err)
+
+	// Verify the link was removed
+	devices, err = service.FindDevicesByLogin(ctx, loginID)
+	require.NoError(t, err)
+	assert.Len(t, devices, 0)
+
+	// Test unlinking a non-existent link
+	nonExistentLoginID := uuid.New()
+	err = service.UnlinkLoginFromDevice(ctx, nonExistentLoginID, fingerprint)
+	assert.Error(t, err)
+}
+
+func TestDeviceService_FindDevicesByLogin(t *testing.T) {
+	// Setup
+	service := setupDeviceService(t)
+	ctx := context.Background()
+
+	// Create test devices
+	fingerprint1 := "fingerprint-1"
+	fingerprint2 := "fingerprint-2"
+	fingerprintData1 := FingerprintData{
+		UserAgent: "user-agent-1",
+	}
+	fingerprintData2 := FingerprintData{
+		UserAgent: "user-agent-2",
 	}
 
-	return pool, cleanup
+	_, err := service.RegisterDevice(ctx, fingerprint1, fingerprintData1)
+	require.NoError(t, err)
+	_, err = service.RegisterDevice(ctx, fingerprint2, fingerprintData2)
+	require.NoError(t, err)
+
+	// Link devices to logins
+	loginID1 := uuid.New()
+	loginID2 := uuid.New()
+
+	err = service.LinkDeviceToLogin(ctx, loginID1, fingerprint1)
+	require.NoError(t, err)
+	err = service.LinkDeviceToLogin(ctx, loginID1, fingerprint2)
+	require.NoError(t, err)
+	err = service.LinkDeviceToLogin(ctx, loginID2, fingerprint2)
+	require.NoError(t, err)
+
+	// Test finding devices by login
+	devices, err := service.FindDevicesByLogin(ctx, loginID1)
+	require.NoError(t, err)
+	assert.Len(t, devices, 2)
+
+	devices, err = service.FindDevicesByLogin(ctx, loginID2)
+	require.NoError(t, err)
+	assert.Len(t, devices, 1)
+	assert.Equal(t, fingerprint2, devices[0].Fingerprint)
+
+	// Test finding devices for a login with no linked devices
+	nonExistentLoginID := uuid.New()
+	devices, err = service.FindDevicesByLogin(ctx, nonExistentLoginID)
+	require.NoError(t, err)
+	assert.Len(t, devices, 0)
+
+	// Test that unlinked devices are not returned
+	err = service.UnlinkLoginFromDevice(ctx, loginID1, fingerprint1)
+	require.NoError(t, err)
+
+	devices, err = service.FindDevicesByLogin(ctx, loginID1)
+	require.NoError(t, err)
+	assert.Len(t, devices, 1)
+	assert.Equal(t, fingerprint2, devices[0].Fingerprint)
+}
+
+func TestDeviceService_GetDeviceByFingerprint(t *testing.T) {
+	// Setup
+	service := setupDeviceService(t)
+	ctx := context.Background()
+
+	// Create a test device
+	fingerprint := "test-fingerprint"
+	fingerprintData := FingerprintData{
+		UserAgent:        "test-user-agent",
+		AcceptHeaders:    "test-accept-headers",
+		Timezone:         "UTC+0",
+		ScreenResolution: "1920x1080",
+	}
+	device, err := service.RegisterDevice(ctx, fingerprint, fingerprintData)
+	require.NoError(t, err)
+
+	// Test getting the device by fingerprint
+	retrievedDevice, err := service.GetDeviceByFingerprint(ctx, fingerprint)
+	require.NoError(t, err)
+	assert.Equal(t, device.Fingerprint, retrievedDevice.Fingerprint)
+	assert.Equal(t, device.UserAgent, retrievedDevice.UserAgent)
+	assert.Equal(t, device.AcceptHeaders, retrievedDevice.AcceptHeaders)
+	assert.Equal(t, device.Timezone, retrievedDevice.Timezone)
+	assert.Equal(t, device.ScreenResolution, retrievedDevice.ScreenResolution)
+
+	// Test getting a non-existent device
+	_, err = service.GetDeviceByFingerprint(ctx, "non-existent-fingerprint")
+	assert.Error(t, err)
 }

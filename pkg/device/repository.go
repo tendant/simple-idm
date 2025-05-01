@@ -8,11 +8,13 @@ import (
 )
 
 type Device struct {
-	Fingerprint    string    `json:"fingerprint"` // Unique device ID
-	UserAgent      string    `json:"user_agent"`
-	LastLogin      time.Time `json:"last_login"`
-	CreatedAt      time.Time `json:"created_at"`
-	LastModifiedAt time.Time `json:"last_modified_at"`
+	Fingerprint      string
+	UserAgent        string
+	AcceptHeaders    string
+	Timezone         string
+	ScreenResolution string
+	LastLoginAt      time.Time
+	CreatedAt        time.Time
 }
 
 type LoginDevice struct {
@@ -20,7 +22,7 @@ type LoginDevice struct {
 	LoginID     uuid.UUID
 	Fingerprint string
 	LinkedAt    time.Time
-	ExpiresAt   time.Time // When this link expires (90 days from creation by default)
+	ExpiresAt   time.Time
 	DeletedAt   time.Time
 }
 
@@ -47,9 +49,6 @@ type DeviceRepository interface {
 	// Link operations
 	LinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, error)
 	UnlinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) error
-
-	// Expiration operations
-	ExtendLoginDeviceExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string, newExpiryDate time.Time) error
 
 	// Transaction support
 	WithTx(tx interface{}) DeviceRepository
