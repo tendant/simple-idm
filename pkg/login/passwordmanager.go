@@ -505,16 +505,18 @@ func (pm *PasswordManager) IsPasswordChangeAllowed(ctx context.Context, loginID 
 	}
 
 	// If this is not a new user or first password change, check if enough time has passed
-	minValidTime := lastChanged.Add(time.Duration(pm.policyChecker.GetPolicy().MinPasswordAge) * time.Hour)
+	minValidTime := lastChanged.Add(time.Duration(pm.policyChecker.GetPolicy().MinPasswordAge) * 24 * time.Hour)
 
 	// Check if enough time has passed
 	now := time.Now().UTC()
 	if now.Before(minValidTime) {
 		// Not enough time has passed
+		slog.Info("Not enough time has passed since last password change", "minValidTime", minValidTime)
 		return false, nil
 	}
 
 	// Enough time has passed
+	slog.Info("Enough time has passed since last password change", "minValidTime", minValidTime)
 	return true, nil
 }
 
