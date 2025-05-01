@@ -1420,6 +1420,10 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
 	if err != nil {
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+
+		if strings.Contains(err.Error(), "failed to validate 2FA passcode") {
+			h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		}
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "failed to validate 2fa: " + err.Error(),
@@ -1696,15 +1700,6 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 		}
 	}
 
-	// Validate the 2FA passcode
-	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
-	if err != nil {
-		return &Response{
-			Code: http.StatusInternalServerError,
-			body: "failed to validate 2fa: " + err.Error(),
-		}
-	}
-
 	var ipAddress string
 	var userAgent string
 	var fingerprintStr string
@@ -1713,6 +1708,20 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	userAgent = getUserAgentFromRequest(r)
 	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
 	fingerprintStr = device.GenerateFingerprint(fingerprintData)
+
+	// Validate the 2FA passcode
+	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
+	if err != nil {
+		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+
+		if strings.Contains(err.Error(), "failed to validate 2FA passcode") {
+			h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		}
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to validate 2fa: " + err.Error(),
+		}
+	}
 
 	if !valid {
 		// Record failed 2FA validation attempt
