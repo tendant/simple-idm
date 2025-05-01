@@ -93,6 +93,7 @@ type PasswordComplexityConfig struct {
 	MaxRepeatedChars        int  `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
 	HistoryCheckCount       int  `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
 	ExpirationDays          int  `env:"PASSWORD_COMPLEXITY_EXPIRATION_DAYS" env-default:"90"`
+	MinPasswordAge          int  `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE" env-default:"1"`
 }
 
 type Config struct {
@@ -309,5 +310,6 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 		MaxRepeatedChars:   config.MaxRepeatedChars,
 		HistoryCheckCount:  config.HistoryCheckCount,
 		ExpirationDays:     config.ExpirationDays,
+		MinPasswordAge:     config.MinPasswordAge,
 	}
 }
