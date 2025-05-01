@@ -155,6 +155,15 @@ type LoginResult struct {
 	LockedUntil   time.Time
 }
 
+const (
+	FAILURE_REASON_INTERNAL_ERROR        = "internal_error"
+	FAILURE_REASON_ACCOUNT_LOCKED        = "account_locked"
+	FAILURE_REASON_PASSWORD_EXPIRED      = "password_expired"
+	FAILURE_REASON_INVALID_CREDENTIALS   = "invalid_credentials"
+	FAILURE_REASON_NO_USER_FOUND         = "no_user_found"
+	FAILURE_REASON_2FA_VALIDATION_FAILED = "2fa_validation_failed"
+)
+
 func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
 	// Get users from repository
 	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
@@ -212,7 +221,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 	// Find user by username
 	login, err := s.FindLoginByUsername(ctx, username)
 	if err != nil {
-		result.FailureReason = "internal_error"
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
 		return result, fmt.Errorf("error finding login: %w", err)
 	}
 
@@ -223,7 +232,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 	isLocked, err := s.repository.IsAccountLocked(ctx, login.ID)
 	if err != nil {
 		slog.Error("Failed to check if account is locked", "err", err)
-		result.FailureReason = "internal_error"
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
 		return result, err
 	}
 
@@ -237,7 +246,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		}
 
 		// Set failure information
-		result.FailureReason = "account_locked"
+		result.FailureReason = FAILURE_REASON_ACCOUNT_LOCKED
 		result.LockedUntil = lockedUntil
 
 		return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
@@ -247,14 +256,14 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 	valid, err := s.CheckPasswordByLoginId(ctx, login.ID, password, string(login.Password))
 	if err != nil {
 		slog.Error("Failed to check password", "err", err)
-		result.FailureReason = "internal_error"
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
 		return result, err
 	}
 	if !valid {
 		slog.Error("invalid username or password from check password by login id")
 
 		// Set failure information
-		result.FailureReason = "invalid_credentials"
+		result.FailureReason = FAILURE_REASON_INVALID_CREDENTIALS
 
 		// Increment failed login attempts counter
 		err = s.repository.IncrementFailedLoginAttempts(ctx, login.ID)
@@ -284,7 +293,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		slog.Error("Failed to check password expiration", "err", err)
 		// Don't block login if we can't check expiration
 	} else if isExpired {
-		result.FailureReason = "password_expired"
+		result.FailureReason = FAILURE_REASON_PASSWORD_EXPIRED
 		return result, fmt.Errorf("password has expired and must be changed")
 	}
 
@@ -292,7 +301,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 	users, err := s.userMapper.FindUsersByLoginID(ctx, login.ID)
 	if err != nil {
 		slog.Error("error getting users by login ID", "err", err)
-		result.FailureReason = "internal_error"
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
 		return result, fmt.Errorf("error getting user information: %w", err)
 	}
 
