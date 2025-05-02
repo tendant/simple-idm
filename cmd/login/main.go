@@ -197,8 +197,8 @@ func main() {
 	)
 
 	// Initialize device recognition service and routes
-	deviceRepo := device.NewInMemDeviceRepository()
-	deviceService := device.NewDeviceService(deviceRepo, loginRepository)
+	deviceRepository := device.NewPostgresDeviceRepository(pool)
+	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
 
 	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
 	// Create a new handle with the domain login service directly
@@ -237,7 +237,7 @@ func main() {
 		profileRepo := profile.NewPostgresProfileRepository(profileQueries)
 		profileService := profile.NewProfileService(profileRepo, passwordManager, userMapper)
 		responseHandler := profileapi.NewDefaultResponseHandler()
-		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService, responseHandler)
+		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService, deviceService, responseHandler)
 		r.Mount("/api/idm/profile", profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))

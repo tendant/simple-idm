@@ -2,6 +2,8 @@ import { Component, createSignal, Show, createEffect, For } from 'solid-js';
 import { useApi } from '../lib/hooks/useApi';
 import { extractErrorDetails } from '../lib/api';
 import { twoFactorApi, ProfileTwoFactorMethod } from '../api/twoFactor';
+import { profileApi } from '../api/profile';
+import { Device } from '../api/device';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -25,6 +27,9 @@ const Settings: Component = () => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [twoFactorMethods, setTwoFactorMethods] = createSignal<ProfileTwoFactorMethod[]>([]);
   const [isLoadingMethods, setIsLoadingMethods] = createSignal(false);
+  const [linkedDevices, setLinkedDevices] = createSignal<Device[]>([]);
+  const [isLoadingDevices, setIsLoadingDevices] = createSignal(false);
+  const [deviceError, setDeviceError] = createSignal<string | null>(null);
 
   const { request } = useApi();
 
@@ -42,10 +47,68 @@ const Settings: Component = () => {
     }
   };
 
-  // Fetch 2FA methods when component mounts
-  createEffect(() => {
-    fetch2FAMethods();
-  });
+  const fetchLinkedDevices = async () => {
+    setIsLoadingDevices(true);
+    setDeviceError(null);
+    try {
+      const devices = await profileApi.getMyDevices();
+      setLinkedDevices(devices);
+    } catch (err) {
+      const errorDetails = extractErrorDetails(err);
+      setDeviceError(errorDetails.message || 'Failed to fetch linked devices');
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+  };
+
+  const isExpiringSoon = (dateString: string) => {
+    if (!dateString) return false;
+    const expiryDate = new Date(dateString);
+    const now = new Date();
+    // Consider "expiring soon" if less than 7 days away
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    return expiryDate.getTime() - now.getTime() < sevenDaysInMs;
+  };
+
+  const handleUnlinkDevice = async (fingerprint: string) => {
+    if (!confirm('Are you sure you want to unlink this device? You will need to verify this device again next time you use it.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    setDeviceError(null);
+    try {
+      // We need to get the loginId from the device's linked_logins
+      const device = linkedDevices().find(d => d.fingerprint === fingerprint);
+      if (!device || !device.linked_logins || device.linked_logins.length === 0) {
+        throw new Error('Device information is incomplete');
+      }
+      
+      const loginId = device.linked_logins[0].id;
+      await request(`/api/idm/device/login/${loginId}/unlink`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fingerprint,
+        }),
+      });
+      
+      // Refresh the devices list
+      await fetchLinkedDevices();
+    } catch (err) {
+      const errorDetails = extractErrorDetails(err);
+      setDeviceError(errorDetails.message || 'Failed to unlink device');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -89,6 +152,12 @@ const Settings: Component = () => {
     }
   };
 
+  // Fetch 2FA methods when component mounts
+  createEffect(() => {
+    fetch2FAMethods();
+    fetchLinkedDevices();
+  });
+
   return (
     <div>
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -114,6 +183,7 @@ const Settings: Component = () => {
           <TabsList class="grid w-full grid-cols-3">
             <TabsTrigger value="password">Password</TabsTrigger>
             <TabsTrigger value="2fa">Two-Factor Auth</TabsTrigger>
+            <TabsTrigger value="devices">Devices</TabsTrigger>
             <TabsTrigger value="accounts">Associated Accounts</TabsTrigger>
           </TabsList>
 
@@ -373,6 +443,88 @@ const Settings: Component = () => {
               </Show>
 
               {/* Removed the "Enter Code to Disable 2FA" block as requested */}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="devices">
+        <Card>
+          <CardHeader>
+            <CardTitle>Linked Devices</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {deviceError() && (
+              <Alert class="mb-4" variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{deviceError()}</AlertDescription>
+              </Alert>
+            )}
+            
+            <Show when={isLoadingDevices()}>
+              <div class="py-4 text-center">
+                <p class="text-sm text-gray-500">Loading your linked devices...</p>
+              </div>
+            </Show>
+            
+            <Show when={!isLoadingDevices() && linkedDevices().length === 0}>
+              <div class="py-4 border rounded-md text-center">
+                <p class="text-sm text-gray-500">You don't have any linked devices.</p>
+              </div>
+            </Show>
+            
+            <Show when={!isLoadingDevices() && linkedDevices().length > 0}>
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-300">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Device</th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Used</th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Expires</th>
+                      <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                        <span class="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-200 bg-white">
+                    <For each={linkedDevices()}>
+                      {(device) => (
+                        <tr>
+                          <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                            <div class="flex flex-col">
+                              <span class="font-mono">{device.fingerprint.substring(0, 16)}...</span>
+                              <span class="text-xs text-gray-500">{device.user_agent || 'Unknown device'}</span>
+                            </div>
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {formatDate(device.last_login)}
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm">
+                            <span class={`${isExpiringSoon(device.expires_at || '') ? 'text-yellow-600' : 'text-gray-500'}`}>
+                              {formatDate(device.expires_at)}
+                            </span>
+                          </td>
+                          <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                            <button
+                              onClick={() => handleUnlinkDevice(device.fingerprint)}
+                              disabled={isLoading()}
+                              class="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isLoading() ? 'Unlinking...' : 'Unlink'}
+                              <span class="sr-only">, {device.fingerprint}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      )}
+                    </For>
+                  </tbody>
+                </table>
+              </div>
+              <div class="mt-4">
+                <p class="text-sm text-gray-500">
+                  These are devices that have been verified for your account. Devices are automatically unlinked after 90 days for security.
+                </p>
+              </div>
+            </Show>
           </CardContent>
         </Card>
       </TabsContent>
