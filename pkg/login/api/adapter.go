@@ -53,7 +53,7 @@ func NewLoginService(domainService *login.LoginService) *LoginService {
 }
 
 // Login authenticates a user and returns user information
-func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.User, error) {
+func (s *LoginService) Login(ctx context.Context, username, password string) (login.LoginResult, error) {
 	return s.domainService.Login(ctx, username, password)
 }
 

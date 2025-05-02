@@ -153,6 +153,7 @@ ALTER TABLE public.login_2fa OWNER TO idm;
 --
 
 CREATE TABLE public.login_attempt (
+
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     login_id uuid NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
@@ -164,7 +165,9 @@ CREATE TABLE public.login_attempt (
 );
 
 
+
 ALTER TABLE public.login_attempt OWNER TO idm;
+
 
 --
 -- Name: login_device; Type: TABLE; Schema: public; Owner: idm
@@ -316,6 +319,7 @@ ALTER TABLE ONLY public.login_attempt
     ADD CONSTRAINT login_attempt_pkey PRIMARY KEY (id);
 
 
+
 --
 -- Name: login_device login_device_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
@@ -444,6 +448,7 @@ CREATE INDEX idx_login_password_reset_tokens_token ON public.login_password_rese
 CREATE INDEX login_attempt_login_id_idx ON public.login_attempt USING btree (login_id);
 
 
+
 --
 -- Name: login_password_history_login_id_idx; Type: INDEX; Schema: public; Owner: idm
 --
@@ -473,6 +478,7 @@ ALTER TABLE ONLY public.login_2fa
 
 ALTER TABLE ONLY public.login_attempt
     ADD CONSTRAINT login_attempt_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
+
 
 
 --

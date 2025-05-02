@@ -23,6 +23,8 @@ type LoginService struct {
 	delegatedUserMapper mapper.DelegatedUserMapper
 	passwordManager     *PasswordManager
 	postPasswordUpdate  *PostPasswordUpdateFunc
+	maxFailedAttempts   int
+	lockoutDuration     time.Duration
 }
 
 // PostPasswordUpdateFunc is a function that will be called after a password update
@@ -72,6 +74,20 @@ func WithPostPasswordUpdate(postPasswordUpdate *PostPasswordUpdateFunc) Option {
 	}
 }
 
+// WithMaxFailedAttempts sets the maximum number of failed login attempts before locking an account
+func WithMaxFailedAttempts(maxFailedAttempts int) Option {
+	return func(ls *LoginService) {
+		ls.maxFailedAttempts = maxFailedAttempts
+	}
+}
+
+// WithLockoutDuration sets the duration for which an account is locked after exceeding max failed attempts
+func WithLockoutDuration(lockoutDuration time.Duration) Option {
+	return func(ls *LoginService) {
+		ls.lockoutDuration = lockoutDuration
+	}
+}
+
 // NewLoginService creates a new LoginService with the given options
 func NewLoginService(
 	repository LoginRepository,
@@ -107,8 +123,10 @@ func NewLoginServiceWithOptions(repository LoginRepository, opts ...Option) *Log
 
 	// Create service with default values
 	ls := &LoginService{
-		repository:      repository,
-		passwordManager: passwordManager,
+		repository:        repository,
+		passwordManager:   passwordManager,
+		maxFailedAttempts: 5,                // Default to 5 failed attempts
+		lockoutDuration:   30 * time.Minute, // Default to 30 minute lockout
 	}
 
 	// Apply all options
@@ -128,6 +146,23 @@ type LoginResponse struct {
 	Users   []mapper.User
 	LoginId uuid.UUID
 }
+
+type LoginResult struct {
+	Users         []mapper.User
+	LoginID       uuid.UUID
+	Success       bool
+	FailureReason string
+	LockedUntil   time.Time
+}
+
+const (
+	FAILURE_REASON_INTERNAL_ERROR        = "internal_error"
+	FAILURE_REASON_ACCOUNT_LOCKED        = "account_locked"
+	FAILURE_REASON_PASSWORD_EXPIRED      = "password_expired"
+	FAILURE_REASON_INVALID_CREDENTIALS   = "invalid_credentials"
+	FAILURE_REASON_NO_USER_FOUND         = "no_user_found"
+	FAILURE_REASON_2FA_VALIDATION_FAILED = "2fa_validation_failed"
+)
 
 func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
 	// Get users from repository
@@ -178,47 +213,96 @@ func (s *LoginService) FindLoginByUsername(ctx context.Context, username string)
 	return login, nil
 }
 
-func (s *LoginService) Login(ctx context.Context, username, password string) ([]mapper.User, error) {
+func (s *LoginService) Login(ctx context.Context, username, password string) (LoginResult, error) {
+	result := LoginResult{
+		Success: false,
+	}
+
 	// Find user by username
-	loginUser, err := s.FindLoginByUsername(ctx, username)
+	login, err := s.FindLoginByUsername(ctx, username)
 	if err != nil {
-		return []mapper.User{}, fmt.Errorf("error finding login: %w", err)
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		return result, fmt.Errorf("error finding login: %w", err)
+	}
+
+	// Set the login ID in the result
+	result.LoginID = login.ID
+
+	// Check if account is locked
+	isLocked, err := s.repository.IsAccountLocked(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to check if account is locked", "err", err)
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		return result, err
+	}
+
+	if isLocked {
+		// Get the locked until time
+		_, _, lockedUntil, err := s.repository.GetFailedLoginAttempts(ctx, login.ID)
+		if err != nil {
+			slog.Error("Failed to get account lock details", "err", err)
+			// If we can't get the lock details, use a default duration
+			lockedUntil = time.Now().Add(s.lockoutDuration)
+		}
+
+		// Set failure information
+		result.FailureReason = FAILURE_REASON_ACCOUNT_LOCKED
+		result.LockedUntil = lockedUntil
+
+		return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
 	}
 
 	// Verify password
-	valid, err := s.CheckPasswordByLoginId(ctx, loginUser.ID, password, string(loginUser.Password))
+	valid, err := s.CheckPasswordByLoginId(ctx, login.ID, password, string(login.Password))
 	if err != nil {
-		slog.Error("error checking password: %w", err)
-		return []mapper.User{}, fmt.Errorf("error checking password: %w", err)
+		slog.Error("Failed to check password", "err", err)
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		return result, err
 	}
-
 	if !valid {
 		slog.Error("invalid username or password from check password by login id")
-		return []mapper.User{}, fmt.Errorf("invalid username or password")
+
+		// Set failure information
+		result.FailureReason = FAILURE_REASON_INVALID_CREDENTIALS
+
+		// Increment failed login attempts counter
+		_, _, err := s.IncrementFailedAttemptsAndCheckLock(ctx, login.ID)
+		if err != nil {
+			slog.Error("Failed to increment failed login attempts", "err", err)
+		}
+
+		return result, fmt.Errorf("invalid username or password")
 	}
 
 	// Check if password is expired
-	isExpired, err := s.passwordManager.IsPasswordExpired(ctx, loginUser.ID.String())
+	isExpired, err := s.passwordManager.IsPasswordExpired(ctx, login.ID.String())
 	if err != nil {
 		slog.Error("Failed to check password expiration", "err", err)
 		// Don't block login if we can't check expiration
 	} else if isExpired {
-		return []mapper.User{}, fmt.Errorf("password has expired and must be changed")
+		result.FailureReason = FAILURE_REASON_PASSWORD_EXPIRED
+		return result, fmt.Errorf("password has expired and must be changed")
 	}
 
 	// Get users associated with this login ID using the UserRepository
-	users, err := s.userMapper.FindUsersByLoginID(ctx, loginUser.ID)
+	users, err := s.userMapper.FindUsersByLoginID(ctx, login.ID)
 	if err != nil {
 		slog.Error("error getting users by login ID", "err", err)
-		return []mapper.User{}, fmt.Errorf("error getting user information: %w", err)
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		return result, fmt.Errorf("error getting user information: %w", err)
 	}
 
-	res := LoginResponse{
-		Users:   users,
-		LoginId: loginUser.ID,
+	// If login is successful, reset failed login attempts
+	err = s.repository.ResetFailedLoginAttempts(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to reset failed login attempts", "err", err)
 	}
 
-	return res.Users, nil
+	// Set success information
+	result.Success = true
+	result.Users = users
+
+	return result, nil
 }
 
 type RegisterParam struct {
@@ -592,4 +676,94 @@ func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (s
 
 	// Return the first username found
 	return usernames[0], true, nil
+}
+
+// RecordLoginAttempt records a login attempt
+func (s *LoginService) RecordLoginAttempt(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, deviceFingerprint string, success bool, failureReason string) error {
+	return s.repository.RecordLoginAttempt(ctx, LoginAttempt{
+		LoginID:           loginID,
+		IPAddress:         ipAddress,
+		UserAgent:         userAgent,
+		DeviceFingerprint: deviceFingerprint,
+		Success:           success,
+		FailureReason:     failureReason,
+	})
+}
+
+// IncrementFailedAttemptsAndCheckLock increments the failed login attempts counter
+// and checks if the account should be locked. Returns true if the account is now locked,
+// along with the lock duration if applicable.
+func (s *LoginService) IncrementFailedAttemptsAndCheckLock(ctx context.Context, loginID uuid.UUID) (bool, time.Duration, error) {
+	// Increment failed login attempts counter
+	err := s.repository.IncrementFailedLoginAttempts(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to increment failed login attempts", "err", err)
+		return false, 0, err
+	}
+
+	// Check if account should be locked (max failed attempts)
+	failedAttempts, _, _, err := s.repository.GetFailedLoginAttempts(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to get failed login attempts", "err", err)
+		return false, 0, err
+	}
+
+	if failedAttempts >= int32(s.maxFailedAttempts) {
+		// Lock the account
+		err = s.repository.LockAccount(ctx, loginID, s.lockoutDuration)
+		if err != nil {
+			slog.Error("Failed to lock account", "err", err)
+			return false, 0, err
+		}
+		slog.Info("Account locked due to too many failed login attempts", "loginID", loginID)
+		return true, s.lockoutDuration, nil
+	}
+
+	return false, 0, nil
+}
+
+// AccountLockedError represents an error when an account is locked due to too many failed login attempts
+type AccountLockedError struct {
+	LoginID     uuid.UUID
+	LockedUntil time.Time
+}
+
+func (e *AccountLockedError) Error() string {
+	return fmt.Sprintf("account is locked due to too many failed login attempts until %s", e.LockedUntil.Format(time.RFC3339))
+}
+
+// IsAccountLockedError checks if an error is an AccountLockedError
+func IsAccountLockedError(err error) bool {
+	_, ok := err.(*AccountLockedError)
+	return ok
+}
+
+// GetLockedUntil returns the time until which the account is locked
+func GetLockedUntil(err error) (time.Time, bool) {
+	if accErr, ok := err.(*AccountLockedError); ok {
+		return accErr.LockedUntil, true
+	}
+	return time.Time{}, false
+}
+
+// Helper functions for extracting information from context
+func getIPFromContext(ctx context.Context) string {
+	if ip, ok := ctx.Value("ip").(string); ok {
+		return ip
+	}
+	return ""
+}
+
+func getUserAgentFromContext(ctx context.Context) string {
+	if ua, ok := ctx.Value("user_agent").(string); ok {
+		return ua
+	}
+	return ""
+}
+
+func getDeviceFingerprintFromContext(ctx context.Context) string {
+	if fp, ok := ctx.Value("device_fingerprint").(string); ok {
+		return fp
+	}
+	return ""
 }
