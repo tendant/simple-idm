@@ -14,72 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// SQL queries as constants
-const (
-	createDeviceSQL = `
-		INSERT INTO device (
-			fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7
-		) RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
-	`
-
-	getDeviceByFingerprintSQL = `
-		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
-		FROM device
-		WHERE fingerprint = $1
-	`
-
-	findDevicesSQL = `
-		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
-		FROM device
-		ORDER BY created_at DESC
-	`
-
-	findDevicesByLoginSQL = `
-		SELECT d.fingerprint, d.user_agent, d.accept_headers, d.timezone, d.screen_resolution, d.last_login_at, d.created_at
-		FROM device d
-		JOIN login_device ld ON d.fingerprint = ld.fingerprint
-		WHERE ld.login_id = $1 AND ld.deleted_at IS NULL
-		GROUP BY d.fingerprint
-		ORDER BY d.last_login_at DESC
-	`
-
-	updateDeviceLastLoginSQL = `
-		UPDATE device
-		SET last_login_at = $2
-		WHERE fingerprint = $1
-		RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
-	`
-
-	findLoginDeviceByFingerprintAndLoginIDSQL = `
-		SELECT id, login_id, fingerprint, linked_at, expires_at, deleted_at
-		FROM login_device
-		WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
-	`
-
-	updateLoginDeviceExpirySQL = `
-		UPDATE login_device
-		SET expires_at = $3
-		WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
-		RETURNING id, login_id, fingerprint, linked_at, expires_at, deleted_at
-	`
-
-	createLoginDeviceSQL = `
-		INSERT INTO login_device (
-			login_id, fingerprint, linked_at, expires_at
-		) VALUES (
-			$1, $2, $3, $4
-		) RETURNING id, login_id, fingerprint, linked_at, expires_at, deleted_at
-	`
-
-	unlinkLoginDeviceSQL = `
-		UPDATE login_device
-		SET deleted_at = $3
-		WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
-	`
-)
-
 // PostgresDeviceRepository implements DeviceRepository using PostgreSQL
 type PostgresDeviceRepository struct {
 	db DBTX
@@ -118,7 +52,15 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 		device.LastLoginAt = time.Now().UTC()
 	}
 
-	row := r.db.QueryRow(ctx, createDeviceSQL,
+	query := `
+		INSERT INTO device (
+			fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7
+		) RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+	`
+
+	row := r.db.QueryRow(ctx, query,
 		device.Fingerprint,
 		device.UserAgent,
 		device.AcceptHeaders,
@@ -149,7 +91,13 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 
 // GetDeviceByFingerprint retrieves a device by its fingerprint
 func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, fingerprint string) (Device, error) {
-	row := r.db.QueryRow(ctx, getDeviceByFingerprintSQL, fingerprint)
+	query := `
+		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+		FROM device
+		WHERE fingerprint = $1
+	`
+
+	row := r.db.QueryRow(ctx, query, fingerprint)
 
 	var device Device
 	err := row.Scan(
@@ -176,7 +124,13 @@ func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, f
 
 // FindDevices returns all devices
 func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, error) {
-	rows, err := r.db.Query(ctx, findDevicesSQL)
+	query := `
+		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+		FROM device
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.Query(ctx, query)
 	if err != nil {
 		slog.Error("Failed to find devices", "err", err)
 		return nil, fmt.Errorf("failed to find devices: %w", err)
@@ -213,7 +167,16 @@ func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, e
 
 // FindDevicesByLogin returns all devices linked to a specific login
 func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID uuid.UUID) ([]Device, error) {
-	rows, err := r.db.Query(ctx, findDevicesByLoginSQL, loginID)
+	query := `
+		SELECT d.fingerprint, d.user_agent, d.accept_headers, d.timezone, d.screen_resolution, d.last_login_at, d.created_at
+		FROM device d
+		JOIN login_device ld ON d.fingerprint = ld.fingerprint
+		WHERE ld.login_id = $1 AND ld.deleted_at IS NULL
+		GROUP BY d.fingerprint
+		ORDER BY d.last_login_at DESC
+	`
+
+	rows, err := r.db.Query(ctx, query, loginID)
 	if err != nil {
 		slog.Error("Failed to find devices by login", "err", err, "loginID", loginID)
 		return nil, fmt.Errorf("failed to find devices by login: %w", err)
@@ -250,7 +213,14 @@ func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, login
 
 // UpdateDeviceLastLogin updates the last login time of a device
 func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fingerprint string, lastLogin time.Time) (Device, error) {
-	row := r.db.QueryRow(ctx, updateDeviceLastLoginSQL, fingerprint, lastLogin)
+	query := `
+		UPDATE device
+		SET last_login_at = $2
+		WHERE fingerprint = $1
+		RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+	`
+
+	row := r.db.QueryRow(ctx, query, fingerprint, lastLogin)
 
 	var device Device
 	err := row.Scan(
@@ -277,7 +247,13 @@ func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fi
 
 // FindLoginDeviceByFingerprintAndLoginID returns the login-device link for a specific fingerprint and login ID
 func (r *PostgresDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (*LoginDevice, error) {
-	row := r.db.QueryRow(ctx, findLoginDeviceByFingerprintAndLoginIDSQL, fingerprint, loginID)
+	query := `
+		SELECT id, login_id, fingerprint, linked_at, expires_at, deleted_at
+		FROM login_device
+		WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
+	`
+
+	row := r.db.QueryRow(ctx, query, fingerprint, loginID)
 
 	var loginDevice LoginDevice
 	var deletedAt pgtype.Timestamp
@@ -326,7 +302,14 @@ func (r *PostgresDeviceRepository) LinkLoginToDevice(ctx context.Context, loginI
 			// If the link is expired, update the expiry date
 			expiryDate := CalculateExpiryDate(DefaultDeviceExpiryDays)
 			
-			row := r.db.QueryRow(ctx, updateLoginDeviceExpirySQL, fingerprint, loginID, expiryDate)
+			updateQuery := `
+				UPDATE login_device
+				SET expires_at = $3
+				WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
+				RETURNING id, login_id, fingerprint, linked_at, expires_at, deleted_at
+			`
+			
+			row := r.db.QueryRow(ctx, updateQuery, fingerprint, loginID, expiryDate)
 			
 			var loginDevice LoginDevice
 			var deletedAt pgtype.Timestamp
@@ -356,7 +339,15 @@ func (r *PostgresDeviceRepository) LinkLoginToDevice(ctx context.Context, loginI
 	// Create a new link
 	expiryDate := CalculateExpiryDate(DefaultDeviceExpiryDays)
 	
-	row := r.db.QueryRow(ctx, createLoginDeviceSQL,
+	createQuery := `
+		INSERT INTO login_device (
+			login_id, fingerprint, linked_at, expires_at
+		) VALUES (
+			$1, $2, $3, $4
+		) RETURNING id, login_id, fingerprint, linked_at, expires_at, deleted_at
+	`
+	
+	row := r.db.QueryRow(ctx, createQuery,
 		loginID,
 		fingerprint,
 		time.Now().UTC(),
@@ -390,7 +381,13 @@ func (r *PostgresDeviceRepository) LinkLoginToDevice(ctx context.Context, loginI
 
 // UnlinkLoginToDevice removes the link between a login and a device
 func (r *PostgresDeviceRepository) UnlinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) error {
-	result, err := r.db.Exec(ctx, unlinkLoginDeviceSQL, fingerprint, loginID, time.Now().UTC())
+	query := `
+		UPDATE login_device
+		SET deleted_at = $3
+		WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
+	`
+
+	result, err := r.db.Exec(ctx, query, fingerprint, loginID, time.Now().UTC())
 	if err != nil {
 		slog.Error("Failed to unlink device", "err", err, "fingerprint", fingerprint, "loginID", loginID)
 		return fmt.Errorf("failed to unlink device: %w", err)
