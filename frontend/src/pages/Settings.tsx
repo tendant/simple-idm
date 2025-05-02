@@ -30,6 +30,8 @@ const Settings: Component = () => {
   const [linkedDevices, setLinkedDevices] = createSignal<Device[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = createSignal(false);
   const [deviceError, setDeviceError] = createSignal<string | null>(null);
+  const [editingDevice, setEditingDevice] = createSignal<string | null>(null);
+  const [newDisplayName, setNewDisplayName] = createSignal('');
 
   const { request } = useApi();
 
@@ -149,6 +151,38 @@ const Settings: Component = () => {
         // For any other error, display the message
         setError(errorDetails.message);
       }
+    }
+  };
+
+  const handleEditDevice = (device: Device) => {
+    setEditingDevice(device.fingerprint);
+    setNewDisplayName(device.display_name || device.device_name || '');
+  };
+
+  const handleSaveDeviceName = async () => {
+    const fingerprint = editingDevice();
+    if (!fingerprint) return;
+
+    setIsLoading(true);
+    try {
+      const response = await profileApi.updateDeviceDisplayName(fingerprint, newDisplayName());
+      
+      // Update the device in the local state
+      const updatedDevices = linkedDevices().map(device => {
+        if (device.fingerprint === fingerprint) {
+          return { ...device, display_name: newDisplayName() };
+        }
+        return device;
+      });
+      
+      setLinkedDevices(updatedDevices);
+      setEditingDevice(null);
+      setSuccess('Device name updated successfully');
+    } catch (err) {
+      const errorDetails = extractErrorDetails(err);
+      setDeviceError(errorDetails.message || 'Failed to update device name');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -483,7 +517,7 @@ const Settings: Component = () => {
                   <thead class="bg-gray-50">
                     <tr>
                       <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Device</th>
-                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Used</th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Login</th>
                       <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Expires</th>
                       <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
                         <span class="sr-only">Actions</span>
@@ -500,9 +534,30 @@ const Settings: Component = () => {
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                 </svg>
-                                <span class="font-mono">{device.fingerprint.substring(0, 16)}...</span>
+                                <Show when={editingDevice() === device.fingerprint}>
+                                  <Input
+                                    id="device-name"
+                                    type="text"
+                                    value={newDisplayName()}
+                                    onInput={(e) => setNewDisplayName(e.currentTarget.value)}
+                                    class="w-full"
+                                  />
+                                </Show>
+                                <Show when={editingDevice() !== device.fingerprint}>
+                                  <span class="font-medium">{device.display_name || device.device_name || 'Unknown Device'}</span>
+                                  <button
+                                    onClick={() => handleEditDevice(device)}
+                                    class="ml-2 text-gray-500 hover:text-gray-700"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-1.773-5.94a.5.5 0 011.064.02L4.192 17.854a.5.5 0 01-.642.328v5.205a.5.5 0 01-1.064 0v-7.043a.5.5 0 01.642-.328l3.536-3.536a.5.5 0 01.642 0z" />
+                                    </svg>
+                                  </button>
+                                </Show>
                               </div>
-                              <span class="text-xs text-gray-500 mt-1">{device.user_agent || 'Unknown device'}</span>
+                              <div class="flex items-center mt-1">
+                                <span class="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-1">{device.device_type || 'Other'}</span>
+                              </div>
                             </div>
                           </td>
                           <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
@@ -514,16 +569,32 @@ const Settings: Component = () => {
                             </span>
                           </td>
                           <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                            <button
-                              onClick={() => handleUnlinkDevice(device.fingerprint)}
-                              disabled={isLoading()}
-                              class="inline-flex items-center rounded-md border border-transparent bg-red-100 px-3 py-2 text-sm font-medium leading-4 text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
-                              </svg>
-                              {isLoading() ? 'Unlinking...' : 'Unlink'}
-                            </button>
+                            <Show when={editingDevice() === device.fingerprint}>
+                              <button
+                                onClick={handleSaveDeviceName}
+                                class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingDevice(null)}
+                                class="ml-2 inline-flex items-center rounded-md border border-transparent bg-red-100 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                              >
+                                Cancel
+                              </button>
+                            </Show>
+                            <Show when={editingDevice() !== device.fingerprint}>
+                              <button
+                                onClick={() => handleUnlinkDevice(device.fingerprint)}
+                                disabled={isLoading()}
+                                class="inline-flex items-center rounded-md border border-transparent bg-red-100 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                                </svg>
+                                {isLoading() ? 'Unlinking...' : 'Unlink'}
+                              </button>
+                            </Show>
                           </td>
                         </tr>
                       )}
