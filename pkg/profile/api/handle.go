@@ -1031,6 +1031,7 @@ func (h Handle) GetMyDevices(w http.ResponseWriter, r *http.Request) *Response {
 			LastLoginAt: d.LastLoginAt,
 			CreatedAt:   d.CreatedAt,
 			ExpiresAt:   loginDevice.ExpiresAt,
+			DisplayName: loginDevice.DisplayName,
 			LinkedLogins: []LoginInfo{
 				{
 					ID:       authUser.LoginId, // Use the string version from authUser
