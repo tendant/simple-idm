@@ -59,6 +59,18 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, fingerprint string, 
 	return createdDevice, nil
 }
 
+// UpdateDeviceLastLogin updates the last login time for a device
+func (s *DeviceService) UpdateDeviceLastLogin(ctx context.Context, fingerprint string) (Device, error) {
+	// Update the device's last login time
+	now := time.Now().UTC()
+	updatedDevice, err := s.deviceRepository.UpdateDeviceLastLogin(ctx, fingerprint, now)
+	if err != nil {
+		return Device{}, fmt.Errorf("failed to update device last login: %w", err)
+	}
+	slog.Debug("Updated device last login time", "fingerprint", fingerprint, "last_login", now)
+	return updatedDevice, nil
+}
+
 // LinkDeviceToLogin links a device to a login ID with expiration
 func (s *DeviceService) LinkDeviceToLogin(ctx context.Context, loginID uuid.UUID, fingerprint string) error {
 	// Ensure device exists

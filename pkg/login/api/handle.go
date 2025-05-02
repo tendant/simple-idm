@@ -531,6 +531,15 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	// Record successful login attempt
 	h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, true, "")
 
+	// Update device last login time
+	if fingerprintStr != "" {
+		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
+		if err != nil {
+			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
+			// Don't fail the login if we can't update the last login time
+		}
+	}
+
 	// Create response with user information
 	response := Login{
 		Status:  STATUS_SUCCESS,
@@ -907,6 +916,15 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
+	var ipAddress string
+	var userAgent string
+	var fingerprintStr string
+
+	ipAddress = getIPAddressFromRequest(r)
+	userAgent = getUserAgentFromRequest(r)
+	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr = device.GenerateFingerprint(fingerprintData)
+
 	// Get all users for the current login
 	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
 	if err != nil {
@@ -952,6 +970,15 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to set tokens in cookies",
+		}
+	}
+	h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, true, "")
+	// Update device last login time
+	if fingerprintStr != "" {
+		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
+		if err != nil {
+			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
+			// Don't fail the login if we can't update the last login time
 		}
 	}
 
@@ -1115,6 +1142,15 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 
 	// Record successful login
 	h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, true, "")
+
+	// Update device last login time
+	if fingerprintStr != "" {
+		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
+		if err != nil {
+			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
+			// Don't fail the login if we can't update the last login time
+		}
+	}
 
 	// Return tokens in response for mobile
 	return h.responseHandler.PrepareTokenResponse(tokens)
@@ -1511,6 +1547,15 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	// Record successful login
 	h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, true, "")
 
+	// Update device last login time
+	if fingerprintStr != "" {
+		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
+		if err != nil {
+			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
+			// Don't fail the login if we can't update the last login time
+		}
+	}
+
 	// Include tokens in response
 	resp.Result = "success"
 
@@ -1770,6 +1815,15 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 			body: "Failed to create tokens",
 		}
 	}
+	h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, true, "")
+	// Update device last login time
+	if fingerprintStr != "" {
+		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
+		if err != nil {
+			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
+			// Don't fail the login if we can't update the last login time
+		}
+	}
 
 	// Return tokens in response
 	return h.responseHandler.PrepareTokenResponse(tokens)
@@ -1849,6 +1903,15 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 		}
 	}
 
+	var ipAddress string
+	var userAgent string
+	var fingerprintStr string
+
+	ipAddress = getIPAddressFromRequest(r)
+	userAgent = getUserAgentFromRequest(r)
+	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr = device.GenerateFingerprint(fingerprintData)
+
 	// Get all users for the current login
 	users, err := h.loginService.GetUsersByLoginId(r.Context(), loginId)
 	if err != nil {
@@ -1886,6 +1949,15 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "Failed to create tokens",
+		}
+	}
+	h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, true, "")
+	// Update device last login time
+	if fingerprintStr != "" {
+		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
+		if err != nil {
+			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
+			// Don't fail the login if we can't update the last login time
 		}
 	}
 
