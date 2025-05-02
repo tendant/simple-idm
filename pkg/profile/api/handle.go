@@ -985,7 +985,7 @@ func (h Handle) GetMyDevices(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Convert devices to DeviceWithLogin
-	devicesWithLogin := make([]DeviceWithLogin, 0, len(devices))
+	var devicesWithLogin []DeviceWithLogin
 	for _, d := range devices {
 		// Get the login device link to get expiration information
 		loginDevice, err := h.deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), d.Fingerprint, loginID)
@@ -995,6 +995,8 @@ func (h Handle) GetMyDevices(w http.ResponseWriter, r *http.Request) *Response {
 			deviceWithLogin := DeviceWithLogin{
 				Fingerprint: d.Fingerprint,
 				UserAgent:   d.UserAgent,
+				DeviceName:  d.DeviceName,
+				DeviceType:  d.DeviceType,
 				LastLoginAt: d.LastLoginAt,
 				CreatedAt:   d.CreatedAt,
 				LinkedLogins: []LoginInfo{
@@ -1007,15 +1009,15 @@ func (h Handle) GetMyDevices(w http.ResponseWriter, r *http.Request) *Response {
 			// Optional fields
 			if d.AcceptHeaders != "" {
 				acceptHeaders := d.AcceptHeaders
-				deviceWithLogin.AcceptHeaders = &acceptHeaders
+				deviceWithLogin.AcceptHeaders = acceptHeaders
 			}
 			if d.Timezone != "" {
 				timezone := d.Timezone
-				deviceWithLogin.Timezone = &timezone
+				deviceWithLogin.Timezone = timezone
 			}
 			if d.ScreenResolution != "" {
 				screenRes := d.ScreenResolution
-				deviceWithLogin.ScreenResolution = &screenRes
+				deviceWithLogin.ScreenResolution = screenRes
 			}
 			devicesWithLogin = append(devicesWithLogin, deviceWithLogin)
 			continue
@@ -1024,8 +1026,11 @@ func (h Handle) GetMyDevices(w http.ResponseWriter, r *http.Request) *Response {
 		deviceWithLogin := DeviceWithLogin{
 			Fingerprint: d.Fingerprint,
 			UserAgent:   d.UserAgent,
+			DeviceName:  d.DeviceName,
+			DeviceType:  d.DeviceType,
 			LastLoginAt: d.LastLoginAt,
 			CreatedAt:   d.CreatedAt,
+			ExpiresAt:   loginDevice.ExpiresAt,
 			LinkedLogins: []LoginInfo{
 				{
 					ID:       authUser.LoginId, // Use the string version from authUser
@@ -1036,19 +1041,16 @@ func (h Handle) GetMyDevices(w http.ResponseWriter, r *http.Request) *Response {
 		// Optional fields
 		if d.AcceptHeaders != "" {
 			acceptHeaders := d.AcceptHeaders
-			deviceWithLogin.AcceptHeaders = &acceptHeaders
+			deviceWithLogin.AcceptHeaders = acceptHeaders
 		}
 		if d.Timezone != "" {
 			timezone := d.Timezone
-			deviceWithLogin.Timezone = &timezone
+			deviceWithLogin.Timezone = timezone
 		}
 		if d.ScreenResolution != "" {
 			screenRes := d.ScreenResolution
-			deviceWithLogin.ScreenResolution = &screenRes
+			deviceWithLogin.ScreenResolution = screenRes
 		}
-		// Set expiration time
-		expiresAt := loginDevice.ExpiresAt
-		deviceWithLogin.ExpiresAt = &expiresAt
 		devicesWithLogin = append(devicesWithLogin, deviceWithLogin)
 	}
 
@@ -1062,6 +1064,116 @@ func (h Handle) GetMyDevices(w http.ResponseWriter, r *http.Request) *Response {
 		Code:        http.StatusOK,
 		body:        response,
 		contentType: "application/json",
+	}
+}
+
+// UpdateDeviceDisplayName updates the display name of a device for the authenticated user
+func (h Handle) UpdateDeviceDisplayName(w http.ResponseWriter, r *http.Request, fingerprint string) *Response {
+	ctx := r.Context()
+
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok || authUser == nil {
+		slog.Error("Authentication required", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	loginID, err := uuid.Parse(authUser.LoginId)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Get the fingerprint from the path parameter
+	if fingerprint == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "fingerprint is required",
+		}
+	}
+
+	// Parse the request body
+	var req UpdateDeviceDisplayNameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid request body",
+		}
+	}
+
+	// Validate the request
+	if req.DisplayName == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "display_name is required",
+		}
+	}
+
+	// Update the display name
+	loginDevice, err := h.deviceService.UpdateDeviceDisplayName(ctx, loginID, fingerprint, req.DisplayName)
+	if err != nil {
+		slog.Error("Failed to update device display name", "err", err, "fingerprint", fingerprint, "loginID", loginID)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to update device display name",
+		}
+	}
+
+	// Get the device to include in the response
+	device, err := h.deviceService.GetDeviceByFingerprint(ctx, fingerprint)
+	if err != nil {
+		slog.Error("Failed to get device", "err", err, "fingerprint", fingerprint)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to get device",
+		}
+	}
+
+	// Create the device with login
+	deviceWithLogin := DeviceWithLogin{
+		Fingerprint: device.Fingerprint,
+		UserAgent:   device.UserAgent,
+		DeviceName:  device.DeviceName,
+		DeviceType:  device.DeviceType,
+		LastLoginAt: device.LastLoginAt,
+		CreatedAt:   device.CreatedAt,
+		DisplayName: loginDevice.DisplayName,
+		ExpiresAt:   loginDevice.ExpiresAt,
+		LinkedLogins: []LoginInfo{
+			{
+				ID:       loginID.String(),
+				Username: "Current User", // We don't have the username here, but it's not critical
+			},
+		},
+	}
+
+	// Handle optional fields
+	if device.AcceptHeaders != "" {
+		acceptHeaders := device.AcceptHeaders
+		deviceWithLogin.AcceptHeaders = acceptHeaders
+	}
+	if device.Timezone != "" {
+		timezone := device.Timezone
+		deviceWithLogin.Timezone = timezone
+	}
+	if device.ScreenResolution != "" {
+		screenRes := device.ScreenResolution
+		deviceWithLogin.ScreenResolution = screenRes
+	}
+
+	// Return the response
+	return &Response{
+		Code: http.StatusOK,
+		body: UpdateDeviceDisplayNameResponse{
+			Status:  UpdateDeviceDisplayNameResponseStatusSuccess,
+			Message: "Device display name updated successfully",
+			Device:  deviceWithLogin,
+		},
 	}
 }
 

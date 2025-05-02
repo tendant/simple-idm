@@ -417,7 +417,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	if fingerprintStr != "" {
 		// Check if this device is linked to the login
 		loginDevice, err := h.deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), fingerprintStr, loginID)
-		if err == nil && loginDevice != nil && !loginDevice.IsExpired() {
+		if err == nil && !loginDevice.IsExpired() {
 			// Device is recognized and not expired, skip 2FA
 			slog.Info("Device recognized, skipping 2FA", "fingerprint", fingerprintStr, "loginID", loginID)
 			deviceRecognized = true
@@ -975,7 +975,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 	if fingerprintStr != "" {
 		// Check if this device is linked to the login
 		loginDevice, err := h.deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), fingerprintStr, loginID)
-		if err == nil && loginDevice != nil && !loginDevice.IsExpired() {
+		if err == nil && !loginDevice.IsExpired() {
 			// Device is recognized and not expired, skip 2FA
 			slog.Info("Device recognized, skipping 2FA", "fingerprint", fingerprintStr, "loginID", loginID)
 			deviceRecognized = true
