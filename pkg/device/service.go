@@ -43,13 +43,13 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, fingerprint string, 
 	// Create new device
 	now := time.Now().UTC()
 	newDevice := Device{
-		Fingerprint: fingerprint,
-		UserAgent:   fingerprintData.UserAgent,
-		AcceptHeaders: fingerprintData.AcceptHeaders,
-		Timezone: fingerprintData.Timezone,
+		Fingerprint:      fingerprint,
+		UserAgent:        fingerprintData.UserAgent,
+		AcceptHeaders:    fingerprintData.AcceptHeaders,
+		Timezone:         fingerprintData.Timezone,
 		ScreenResolution: fingerprintData.ScreenResolution,
-		LastLoginAt: now,
-		CreatedAt:   now,
+		LastLoginAt:      now,
+		CreatedAt:        now,
 	}
 	createdDevice, err := s.deviceRepository.CreateDevice(ctx, newDevice)
 	if err != nil {
@@ -76,7 +76,14 @@ func (s *DeviceService) LinkDeviceToLogin(ctx context.Context, loginID uuid.UUID
 		"screenResolution", device.ScreenResolution)
 
 	// Link device to login with default expiry
-	loginDevice, err := s.deviceRepository.LinkLoginToDevice(ctx, loginID, fingerprint)
+
+	loginDevice, err := s.deviceRepository.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
+	if err == nil {
+		slog.Info("Device already linked to login, extend expiry", "fingerprint", fingerprint, "loginID", loginID)
+		return s.deviceRepository.ExtendLoginDeviceExpiry(ctx, loginID, fingerprint)
+	}
+	slog.Info("Device not linked to login, link device to login", "fingerprint", fingerprint, "loginID", loginID)
+	loginDevice, err = s.deviceRepository.LinkLoginToDevice(ctx, loginID, fingerprint)
 	if err != nil {
 		slog.Error("Failed to link device to login", "fingerprint", fingerprint, "loginID", loginID, "error", err)
 		return fmt.Errorf("failed to link device to login: %w", err)
@@ -112,10 +119,10 @@ func (s *DeviceService) FindDevicesByLogin(ctx context.Context, loginID uuid.UUI
 }
 
 // FindLoginDeviceByFingerprintAndLoginID returns the login-device link for a specific fingerprint and login ID
-func (s *DeviceService) FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (*LoginDevice, error) {
+func (s *DeviceService) FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (LoginDevice, error) {
 	loginDevice, err := s.deviceRepository.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find login device: %w", err)
+		return LoginDevice{}, fmt.Errorf("failed to find login device: %w", err)
 	}
 	return loginDevice, nil
 }
@@ -148,4 +155,28 @@ func (s *DeviceService) UnlinkLoginFromDevice(ctx context.Context, loginID uuid.
 
 	slog.Info("Device successfully unlinked from login", "fingerprint", fingerprint, "loginID", loginID)
 	return nil
+}
+
+// UpdateDeviceDisplayName updates the display name of a device for a specific login
+func (s *DeviceService) UpdateDeviceDisplayName(ctx context.Context, loginID uuid.UUID, fingerprint string, displayName string) (LoginDevice, error) {
+	// Validate inputs
+	if loginID == uuid.Nil {
+		return LoginDevice{}, fmt.Errorf("login ID is required")
+	}
+	if fingerprint == "" {
+		return LoginDevice{}, fmt.Errorf("fingerprint is required")
+	}
+	if displayName == "" {
+		return LoginDevice{}, fmt.Errorf("display name is required")
+	}
+
+	// Use the repository method to update the display name
+	loginDevice, err := s.deviceRepository.UpdateLoginDeviceDisplayName(ctx, loginID, fingerprint, displayName)
+	if err != nil {
+		slog.Error("Failed to update device display name", "err", err, "fingerprint", fingerprint, "loginID", loginID)
+		return LoginDevice{}, fmt.Errorf("failed to update device display name: %w", err)
+	}
+
+	slog.Debug("Updated device display name", "fingerprint", fingerprint, "loginID", loginID, "displayName", displayName)
+	return loginDevice, nil
 }
