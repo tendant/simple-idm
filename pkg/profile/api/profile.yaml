@@ -317,6 +317,31 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/MultiUsersResponse"
                   - $ref: "#/components/schemas/SingleUserResponse"
+  /devices:
+    get:
+      summary: Get devices linked to the authenticated user's login
+      operationId: GetMyDevices
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Successfully retrieved devices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListDevicesResponse"
+        "401":
+          description: Unauthorized (not logged in)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /users/associate:
     post:
       summary: Associate a user to the current login
@@ -617,6 +642,76 @@ components:
         user_id:
           type: string
           format: uuid
+    ListDevicesResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "Devices retrieved successfully"
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceWithLogin"
+      required:
+        - status
+        - message
+        - devices
+    DeviceWithLogin:
+      type: object
+      properties:
+        fingerprint:
+          type: string
+          description: Unique device fingerprint
+        user_agent:
+          type: string
+          description: User agent string of the device
+        accept_headers:
+          type: string
+          description: Accept headers from the device
+        timezone:
+          type: string
+          description: Timezone of the device
+        screen_resolution:
+          type: string
+          description: Screen resolution of the device
+        last_login_at:
+          type: string
+          format: date-time
+          description: Last login time for this device
+        created_at:
+          type: string
+          format: date-time
+          description: When the device was first seen
+        linked_logins:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoginInfo"
+          description: Logins linked to this device
+        expires_at:
+          type: string
+          format: date-time
+          description: When the device-login link expires
+      required:
+        - fingerprint
+        - user_agent
+        - last_login_at
+        - created_at
+    LoginInfo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Login ID
+        username:
+          type: string
+          description: Username associated with the login
+      required:
+        - id
+        - username
   securitySchemes:
     BearerAuth:
       type: http
