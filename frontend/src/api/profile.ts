@@ -51,7 +51,17 @@ export const profileApi = {
     }
     
     const data: ListDevicesResponse = await response.json();
-    return data.devices || [];
+    return (data.devices || []).map((device: any) => ({
+      fingerprint: device.fingerprint,
+      user_agent: device.user_agent,
+      device_name: device.device_name,
+      device_type: device.device_type,
+      display_name: device.display_name,
+      last_login: device.last_login_at,
+      created_at: device.created_at,
+      linked_logins: device.linked_logins,
+      expires_at: device.expires_at
+    }));
   },
 
   async getTwoFactorMethods(): Promise<ProfileTwoFactorMethod[]> {

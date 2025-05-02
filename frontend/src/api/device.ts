@@ -71,4 +71,4 @@ export const deviceApi = {
       throw new Error(error.message || 'Failed to unlink device from login');
     }
   },
-};
+}
