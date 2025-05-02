@@ -185,14 +185,39 @@ func (r *InMemDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID u
 		ID:          uuid.New(),
 		LoginID:     loginID,
 		Fingerprint: fingerprint,
+		DisplayName: r.devices[fingerprint].DeviceName, // Use device_name as initial display_name
 		LinkedAt:    now,
 		ExpiresAt:   CalculateExpiryDate(DefaultDeviceExpiryDays),
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 
 	slog.Debug("Creating new device link", "fingerprint", fingerprint, "loginID", loginID,
 		"expiry", loginDevice.ExpiresAt.Format(time.RFC3339))
 	r.loginDevices[key] = loginDevice
 	return loginDevice, nil
+}
+
+// ExtendLoginDeviceExpiry extends the expiration date of a login device link
+func (r *InMemDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Create a key for the login device map
+	key := loginID.String() + ":" + fingerprint
+
+	loginDevice, exists := r.loginDevices[key]
+	if !exists || !loginDevice.DeletedAt.IsZero() {
+		slog.Debug("Login device link not found or deleted when extending expiry", "fingerprint", fingerprint, "loginID", loginID)
+		return errors.New("login device link not found or deleted")
+	}
+	loginDevice.UpdatedAt = time.Now().UTC()
+	loginDevice.LinkedAt = time.Now().UTC()
+	loginDevice.ExpiresAt = CalculateExpiryDate(DefaultDeviceExpiryDays)
+	r.loginDevices[key] = loginDevice
+	slog.Debug("Login device link expiry extended", "fingerprint", fingerprint, "loginID", loginID,
+		"newExpiry", loginDevice.ExpiresAt.Format(time.RFC3339))
+	return nil
 }
 
 // GetLoginDeviceWithExpiry retrieves a login device link and checks if it's expired
@@ -216,27 +241,6 @@ func (r *InMemDeviceRepository) GetLoginDeviceWithExpiry(ctx context.Context, lo
 	slog.Debug("Login device link found", "fingerprint", fingerprint, "loginID", loginID,
 		"isExpired", isExpired)
 	return loginDevice, isExpired, nil
-}
-
-// ExtendLoginDeviceExpiry extends the expiration date of a login device link
-func (r *InMemDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string, newExpiryDate time.Time) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	// Create a key for the login device map
-	key := loginID.String() + ":" + fingerprint
-
-	loginDevice, exists := r.loginDevices[key]
-	if !exists || !loginDevice.DeletedAt.IsZero() {
-		slog.Debug("Login device link not found or deleted when extending expiry", "fingerprint", fingerprint, "loginID", loginID)
-		return errors.New("login device link not found or deleted")
-	}
-
-	loginDevice.ExpiresAt = newExpiryDate
-	r.loginDevices[key] = loginDevice
-	slog.Debug("Login device link expiry extended", "fingerprint", fingerprint, "loginID", loginID,
-		"newExpiry", loginDevice.ExpiresAt.Format(time.RFC3339))
-	return nil
 }
 
 // UnlinkLoginToDevice removes the link between a login and a device
@@ -263,7 +267,7 @@ func (r *InMemDeviceRepository) UnlinkLoginToDevice(ctx context.Context, loginID
 }
 
 // FindLoginDeviceByFingerprintAndLoginID returns the login-device link for a specific fingerprint and login ID
-func (r *InMemDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (*LoginDevice, error) {
+func (r *InMemDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (LoginDevice, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -275,12 +279,38 @@ func (r *InMemDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx conte
 			slog.Debug("Found login device link", "fingerprint", fingerprint, "loginID", loginID,
 				"linkedAt", link.LinkedAt.Format(time.RFC3339),
 				"expiresAt", link.ExpiresAt.Format(time.RFC3339))
-			return &linkCopy, nil
+			return linkCopy, nil
 		}
 	}
 
 	slog.Debug("Login device link not found", "fingerprint", fingerprint, "loginID", loginID)
-	return nil, fmt.Errorf("login device not found for fingerprint %s and login ID %s", fingerprint, loginID)
+	return LoginDevice{}, fmt.Errorf("login device not found for fingerprint %s and login ID %s", fingerprint, loginID)
+}
+
+// UpdateLoginDeviceDisplayName updates the display name of a login-device link
+func (r *InMemDeviceRepository) UpdateLoginDeviceDisplayName(ctx context.Context, loginID uuid.UUID, fingerprint string, displayName string) (LoginDevice, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Create a key for the login device map
+	key := loginID.String() + ":" + fingerprint
+
+	// Check if link exists
+	loginDevice, exists := r.loginDevices[key]
+	if !exists || !loginDevice.DeletedAt.IsZero() {
+		slog.Debug("Login device link not found when updating display name", "fingerprint", fingerprint, "loginID", loginID)
+		return LoginDevice{}, errors.New("login device link not found")
+	}
+
+	// Update the display name
+	loginDevice.DisplayName = displayName
+	loginDevice.UpdatedAt = time.Now().UTC()
+	r.loginDevices[key] = loginDevice
+
+	// Return a copy to avoid race conditions
+	result := loginDevice
+	slog.Debug("Updated device display name", "fingerprint", fingerprint, "loginID", loginID, "displayName", displayName)
+	return result, nil
 }
 
 // WithTx returns the repository itself since in-memory implementation doesn't support transactions
