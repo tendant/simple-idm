@@ -61,7 +61,9 @@ CREATE TABLE public.device (
     timezone character varying(100),
     screen_resolution character varying(50),
     last_login_at timestamp without time zone NOT NULL,
-    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
+    device_name character varying(255),
+    device_type character varying(50)
 );
 
 
@@ -147,6 +149,24 @@ CREATE TABLE public.login_2fa (
 ALTER TABLE public.login_2fa OWNER TO idm;
 
 --
+-- Name: login_attempt; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.login_attempt (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    login_id uuid NOT NULL,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
+    ip_address character varying(45),
+    user_agent text,
+    success boolean NOT NULL,
+    failure_reason character varying(255),
+    device_fingerprint character varying(255)
+);
+
+
+ALTER TABLE public.login_attempt OWNER TO idm;
+
+--
 -- Name: login_device; Type: TABLE; Schema: public; Owner: idm
 --
 
@@ -156,7 +176,10 @@ CREATE TABLE public.login_device (
     fingerprint character varying(255) NOT NULL,
     linked_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
     expires_at timestamp without time zone NOT NULL,
-    deleted_at timestamp without time zone
+    deleted_at timestamp without time zone,
+    display_name character varying(255),
+    updated_at timestamp without time zone,
+    created_at timestamp without time zone
 );
 
 
@@ -286,6 +309,14 @@ ALTER TABLE ONLY public.login_2fa
 
 
 --
+-- Name: login_attempt login_attempt_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login_attempt
+    ADD CONSTRAINT login_attempt_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: login_device login_device_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
@@ -407,6 +438,13 @@ CREATE INDEX idx_login_password_reset_tokens_token ON public.login_password_rese
 
 
 --
+-- Name: login_attempt_login_id_idx; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX login_attempt_login_id_idx ON public.login_attempt USING btree (login_id);
+
+
+--
 -- Name: login_password_history_login_id_idx; Type: INDEX; Schema: public; Owner: idm
 --
 
@@ -427,6 +465,14 @@ ALTER TABLE ONLY public.backup_codes
 
 ALTER TABLE ONLY public.login_2fa
     ADD CONSTRAINT login_2fa_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
+
+
+--
+-- Name: login_attempt login_attempt_login_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login_attempt
+    ADD CONSTRAINT login_attempt_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
 
 
 --
