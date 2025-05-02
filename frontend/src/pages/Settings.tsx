@@ -180,7 +180,7 @@ const Settings: Component = () => {
         )}
 
         <Tabs defaultValue="password" class="w-full">
-          <TabsList class="grid w-full grid-cols-3">
+          <TabsList class="grid w-full grid-cols-4">
             <TabsTrigger value="password">Password</TabsTrigger>
             <TabsTrigger value="2fa">Two-Factor Auth</TabsTrigger>
             <TabsTrigger value="devices">Devices</TabsTrigger>
@@ -461,20 +461,25 @@ const Settings: Component = () => {
             )}
             
             <Show when={isLoadingDevices()}>
-              <div class="py-4 text-center">
+              <div class="py-8 text-center">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
                 <p class="text-sm text-gray-500">Loading your linked devices...</p>
               </div>
             </Show>
             
             <Show when={!isLoadingDevices() && linkedDevices().length === 0}>
-              <div class="py-4 border rounded-md text-center">
-                <p class="text-sm text-gray-500">You don't have any linked devices.</p>
+              <div class="py-8 border rounded-md text-center bg-gray-50">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <p class="text-sm text-gray-500 mb-2">You don't have any linked devices.</p>
+                <p class="text-xs text-gray-400">Devices are automatically linked when you sign in from a new browser or device.</p>
               </div>
             </Show>
             
             <Show when={!isLoadingDevices() && linkedDevices().length > 0}>
-              <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-300">
+              <div class="overflow-x-auto rounded-md border">
+                <table class="min-w-full divide-y divide-gray-200">
                   <thead class="bg-gray-50">
                     <tr>
                       <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Device</th>
@@ -488,18 +493,23 @@ const Settings: Component = () => {
                   <tbody class="divide-y divide-gray-200 bg-white">
                     <For each={linkedDevices()}>
                       {(device) => (
-                        <tr>
+                        <tr class="hover:bg-gray-50">
                           <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
                             <div class="flex flex-col">
-                              <span class="font-mono">{device.fingerprint.substring(0, 16)}...</span>
-                              <span class="text-xs text-gray-500">{device.user_agent || 'Unknown device'}</span>
+                              <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                <span class="font-mono">{device.fingerprint.substring(0, 16)}...</span>
+                              </div>
+                              <span class="text-xs text-gray-500 mt-1">{device.user_agent || 'Unknown device'}</span>
                             </div>
                           </td>
                           <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                             {formatDate(device.last_login)}
                           </td>
                           <td class="whitespace-nowrap px-3 py-4 text-sm">
-                            <span class={`${isExpiringSoon(device.expires_at || '') ? 'text-yellow-600' : 'text-gray-500'}`}>
+                            <span class={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${isExpiringSoon(device.expires_at || '') ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
                               {formatDate(device.expires_at)}
                             </span>
                           </td>
@@ -507,10 +517,12 @@ const Settings: Component = () => {
                             <button
                               onClick={() => handleUnlinkDevice(device.fingerprint)}
                               disabled={isLoading()}
-                              class="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                              class="inline-flex items-center rounded-md border border-transparent bg-red-100 px-3 py-2 text-sm font-medium leading-4 text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                              </svg>
                               {isLoading() ? 'Unlinking...' : 'Unlink'}
-                              <span class="sr-only">, {device.fingerprint}</span>
                             </button>
                           </td>
                         </tr>
@@ -519,10 +531,19 @@ const Settings: Component = () => {
                   </tbody>
                 </table>
               </div>
-              <div class="mt-4">
-                <p class="text-sm text-gray-500">
-                  These are devices that have been verified for your account. Devices are automatically unlinked after 90 days for security.
-                </p>
+              <div class="mt-4 bg-blue-50 p-4 rounded-md">
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <div class="ml-3 flex-1">
+                    <p class="text-sm text-blue-700">
+                      These are devices that have been verified for your account. Devices are automatically unlinked after 90 days for security.
+                    </p>
+                  </div>
+                </div>
               </div>
             </Show>
           </CardContent>
