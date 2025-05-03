@@ -9,6 +9,12 @@ export interface Device {
   id?: string;
   fingerprint: string;
   user_agent: string;
+  device_name: string;
+  device_type: string;
+  display_name?: string;
+  accept_headers?: string;
+  timezone?: string;
+  screen_resolution?: string;
   last_login: string;
   created_at: string;
   last_modified_at?: string;
@@ -39,10 +45,12 @@ export const deviceApi = {
     return (data.devices || []).map((device: any) => ({
       fingerprint: device.Fingerprint,
       user_agent: device.UserAgent,
+      device_name: device.DeviceName,
+      device_type: device.DeviceType,
       last_login: device.LastLoginAt,
       created_at: device.CreatedAt,
       linked_logins: device.linked_logins,
-      expires_at: device.expires_at
+      expires_at: device.ExpiresAt
     }));
   },
 
@@ -63,4 +71,4 @@ export const deviceApi = {
       throw new Error(error.message || 'Failed to unlink device from login');
     }
   },
-};
+}

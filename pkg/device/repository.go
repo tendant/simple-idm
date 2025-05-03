@@ -13,6 +13,8 @@ type Device struct {
 	AcceptHeaders    string
 	Timezone         string
 	ScreenResolution string
+	DeviceName       string
+	DeviceType       string
 	LastLoginAt      time.Time
 	CreatedAt        time.Time
 }
@@ -21,9 +23,12 @@ type LoginDevice struct {
 	ID          uuid.UUID
 	LoginID     uuid.UUID
 	Fingerprint string
+	DisplayName string
 	LinkedAt    time.Time
 	ExpiresAt   time.Time
 	DeletedAt   time.Time
+	UpdatedAt   time.Time
+	CreatedAt   time.Time
 }
 
 // IsExpired checks if the login device link has expired
@@ -44,14 +49,18 @@ type DeviceRepository interface {
 	FindDevices(ctx context.Context) ([]Device, error)
 	FindDevicesByLogin(ctx context.Context, loginID uuid.UUID) ([]Device, error)
 	UpdateDeviceLastLogin(ctx context.Context, fingerprint string, lastLogin time.Time) (Device, error)
-	FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (*LoginDevice, error)
+	FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (LoginDevice, error)
 
 	// Link operations
 	LinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, error)
+	ExtendLoginDeviceExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string) error
 	UnlinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) error
 
 	// Transaction support
 	WithTx(tx interface{}) DeviceRepository
+
+	// UpdateLoginDeviceDisplayName updates the display name of a login-device link
+	UpdateLoginDeviceDisplayName(ctx context.Context, loginID uuid.UUID, fingerprint string, displayName string) (LoginDevice, error)
 }
 
 const (

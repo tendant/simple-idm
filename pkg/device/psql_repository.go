@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -52,12 +53,20 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 		device.LastLoginAt = time.Now().UTC()
 	}
 
+	// Set default device name and type if not provided
+	if device.DeviceName == "" {
+		device.DeviceName = determineDeviceName(device.UserAgent)
+	}
+	if device.DeviceType == "" {
+		device.DeviceType = determineDeviceType(device.UserAgent)
+	}
+
 	query := `
 		INSERT INTO device (
-			fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+			fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7
-		) RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+			$1, $2, $3, $4, $5, $6, $7, $8, $9
+		) RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
 	`
 
 	row := r.db.QueryRow(ctx, query,
@@ -66,6 +75,8 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 		device.AcceptHeaders,
 		device.Timezone,
 		device.ScreenResolution,
+		device.DeviceName,
+		device.DeviceType,
 		device.LastLoginAt,
 		device.CreatedAt,
 	)
@@ -77,6 +88,8 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 		&result.AcceptHeaders,
 		&result.Timezone,
 		&result.ScreenResolution,
+		&result.DeviceName,
+		&result.DeviceType,
 		&result.LastLoginAt,
 		&result.CreatedAt,
 	)
@@ -92,7 +105,7 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 // GetDeviceByFingerprint retrieves a device by its fingerprint
 func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, fingerprint string) (Device, error) {
 	query := `
-		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
 		FROM device
 		WHERE fingerprint = $1
 	`
@@ -106,6 +119,8 @@ func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, f
 		&device.AcceptHeaders,
 		&device.Timezone,
 		&device.ScreenResolution,
+		&device.DeviceName,
+		&device.DeviceType,
 		&device.LastLoginAt,
 		&device.CreatedAt,
 	)
@@ -125,7 +140,7 @@ func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, f
 // FindDevices returns all devices
 func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, error) {
 	query := `
-		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
 		FROM device
 		ORDER BY created_at DESC
 	`
@@ -146,6 +161,8 @@ func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, e
 			&device.AcceptHeaders,
 			&device.Timezone,
 			&device.ScreenResolution,
+			&device.DeviceName,
+			&device.DeviceType,
 			&device.LastLoginAt,
 			&device.CreatedAt,
 		)
@@ -157,22 +174,21 @@ func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, e
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("Error iterating device rows", "err", err)
-		return nil, fmt.Errorf("error iterating device rows: %w", err)
+		slog.Error("Error iterating over devices", "err", err)
+		return nil, fmt.Errorf("error iterating over devices: %w", err)
 	}
 
-	slog.Debug("Found all devices", "deviceCount", len(devices))
+	slog.Debug("Found devices", "count", len(devices))
 	return devices, nil
 }
 
 // FindDevicesByLogin returns all devices linked to a specific login
 func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID uuid.UUID) ([]Device, error) {
 	query := `
-		SELECT d.fingerprint, d.user_agent, d.accept_headers, d.timezone, d.screen_resolution, d.last_login_at, d.created_at
+		SELECT d.fingerprint, d.user_agent, d.accept_headers, d.timezone, d.screen_resolution, d.device_name, d.device_type, d.last_login_at, d.created_at
 		FROM device d
 		JOIN login_device ld ON d.fingerprint = ld.fingerprint
 		WHERE ld.login_id = $1 AND ld.deleted_at IS NULL
-		GROUP BY d.fingerprint
 		ORDER BY d.last_login_at DESC
 	`
 
@@ -192,6 +208,8 @@ func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, login
 			&device.AcceptHeaders,
 			&device.Timezone,
 			&device.ScreenResolution,
+			&device.DeviceName,
+			&device.DeviceType,
 			&device.LastLoginAt,
 			&device.CreatedAt,
 		)
@@ -203,11 +221,11 @@ func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, login
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("Error iterating device rows", "err", err)
-		return nil, fmt.Errorf("error iterating device rows: %w", err)
+		slog.Error("Error iterating over devices", "err", err)
+		return nil, fmt.Errorf("error iterating over devices: %w", err)
 	}
 
-	slog.Debug("Found devices for login", "loginID", loginID, "deviceCount", len(devices))
+	slog.Debug("Found devices by login", "loginID", loginID, "count", len(devices))
 	return devices, nil
 }
 
@@ -217,7 +235,7 @@ func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fi
 		UPDATE device
 		SET last_login_at = $2
 		WHERE fingerprint = $1
-		RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, last_login_at, created_at
+		RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
 	`
 
 	row := r.db.QueryRow(ctx, query, fingerprint, lastLogin)
@@ -229,6 +247,8 @@ func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fi
 		&device.AcceptHeaders,
 		&device.Timezone,
 		&device.ScreenResolution,
+		&device.DeviceName,
+		&device.DeviceType,
 		&device.LastLoginAt,
 		&device.CreatedAt,
 	)
@@ -246,11 +266,12 @@ func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fi
 }
 
 // FindLoginDeviceByFingerprintAndLoginID returns the login-device link for a specific fingerprint and login ID
-func (r *PostgresDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (*LoginDevice, error) {
+func (r *PostgresDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (LoginDevice, error) {
 	query := `
-		SELECT id, login_id, fingerprint, linked_at, expires_at, deleted_at
+		SELECT id, login_id, fingerprint, display_name, linked_at, expires_at, deleted_at, created_at, updated_at
 		FROM login_device
 		WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
+		LIMIT 1
 	`
 
 	row := r.db.QueryRow(ctx, query, fingerprint, loginID)
@@ -261,17 +282,20 @@ func (r *PostgresDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx co
 		&loginDevice.ID,
 		&loginDevice.LoginID,
 		&loginDevice.Fingerprint,
+		&loginDevice.DisplayName,
 		&loginDevice.LinkedAt,
 		&loginDevice.ExpiresAt,
 		&deletedAt,
+		&loginDevice.CreatedAt,
+		&loginDevice.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			slog.Debug("Login device link not found", "fingerprint", fingerprint, "loginID", loginID)
-			return nil, fmt.Errorf("login device not found for fingerprint %s and login ID %s", fingerprint, loginID)
+			return LoginDevice{}, fmt.Errorf("login device not found for fingerprint %s and login ID %s", fingerprint, loginID)
 		}
 		slog.Error("Failed to find login device", "err", err, "fingerprint", fingerprint, "loginID", loginID)
-		return nil, fmt.Errorf("failed to find login device: %w", err)
+		return LoginDevice{}, fmt.Errorf("failed to find login device: %w", err)
 	}
 
 	// Convert pgtype.Timestamp to time.Time if valid
@@ -282,98 +306,61 @@ func (r *PostgresDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx co
 	slog.Debug("Found login device link", "fingerprint", fingerprint, "loginID", loginID,
 		"linkedAt", loginDevice.LinkedAt.Format(time.RFC3339),
 		"expiresAt", loginDevice.ExpiresAt.Format(time.RFC3339))
-	return &loginDevice, nil
+	return loginDevice, nil
 }
 
 // LinkLoginToDevice links a login to a device
 func (r *PostgresDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, error) {
-	// First, check if the device exists
-	_, err := r.GetDeviceByFingerprint(ctx, fingerprint)
+	// Check if the device exists
+	device, err := r.GetDeviceByFingerprint(ctx, fingerprint)
 	if err != nil {
 		slog.Error("Device not found for linking", "err", err, "fingerprint", fingerprint)
 		return LoginDevice{}, fmt.Errorf("device not found: %w", err)
 	}
 
-	// Check if a link already exists and is not deleted
-	existingLink, err := r.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
-	if err == nil && existingLink != nil && existingLink.DeletedAt.IsZero() {
+	// Check if the login-device link already exists
+	existingLoginDevice, err := r.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
+	if err == nil && existingLoginDevice.DeletedAt.IsZero() {
 		// Link already exists and is not deleted
-		if existingLink.IsExpired() {
-			// If the link is expired, update the expiry date
-			expiryDate := CalculateExpiryDate(DefaultDeviceExpiryDays)
-			
-			updateQuery := `
-				UPDATE login_device
-				SET expires_at = $3
-				WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
-				RETURNING id, login_id, fingerprint, linked_at, expires_at, deleted_at
-			`
-			
-			row := r.db.QueryRow(ctx, updateQuery, fingerprint, loginID, expiryDate)
-			
-			var loginDevice LoginDevice
-			var deletedAt pgtype.Timestamp
-			err := row.Scan(
-				&loginDevice.ID,
-				&loginDevice.LoginID,
-				&loginDevice.Fingerprint,
-				&loginDevice.LinkedAt,
-				&loginDevice.ExpiresAt,
-				&deletedAt,
-			)
-			if err != nil {
-				slog.Error("Failed to update expired link", "err", err, "fingerprint", fingerprint, "loginID", loginID)
-				return LoginDevice{}, fmt.Errorf("failed to update expired link: %w", err)
-			}
-			
-			slog.Debug("Updated expired device link", "fingerprint", fingerprint, "loginID", loginID,
-				"expiryDate", expiryDate.Format(time.RFC3339))
-			return loginDevice, nil
-		}
-		
-		// Link exists and is not expired, return it
-		slog.Debug("Device link already exists", "fingerprint", fingerprint, "loginID", loginID)
-		return *existingLink, nil
+		slog.Debug("Login device link already exists", "fingerprint", fingerprint, "loginID", loginID)
+		return existingLoginDevice, nil
 	}
 
-	// Create a new link
-	expiryDate := CalculateExpiryDate(DefaultDeviceExpiryDays)
-	
-	createQuery := `
-		INSERT INTO login_device (
-			login_id, fingerprint, linked_at, expires_at
-		) VALUES (
-			$1, $2, $3, $4
-		) RETURNING id, login_id, fingerprint, linked_at, expires_at, deleted_at
+	// Create the link
+	now := time.Now().UTC()
+	expiresAt := now.AddDate(0, 0, DefaultDeviceExpiryDays)
+
+	query := `
+		INSERT INTO login_device (login_id, fingerprint, display_name, linked_at, expires_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, login_id, fingerprint, display_name, linked_at, expires_at, deleted_at, updated_at, created_at
 	`
-	
-	row := r.db.QueryRow(ctx, createQuery,
-		loginID,
-		fingerprint,
-		time.Now().UTC(),
-		expiryDate,
-	)
-	
+
+	row := r.db.QueryRow(ctx, query, loginID, fingerprint, device.DeviceName, now, expiresAt, now, now)
+
 	var loginDevice LoginDevice
 	var deletedAt pgtype.Timestamp
 	err = row.Scan(
 		&loginDevice.ID,
 		&loginDevice.LoginID,
 		&loginDevice.Fingerprint,
+		&loginDevice.DisplayName,
 		&loginDevice.LinkedAt,
 		&loginDevice.ExpiresAt,
 		&deletedAt,
+		&loginDevice.UpdatedAt,
+		&loginDevice.CreatedAt,
 	)
 	if err != nil {
 		slog.Error("Failed to create device link", "err", err, "fingerprint", fingerprint, "loginID", loginID)
 		return LoginDevice{}, fmt.Errorf("failed to create device link: %w", err)
 	}
-	
+
 	// Convert pgtype.Timestamp to time.Time if valid
 	if deletedAt.Valid {
 		loginDevice.DeletedAt = deletedAt.Time
 	}
-	
+
 	slog.Debug("Created new device link", "fingerprint", fingerprint, "loginID", loginID,
 		"expiry", loginDevice.ExpiresAt.Format(time.RFC3339))
 	return loginDevice, nil
@@ -392,13 +379,70 @@ func (r *PostgresDeviceRepository) UnlinkLoginToDevice(ctx context.Context, logi
 		slog.Error("Failed to unlink device", "err", err, "fingerprint", fingerprint, "loginID", loginID)
 		return fmt.Errorf("failed to unlink device: %w", err)
 	}
-	
+
 	if result.RowsAffected() == 0 {
 		slog.Debug("Login device link not found when unlinking", "fingerprint", fingerprint, "loginID", loginID)
 		return errors.New("login device link not found")
 	}
-	
+
 	slog.Debug("Device link marked as deleted", "fingerprint", fingerprint, "loginID", loginID)
+	return nil
+}
+
+// UpdateLoginDeviceDisplayName updates the display name of a login-device link
+func (r *PostgresDeviceRepository) UpdateLoginDeviceDisplayName(ctx context.Context, loginID uuid.UUID, fingerprint string, displayName string) (LoginDevice, error) {
+	// Update the display name in the database
+	query := `
+		UPDATE login_device
+		SET display_name = $3, updated_at = $4
+		WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
+		RETURNING id, login_id, fingerprint, display_name, linked_at, expires_at, deleted_at, updated_at, created_at
+	`
+
+	row := r.db.QueryRow(ctx, query, fingerprint, loginID, displayName, time.Now().UTC())
+
+	var updatedLoginDevice LoginDevice
+	var deletedAt pgtype.Timestamp
+	err := row.Scan(
+		&updatedLoginDevice.ID,
+		&updatedLoginDevice.LoginID,
+		&updatedLoginDevice.Fingerprint,
+		&updatedLoginDevice.DisplayName,
+		&updatedLoginDevice.LinkedAt,
+		&updatedLoginDevice.ExpiresAt,
+		&deletedAt,
+		&updatedLoginDevice.UpdatedAt,
+		&updatedLoginDevice.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Debug("Login device link not found when updating display name", "fingerprint", fingerprint, "loginID", loginID)
+			return LoginDevice{}, errors.New("login device link not found")
+		}
+		slog.Error("Failed to update device display name", "err", err, "fingerprint", fingerprint, "loginID", loginID)
+		return LoginDevice{}, fmt.Errorf("failed to update device display name: %w", err)
+	}
+
+	// Convert pgtype.Timestamp to time.Time if valid
+	if deletedAt.Valid {
+		updatedLoginDevice.DeletedAt = deletedAt.Time
+	}
+
+	slog.Debug("Updated device display name", "fingerprint", fingerprint, "loginID", loginID, "displayName", displayName)
+	return updatedLoginDevice, nil
+}
+
+func (r *PostgresDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string) error {
+	query := `
+		UPDATE login_device
+		SET linked_at = $3, updated_at = $4, expires_at = $5
+		WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
+	`
+	_, err := r.db.Exec(ctx, query, fingerprint, loginID, time.Now().UTC(), time.Now().UTC(), time.Now().UTC().AddDate(0, 0, DefaultDeviceExpiryDays))
+	if err != nil {
+		slog.Error("Failed to extend device expiry", "err", err, "fingerprint", fingerprint, "loginID", loginID)
+		return fmt.Errorf("failed to extend device expiry: %w", err)
+	}
 	return nil
 }
 
@@ -408,7 +452,7 @@ func (r *PostgresDeviceRepository) WithTx(tx interface{}) DeviceRepository {
 	if tx == nil {
 		return r
 	}
-	
+
 	// Try to convert the interface to a pgx.Tx
 	pgxTx, ok := tx.(pgx.Tx)
 	if !ok {
@@ -416,7 +460,91 @@ func (r *PostgresDeviceRepository) WithTx(tx interface{}) DeviceRepository {
 		slog.Warn("Unsupported transaction type", "type", reflect.TypeOf(tx))
 		return r
 	}
-	
+
 	// Use the pgx.Tx with the repository
 	return NewPostgresDeviceRepository(pgxTx)
+}
+
+// Helper functions for device name and type detection
+
+// determineDeviceName extracts a human-readable device name from the user agent
+func determineDeviceName(userAgent string) string {
+	if userAgent == "" {
+		return "Unknown Device"
+	}
+
+	// Check for common mobile devices
+	if contains(userAgent, "iPhone") {
+		return "iPhone"
+	} else if contains(userAgent, "iPad") {
+		return "iPad"
+	} else if contains(userAgent, "Android") && (contains(userAgent, "Mobile") || contains(userAgent, "Pixel") || contains(userAgent, "Samsung") || contains(userAgent, "SM-")) {
+		if contains(userAgent, "Pixel") {
+			return "Google Pixel"
+		} else if contains(userAgent, "Samsung") || contains(userAgent, "SM-") {
+			return "Samsung Phone"
+		}
+		return "Android Phone"
+	} else if contains(userAgent, "Android") {
+		return "Android Tablet"
+	}
+
+	// Check for desktop operating systems
+	if contains(userAgent, "Macintosh") || contains(userAgent, "Mac OS X") {
+		return "Mac"
+	} else if contains(userAgent, "Windows") {
+		return "Windows PC"
+	} else if contains(userAgent, "Linux") {
+		return "Linux"
+	} else if contains(userAgent, "CrOS") {
+		return "Chromebook"
+	}
+
+	// Default to a generic name based on browser
+	if contains(userAgent, "Chrome") {
+		return "Chrome Browser"
+	} else if contains(userAgent, "Firefox") {
+		return "Firefox Browser"
+	} else if contains(userAgent, "Safari") {
+		return "Safari Browser"
+	} else if contains(userAgent, "Edge") {
+		return "Edge Browser"
+	}
+
+	return "Unknown Device"
+}
+
+// determineDeviceType categorizes the device as Mobile, Tablet, Desktop, or Other
+func determineDeviceType(userAgent string) string {
+	if userAgent == "" {
+		return "Other"
+	}
+
+	// Mobile devices
+	if contains(userAgent, "iPhone") ||
+		(contains(userAgent, "Android") && contains(userAgent, "Mobile")) ||
+		contains(userAgent, "Windows Phone") {
+		return "Mobile"
+	}
+
+	// Tablets
+	if contains(userAgent, "iPad") ||
+		(contains(userAgent, "Android") && !contains(userAgent, "Mobile")) {
+		return "Tablet"
+	}
+
+	// Desktops
+	if contains(userAgent, "Windows") ||
+		contains(userAgent, "Macintosh") ||
+		contains(userAgent, "Linux") ||
+		contains(userAgent, "CrOS") {
+		return "Desktop"
+	}
+
+	return "Other"
+}
+
+// contains is a helper function to check if a string contains a substring (case insensitive)
+func contains(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

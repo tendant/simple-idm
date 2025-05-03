@@ -145,7 +145,7 @@ func RememberDevice(r *http.Request, loginID uuid.UUID, deviceService device.Dev
 
 	// check if device is already linked to login and not expired
 	loginDevice, err := deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), fingerprintStr, loginID)
-	if err == nil && loginDevice != nil && !loginDevice.IsExpired() {
+	if err == nil && !loginDevice.IsExpired() {
 		// Device is recognized and not expired, skip 2FA
 		slog.Info("Device recognized", "fingerprint", fingerprintStr, "loginID", loginID)
 		return true, nil
