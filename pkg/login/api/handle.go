@@ -529,16 +529,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Record successful login attempt
-	h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, true, "")
-
-	// Update device last login time
-	if fingerprintStr != "" {
-		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
-		if err != nil {
-			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
-			// Don't fail the login if we can't update the last login time
-		}
-	}
+	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginID, ipAddress, userAgent, fingerprintStr)
 
 	// Create response with user information
 	response := Login{
@@ -972,15 +963,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 			body: "Failed to set tokens in cookies",
 		}
 	}
-	h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, true, "")
-	// Update device last login time
-	if fingerprintStr != "" {
-		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
-		if err != nil {
-			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
-			// Don't fail the login if we can't update the last login time
-		}
-	}
+	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginId, ipAddress, userAgent, fingerprintStr)
 
 	// Convert mapped users to API users (including all available users)
 	return h.responseHandler.PrepareUserSwitchResponse(users)
@@ -1139,18 +1122,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 			Code: http.StatusInternalServerError,
 		}
 	}
-
-	// Record successful login
-	h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, true, "")
-
-	// Update device last login time
-	if fingerprintStr != "" {
-		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
-		if err != nil {
-			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
-			// Don't fail the login if we can't update the last login time
-		}
-	}
+	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginID, ipAddress, userAgent, fingerprintStr)
 
 	// Return tokens in response for mobile
 	return h.responseHandler.PrepareTokenResponse(tokens)
@@ -1543,18 +1515,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 			body: "Failed to set tokens cookie",
 		}
 	}
-
-	// Record successful login
-	h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, true, "")
-
-	// Update device last login time
-	if fingerprintStr != "" {
-		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
-		if err != nil {
-			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
-			// Don't fail the login if we can't update the last login time
-		}
-	}
+	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginId, ipAddress, userAgent, fingerprintStr)
 
 	// Include tokens in response
 	resp.Result = "success"
@@ -1815,15 +1776,8 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 			body: "Failed to create tokens",
 		}
 	}
-	h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, true, "")
-	// Update device last login time
-	if fingerprintStr != "" {
-		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
-		if err != nil {
-			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
-			// Don't fail the login if we can't update the last login time
-		}
-	}
+
+	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginId, ipAddress, userAgent, fingerprintStr)
 
 	// Return tokens in response
 	return h.responseHandler.PrepareTokenResponse(tokens)
@@ -1951,15 +1905,7 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 			body: "Failed to create tokens",
 		}
 	}
-	h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, true, "")
-	// Update device last login time
-	if fingerprintStr != "" {
-		_, err := h.deviceService.UpdateDeviceLastLogin(r.Context(), fingerprintStr)
-		if err != nil {
-			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprintStr)
-			// Don't fail the login if we can't update the last login time
-		}
-	}
+	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginId, ipAddress, userAgent, fingerprintStr)
 
 	// Return tokens in response for mobile
 	return h.responseHandler.PrepareTokenResponse(tokens)
@@ -2072,4 +2018,20 @@ func getIPAddressFromRequest(r *http.Request) string {
 
 func getUserAgentFromRequest(r *http.Request) string {
 	return r.Header.Get("User-Agent")
+}
+
+// recordSuccessfulLoginAndUpdateDevice is a helper method to record a successful login attempt
+// and update the device's last login time
+func (h Handle) recordSuccessfulLoginAndUpdateDevice(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, fingerprint string) {
+	// Record successful login attempt
+	h.loginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, true, "")
+
+	// Update device last login time
+	if fingerprint != "" {
+		_, err := h.deviceService.UpdateDeviceLastLogin(ctx, fingerprint)
+		if err != nil {
+			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprint)
+			// Don't fail the login if we can't update the last login time
+		}
+	}
 }
