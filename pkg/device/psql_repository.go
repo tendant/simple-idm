@@ -312,7 +312,7 @@ func (r *PostgresDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx co
 // LinkLoginToDevice links a login to a device
 func (r *PostgresDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, error) {
 	// Check if the device exists
-	_, err := r.GetDeviceByFingerprint(ctx, fingerprint)
+	device, err := r.GetDeviceByFingerprint(ctx, fingerprint)
 	if err != nil {
 		slog.Error("Device not found for linking", "err", err, "fingerprint", fingerprint)
 		return LoginDevice{}, fmt.Errorf("device not found: %w", err)
@@ -331,12 +331,12 @@ func (r *PostgresDeviceRepository) LinkLoginToDevice(ctx context.Context, loginI
 	expiresAt := now.AddDate(0, 0, DefaultDeviceExpiryDays)
 
 	query := `
-		INSERT INTO login_device (login_id, fingerprint, linked_at, expires_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO login_device (login_id, fingerprint, display_name, linked_at, expires_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, login_id, fingerprint, display_name, linked_at, expires_at, deleted_at, updated_at, created_at
 	`
 
-	row := r.db.QueryRow(ctx, query, loginID, fingerprint, now, expiresAt, now, now)
+	row := r.db.QueryRow(ctx, query, loginID, fingerprint, device.DeviceName, now, expiresAt, now, now)
 
 	var loginDevice LoginDevice
 	var deletedAt pgtype.Timestamp
