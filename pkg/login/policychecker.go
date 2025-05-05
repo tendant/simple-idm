@@ -16,9 +16,9 @@ type PasswordPolicy struct {
 	DisallowCommonPwds  bool
 	MaxRepeatedChars    int
 	HistoryCheckCount   int
-	ExpirationDays      int
+	ExpirationPeriod    string // Format: 90d, 24h, 30m
 	CommonPasswordsPath string
-	MinPasswordAge      int
+	MinPasswordAgePeriod string // Format: 1d, 12h, 30m
 }
 
 // PasswordValidationErrors represents a collection of password validation errors
@@ -144,9 +144,61 @@ func DefaultPasswordPolicy() *PasswordPolicy {
 		DisallowCommonPwds: true,
 		MaxRepeatedChars:   3,
 		HistoryCheckCount:  5,
-		ExpirationDays:     90,
-		MinPasswordAge:     1,
+		ExpirationPeriod:   "90d",
+		CommonPasswordsPath: "",
+		MinPasswordAgePeriod: "1d",
 	}
+}
+
+// GetExpirationDays returns the expiration days from the ExpirationPeriod
+func (p *PasswordPolicy) GetExpirationDays() int {
+	days, err := ParseDurationToDays(p.ExpirationPeriod)
+	if err != nil {
+		// Default to 90 days if there's an error
+		return 90
+	}
+	return days
+}
+
+// GetMinPasswordAgeDays returns the minimum password age in days
+func (p *PasswordPolicy) GetMinPasswordAgeDays() int {
+	days, err := ParseDurationToDays(p.MinPasswordAgePeriod)
+	if err != nil {
+		// Default to 1 day if there's an error
+		return 1
+	}
+	return days
+}
+
+func ParseDurationToDays(duration string) (int, error) {
+	var days int
+	var err error
+
+	if strings.HasSuffix(duration, "d") {
+		days, err = parseInt(duration[:len(duration)-1])
+	} else if strings.HasSuffix(duration, "h") {
+		hours, err := parseInt(duration[:len(duration)-1])
+		if err != nil {
+			return 0, err
+		}
+		days = hours / 24
+	} else if strings.HasSuffix(duration, "m") {
+		minutes, err := parseInt(duration[:len(duration)-1])
+		if err != nil {
+			return 0, err
+		}
+		days = minutes / (60 * 24)
+	} else {
+		return 0, fmt.Errorf("invalid duration format")
+	}
+
+	return days, err
+}
+
+func parseInt(s string) (int, error) {
+	var n int
+	_, err := fmt.Sscanf(s, "%d", &n)
+	return n, err
 }
 
 // loadCommonPasswords loads a list of common passwords from a file or returns a default set
