@@ -1559,8 +1559,11 @@ func (h Handle) GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request, p
 		DisallowCommonPwds: &policy.DisallowCommonPwds,
 		MaxRepeatedChars:   &policy.MaxRepeatedChars,
 		HistoryCheckCount:  &policy.HistoryCheckCount,
-		ExpirationDays:     &policy.ExpirationDays,
 	}
+
+	// Convert the duration to days and assign it to the response
+	expirationDays := int(policy.GetExpirationPeriod().Hours() / 24)
+	response.ExpirationDays = &expirationDays
 
 	return GetPasswordResetPolicyJSON200Response(response)
 }
