@@ -4,21 +4,22 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // PasswordPolicy defines the requirements for password complexity
 type PasswordPolicy struct {
-	MinLength           int
-	RequireUppercase    bool
-	RequireLowercase    bool
-	RequireDigit        bool
-	RequireSpecialChar  bool
-	DisallowCommonPwds  bool
-	MaxRepeatedChars    int
-	HistoryCheckCount   int
-	ExpirationPeriod    string // Format: 90d, 24h, 30m
-	CommonPasswordsPath string
-	MinPasswordAgePeriod string // Format: 1d, 12h, 30m
+	MinLength            int
+	RequireUppercase     bool
+	RequireLowercase     bool
+	RequireDigit         bool
+	RequireSpecialChar   bool
+	DisallowCommonPwds   bool
+	MaxRepeatedChars     int
+	HistoryCheckCount    int
+	ExpirationPeriod     time.Duration // Duration until password expires
+	CommonPasswordsPath  string
+	MinPasswordAgePeriod time.Duration // Minimum duration before password can be changed again
 }
 
 // PasswordValidationErrors represents a collection of password validation errors
@@ -136,69 +137,28 @@ func (pc *DefaultPasswordPolicyChecker) GetPolicy() *PasswordPolicy {
 // DefaultPasswordPolicy returns a default password policy
 func DefaultPasswordPolicy() *PasswordPolicy {
 	return &PasswordPolicy{
-		MinLength:          8,
-		RequireUppercase:   true,
-		RequireLowercase:   true,
-		RequireDigit:       true,
-		RequireSpecialChar: true,
-		DisallowCommonPwds: true,
-		MaxRepeatedChars:   3,
-		HistoryCheckCount:  5,
-		ExpirationPeriod:   "90d",
-		CommonPasswordsPath: "",
-		MinPasswordAgePeriod: "1d",
+		MinLength:            8,
+		RequireUppercase:     true,
+		RequireLowercase:     true,
+		RequireDigit:         true,
+		RequireSpecialChar:   true,
+		DisallowCommonPwds:   true,
+		MaxRepeatedChars:     3,
+		HistoryCheckCount:    5,
+		ExpirationPeriod:     90 * 24 * time.Hour,
+		CommonPasswordsPath:  "",
+		MinPasswordAgePeriod: 24 * time.Hour,
 	}
 }
 
-// GetExpirationDays returns the expiration days from the ExpirationPeriod
-func (p *PasswordPolicy) GetExpirationDays() int {
-	days, err := ParseDurationToDays(p.ExpirationPeriod)
-	if err != nil {
-		// Default to 90 days if there's an error
-		return 90
-	}
-	return days
+// GetExpirationPeriod returns the expiration period duration
+func (p *PasswordPolicy) GetExpirationPeriod() time.Duration {
+	return p.ExpirationPeriod
 }
 
-// GetMinPasswordAgeDays returns the minimum password age in days
-func (p *PasswordPolicy) GetMinPasswordAgeDays() int {
-	days, err := ParseDurationToDays(p.MinPasswordAgePeriod)
-	if err != nil {
-		// Default to 1 day if there's an error
-		return 1
-	}
-	return days
-}
-
-func ParseDurationToDays(duration string) (int, error) {
-	var days int
-	var err error
-
-	if strings.HasSuffix(duration, "d") {
-		days, err = parseInt(duration[:len(duration)-1])
-	} else if strings.HasSuffix(duration, "h") {
-		hours, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		days = hours / 24
-	} else if strings.HasSuffix(duration, "m") {
-		minutes, err := parseInt(duration[:len(duration)-1])
-		if err != nil {
-			return 0, err
-		}
-		days = minutes / (60 * 24)
-	} else {
-		return 0, fmt.Errorf("invalid duration format")
-	}
-
-	return days, err
-}
-
-func parseInt(s string) (int, error) {
-	var n int
-	_, err := fmt.Sscanf(s, "%d", &n)
-	return n, err
+// GetMinPasswordAgePeriod returns the minimum password age period duration
+func (p *PasswordPolicy) GetMinPasswordAgePeriod() time.Duration {
+	return p.MinPasswordAgePeriod
 }
 
 // loadCommonPasswords loads a list of common passwords from a file or returns a default set
