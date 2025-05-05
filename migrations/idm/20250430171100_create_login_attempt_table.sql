@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE login_attempts (
+CREATE TABLE login_attempt (
     id UUID DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     login_id UUID NOT NULL REFERENCES login(id),
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc') NOT NULL,
@@ -11,11 +11,11 @@ CREATE TABLE login_attempts (
     device_fingerprint VARCHAR(255)
 );
 
-CREATE INDEX login_attempts_login_id_idx ON login_attempts(login_id);
+CREATE INDEX login_attempt_login_id_idx ON login_attempt(login_id);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP INDEX IF EXISTS login_attempts_login_id_idx;
-DROP TABLE IF EXISTS login_attempts;
+DROP INDEX IF EXISTS login_attempt_login_id_idx;
+DROP TABLE IF EXISTS login_attempt;
 -- +goose StatementEnd

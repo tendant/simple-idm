@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/sosodev/duration"
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
@@ -39,15 +40,16 @@ func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
 }
 
 type PasswordComplexityConfig struct {
-	RequiredDigit           bool `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
-	RequiredLowercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
-	RequiredNonAlphanumeric bool `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
-	RequiredUppercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
-	RequiredLength          int  `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
-	DisallowCommonPwds      bool `env:"PASSWORD_COMPLEXITY_DISALLOW_COMMON_PWDS" env-default:"true"`
-	MaxRepeatedChars        int  `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
-	HistoryCheckCount       int  `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
-	ExpirationDays          int  `env:"PASSWORD_COMPLEXITY_EXPIRATION_DAYS" env-default:"90"`
+	RequiredDigit           bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
+	RequiredLowercase       bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
+	RequiredNonAlphanumeric bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
+	RequiredUppercase       bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
+	RequiredLength          int    `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
+	DisallowCommonPwds      bool   `env:"PASSWORD_COMPLEXITY_DISALLOW_COMMON_PWDS" env-default:"true"`
+	MaxRepeatedChars        int    `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
+	HistoryCheckCount       int    `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
+	ExpirationPeriod        string `env:"PASSWORD_COMPLEXITY_EXPIRATION_PERIOD" env-default:"P90D"`      // 90 days
+	MinPasswordAgePeriod    string `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE_PERIOD" env-default:"P1D"` // 1 day
 }
 
 type Config struct {
@@ -198,15 +200,33 @@ func main() {
 }
 
 func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolicy {
+	// If no config is provided, use the default policy
+	if config == nil {
+		return login.DefaultPasswordPolicy()
+	}
+
+	expirationPeriod, err := duration.Parse(config.ExpirationPeriod)
+	if err != nil {
+		slog.Error("Failed to parse expiration period", "err", err)
+	}
+
+	minPasswordAgePeriod, err := duration.Parse(config.MinPasswordAgePeriod)
+	if err != nil {
+		slog.Error("Failed to parse min password age period", "err", err)
+	}
+
+	// Create a policy based on the configuration
 	return &login.PasswordPolicy{
-		RequireDigit:       config.RequiredDigit,
-		RequireLowercase:   config.RequiredLowercase,
-		RequireSpecialChar: config.RequiredNonAlphanumeric,
-		RequireUppercase:   config.RequiredUppercase,
-		MinLength:          config.RequiredLength,
-		DisallowCommonPwds: config.DisallowCommonPwds,
-		MaxRepeatedChars:   config.MaxRepeatedChars,
-		HistoryCheckCount:  config.HistoryCheckCount,
-		ExpirationDays:     config.ExpirationDays,
+		MinLength:            config.RequiredLength,
+		RequireUppercase:     config.RequiredUppercase,
+		RequireLowercase:     config.RequiredLowercase,
+		RequireDigit:         config.RequiredDigit,
+		RequireSpecialChar:   config.RequiredNonAlphanumeric,
+		DisallowCommonPwds:   config.DisallowCommonPwds,
+		MaxRepeatedChars:     config.MaxRepeatedChars,
+		HistoryCheckCount:    config.HistoryCheckCount,
+		ExpirationPeriod:     expirationPeriod.ToTimeDuration(),
+		CommonPasswordsPath:  "",
+		MinPasswordAgePeriod: minPasswordAgePeriod.ToTimeDuration(),
 	}
 }

@@ -188,7 +188,7 @@ SET password_updated_at = $2, password_expires_at = $3
 WHERE id = $1;
 
 -- name: RecordLoginAttempt :exec
-INSERT INTO login_attempts (
+INSERT INTO login_attempt (
     id,
     login_id,
     ip_address,
@@ -208,7 +208,7 @@ INSERT INTO login_attempts (
 
 -- name: GetRecentFailedAttempts :one
 SELECT COUNT(*) 
-FROM login_attempts 
+FROM login_attempt 
 WHERE login_id = $1 
 AND success = false 
 AND created_at > $2;

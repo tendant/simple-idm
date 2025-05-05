@@ -4,21 +4,22 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // PasswordPolicy defines the requirements for password complexity
 type PasswordPolicy struct {
-	MinLength           int
-	RequireUppercase    bool
-	RequireLowercase    bool
-	RequireDigit        bool
-	RequireSpecialChar  bool
-	DisallowCommonPwds  bool
-	MaxRepeatedChars    int
-	HistoryCheckCount   int
-	ExpirationDays      int
-	CommonPasswordsPath string
-	MinPasswordAge      int
+	MinLength            int
+	RequireUppercase     bool
+	RequireLowercase     bool
+	RequireDigit         bool
+	RequireSpecialChar   bool
+	DisallowCommonPwds   bool
+	MaxRepeatedChars     int
+	HistoryCheckCount    int
+	ExpirationPeriod     time.Duration // Duration until password expires
+	CommonPasswordsPath  string
+	MinPasswordAgePeriod time.Duration // Minimum duration before password can be changed again
 }
 
 // PasswordValidationErrors represents a collection of password validation errors
@@ -136,17 +137,28 @@ func (pc *DefaultPasswordPolicyChecker) GetPolicy() *PasswordPolicy {
 // DefaultPasswordPolicy returns a default password policy
 func DefaultPasswordPolicy() *PasswordPolicy {
 	return &PasswordPolicy{
-		MinLength:          8,
-		RequireUppercase:   true,
-		RequireLowercase:   true,
-		RequireDigit:       true,
-		RequireSpecialChar: true,
-		DisallowCommonPwds: true,
-		MaxRepeatedChars:   3,
-		HistoryCheckCount:  5,
-		ExpirationDays:     90,
-		MinPasswordAge:     1,
+		MinLength:            8,
+		RequireUppercase:     true,
+		RequireLowercase:     true,
+		RequireDigit:         true,
+		RequireSpecialChar:   true,
+		DisallowCommonPwds:   true,
+		MaxRepeatedChars:     3,
+		HistoryCheckCount:    5,
+		ExpirationPeriod:     90 * 24 * time.Hour,
+		CommonPasswordsPath:  "",
+		MinPasswordAgePeriod: 24 * time.Hour,
 	}
+}
+
+// GetExpirationPeriod returns the expiration period duration
+func (p *PasswordPolicy) GetExpirationPeriod() time.Duration {
+	return p.ExpirationPeriod
+}
+
+// GetMinPasswordAgePeriod returns the minimum password age period duration
+func (p *PasswordPolicy) GetMinPasswordAgePeriod() time.Duration {
+	return p.MinPasswordAgePeriod
 }
 
 // loadCommonPasswords loads a list of common passwords from a file or returns a default set
