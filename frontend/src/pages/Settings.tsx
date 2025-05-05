@@ -2,6 +2,8 @@ import { Component, createSignal, Show, createEffect, For } from 'solid-js';
 import { useApi } from '../lib/hooks/useApi';
 import { extractErrorDetails } from '../lib/api';
 import { twoFactorApi, ProfileTwoFactorMethod } from '../api/twoFactor';
+import { profileApi } from '../api/profile';
+import { Device } from '../api/device';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -25,6 +27,11 @@ const Settings: Component = () => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [twoFactorMethods, setTwoFactorMethods] = createSignal<ProfileTwoFactorMethod[]>([]);
   const [isLoadingMethods, setIsLoadingMethods] = createSignal(false);
+  const [linkedDevices, setLinkedDevices] = createSignal<Device[]>([]);
+  const [isLoadingDevices, setIsLoadingDevices] = createSignal(false);
+  const [deviceError, setDeviceError] = createSignal<string | null>(null);
+  const [editingDevice, setEditingDevice] = createSignal<string | null>(null);
+  const [newDisplayName, setNewDisplayName] = createSignal('');
 
   const { request } = useApi();
 
@@ -42,10 +49,68 @@ const Settings: Component = () => {
     }
   };
 
-  // Fetch 2FA methods when component mounts
-  createEffect(() => {
-    fetch2FAMethods();
-  });
+  const fetchLinkedDevices = async () => {
+    setIsLoadingDevices(true);
+    setDeviceError(null);
+    try {
+      const devices = await profileApi.getMyDevices();
+      setLinkedDevices(devices);
+    } catch (err) {
+      const errorDetails = extractErrorDetails(err);
+      setDeviceError(errorDetails.message || 'Failed to fetch linked devices');
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString();
+  };
+
+  const isExpiringSoon = (dateString: string) => {
+    if (!dateString) return false;
+    const expiryDate = new Date(dateString);
+    const now = new Date();
+    // Consider "expiring soon" if less than 7 days away
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    return expiryDate.getTime() - now.getTime() < sevenDaysInMs;
+  };
+
+  const handleUnlinkDevice = async (fingerprint: string) => {
+    if (!confirm('Are you sure you want to unlink this device? You will need to verify this device again next time you use it.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    setDeviceError(null);
+    try {
+      // We need to get the loginId from the device's linked_logins
+      const device = linkedDevices().find(d => d.fingerprint === fingerprint);
+      if (!device || !device.linked_logins || device.linked_logins.length === 0) {
+        throw new Error('Device information is incomplete');
+      }
+      
+      const loginId = device.linked_logins[0].id;
+      await request(`/api/idm/device/login/${loginId}/unlink`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fingerprint,
+        }),
+      });
+      
+      // Refresh the devices list
+      await fetchLinkedDevices();
+    } catch (err) {
+      const errorDetails = extractErrorDetails(err);
+      setDeviceError(errorDetails.message || 'Failed to unlink device');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -89,6 +154,44 @@ const Settings: Component = () => {
     }
   };
 
+  const handleEditDevice = (device: Device) => {
+    setEditingDevice(device.fingerprint);
+    setNewDisplayName(device.display_name || device.device_name || '');
+  };
+
+  const handleSaveDeviceName = async () => {
+    const fingerprint = editingDevice();
+    if (!fingerprint) return;
+
+    setIsLoading(true);
+    try {
+      const response = await profileApi.updateDeviceDisplayName(fingerprint, newDisplayName());
+      
+      // Update the device in the local state
+      const updatedDevices = linkedDevices().map(device => {
+        if (device.fingerprint === fingerprint) {
+          return { ...device, display_name: newDisplayName() };
+        }
+        return device;
+      });
+      
+      setLinkedDevices(updatedDevices);
+      setEditingDevice(null);
+      setSuccess('Device name updated successfully');
+    } catch (err) {
+      const errorDetails = extractErrorDetails(err);
+      setDeviceError(errorDetails.message || 'Failed to update device name');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch 2FA methods when component mounts
+  createEffect(() => {
+    fetch2FAMethods();
+    fetchLinkedDevices();
+  });
+
   return (
     <div>
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -111,9 +214,10 @@ const Settings: Component = () => {
         )}
 
         <Tabs defaultValue="password" class="w-full">
-          <TabsList class="grid w-full grid-cols-3">
+          <TabsList class="grid w-full grid-cols-4">
             <TabsTrigger value="password">Password</TabsTrigger>
             <TabsTrigger value="2fa">Two-Factor Auth</TabsTrigger>
+            <TabsTrigger value="devices">Devices</TabsTrigger>
             <TabsTrigger value="accounts">Associated Accounts</TabsTrigger>
           </TabsList>
 
@@ -373,6 +477,146 @@ const Settings: Component = () => {
               </Show>
 
               {/* Removed the "Enter Code to Disable 2FA" block as requested */}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="devices">
+        <Card>
+          <CardHeader>
+            <CardTitle>Linked Devices</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {deviceError() && (
+              <Alert class="mb-4" variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{deviceError()}</AlertDescription>
+              </Alert>
+            )}
+            
+            <Show when={isLoadingDevices()}>
+              <div class="py-8 text-center">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+                <p class="text-sm text-gray-500">Loading your linked devices...</p>
+              </div>
+            </Show>
+            
+            <Show when={!isLoadingDevices() && linkedDevices().length === 0}>
+              <div class="py-8 border rounded-md text-center bg-gray-50">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <p class="text-sm text-gray-500 mb-2">You don't have any linked devices.</p>
+                <p class="text-xs text-gray-400">Devices are automatically linked when you sign in from a new browser or device.</p>
+              </div>
+            </Show>
+            
+            <Show when={!isLoadingDevices() && linkedDevices().length > 0}>
+              <div class="overflow-x-auto rounded-md border">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Device</th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Login</th>
+                      <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Expires</th>
+                      <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                        <span class="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-200 bg-white">
+                    <For each={linkedDevices()}>
+                      {(device) => (
+                        <tr class="hover:bg-gray-50">
+                          <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                            <div class="flex flex-col">
+                              <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                <Show when={editingDevice() === device.fingerprint}>
+                                  <Input
+                                    id="device-name"
+                                    type="text"
+                                    value={newDisplayName()}
+                                    onInput={(e) => setNewDisplayName(e.currentTarget.value)}
+                                    class="w-full"
+                                  />
+                                </Show>
+                                <Show when={editingDevice() !== device.fingerprint}>
+                                  <span class="font-medium">{device.display_name || device.device_name || 'Unknown Device'}</span>
+                                  <button
+                                    onClick={() => handleEditDevice(device)}
+                                    class="ml-2 text-gray-500 hover:text-gray-700"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-1.773-5.94a.5.5 0 011.064.02L4.192 17.854a.5.5 0 01-.642.328v5.205a.5.5 0 01-1.064 0v-7.043a.5.5 0 01.642-.328l3.536-3.536a.5.5 0 01.642 0z" />
+                                    </svg>
+                                  </button>
+                                </Show>
+                              </div>
+                              <div class="flex items-center mt-1">
+                                <span class="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-1">{device.device_type || 'Other'}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                            {formatDate(device.last_login)}
+                          </td>
+                          <td class="whitespace-nowrap px-3 py-4 text-sm">
+                            <span class={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${isExpiringSoon(device.expires_at || '') ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                              {formatDate(device.expires_at)}
+                            </span>
+                          </td>
+                          <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                            <Show when={editingDevice() === device.fingerprint}>
+                              <button
+                                onClick={handleSaveDeviceName}
+                                class="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingDevice(null)}
+                                class="ml-2 inline-flex items-center rounded-md border border-transparent bg-red-100 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                              >
+                                Cancel
+                              </button>
+                            </Show>
+                            <Show when={editingDevice() !== device.fingerprint}>
+                              <button
+                                onClick={() => handleUnlinkDevice(device.fingerprint)}
+                                disabled={isLoading()}
+                                class="inline-flex items-center rounded-md border border-transparent bg-red-100 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                                </svg>
+                                {isLoading() ? 'Unlinking...' : 'Unlink'}
+                              </button>
+                            </Show>
+                          </td>
+                        </tr>
+                      )}
+                    </For>
+                  </tbody>
+                </table>
+              </div>
+              <div class="mt-4 bg-blue-50 p-4 rounded-md">
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <div class="ml-3 flex-1">
+                    <p class="text-sm text-blue-700">
+                      These are devices that have been verified for your account. Devices are automatically unlinked after 90 days for security.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Show>
           </CardContent>
         </Card>
       </TabsContent>

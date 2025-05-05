@@ -14,6 +14,7 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/common"
+	"github.com/tendant/simple-idm/pkg/device"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/profile"
@@ -30,9 +31,10 @@ type Handle struct {
 	tokenService       tg.TokenService
 	tokenCookieService tg.TokenCookieService
 	loginService       *login.LoginService
+	deviceService      *device.DeviceService
 }
 
-func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService, responseHandler ResponseHandler) Handle {
+func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService, deviceService *device.DeviceService, responseHandler ResponseHandler) Handle {
 	return Handle{
 		profileService:     profileService,
 		twoFaService:       twoFaService,
@@ -40,6 +42,7 @@ func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFa
 		tokenService:       tokenService,
 		tokenCookieService: tokenCookieService,
 		loginService:       loginService,
+		deviceService:      deviceService,
 	}
 }
 
@@ -949,6 +952,230 @@ func (h Handle) FindUsersWithLogin(w http.ResponseWriter, r *http.Request) *Resp
 	}
 
 	return h.responseHandler.PrepareUserListResponse(users)
+}
+
+// GetMyDevices retrieves devices linked to the authenticated user's login
+// (GET /devices)
+func (h Handle) GetMyDevices(w http.ResponseWriter, r *http.Request) *Response {
+	// Get authenticated user from context
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok || authUser == nil {
+		slog.Error("Authentication required", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Get login ID from auth user
+	loginID := authUser.LoginID // Already a UUID type
+
+	// Get devices for the login
+	devices, err := h.deviceService.FindDevicesByLogin(r.Context(), loginID)
+	if err != nil {
+		slog.Error("Failed to get devices for login", "error", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"status":  "error",
+				"message": "Failed to get devices for login",
+				"detail":  err.Error(),
+			},
+		}
+	}
+
+	// Convert devices to DeviceWithLogin
+	var devicesWithLogin []DeviceWithLogin
+	for _, d := range devices {
+		// Get the login device link to get expiration information
+		loginDevice, err := h.deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), d.Fingerprint, loginID)
+		if err != nil {
+			slog.Error("Failed to get login device link", "fingerprint", d.Fingerprint, "loginID", loginID, "error", err)
+			// Continue with other devices even if we can't get link info for this one
+			deviceWithLogin := DeviceWithLogin{
+				Fingerprint: d.Fingerprint,
+				UserAgent:   d.UserAgent,
+				DeviceName:  d.DeviceName,
+				DeviceType:  d.DeviceType,
+				LastLoginAt: d.LastLoginAt,
+				CreatedAt:   d.CreatedAt,
+				LinkedLogins: []LoginInfo{
+					{
+						ID:       authUser.LoginId, // Use the string version from authUser
+						Username: authUser.DisplayName,
+					},
+				},
+			}
+			// Optional fields
+			if d.AcceptHeaders != "" {
+				acceptHeaders := d.AcceptHeaders
+				deviceWithLogin.AcceptHeaders = acceptHeaders
+			}
+			if d.Timezone != "" {
+				timezone := d.Timezone
+				deviceWithLogin.Timezone = timezone
+			}
+			if d.ScreenResolution != "" {
+				screenRes := d.ScreenResolution
+				deviceWithLogin.ScreenResolution = screenRes
+			}
+			devicesWithLogin = append(devicesWithLogin, deviceWithLogin)
+			continue
+		}
+
+		deviceWithLogin := DeviceWithLogin{
+			Fingerprint: d.Fingerprint,
+			UserAgent:   d.UserAgent,
+			DeviceName:  d.DeviceName,
+			DeviceType:  d.DeviceType,
+			LastLoginAt: d.LastLoginAt,
+			CreatedAt:   d.CreatedAt,
+			ExpiresAt:   loginDevice.ExpiresAt,
+			DisplayName: loginDevice.DisplayName,
+			LinkedLogins: []LoginInfo{
+				{
+					ID:       authUser.LoginId, // Use the string version from authUser
+					Username: authUser.DisplayName,
+				},
+			},
+		}
+		// Optional fields
+		if d.AcceptHeaders != "" {
+			acceptHeaders := d.AcceptHeaders
+			deviceWithLogin.AcceptHeaders = acceptHeaders
+		}
+		if d.Timezone != "" {
+			timezone := d.Timezone
+			deviceWithLogin.Timezone = timezone
+		}
+		if d.ScreenResolution != "" {
+			screenRes := d.ScreenResolution
+			deviceWithLogin.ScreenResolution = screenRes
+		}
+		devicesWithLogin = append(devicesWithLogin, deviceWithLogin)
+	}
+
+	// Return success response
+	response := ListDevicesResponse{
+		Status:  "success",
+		Message: "Devices retrieved successfully",
+		Devices: devicesWithLogin,
+	}
+	return &Response{
+		Code:        http.StatusOK,
+		body:        response,
+		contentType: "application/json",
+	}
+}
+
+// UpdateDeviceDisplayName updates the display name of a device for the authenticated user
+func (h Handle) UpdateDeviceDisplayName(w http.ResponseWriter, r *http.Request, fingerprint string) *Response {
+	ctx := r.Context()
+
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok || authUser == nil {
+		slog.Error("Authentication required", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	loginID, err := uuid.Parse(authUser.LoginId)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "unauthorized",
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Get the fingerprint from the path parameter
+	if fingerprint == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "fingerprint is required",
+		}
+	}
+
+	// Parse the request body
+	var req UpdateDeviceDisplayNameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "invalid request body",
+		}
+	}
+
+	// Validate the request
+	if req.DisplayName == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "display_name is required",
+		}
+	}
+
+	// Update the display name
+	loginDevice, err := h.deviceService.UpdateDeviceDisplayName(ctx, loginID, fingerprint, req.DisplayName)
+	if err != nil {
+		slog.Error("Failed to update device display name", "err", err, "fingerprint", fingerprint, "loginID", loginID)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to update device display name",
+		}
+	}
+
+	// Get the device to include in the response
+	device, err := h.deviceService.GetDeviceByFingerprint(ctx, fingerprint)
+	if err != nil {
+		slog.Error("Failed to get device", "err", err, "fingerprint", fingerprint)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to get device",
+		}
+	}
+
+	// Create the device with login
+	deviceWithLogin := DeviceWithLogin{
+		Fingerprint: device.Fingerprint,
+		UserAgent:   device.UserAgent,
+		DeviceName:  device.DeviceName,
+		DeviceType:  device.DeviceType,
+		LastLoginAt: device.LastLoginAt,
+		CreatedAt:   device.CreatedAt,
+		DisplayName: loginDevice.DisplayName,
+		ExpiresAt:   loginDevice.ExpiresAt,
+		LinkedLogins: []LoginInfo{
+			{
+				ID:       loginID.String(),
+				Username: "Current User", // We don't have the username here, but it's not critical
+			},
+		},
+	}
+
+	// Handle optional fields
+	if device.AcceptHeaders != "" {
+		acceptHeaders := device.AcceptHeaders
+		deviceWithLogin.AcceptHeaders = acceptHeaders
+	}
+	if device.Timezone != "" {
+		timezone := device.Timezone
+		deviceWithLogin.Timezone = timezone
+	}
+	if device.ScreenResolution != "" {
+		screenRes := device.ScreenResolution
+		deviceWithLogin.ScreenResolution = screenRes
+	}
+
+	// Return the response
+	return &Response{
+		Code: http.StatusOK,
+		body: UpdateDeviceDisplayNameResponse{
+			Status:  UpdateDeviceDisplayNameResponseStatusSuccess,
+			Message: "Device display name updated successfully",
+			Device:  deviceWithLogin,
+		},
+	}
 }
 
 // ResponseHandler defines the interface for handling responses during login

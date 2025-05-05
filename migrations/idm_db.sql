@@ -61,7 +61,9 @@ CREATE TABLE public.device (
     timezone character varying(100),
     screen_resolution character varying(50),
     last_login_at timestamp without time zone NOT NULL,
-    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
+    device_name character varying(255),
+    device_type character varying(50)
 );
 
 
@@ -161,8 +163,8 @@ CREATE TABLE public.login_attempt (
     device_fingerprint character varying(255)
 );
 
-
 ALTER TABLE public.login_attempt OWNER TO idm;
+
 
 --
 -- Name: login_device; Type: TABLE; Schema: public; Owner: idm
@@ -174,7 +176,10 @@ CREATE TABLE public.login_device (
     fingerprint character varying(255) NOT NULL,
     linked_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
     expires_at timestamp without time zone NOT NULL,
-    deleted_at timestamp without time zone
+    deleted_at timestamp without time zone,
+    display_name character varying(255),
+    updated_at timestamp without time zone,
+    created_at timestamp without time zone
 );
 
 
@@ -437,7 +442,6 @@ CREATE INDEX idx_login_password_reset_tokens_token ON public.login_password_rese
 --
 
 CREATE INDEX login_attempt_login_id_idx ON public.login_attempt USING btree (login_id);
-
 
 --
 -- Name: login_password_history_login_id_idx; Type: INDEX; Schema: public; Owner: idm
