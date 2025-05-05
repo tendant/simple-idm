@@ -357,7 +357,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 
 	// Update password timestamps
 	now := time.Now().UTC()
-	expiresAt := now.AddDate(0, 0, pm.policyChecker.GetPolicy().GetExpirationDays())
+	expiresAt := now.Add(pm.policyChecker.GetPolicy().GetExpirationPeriod())
 	err = pm.repository.UpdatePasswordTimestamps(ctx, tokenInfo.LoginID, now, expiresAt)
 	if err != nil {
 		slog.Error("Failed to update password timestamps", "err", err)
@@ -474,7 +474,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 
 	// Update password timestamps
 	now := time.Now().UTC()
-	expiresAt := now.AddDate(0, 0, pm.policyChecker.GetPolicy().GetExpirationDays())
+	expiresAt := now.Add(pm.policyChecker.GetPolicy().GetExpirationPeriod())
 	err = pm.repository.UpdatePasswordTimestamps(ctx, login.ID, now, expiresAt)
 	if err != nil {
 		slog.Error("Failed to update password timestamps", "err", err)
@@ -505,7 +505,7 @@ func (pm *PasswordManager) IsPasswordChangeAllowed(ctx context.Context, loginID 
 	}
 
 	// If this is not a new user or first password change, check if enough time has passed
-	minValidTime := lastChanged.Add(time.Duration(pm.policyChecker.GetPolicy().GetMinPasswordAgeDays()) * 24 * time.Hour)
+	minValidTime := lastChanged.Add(pm.policyChecker.GetPolicy().GetMinPasswordAgePeriod())
 
 	// Check if enough time has passed
 	now := time.Now().UTC()
@@ -543,7 +543,7 @@ func (pm *PasswordManager) IsPasswordExpired(ctx context.Context, loginID string
 	if !valid || expiresAt.IsZero() {
 		// Use updated_at as the base time if available, otherwise current time
 		baseTime := login.UpdatedAt
-		expiresTime := baseTime.AddDate(0, 0, pm.policyChecker.GetPolicy().GetExpirationDays())
+		expiresTime := baseTime.Add(pm.policyChecker.GetPolicy().GetExpirationPeriod())
 
 		// Update the expiration time in the database
 		err = pm.repository.UpdatePasswordTimestamps(ctx, loginUUID, baseTime, expiresTime)
@@ -585,8 +585,8 @@ func (pm *PasswordManager) GetPasswordExpirationInfo(ctx context.Context, loginI
 
 		// Use updated_at as the base time
 		baseTime := login.UpdatedAt
-		expirationDays := pm.policyChecker.GetPolicy().GetExpirationDays()
-		expiresTime := baseTime.AddDate(0, 0, expirationDays)
+		expirationPeriod := pm.policyChecker.GetPolicy().GetExpirationPeriod()
+		expiresTime := baseTime.Add(expirationPeriod)
 
 		// Update the expiration time in the database
 		err = pm.repository.UpdatePasswordTimestamps(ctx, loginUUID, baseTime, expiresTime)
