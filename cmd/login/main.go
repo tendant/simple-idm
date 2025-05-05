@@ -93,7 +93,7 @@ type PasswordComplexityConfig struct {
 	DisallowCommonPwds      bool   `env:"PASSWORD_COMPLEXITY_DISALLOW_COMMON_PWDS" env-default:"true"`
 	MaxRepeatedChars        int    `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
 	HistoryCheckCount       int    `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
-	ExpirationPeriod        string `env:"PASSWORD_COMPLEXITY_EXPIRATION_PERIOD" env-default:"P30D"`      // 90 days
+	ExpirationPeriod        string `env:"PASSWORD_COMPLEXITY_EXPIRATION_PERIOD" env-default:"P90D"`      // 90 days
 	MinPasswordAgePeriod    string `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE_PERIOD" env-default:"P1D"` // 1 day
 }
 
@@ -305,10 +305,14 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 		slog.Error("Failed to parse expiration period", "err", err)
 	}
 
+	slog.Info("Expiration period", "expirationPeriod", expirationPeriod)
+
 	minPasswordAgePeriod, err := duration.Parse(config.MinPasswordAgePeriod)
 	if err != nil {
 		slog.Error("Failed to parse min password age period", "err", err)
 	}
+
+	slog.Info("Min password age period", "minPasswordAgePeriod", minPasswordAgePeriod)
 
 	// Create a policy based on the configuration
 	return &login.PasswordPolicy{
