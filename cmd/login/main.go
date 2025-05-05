@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -301,15 +302,16 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 
 	// Create a policy based on the configuration
 	return &login.PasswordPolicy{
-		MinLength:          config.RequiredLength,
-		RequireUppercase:   config.RequiredUppercase,
-		RequireLowercase:   config.RequiredLowercase,
-		RequireDigit:       config.RequiredDigit,
-		RequireSpecialChar: config.RequiredNonAlphanumeric,
-		DisallowCommonPwds: config.DisallowCommonPwds,
-		MaxRepeatedChars:   config.MaxRepeatedChars,
-		HistoryCheckCount:  config.HistoryCheckCount,
-		ExpirationDays:     config.ExpirationDays,
-		MinPasswordAge:     config.MinPasswordAge,
+		MinLength:            config.RequiredLength,
+		RequireUppercase:     config.RequiredUppercase,
+		RequireLowercase:     config.RequiredLowercase,
+		RequireDigit:         config.RequiredDigit,
+		RequireSpecialChar:   config.RequiredNonAlphanumeric,
+		DisallowCommonPwds:   config.DisallowCommonPwds,
+		MaxRepeatedChars:     config.MaxRepeatedChars,
+		HistoryCheckCount:    config.HistoryCheckCount,
+		ExpirationPeriod:     time.Duration(config.ExpirationDays) * 24 * time.Hour,
+		CommonPasswordsPath:  "",
+		MinPasswordAgePeriod: time.Duration(config.MinPasswordAge) * 24 * time.Hour,
 	}
 }

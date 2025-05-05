@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ilyakaznacheev/cleanenv"
@@ -48,6 +49,7 @@ type PasswordComplexityConfig struct {
 	MaxRepeatedChars        int  `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
 	HistoryCheckCount       int  `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
 	ExpirationDays          int  `env:"PASSWORD_COMPLEXITY_EXPIRATION_DAYS" env-default:"90"`
+	MinPasswordAge          int  `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE" env-default:"1"`
 }
 
 type Config struct {
@@ -207,6 +209,7 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 		DisallowCommonPwds: config.DisallowCommonPwds,
 		MaxRepeatedChars:   config.MaxRepeatedChars,
 		HistoryCheckCount:  config.HistoryCheckCount,
-		ExpirationDays:     config.ExpirationDays,
+		ExpirationPeriod:   time.Duration(config.ExpirationDays) * 24 * time.Hour,
+		MinPasswordAgePeriod: time.Duration(config.MinPasswordAge) * 24 * time.Hour,
 	}
 }
