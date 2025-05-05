@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -20,6 +19,7 @@ import (
 
 	// "github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 
+	"github.com/sosodev/duration"
 	"github.com/tendant/simple-idm/pkg/device"
 	deviceapi "github.com/tendant/simple-idm/pkg/device/api"
 	"github.com/tendant/simple-idm/pkg/login"
@@ -85,16 +85,16 @@ type EmailConfig struct {
 }
 
 type PasswordComplexityConfig struct {
-	RequiredDigit           bool `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
-	RequiredLowercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
-	RequiredNonAlphanumeric bool `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
-	RequiredUppercase       bool `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
-	RequiredLength          int  `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
-	DisallowCommonPwds      bool `env:"PASSWORD_COMPLEXITY_DISALLOW_COMMON_PWDS" env-default:"true"`
-	MaxRepeatedChars        int  `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
-	HistoryCheckCount       int  `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
-	ExpirationDays          int  `env:"PASSWORD_COMPLEXITY_EXPIRATION_DAYS" env-default:"90"`
-	MinPasswordAge          int  `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE" env-default:"1"`
+	RequiredDigit           bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
+	RequiredLowercase       bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
+	RequiredNonAlphanumeric bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
+	RequiredUppercase       bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
+	RequiredLength          int    `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
+	DisallowCommonPwds      bool   `env:"PASSWORD_COMPLEXITY_DISALLOW_COMMON_PWDS" env-default:"true"`
+	MaxRepeatedChars        int    `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
+	HistoryCheckCount       int    `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
+	ExpirationPeriod        string `env:"PASSWORD_COMPLEXITY_EXPIRATION_PERIOD" env-default:"P30D"`      // 90 days
+	MinPasswordAgePeriod    string `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE_PERIOD" env-default:"P1D"` // 1 day
 }
 
 type Config struct {
@@ -300,6 +300,16 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 		return login.DefaultPasswordPolicy()
 	}
 
+	expirationPeriod, err := duration.Parse(config.ExpirationPeriod)
+	if err != nil {
+		slog.Error("Failed to parse expiration period", "err", err)
+	}
+
+	minPasswordAgePeriod, err := duration.Parse(config.MinPasswordAgePeriod)
+	if err != nil {
+		slog.Error("Failed to parse min password age period", "err", err)
+	}
+
 	// Create a policy based on the configuration
 	return &login.PasswordPolicy{
 		MinLength:            config.RequiredLength,
@@ -310,8 +320,8 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 		DisallowCommonPwds:   config.DisallowCommonPwds,
 		MaxRepeatedChars:     config.MaxRepeatedChars,
 		HistoryCheckCount:    config.HistoryCheckCount,
-		ExpirationPeriod:     time.Duration(config.ExpirationDays) * 24 * time.Hour,
+		ExpirationPeriod:     expirationPeriod.ToTimeDuration(),
 		CommonPasswordsPath:  "",
-		MinPasswordAgePeriod: time.Duration(config.MinPasswordAge) * 24 * time.Hour,
+		MinPasswordAgePeriod: minPasswordAgePeriod.ToTimeDuration(),
 	}
 }
