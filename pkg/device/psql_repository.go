@@ -17,7 +17,8 @@ import (
 
 // PostgresDeviceRepository implements DeviceRepository using PostgreSQL
 type PostgresDeviceRepository struct {
-	db DBTX
+	db       DBTX
+	options  DeviceRepositoryOptions
 }
 
 // DBTX is an interface that allows us to use either a database connection or a transaction
@@ -30,8 +31,22 @@ type DBTX interface {
 // NewPostgresDeviceRepository creates a new PostgreSQL device repository
 func NewPostgresDeviceRepository(db DBTX) *PostgresDeviceRepository {
 	return &PostgresDeviceRepository{
-		db: db,
+		db:       db,
+		options:  DefaultDeviceRepositoryOptions(),
 	}
+}
+
+// NewPostgresDeviceRepositoryWithOptions creates a new PostgreSQL device repository with custom options
+func NewPostgresDeviceRepositoryWithOptions(db DBTX, options DeviceRepositoryOptions) *PostgresDeviceRepository {
+	return &PostgresDeviceRepository{
+		db:       db,
+		options:  options,
+	}
+}
+
+// GetExpiryDuration returns the configured expiry duration for login-device links
+func (r *PostgresDeviceRepository) GetExpiryDuration() time.Duration {
+	return r.options.ExpiryDuration
 }
 
 // CreateDevice creates a new device in the database
@@ -328,7 +343,7 @@ func (r *PostgresDeviceRepository) LinkLoginToDevice(ctx context.Context, loginI
 
 	// Create the link
 	now := time.Now().UTC()
-	expiresAt := now.AddDate(0, 0, DefaultDeviceExpiryDays)
+	expiresAt := CalculateExpiryDate(r.options.ExpiryDuration)
 
 	query := `
 		INSERT INTO login_device (login_id, fingerprint, display_name, linked_at, expires_at, created_at, updated_at)
@@ -438,7 +453,7 @@ func (r *PostgresDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, 
 		SET linked_at = $3, updated_at = $4, expires_at = $5
 		WHERE fingerprint = $1 AND login_id = $2 AND deleted_at IS NULL
 	`
-	_, err := r.db.Exec(ctx, query, fingerprint, loginID, time.Now().UTC(), time.Now().UTC(), time.Now().UTC().AddDate(0, 0, DefaultDeviceExpiryDays))
+	_, err := r.db.Exec(ctx, query, fingerprint, loginID, time.Now().UTC(), time.Now().UTC(), CalculateExpiryDate(r.options.ExpiryDuration))
 	if err != nil {
 		slog.Error("Failed to extend device expiry", "err", err, "fingerprint", fingerprint, "loginID", loginID)
 		return fmt.Errorf("failed to extend device expiry: %w", err)

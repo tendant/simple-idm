@@ -14,7 +14,8 @@ import (
 )
 
 func setupDeviceService(t *testing.T) *DeviceService {
-	repo := NewInMemDeviceRepository()
+	// Create repository with default options
+	repo := NewInMemDeviceRepositoryWithOptions(DefaultDeviceRepositoryOptions())
 	connStr := "postgres://login:pwd@localhost:5432/powercard_db"
 	dbPool, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {

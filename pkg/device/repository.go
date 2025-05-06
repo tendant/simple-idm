@@ -61,13 +61,28 @@ type DeviceRepository interface {
 
 	// UpdateLoginDeviceDisplayName updates the display name of a login-device link
 	UpdateLoginDeviceDisplayName(ctx context.Context, loginID uuid.UUID, fingerprint string, displayName string) (LoginDevice, error)
+	
+	// GetExpiryDuration returns the configured expiry duration for login-device links
+	GetExpiryDuration() time.Duration
 }
 
 const (
-	DefaultDeviceExpiryDays = 90 // Default expiration is 90 days
+	DefaultDeviceExpiryDuration = 90 * 24 * time.Hour // Default expiration is 90 days
 )
 
-// CalculateExpiryDate returns a time.Time that is days in the future from now
-func CalculateExpiryDate(days int) time.Time {
-	return time.Now().UTC().AddDate(0, 0, days)
+// DeviceRepositoryOptions contains options for configuring the device repository
+type DeviceRepositoryOptions struct {
+	ExpiryDuration time.Duration // Duration for device expiration
+}
+
+// DefaultDeviceRepositoryOptions returns the default options for the device repository
+func DefaultDeviceRepositoryOptions() DeviceRepositoryOptions {
+	return DeviceRepositoryOptions{
+		ExpiryDuration: DefaultDeviceExpiryDuration,
+	}
+}
+
+// CalculateExpiryDate returns a time.Time that is the duration in the future from now
+func CalculateExpiryDate(expiryDuration time.Duration) time.Time {
+	return time.Now().UTC().Add(expiryDuration)
 }
