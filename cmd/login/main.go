@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -104,7 +105,7 @@ type Config struct {
 	JwtConfig                JwtConfig
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
-	DeviceExpirationDays     int `env:"DEVICE_EXPIRATION_DAYS" env-default:"90"`
+	DeviceExpirationDays     string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
 }
 
 func main() {
@@ -200,11 +201,20 @@ func main() {
 	)
 
 	// Initialize device recognition service and routes
-	deviceRepository := device.NewPostgresDeviceRepository(pool)
-	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
-
-	// Configure device expiration in days (for remember device feature)
+	// Configure device expiration using the value from config
 	deviceExpirationDays := config.DeviceExpirationDays
+	deviceExpiryDuration, err := time.ParseDuration(deviceExpirationDays)
+	if err != nil {
+		slog.Error("Failed to parse device expiration duration", "error", err)
+		// Default to 90 days if parsing fails
+		deviceExpiryDuration = device.DefaultDeviceExpiryDuration
+	}
+
+	deviceRepositoryOptions := device.DeviceRepositoryOptions{
+		ExpiryDuration: deviceExpiryDuration,
+	}
+	deviceRepository := device.NewPostgresDeviceRepositoryWithOptions(pool, deviceRepositoryOptions)
+	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
 
 	twoFaService := twofa.NewTwoFaService(
 		twofaQueries,
@@ -220,7 +230,7 @@ func main() {
 		loginapi.WithDeviceService(*deviceService),
 		loginapi.WithTwoFactorService(twoFaService),
 		loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()),
-		loginapi.WithDeviceExpirationDays(deviceExpirationDays),
+		loginapi.WithDeviceExpirationDays(deviceExpiryDuration),
 	)
 
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
