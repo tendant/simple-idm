@@ -37,12 +37,35 @@ type TwoFaService struct {
 	userMapper          mapper.UserMapper
 }
 
-func NewTwoFaService(queries *twofadb.Queries, notificationManager *notification.NotificationManager, userMapper mapper.UserMapper) *TwoFaService {
-	return &TwoFaService{
-		queries:             queries,
-		notificationManager: notificationManager,
-		userMapper:          userMapper,
+// TwoFaServiceOption defines a function type for configuring the TwoFaService
+type TwoFaServiceOption func(*TwoFaService)
+
+// WithNotificationManager sets the notification manager for the TwoFaService
+func WithNotificationManager(notificationManager *notification.NotificationManager) TwoFaServiceOption {
+	return func(s *TwoFaService) {
+		s.notificationManager = notificationManager
 	}
+}
+
+// WithUserMapper sets the user mapper for the TwoFaService
+func WithUserMapper(userMapper mapper.UserMapper) TwoFaServiceOption {
+	return func(s *TwoFaService) {
+		s.userMapper = userMapper
+	}
+}
+
+// NewTwoFaService creates a new TwoFaService with the given queries and options
+func NewTwoFaService(queries *twofadb.Queries, opts ...TwoFaServiceOption) *TwoFaService {
+	service := &TwoFaService{
+		queries: queries,
+	}
+	
+	// Apply all options
+	for _, opt := range opts {
+		opt(service)
+	}
+	
+	return service
 }
 
 type (

@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
-	"github.com/tendant/simple-idm/pkg/twofa"
 	"github.com/tendant/simple-idm/pkg/utils"
 )
 
@@ -19,23 +18,6 @@ type LoginService struct {
 type LoginParams struct {
 	Email    string
 	Username string
-}
-
-// Option is a function that configures a Handle
-type Option func(*Handle)
-
-// WithTwoFactorService configures the two-factor service
-func WithTwoFactorService(twoFactorService twofa.TwoFactorService) Option {
-	return func(h *Handle) {
-		h.twoFactorService = twoFactorService
-	}
-}
-
-// WithResponseHandler sets a custom response handler
-func WithResponseHandler(handler ResponseHandler) Option {
-	return func(h *Handle) {
-		h.responseHandler = handler
-	}
 }
 
 // RegisterParam represents parameters for user registration

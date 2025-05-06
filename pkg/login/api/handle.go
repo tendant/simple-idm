@@ -52,19 +52,58 @@ type Handle struct {
 	responseHandler    ResponseHandler
 }
 
-func NewHandle(loginService *login.LoginService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, userMapper mapper.UserMapper, deviceService device.DeviceService, opts ...Option) Handle {
+type Option func(*Handle)
+
+func NewHandle(opts ...Option) Handle {
 	h := Handle{
-		loginService:       loginService,
-		tokenService:       tokenService,
-		tokenCookieService: tokenCookieService,
-		userMapper:         userMapper,
-		deviceService:      deviceService,
-		responseHandler:    NewDefaultResponseHandler(),
+		responseHandler: NewDefaultResponseHandler(),
 	}
 	for _, opt := range opts {
 		opt(&h)
 	}
 	return h
+}
+
+func WithLoginService(ls *login.LoginService) Option {
+	return func(h *Handle) {
+		h.loginService = ls
+	}
+}
+
+func WithTwoFactorService(tfs twofa.TwoFactorService) Option {
+	return func(h *Handle) {
+		h.twoFactorService = tfs
+	}
+}
+
+func WithTokenService(ts tg.TokenService) Option {
+	return func(h *Handle) {
+		h.tokenService = ts
+	}
+}
+
+func WithTokenCookieService(tcs tg.TokenCookieService) Option {
+	return func(h *Handle) {
+		h.tokenCookieService = tcs
+	}
+}
+
+func WithUserMapper(um mapper.UserMapper) Option {
+	return func(h *Handle) {
+		h.userMapper = um
+	}
+}
+
+func WithDeviceService(ds device.DeviceService) Option {
+	return func(h *Handle) {
+		h.deviceService = ds
+	}
+}
+
+func WithResponseHandler(rh ResponseHandler) Option {
+	return func(h *Handle) {
+		h.responseHandler = rh
+	}
 }
 
 // ResponseHandler defines the interface for handling responses during login

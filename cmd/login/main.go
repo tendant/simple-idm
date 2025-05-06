@@ -202,9 +202,21 @@ func main() {
 	deviceRepository := device.NewPostgresDeviceRepository(pool)
 	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
 
-	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
+	twoFaService := twofa.NewTwoFaService(
+		twofaQueries,
+		twofa.WithNotificationManager(notificationManager),
+		twofa.WithUserMapper(userMapper),
+	)
 	// Create a new handle with the domain login service directly
-	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, *deviceService, loginapi.WithTwoFactorService(twoFaService), loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()))
+	loginHandle := loginapi.NewHandle(
+		loginapi.WithLoginService(loginService),
+		loginapi.WithTokenService(tokenService),
+		loginapi.WithTokenCookieService(tokenCookieService),
+		loginapi.WithUserMapper(userMapper),
+		loginapi.WithDeviceService(*deviceService),
+		loginapi.WithTwoFactorService(twoFaService),
+		loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()),
+	)
 
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 
