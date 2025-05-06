@@ -104,6 +104,7 @@ type Config struct {
 	JwtConfig                JwtConfig
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
+	DeviceExpirationDays     int `env:"DEVICE_EXPIRATION_DAYS" env-default:"90"`
 }
 
 func main() {
@@ -202,6 +203,9 @@ func main() {
 	deviceRepository := device.NewPostgresDeviceRepository(pool)
 	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
 
+	// Configure device expiration in days (for remember device feature)
+	deviceExpirationDays := config.DeviceExpirationDays
+
 	twoFaService := twofa.NewTwoFaService(
 		twofaQueries,
 		twofa.WithNotificationManager(notificationManager),
@@ -216,6 +220,7 @@ func main() {
 		loginapi.WithDeviceService(*deviceService),
 		loginapi.WithTwoFactorService(twoFaService),
 		loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()),
+		loginapi.WithDeviceExpirationDays(deviceExpirationDays),
 	)
 
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))

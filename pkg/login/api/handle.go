@@ -43,13 +43,14 @@ const (
 )
 
 type Handle struct {
-	loginService       *login.LoginService
-	twoFactorService   twofa.TwoFactorService
-	tokenService       tg.TokenService
-	tokenCookieService tg.TokenCookieService
-	userMapper         mapper.UserMapper
-	deviceService      device.DeviceService
-	responseHandler    ResponseHandler
+	loginService         *login.LoginService
+	twoFactorService     twofa.TwoFactorService
+	tokenService         tg.TokenService
+	tokenCookieService   tg.TokenCookieService
+	userMapper           mapper.UserMapper
+	deviceService        device.DeviceService
+	responseHandler      ResponseHandler
+	deviceExpirationDays int
 }
 
 type Option func(*Handle)
@@ -103,6 +104,13 @@ func WithDeviceService(ds device.DeviceService) Option {
 func WithResponseHandler(rh ResponseHandler) Option {
 	return func(h *Handle) {
 		h.responseHandler = rh
+	}
+}
+
+// WithDeviceExpirationDays sets the device expiration days for the handle
+func WithDeviceExpirationDays(days int) Option {
+	return func(h *Handle) {
+		h.deviceExpirationDays = days
 	}
 }
 
