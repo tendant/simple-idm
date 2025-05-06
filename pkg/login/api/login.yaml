@@ -528,6 +528,21 @@ paths:
                   - $ref: "#/components/schemas/SelectUserRequiredResponse"
                   - $ref: "#/components/schemas/SelectUsersToAssociateRequiredResponse"
                   - $ref: "#/components/schemas/AssociateUserResponse"
+  /device/expiration:
+    get:
+      summary: Get device expiration days
+      operationId: get_device_expiration
+      responses:
+        "200":
+          description: Successfully retrieved device expiration days
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expiration_days:
+                    type: integer
+                    description: Number of days a device is remembered for 2FA
 components:
   schemas:
     MultiUsersResponse:
