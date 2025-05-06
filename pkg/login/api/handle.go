@@ -50,7 +50,7 @@ type Handle struct {
 	userMapper           mapper.UserMapper
 	deviceService        device.DeviceService
 	responseHandler      ResponseHandler
-	deviceExpirationDays int
+	deviceExpirationDays time.Duration
 }
 
 type Option func(*Handle)
@@ -108,7 +108,7 @@ func WithResponseHandler(rh ResponseHandler) Option {
 }
 
 // WithDeviceExpirationDays sets the device expiration days for the handle
-func WithDeviceExpirationDays(days int) Option {
+func WithDeviceExpirationDays(days time.Duration) Option {
 	return func(h *Handle) {
 		h.deviceExpirationDays = days
 	}
@@ -2083,5 +2083,19 @@ func (h Handle) recordSuccessfulLoginAndUpdateDevice(ctx context.Context, loginI
 			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprint)
 			// Don't fail the login if we can't update the last login time
 		}
+	}
+}
+
+// GetDeviceExpiration returns the device expiration days
+// (GET /device/expiration)
+func (h Handle) GetDeviceExpiration(w http.ResponseWriter, r *http.Request) *Response {
+	days := h.deviceExpirationDays / 24 / time.Hour
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]interface{}{
+			"expiration_days": days,
+			"message":         fmt.Sprintf("Devices are remembered for %d days.", days),
+		},
+		contentType: "application/json",
 	}
 }
