@@ -85,25 +85,10 @@ const Settings: Component = () => {
     setIsLoading(true);
     setDeviceError(null);
     try {
-      // We need to get the loginId from the device's linked_logins
-      const device = linkedDevices().find(d => d.fingerprint === fingerprint);
-      if (!device || !device.linked_logins || device.linked_logins.length === 0) {
-        throw new Error('Device information is incomplete');
-      }
-      
-      const loginId = device.linked_logins[0].id;
-      await request(`/api/idm/device/login/${loginId}/unlink`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fingerprint,
-        }),
-      });
-      
-      // Refresh the devices list
-      await fetchLinkedDevices();
+      // Use the new profile API endpoint that doesn't require login ID
+      await profileApi.unlinkDevice(fingerprint);
+      await fetchLinkedDevices(); // Refresh the list
+      setSuccess('Device unlinked successfully');
     } catch (err) {
       const errorDetails = extractErrorDetails(err);
       setDeviceError(errorDetails.message || 'Failed to unlink device');
