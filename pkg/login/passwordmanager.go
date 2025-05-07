@@ -527,34 +527,15 @@ func (pm *PasswordManager) IsPasswordExpired(ctx context.Context, loginID string
 		return false, fmt.Errorf("invalid login ID: %w", err)
 	}
 
-	// Get the login entity
-	login, err := pm.repository.GetLoginById(ctx, loginUUID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get login: %w", err)
-	}
-
 	// Get the password expiration timestamp
 	expiresAt, valid, err := pm.repository.GetPasswordExpiresAt(ctx, loginUUID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get password expiration: %w", err)
 	}
 
-	// If password_expires_at is not set, set it now based on policy
+	// If password_expires_at is not set, return false
 	if !valid || expiresAt.IsZero() {
-		// Use updated_at as the base time if available, otherwise current time
-		baseTime := login.UpdatedAt
-		expiresTime := baseTime.Add(pm.policyChecker.GetPolicy().GetExpirationPeriod())
-
-		// Update the expiration time in the database
-		err = pm.repository.UpdatePasswordTimestamps(ctx, loginUUID, baseTime, expiresTime)
-		if err != nil {
-			slog.Error("Failed to set initial password expiration", "err", err)
-			// Continue with the check using the calculated expiration
-		}
-
-		// Check if the calculated expiration is in the past
-		now := time.Now().UTC()
-		return now.After(expiresTime), nil
+		return false, nil
 	}
 
 	// Check if the current time is after the expiration time
