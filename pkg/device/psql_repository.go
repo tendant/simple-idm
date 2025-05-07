@@ -76,27 +76,58 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 		device.DeviceType = determineDeviceType(device.UserAgent)
 	}
 
-	query := `
-		INSERT INTO device (
-			fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9
-		) RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
-	`
+	// Check if we need to include device_id in the query
+	var query string
+	var args []interface{}
+	
+	if device.DeviceID != uuid.Nil {
+		// Include device_id in the query
+		query = `
+			INSERT INTO device (
+				fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at, device_id
+			) VALUES (
+				$1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+			) RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at, device_id
+		`
+		args = []interface{}{
+			device.Fingerprint,
+			device.UserAgent,
+			device.AcceptHeaders,
+			device.Timezone,
+			device.ScreenResolution,
+			device.DeviceName,
+			device.DeviceType,
+			device.LastLoginAt,
+			device.CreatedAt,
+			device.DeviceID,
+		}
+		slog.Info("Creating mobile device with device ID", "fingerprint", device.Fingerprint, "deviceID", device.DeviceID)
+	} else {
+		// Standard query without device_id
+		query = `
+			INSERT INTO device (
+				fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
+			) VALUES (
+				$1, $2, $3, $4, $5, $6, $7, $8, $9
+			) RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at, device_id
+		`
+		args = []interface{}{
+			device.Fingerprint,
+			device.UserAgent,
+			device.AcceptHeaders,
+			device.Timezone,
+			device.ScreenResolution,
+			device.DeviceName,
+			device.DeviceType,
+			device.LastLoginAt,
+			device.CreatedAt,
+		}
+	}
 
-	row := r.db.QueryRow(ctx, query,
-		device.Fingerprint,
-		device.UserAgent,
-		device.AcceptHeaders,
-		device.Timezone,
-		device.ScreenResolution,
-		device.DeviceName,
-		device.DeviceType,
-		device.LastLoginAt,
-		device.CreatedAt,
-	)
+	row := r.db.QueryRow(ctx, query, args...)
 
 	var result Device
+	var deviceID pgtype.UUID
 	err = row.Scan(
 		&result.Fingerprint,
 		&result.UserAgent,
@@ -107,10 +138,16 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 		&result.DeviceType,
 		&result.LastLoginAt,
 		&result.CreatedAt,
+		&deviceID,
 	)
 	if err != nil {
 		slog.Error("Failed to create device", "err", err, "fingerprint", device.Fingerprint)
 		return Device{}, fmt.Errorf("failed to create device: %w", err)
+	}
+
+	// Convert pgtype.UUID to uuid.UUID if valid
+	if deviceID.Valid {
+		result.DeviceID = uuid.UUID(deviceID.Bytes)
 	}
 
 	slog.Debug("Device created", "fingerprint", result.Fingerprint)
@@ -120,7 +157,7 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 // GetDeviceByFingerprint retrieves a device by its fingerprint
 func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, fingerprint string) (Device, error) {
 	query := `
-		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
+		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at, device_id
 		FROM device
 		WHERE fingerprint = $1
 	`
@@ -128,6 +165,7 @@ func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, f
 	row := r.db.QueryRow(ctx, query, fingerprint)
 
 	var device Device
+	var deviceID pgtype.UUID
 	err := row.Scan(
 		&device.Fingerprint,
 		&device.UserAgent,
@@ -138,38 +176,43 @@ func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, f
 		&device.DeviceType,
 		&device.LastLoginAt,
 		&device.CreatedAt,
+		&deviceID,
 	)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			slog.Debug("Device not found", "fingerprint", fingerprint)
+		if err == pgx.ErrNoRows {
 			return Device{}, errors.New("device not found")
 		}
-		slog.Error("Failed to get device", "err", err, "fingerprint", fingerprint)
-		return Device{}, fmt.Errorf("failed to get device: %w", err)
+		slog.Error("Failed to get device by fingerprint", "err", err, "fingerprint", fingerprint)
+		return Device{}, fmt.Errorf("failed to get device by fingerprint: %w", err)
 	}
 
-	slog.Debug("Device found", "fingerprint", fingerprint)
+	// Convert pgtype.UUID to uuid.UUID if valid
+	if deviceID.Valid {
+		device.DeviceID = uuid.UUID(deviceID.Bytes)
+	}
+
 	return device, nil
 }
 
 // FindDevices returns all devices
 func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, error) {
 	query := `
-		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
+		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at, device_id
 		FROM device
-		ORDER BY created_at DESC
+		ORDER BY last_login_at DESC
 	`
 
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
-		slog.Error("Failed to find devices", "err", err)
-		return nil, fmt.Errorf("failed to find devices: %w", err)
+		slog.Error("Failed to query devices", "err", err)
+		return nil, fmt.Errorf("failed to query devices: %w", err)
 	}
 	defer rows.Close()
 
-	var devices []Device
+	devices := []Device{}
 	for rows.Next() {
 		var device Device
+		var deviceID pgtype.UUID
 		err := rows.Scan(
 			&device.Fingerprint,
 			&device.UserAgent,
@@ -180,27 +223,33 @@ func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, e
 			&device.DeviceType,
 			&device.LastLoginAt,
 			&device.CreatedAt,
+			&deviceID,
 		)
 		if err != nil {
-			slog.Error("Failed to scan device", "err", err)
-			return nil, fmt.Errorf("failed to scan device: %w", err)
+			slog.Error("Failed to scan device row", "err", err)
+			return nil, fmt.Errorf("failed to scan device row: %w", err)
 		}
+		
+		// Convert pgtype.UUID to uuid.UUID if valid
+		if deviceID.Valid {
+			device.DeviceID = uuid.UUID(deviceID.Bytes)
+		}
+		
 		devices = append(devices, device)
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("Error iterating over devices", "err", err)
-		return nil, fmt.Errorf("error iterating over devices: %w", err)
+		slog.Error("Error iterating device rows", "err", err)
+		return nil, fmt.Errorf("error iterating device rows: %w", err)
 	}
 
-	slog.Debug("Found devices", "count", len(devices))
 	return devices, nil
 }
 
 // FindDevicesByLogin returns all devices linked to a specific login
 func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID uuid.UUID) ([]Device, error) {
 	query := `
-		SELECT d.fingerprint, d.user_agent, d.accept_headers, d.timezone, d.screen_resolution, d.device_name, d.device_type, d.last_login_at, d.created_at
+		SELECT d.fingerprint, d.user_agent, d.accept_headers, d.timezone, d.screen_resolution, d.device_name, d.device_type, d.last_login_at, d.created_at, d.device_id
 		FROM device d
 		JOIN login_device ld ON d.fingerprint = ld.fingerprint
 		WHERE ld.login_id = $1 AND ld.deleted_at IS NULL
@@ -209,14 +258,15 @@ func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, login
 
 	rows, err := r.db.Query(ctx, query, loginID)
 	if err != nil {
-		slog.Error("Failed to find devices by login", "err", err, "loginID", loginID)
-		return nil, fmt.Errorf("failed to find devices by login: %w", err)
+		slog.Error("Failed to query devices by login", "err", err, "loginID", loginID)
+		return nil, fmt.Errorf("failed to query devices by login: %w", err)
 	}
 	defer rows.Close()
 
-	var devices []Device
+	devices := []Device{}
 	for rows.Next() {
 		var device Device
+		var deviceID pgtype.UUID
 		err := rows.Scan(
 			&device.Fingerprint,
 			&device.UserAgent,
@@ -227,20 +277,26 @@ func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, login
 			&device.DeviceType,
 			&device.LastLoginAt,
 			&device.CreatedAt,
+			&deviceID,
 		)
 		if err != nil {
-			slog.Error("Failed to scan device", "err", err)
-			return nil, fmt.Errorf("failed to scan device: %w", err)
+			slog.Error("Failed to scan device row", "err", err)
+			return nil, fmt.Errorf("failed to scan device row: %w", err)
 		}
+		
+		// Convert pgtype.UUID to uuid.UUID if valid
+		if deviceID.Valid {
+			device.DeviceID = uuid.UUID(deviceID.Bytes)
+		}
+		
 		devices = append(devices, device)
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("Error iterating over devices", "err", err)
-		return nil, fmt.Errorf("error iterating over devices: %w", err)
+		slog.Error("Error iterating device rows", "err", err)
+		return nil, fmt.Errorf("error iterating device rows: %w", err)
 	}
 
-	slog.Debug("Found devices by login", "loginID", loginID, "count", len(devices))
 	return devices, nil
 }
 
@@ -250,12 +306,13 @@ func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fi
 		UPDATE device
 		SET last_login_at = $2
 		WHERE fingerprint = $1
-		RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at
+		RETURNING fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at, device_id
 	`
 
 	row := r.db.QueryRow(ctx, query, fingerprint, lastLogin)
 
 	var device Device
+	var deviceID pgtype.UUID
 	err := row.Scan(
 		&device.Fingerprint,
 		&device.UserAgent,
@@ -266,17 +323,21 @@ func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fi
 		&device.DeviceType,
 		&device.LastLoginAt,
 		&device.CreatedAt,
+		&deviceID,
 	)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			slog.Debug("Device not found for update", "fingerprint", fingerprint)
+		if err == pgx.ErrNoRows {
 			return Device{}, errors.New("device not found")
 		}
 		slog.Error("Failed to update device last login", "err", err, "fingerprint", fingerprint)
 		return Device{}, fmt.Errorf("failed to update device last login: %w", err)
 	}
 
-	slog.Debug("Device last login updated", "fingerprint", fingerprint, "lastLogin", lastLogin)
+	// Convert pgtype.UUID to uuid.UUID if valid
+	if deviceID.Valid {
+		device.DeviceID = uuid.UUID(deviceID.Bytes)
+	}
+
 	return device, nil
 }
 

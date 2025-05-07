@@ -47,6 +47,11 @@ func (r *InMemDeviceRepository) CreateDevice(ctx context.Context, device Device)
 		return Device{}, errors.New("device already exists")
 	}
 
+	// Log if this is a mobile device with a device ID
+	if device.DeviceID != uuid.Nil {
+		slog.Info("Creating mobile device with device ID", "fingerprint", device.Fingerprint, "deviceID", device.DeviceID)
+	}
+
 	r.devices[device.Fingerprint] = device
 	slog.Debug("Device created", "fingerprint", device.Fingerprint)
 	return device, nil

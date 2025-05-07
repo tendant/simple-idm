@@ -17,6 +17,7 @@ type Device struct {
 	DeviceType       string
 	LastLoginAt      time.Time
 	CreatedAt        time.Time
+	DeviceID         uuid.UUID
 }
 
 type LoginDevice struct {
@@ -61,7 +62,7 @@ type DeviceRepository interface {
 
 	// UpdateLoginDeviceDisplayName updates the display name of a login-device link
 	UpdateLoginDeviceDisplayName(ctx context.Context, loginID uuid.UUID, fingerprint string, displayName string) (LoginDevice, error)
-	
+
 	// GetExpiryDuration returns the configured expiry duration for login-device links
 	GetExpiryDuration() time.Duration
 }
