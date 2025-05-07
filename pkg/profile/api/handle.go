@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
@@ -1174,6 +1175,89 @@ func (h Handle) UpdateDeviceDisplayName(w http.ResponseWriter, r *http.Request, 
 			Status:  UpdateDeviceDisplayNameResponseStatusSuccess,
 			Message: "Device display name updated successfully",
 			Device:  deviceWithLogin,
+		},
+	}
+}
+
+// UnlinkDeviceFromLogin handles unlinking a device from the current login
+// (POST /devices/unlink)
+func (h Handle) UnlinkDeviceFromLogin(w http.ResponseWriter, r *http.Request) *Response {
+	// Get authenticated user from context
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok || authUser == nil {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Parse request body
+	var req UnlinkDeviceFromLoginJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Invalid request body",
+			},
+		}
+	}
+
+	// Validate request
+	if req.Fingerprint == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Fingerprint is required",
+			},
+		}
+	}
+
+	// Get login ID from authenticated user
+	loginID := authUser.LoginID
+
+	// Unlink the device from the login
+	err := h.deviceService.UnlinkLoginFromDevice(r.Context(), loginID, req.Fingerprint)
+	if err != nil {
+		slog.Error("Failed to unlink device from login", "error", err, "login_id", loginID, "fingerprint", req.Fingerprint)
+		
+		// Check error message to determine the appropriate response
+		if strings.Contains(err.Error(), "device not found") {
+			return &Response{
+				Code: http.StatusNotFound,
+				body: map[string]string{
+					"code":    "not_found",
+					"message": "Device not found",
+				},
+			}
+		} else if strings.Contains(err.Error(), "login device link not found") {
+			return &Response{
+				Code: http.StatusNotFound,
+				body: map[string]string{
+					"code":    "not_found",
+					"message": "Device not linked to this login",
+				},
+			}
+		}
+		
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to unlink device: " + err.Error(),
+			},
+		}
+	}
+
+	// Return success response
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"status":  "success",
+			"message": "Device unlinked successfully",
 		},
 	}
 }
