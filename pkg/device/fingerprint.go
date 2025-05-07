@@ -16,7 +16,7 @@ type FingerprintData struct {
 	Timezone         string
 	ScreenResolution string
 	DeviceID         string // For mobile devices
-	IsMobile         bool   // Flag to indicate if this is a mobile device
+	IsMobileApp      bool   // Flag to indicate if this is a mobile device
 }
 
 // GenerateFingerprint creates a unique fingerprint for a device based on the provided data
@@ -26,7 +26,7 @@ type FingerprintData struct {
 func GenerateFingerprint(data FingerprintData) string {
 	var combined string
 
-	if data.IsMobile && data.DeviceID != "" {
+	if data.IsMobileApp && data.DeviceID != "" {
 		// For mobile devices, use only the device ID
 		combined = data.DeviceID
 	} else {
@@ -69,7 +69,7 @@ func ExtractFingerprintDataFromRequest(r *http.Request) FingerprintData {
 		Timezone:         r.Header.Get("Timezone"),
 		ScreenResolution: r.Header.Get("Screen-Resolution"),
 		DeviceID:         deviceID,
-		IsMobile:         isMobile,
+		IsMobileApp:      isMobile,
 	}
 }
 
