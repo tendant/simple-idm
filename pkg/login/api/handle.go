@@ -2094,7 +2094,7 @@ func (h Handle) GetDeviceExpiration(w http.ResponseWriter, r *http.Request) *Res
 		Code: http.StatusOK,
 		body: map[string]interface{}{
 			"expiration_days": days,
-			"message":         fmt.Sprintf("Devices are remembered for %d days.", days),
+			"message":         fmt.Sprintf("Remember this device for %d days.", days),
 		},
 		contentType: "application/json",
 	}
