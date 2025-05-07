@@ -4,9 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"log/slog"
 	"net/http"
-	"strings"
 )
 
 // FingerprintData contains the components used to generate a device fingerprint
@@ -16,7 +14,6 @@ type FingerprintData struct {
 	Timezone         string
 	ScreenResolution string
 	DeviceID         string // For mobile devices
-	IsMobileApp      bool   // Flag to indicate if this is a mobile device
 }
 
 // GenerateFingerprint creates a unique fingerprint for a device based on the provided data
@@ -26,7 +23,7 @@ type FingerprintData struct {
 func GenerateFingerprint(data FingerprintData) string {
 	var combined string
 
-	if data.IsMobileApp && data.DeviceID != "" {
+	if data.DeviceID != "" {
 		// For mobile devices, use only the device ID
 		combined = data.DeviceID
 	} else {
@@ -50,26 +47,18 @@ func GenerateFingerprint(data FingerprintData) string {
 func ExtractFingerprintDataFromRequest(r *http.Request) FingerprintData {
 	// Check if the request is from a mobile device by looking for the Device-ID header
 	deviceID := r.Header.Get("X-Device-ID")
-	isMobile := deviceID != ""
 
 	// Get the Accept headers
 	acceptHeaders := r.Header.Get("Accept") + "|" +
 		r.Header.Get("Accept-Language") + "|" +
 		r.Header.Get("Accept-Encoding")
 
-	// If no explicit device ID is provided, check if the User-Agent indicates a mobile device
-	if !isMobile && isMobileUserAgent(r.UserAgent()) {
-		slog.Error("Mobile device detected but no device ID provided")
-		isMobile = true
-	}
-	slog.Info("IsMobile", "isMobile", isMobile, "deviceID", deviceID)
 	return FingerprintData{
 		UserAgent:        r.UserAgent(),
 		AcceptHeaders:    acceptHeaders,
 		Timezone:         r.Header.Get("Timezone"),
 		ScreenResolution: r.Header.Get("Screen-Resolution"),
 		DeviceID:         deviceID,
-		IsMobileApp:      isMobile,
 	}
 }
 
@@ -78,22 +67,4 @@ func ExtractFingerprintDataFromRequest(r *http.Request) FingerprintData {
 func GetRequestFingerprint(r *http.Request) string {
 	data := ExtractFingerprintDataFromRequest(r)
 	return GenerateFingerprint(data)
-}
-
-// isMobileUserAgent checks if the user agent string indicates a mobile device
-func isMobileUserAgent(userAgent string) bool {
-	userAgentLower := strings.ToLower(userAgent)
-	mobileKeywords := []string{
-		"android", "iphone", "ipad", "ipod", "windows phone", "blackberry",
-		"mobile", "tablet", "opera mini", "opera mobi", "samsung",
-		"nokia", "symbian", "webos", "palm", "midp", "j2me", "wap", "mobile safari",
-	}
-
-	for _, keyword := range mobileKeywords {
-		if strings.Contains(userAgentLower, keyword) {
-			return true
-		}
-	}
-
-	return false
 }
