@@ -23,12 +23,15 @@ type BackupCode struct {
 
 type Device struct {
 	Fingerprint      string         `json:"fingerprint"`
-	UserAgent        string         `json:"user_agent"`
+	UserAgent        sql.NullString `json:"user_agent"`
 	AcceptHeaders    sql.NullString `json:"accept_headers"`
 	Timezone         sql.NullString `json:"timezone"`
 	ScreenResolution sql.NullString `json:"screen_resolution"`
 	LastLoginAt      time.Time      `json:"last_login_at"`
 	CreatedAt        time.Time      `json:"created_at"`
+	DeviceName       sql.NullString `json:"device_name"`
+	DeviceType       sql.NullString `json:"device_type"`
+	DeviceID         uuid.NullUUID  `json:"device_id"`
 }
 
 type GooseDbVersion struct {
@@ -79,12 +82,15 @@ type LoginAttempt struct {
 }
 
 type LoginDevice struct {
-	ID          uuid.UUID    `json:"id"`
-	LoginID     uuid.UUID    `json:"login_id"`
-	Fingerprint string       `json:"fingerprint"`
-	LinkedAt    time.Time    `json:"linked_at"`
-	ExpiresAt   time.Time    `json:"expires_at"`
-	DeletedAt   sql.NullTime `json:"deleted_at"`
+	ID          uuid.UUID      `json:"id"`
+	LoginID     uuid.UUID      `json:"login_id"`
+	Fingerprint string         `json:"fingerprint"`
+	LinkedAt    time.Time      `json:"linked_at"`
+	ExpiresAt   time.Time      `json:"expires_at"`
+	DeletedAt   sql.NullTime   `json:"deleted_at"`
+	DisplayName sql.NullString `json:"display_name"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
 }
 
 type LoginPasswordHistory struct {
