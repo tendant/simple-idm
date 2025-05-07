@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -104,6 +105,7 @@ type Config struct {
 	JwtConfig                JwtConfig
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
+	DeviceExpirationDays     string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
 }
 
 func main() {
@@ -199,12 +201,37 @@ func main() {
 	)
 
 	// Initialize device recognition service and routes
-	deviceRepository := device.NewPostgresDeviceRepository(pool)
+	// Configure device expiration using the value from config
+	deviceExpirationDays := config.DeviceExpirationDays
+	deviceExpiryDuration, err := time.ParseDuration(deviceExpirationDays)
+	if err != nil {
+		slog.Error("Failed to parse device expiration duration", "error", err)
+		// Default to 90 days if parsing fails
+		deviceExpiryDuration = device.DefaultDeviceExpiryDuration
+	}
+
+	deviceRepositoryOptions := device.DeviceRepositoryOptions{
+		ExpiryDuration: deviceExpiryDuration,
+	}
+	deviceRepository := device.NewPostgresDeviceRepositoryWithOptions(pool, deviceRepositoryOptions)
 	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
 
-	twoFaService := twofa.NewTwoFaService(twofaQueries, notificationManager, userMapper)
+	twoFaService := twofa.NewTwoFaService(
+		twofaQueries,
+		twofa.WithNotificationManager(notificationManager),
+		twofa.WithUserMapper(userMapper),
+	)
 	// Create a new handle with the domain login service directly
-	loginHandle := loginapi.NewHandle(loginService, tokenService, tokenCookieService, userMapper, *deviceService, loginapi.WithTwoFactorService(twoFaService), loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()))
+	loginHandle := loginapi.NewHandle(
+		loginapi.WithLoginService(loginService),
+		loginapi.WithTokenService(tokenService),
+		loginapi.WithTokenCookieService(tokenCookieService),
+		loginapi.WithUserMapper(userMapper),
+		loginapi.WithDeviceService(*deviceService),
+		loginapi.WithTwoFactorService(twoFaService),
+		loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()),
+		loginapi.WithDeviceExpirationDays(deviceExpiryDuration),
+	)
 
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 

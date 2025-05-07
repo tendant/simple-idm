@@ -43,28 +43,75 @@ const (
 )
 
 type Handle struct {
-	loginService       *login.LoginService
-	twoFactorService   twofa.TwoFactorService
-	tokenService       tg.TokenService
-	tokenCookieService tg.TokenCookieService
-	userMapper         mapper.UserMapper
-	deviceService      device.DeviceService
-	responseHandler    ResponseHandler
+	loginService         *login.LoginService
+	twoFactorService     twofa.TwoFactorService
+	tokenService         tg.TokenService
+	tokenCookieService   tg.TokenCookieService
+	userMapper           mapper.UserMapper
+	deviceService        device.DeviceService
+	responseHandler      ResponseHandler
+	deviceExpirationDays time.Duration
 }
 
-func NewHandle(loginService *login.LoginService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, userMapper mapper.UserMapper, deviceService device.DeviceService, opts ...Option) Handle {
+type Option func(*Handle)
+
+func NewHandle(opts ...Option) Handle {
 	h := Handle{
-		loginService:       loginService,
-		tokenService:       tokenService,
-		tokenCookieService: tokenCookieService,
-		userMapper:         userMapper,
-		deviceService:      deviceService,
-		responseHandler:    NewDefaultResponseHandler(),
+		responseHandler: NewDefaultResponseHandler(),
 	}
 	for _, opt := range opts {
 		opt(&h)
 	}
 	return h
+}
+
+func WithLoginService(ls *login.LoginService) Option {
+	return func(h *Handle) {
+		h.loginService = ls
+	}
+}
+
+func WithTwoFactorService(tfs twofa.TwoFactorService) Option {
+	return func(h *Handle) {
+		h.twoFactorService = tfs
+	}
+}
+
+func WithTokenService(ts tg.TokenService) Option {
+	return func(h *Handle) {
+		h.tokenService = ts
+	}
+}
+
+func WithTokenCookieService(tcs tg.TokenCookieService) Option {
+	return func(h *Handle) {
+		h.tokenCookieService = tcs
+	}
+}
+
+func WithUserMapper(um mapper.UserMapper) Option {
+	return func(h *Handle) {
+		h.userMapper = um
+	}
+}
+
+func WithDeviceService(ds device.DeviceService) Option {
+	return func(h *Handle) {
+		h.deviceService = ds
+	}
+}
+
+func WithResponseHandler(rh ResponseHandler) Option {
+	return func(h *Handle) {
+		h.responseHandler = rh
+	}
+}
+
+// WithDeviceExpirationDays sets the device expiration days for the handle
+func WithDeviceExpirationDays(days time.Duration) Option {
+	return func(h *Handle) {
+		h.deviceExpirationDays = days
+	}
 }
 
 // ResponseHandler defines the interface for handling responses during login
@@ -2036,5 +2083,19 @@ func (h Handle) recordSuccessfulLoginAndUpdateDevice(ctx context.Context, loginI
 			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprint)
 			// Don't fail the login if we can't update the last login time
 		}
+	}
+}
+
+// GetDeviceExpiration returns the device expiration days
+// (GET /device/expiration)
+func (h Handle) GetDeviceExpiration(w http.ResponseWriter, r *http.Request) *Response {
+	days := h.deviceExpirationDays / 24 / time.Hour
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]interface{}{
+			"expiration_days": days,
+			"message":         fmt.Sprintf("Remember this device for %d days.", days),
+		},
+		contentType: "application/json",
 	}
 }

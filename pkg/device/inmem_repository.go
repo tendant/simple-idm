@@ -11,11 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// InMemDeviceRepository implements DeviceRepository using in-memory storage
+// InMemDeviceRepository implements DeviceRepository using an in-memory map
 type InMemDeviceRepository struct {
-	devices      map[string]Device      // Fingerprint -> Device
-	loginDevices map[string]LoginDevice // LoginID:Fingerprint -> LoginDevice
-	mu           sync.RWMutex
+	devices      map[string]Device
+	loginDevices map[string]LoginDevice
+	mu           sync.Mutex
+	options      DeviceRepositoryOptions
 }
 
 // NewInMemDeviceRepository creates a new in-memory device repository
@@ -23,6 +24,16 @@ func NewInMemDeviceRepository() *InMemDeviceRepository {
 	return &InMemDeviceRepository{
 		devices:      make(map[string]Device),
 		loginDevices: make(map[string]LoginDevice),
+		options:      DefaultDeviceRepositoryOptions(),
+	}
+}
+
+// NewInMemDeviceRepositoryWithOptions creates a new in-memory device repository with custom options
+func NewInMemDeviceRepositoryWithOptions(options DeviceRepositoryOptions) *InMemDeviceRepository {
+	return &InMemDeviceRepository{
+		devices:      make(map[string]Device),
+		loginDevices: make(map[string]LoginDevice),
+		options:      options,
 	}
 }
 
@@ -43,8 +54,8 @@ func (r *InMemDeviceRepository) CreateDevice(ctx context.Context, device Device)
 
 // GetDeviceByFingerprint retrieves a device by its fingerprint
 func (r *InMemDeviceRepository) GetDeviceByFingerprint(ctx context.Context, fingerprint string) (Device, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	device, exists := r.devices[fingerprint]
 	if !exists {
@@ -58,8 +69,8 @@ func (r *InMemDeviceRepository) GetDeviceByFingerprint(ctx context.Context, fing
 
 // FindDevices returns all devices
 func (r *InMemDeviceRepository) FindDevices(ctx context.Context) ([]Device, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	devices := make([]Device, 0, len(r.devices))
 	for _, device := range r.devices {
@@ -72,8 +83,8 @@ func (r *InMemDeviceRepository) FindDevices(ctx context.Context) ([]Device, erro
 
 // FindDevicesByLogin returns all devices linked to a specific login
 func (r *InMemDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID uuid.UUID) ([]Device, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	var devices []Device
 	// Map to track fingerprints we've already added to avoid duplicates
@@ -105,8 +116,8 @@ func (r *InMemDeviceRepository) FindDevicesByLogin(ctx context.Context, loginID 
 
 // FindLoginsByDevice returns all logins linked to a specific device
 func (r *InMemDeviceRepository) FindLoginsByDevice(ctx context.Context, fingerprint string) ([]LoginInfo, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	var loginInfos []LoginInfo
 	// Map to track login IDs we've already added to avoid duplicates
@@ -172,7 +183,7 @@ func (r *InMemDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID u
 		// Update the expiry date
 		slog.Debug("Updating existing device link", "fingerprint", fingerprint, "loginID", loginID,
 			"oldExpiry", existingLink.ExpiresAt.Format(time.RFC3339))
-		existingLink.ExpiresAt = CalculateExpiryDate(DefaultDeviceExpiryDays)
+		existingLink.ExpiresAt = CalculateExpiryDate(r.options.ExpiryDuration)
 		r.loginDevices[key] = existingLink
 		slog.Debug("Device link updated", "fingerprint", fingerprint, "loginID", loginID,
 			"newExpiry", existingLink.ExpiresAt.Format(time.RFC3339))
@@ -187,7 +198,7 @@ func (r *InMemDeviceRepository) LinkLoginToDevice(ctx context.Context, loginID u
 		Fingerprint: fingerprint,
 		DisplayName: r.devices[fingerprint].DeviceName, // Use device_name as initial display_name
 		LinkedAt:    now,
-		ExpiresAt:   CalculateExpiryDate(DefaultDeviceExpiryDays),
+		ExpiresAt:   CalculateExpiryDate(r.options.ExpiryDuration),
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -213,7 +224,7 @@ func (r *InMemDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, log
 	}
 	loginDevice.UpdatedAt = time.Now().UTC()
 	loginDevice.LinkedAt = time.Now().UTC()
-	loginDevice.ExpiresAt = CalculateExpiryDate(DefaultDeviceExpiryDays)
+	loginDevice.ExpiresAt = CalculateExpiryDate(r.options.ExpiryDuration)
 	r.loginDevices[key] = loginDevice
 	slog.Debug("Login device link expiry extended", "fingerprint", fingerprint, "loginID", loginID,
 		"newExpiry", loginDevice.ExpiresAt.Format(time.RFC3339))
@@ -222,8 +233,8 @@ func (r *InMemDeviceRepository) ExtendLoginDeviceExpiry(ctx context.Context, log
 
 // GetLoginDeviceWithExpiry retrieves a login device link and checks if it's expired
 func (r *InMemDeviceRepository) GetLoginDeviceWithExpiry(ctx context.Context, loginID uuid.UUID, fingerprint string) (LoginDevice, bool, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	// Create a key for the login device map
 	key := loginID.String() + ":" + fingerprint
@@ -268,8 +279,8 @@ func (r *InMemDeviceRepository) UnlinkLoginToDevice(ctx context.Context, loginID
 
 // FindLoginDeviceByFingerprintAndLoginID returns the login-device link for a specific fingerprint and login ID
 func (r *InMemDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx context.Context, fingerprint string, loginID uuid.UUID) (LoginDevice, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	slog.Debug("Finding login device link", "fingerprint", fingerprint, "loginID", loginID)
 	for _, link := range r.loginDevices {
@@ -311,6 +322,11 @@ func (r *InMemDeviceRepository) UpdateLoginDeviceDisplayName(ctx context.Context
 	result := loginDevice
 	slog.Debug("Updated device display name", "fingerprint", fingerprint, "loginID", loginID, "displayName", displayName)
 	return result, nil
+}
+
+// GetExpiryDuration returns the configured expiry duration for login-device links
+func (r *InMemDeviceRepository) GetExpiryDuration() time.Duration {
+	return r.options.ExpiryDuration
 }
 
 // WithTx returns the repository itself since in-memory implementation doesn't support transactions
