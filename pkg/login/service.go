@@ -248,6 +248,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		// Set failure information
 		result.FailureReason = FAILURE_REASON_ACCOUNT_LOCKED
 		result.LockedUntil = lockedUntil
+		slog.Info("account locked", "login id", login.ID, "locked until", lockedUntil)
 
 		return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
 	}
@@ -273,6 +274,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 
 		return result, fmt.Errorf("invalid username or password")
 	}
+	slog.Info("password valid", "login id", login.ID)
 
 	// Check if password is expired
 	isExpired, err := s.passwordManager.IsPasswordExpired(ctx, login.ID.String())
@@ -280,9 +282,11 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		slog.Error("Failed to check password expiration", "err", err)
 		// Don't block login if we can't check expiration
 	} else if isExpired {
+		slog.Info("password expired", "login id", login.ID)
 		result.FailureReason = FAILURE_REASON_PASSWORD_EXPIRED
 		return result, fmt.Errorf("password has expired and must be changed")
 	}
+	slog.Info("password not expired", "login id", login.ID)
 
 	// Get users associated with this login ID using the UserRepository
 	users, err := s.userMapper.FindUsersByLoginID(ctx, login.ID)
