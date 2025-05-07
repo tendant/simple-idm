@@ -203,11 +203,18 @@ func main() {
 	// Initialize device recognition service and routes
 	// Configure device expiration using the value from config
 	deviceExpirationDays := config.DeviceExpirationDays
-	deviceExpiryDuration, err := time.ParseDuration(deviceExpirationDays)
+	// Declare the device expiry duration variable
+	var deviceExpiryDuration time.Duration
+	// Parse ISO 8601 duration using the duration package
+	isoDuration, err := duration.Parse(deviceExpirationDays)
 	if err != nil {
 		slog.Error("Failed to parse device expiration duration", "error", err)
 		// Default to 90 days if parsing fails
 		deviceExpiryDuration = device.DefaultDeviceExpiryDuration
+	} else {
+		// Convert ISO duration to time.Duration
+		deviceExpiryDuration = isoDuration.ToTimeDuration()
+		slog.Info("Device expiration duration set", "duration", deviceExpiryDuration)
 	}
 
 	deviceRepositoryOptions := device.DeviceRepositoryOptions{

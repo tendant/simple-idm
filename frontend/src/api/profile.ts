@@ -147,4 +147,31 @@ export const profileApi = {
       throw error;
     }
   },
+  
+  /**
+   * Unlink a device from the current login
+   * @param fingerprint The fingerprint of the device to unlink
+   * @returns Promise with the response
+   */
+  unlinkDevice: async (fingerprint: string): Promise<ProfileResponse> => {
+    try {
+      const response = await fetchWithAuth('/api/idm/profile/devices/unlink', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fingerprint }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to unlink device');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error unlinking device:', error);
+      throw error;
+    }
+  },
 };

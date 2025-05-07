@@ -367,6 +367,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UpdateDeviceDisplayNameResponse'
+  /devices/unlink:
+    post:
+      summary: Unlink a device from a login
+      operationId: UnlinkDeviceFromLogin
+      description: Unlink a device from the current login using its fingerprint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fingerprint:
+                  type: string
+                  description: Fingerprint of the device to unlink
+              required:
+                - fingerprint
+      responses:
+        "200":
+          description: Device unlinked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Device unlinked successfully"
+                required:
+                  - status
+                  - message
   /users/associate:
     post:
       summary: Associate a user to the current login
