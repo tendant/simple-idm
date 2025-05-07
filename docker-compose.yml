@@ -42,51 +42,53 @@ services:
       - PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS=3
       - PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT=0
       - PASSWORD_COMPLEXITY_EXPIRATION_DAYS=90
+      # Device expiration
+      - DEVICE_EXPIRATION_DAYS=2160h  # 90 days in hours (90*24)
       # Base URL
       - BASE_URL=http://localhost:4000
     depends_on:
-      - db
+      # - db
       - mailpit
     command: ["/app/cmd/login"]  # Use the login binary
 
-  db:
-    image: postgres:16-alpine
-    environment:
-      - POSTGRES_USER=idm
-      - POSTGRES_PASSWORD=pwd
-      - POSTGRES_DB=idm_db
-    ports:
-      - "5432:5432"  # Map to the provided port
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h db -p 5432 -U idm"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+  # db:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     - POSTGRES_USER=idm
+  #     - POSTGRES_PASSWORD=pwd
+  #     - POSTGRES_DB=idm_db
+  #   ports:
+  #     - "5432:5432"  # Map to the provided port
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -h db -p 5432 -U idm"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
 
-  migrate:
-    build: ./migrations
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      GOOSE_DRIVER: postgres
-      GOOSE_DBSTRING: postgres://idm:pwd@db:5432/idm_db?sslmode=disable
-    volumes:
-      - ./migrations/idm:/migrations/idm
-    command: /go/bin/goose -dir /migrations/idm up
+  # migrate:
+  #   build: ./migrations
+  #   # depends_on:
+  #     # db:
+  #     #   condition: service_healthy
+  #   environment:
+  #     GOOSE_DRIVER: postgres
+  #     GOOSE_DBSTRING: postgres://idm:pwd@db:5432/idm_db?sslmode=disable
+  #   volumes:
+  #     - ./migrations/idm:/migrations/idm
+  #   command: /go/bin/goose -dir /migrations/idm up
 
   seed:
     image: postgres:16
-    depends_on:
-      db:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+    # depends_on:
+    #   migrate:
+    #     condition: service_completed_successfully
     volumes:
       - ./migrations/seed.sql:/seed.sql
-    entrypoint: ["sh", "-c", "psql -U idm -d idm_db -h db -f /seed.sql"]
+    entrypoint: ["sh", "-c", "psql -U bat -d powercard_db -h powercard_db -p 5432 -f /seed.sql"]
+    networks:
+      - powercard-net
     environment:
       PGPASSWORD: pwd
 
@@ -106,3 +108,7 @@ services:
 volumes:
   postgres_data:
   mailpit_data:
+
+networks:
+  powercard-net:
+    external: true
