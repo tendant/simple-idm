@@ -62,7 +62,7 @@ func ExtractFingerprintDataFromRequest(r *http.Request) FingerprintData {
 		slog.Error("Mobile device detected but no device ID provided")
 		isMobile = true
 	}
-
+	slog.Info("IsMobile", "isMobile", isMobile)
 	return FingerprintData{
 		UserAgent:        r.UserAgent(),
 		AcceptHeaders:    acceptHeaders,
@@ -85,7 +85,7 @@ func isMobileUserAgent(userAgent string) bool {
 	userAgentLower := strings.ToLower(userAgent)
 	mobileKeywords := []string{
 		"android", "iphone", "ipad", "ipod", "windows phone", "blackberry",
-		"mobile", "tablet", "opera mini", "opera mobi", "safari/", "samsung",
+		"mobile", "tablet", "opera mini", "opera mobi", "samsung",
 		"nokia", "symbian", "webos", "palm", "midp", "j2me", "wap", "mobile safari",
 	}
 
