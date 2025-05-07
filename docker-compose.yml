@@ -11,10 +11,10 @@ services:
       # Inside Docker, your app must bind to 0.0.0.0, not localhost:
       - HOST=0.0.0.0
       # Database configuration
-      - IDM_PG_HOST=db
+      - IDM_PG_HOST=powercard_db
       - IDM_PG_PORT=5432
-      - IDM_PG_DATABASE=idm_db
-      - IDM_PG_USER=idm
+      - IDM_PG_DATABASE=powercard_db
+      - IDM_PG_USER=bat
       - IDM_PG_PASSWORD=pwd
       # JWT configuration
       - JWT_SECRET=very-secure-jwt-secret
@@ -46,6 +46,8 @@ services:
       - DEVICE_EXPIRATION_DAYS=2160h  # 90 days in hours (90*24)
       # Base URL
       - BASE_URL=http://localhost:4000
+    networks:
+      - powercard-net
     depends_on:
       # - db
       - mailpit
