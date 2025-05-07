@@ -56,14 +56,15 @@ ALTER TABLE public.backup_codes OWNER TO idm;
 
 CREATE TABLE public.device (
     fingerprint character varying(255) NOT NULL,
-    user_agent text NOT NULL,
+    user_agent text,
     accept_headers text,
     timezone character varying(100),
     screen_resolution character varying(50),
     last_login_at timestamp without time zone NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
     device_name character varying(255),
-    device_type character varying(50)
+    device_type character varying(50),
+    device_id uuid
 );
 
 
@@ -163,8 +164,8 @@ CREATE TABLE public.login_attempt (
     device_fingerprint character varying(255)
 );
 
-ALTER TABLE public.login_attempt OWNER TO idm;
 
+ALTER TABLE public.login_attempt OWNER TO idm;
 
 --
 -- Name: login_device; Type: TABLE; Schema: public; Owner: idm
@@ -403,6 +404,13 @@ CREATE INDEX idx_backup_codes_user_uuid ON public.backup_codes USING btree (user
 
 
 --
+-- Name: idx_device_device_id; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_device_device_id ON public.device USING btree (device_id);
+
+
+--
 -- Name: idx_login_device_expires_at; Type: INDEX; Schema: public; Owner: idm
 --
 
@@ -442,6 +450,7 @@ CREATE INDEX idx_login_password_reset_tokens_token ON public.login_password_rese
 --
 
 CREATE INDEX login_attempt_login_id_idx ON public.login_attempt USING btree (login_id);
+
 
 --
 -- Name: login_password_history_login_id_idx; Type: INDEX; Schema: public; Owner: idm

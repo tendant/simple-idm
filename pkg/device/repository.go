@@ -17,6 +17,7 @@ type Device struct {
 	DeviceType       string
 	LastLoginAt      time.Time
 	CreatedAt        time.Time
+	DeviceID         uuid.UUID
 }
 
 type LoginDevice struct {
@@ -61,13 +62,19 @@ type DeviceRepository interface {
 
 	// UpdateLoginDeviceDisplayName updates the display name of a login-device link
 	UpdateLoginDeviceDisplayName(ctx context.Context, loginID uuid.UUID, fingerprint string, displayName string) (LoginDevice, error)
-	
+
 	// GetExpiryDuration returns the configured expiry duration for login-device links
 	GetExpiryDuration() time.Duration
 }
 
 const (
 	DefaultDeviceExpiryDuration = 90 * 24 * time.Hour // Default expiration is 90 days
+
+	// Device types
+	DeviceTypeMobile  = "mobile"
+	DeviceTypeTablet  = "tablet"
+	DeviceTypeDesktop = "desktop"
+	DeviceTypeOther   = "other"
 )
 
 // DeviceRepositoryOptions contains options for configuring the device repository

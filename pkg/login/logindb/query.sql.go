@@ -58,7 +58,7 @@ func (q *Queries) FindEmailByEmail(ctx context.Context, email string) (string, e
 
 const findLoginByUsername = `-- name: FindLoginByUsername :one
 SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at,
-       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until
+       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until, l.password_updated_at, l.password_expires_at
 FROM login l
 WHERE l.username = $1
 AND l.deleted_at IS NULL
@@ -74,6 +74,8 @@ type FindLoginByUsernameRow struct {
 	FailedLoginAttempts pgtype.Int4    `json:"failed_login_attempts"`
 	LastFailedAttemptAt sql.NullTime   `json:"last_failed_attempt_at"`
 	LockedUntil         sql.NullTime   `json:"locked_until"`
+	PasswordUpdatedAt   sql.NullTime   `json:"password_updated_at"`
+	PasswordExpiresAt   sql.NullTime   `json:"password_expires_at"`
 }
 
 func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullString) (FindLoginByUsernameRow, error) {
@@ -89,6 +91,8 @@ func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullStri
 		&i.FailedLoginAttempts,
 		&i.LastFailedAttemptAt,
 		&i.LockedUntil,
+		&i.PasswordUpdatedAt,
+		&i.PasswordExpiresAt,
 	)
 	return i, err
 }

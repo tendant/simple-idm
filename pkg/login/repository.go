@@ -28,6 +28,8 @@ type LoginEntity struct {
 	FailedLoginAttempts int32
 	LastFailedAttemptAt time.Time
 	LockedUntil         time.Time
+	PasswordUpdatedAt   time.Time
+	PasswordExpiresAt   time.Time
 }
 
 // PasswordResetToken represents a password reset token
@@ -185,6 +187,8 @@ func (r *PostgresLoginRepository) FindLoginByUsername(ctx context.Context, usern
 		FailedLoginAttempts: dbLogin.FailedLoginAttempts.Int32,
 		LastFailedAttemptAt: dbLogin.LastFailedAttemptAt.Time,
 		LockedUntil:         dbLogin.LockedUntil.Time,
+		PasswordUpdatedAt:   dbLogin.PasswordUpdatedAt.Time,
+		PasswordExpiresAt:   dbLogin.PasswordExpiresAt.Time,
 	}, nil
 }
 

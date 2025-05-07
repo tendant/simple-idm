@@ -12,7 +12,7 @@ WHERE username = $2;
 
 -- name: FindLoginByUsername :one
 SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at,
-       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until
+       l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until, l.password_updated_at, l.password_expires_at
 FROM login l
 WHERE l.username = $1
 AND l.deleted_at IS NULL;

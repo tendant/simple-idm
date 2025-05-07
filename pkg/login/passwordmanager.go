@@ -302,7 +302,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	slog.Info("Password complexity checked")
 
 	// Get current password and version for history
-	_, err = pm.repository.GetLoginById(ctx, tokenInfo.LoginID)
+	login, err := pm.repository.GetLoginById(ctx, tokenInfo.LoginID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", errors.New("user not found")
@@ -311,28 +311,27 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 		return "", fmt.Errorf("failed to get current password: %w", err)
 	}
 
-	// FIX-ME: include and test in May 2025 Sprint
 	// If we found the login, check password history
-	// if err == nil && pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
-	// 	if err := pm.CheckPasswordHistory(ctx, tokenInfo.LoginID.String(), newPassword); err != nil {
-	// 		slog.Error("Failed to check password history", "err", err)
-	// 		return "", err
-	// 	}
+	if err == nil && pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
+		if err := pm.CheckPasswordHistory(ctx, tokenInfo.LoginID.String(), newPassword); err != nil {
+			slog.Error("Failed to check password history", "err", err)
+			return "", err
+		}
 
-	// 	// Store the old password in history
-	// 	version, isValid, err := pm.repository.GetPasswordVersion(ctx, tokenInfo.LoginID)
-	// 	if err == nil && isValid {
-	// 		// Only add to history if we could get the version
-	// 		err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID, string(login.Password), PasswordVersion(version))
-	// 		if err != nil {
-	// 			// Log but continue
-	// 			slog.Error("Failed to add password to history", "error", err)
-	// 		}
-	// 	}
-	// 	slog.Info("password version", "version", version)
-	// }
+		// Store the old password in history
+		version, isValid, err := pm.repository.GetPasswordVersion(ctx, tokenInfo.LoginID)
+		if err == nil && isValid {
+			// Only add to history if we could get the version
+			err = pm.addPasswordToHistory(ctx, tokenInfo.LoginID, string(login.Password), PasswordVersion(version))
+			if err != nil {
+				// Log but continue
+				slog.Error("Failed to add password to history", "error", err)
+			}
+		}
+		slog.Info("password version", "version", version)
+	}
 
-	// slog.Info("Password history checked")
+	slog.Info("Password history checked")
 
 	// Hash the new password using the current version
 	slog.Info("Password Version in Password Manager", "version", pm.currentVersion)
@@ -435,21 +434,20 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 	}
 	slog.Info("New password is valid")
 
-	// FIX-ME: include and test in May 2025 Sprint
 	// Check password history if enabled
-	// if pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
-	// 	if err := pm.CheckPasswordHistory(ctx, userID, newPassword); err != nil {
-	// 		return err
-	// 	}
+	if pm.policyChecker.GetPolicy().HistoryCheckCount > 0 {
+		if err := pm.CheckPasswordHistory(ctx, login.ID.String(), newPassword); err != nil {
+			return err
+		}
 
-	// 	// Add the current password to history
-	// 	err = pm.addPasswordToHistory(ctx, login.LoginID, string(login.Password), PasswordVersion(passwordVersion.Int32))
-	// 	if err != nil {
-	// 		// Log but continue
-	// 		slog.Error("Failed to add password to history", "error", err)
-	// 		return err
-	// 	}
-	// }
+		// 	// Add the current password to history
+		err = pm.addPasswordToHistory(ctx, login.ID, string(login.Password), PasswordVersion(version))
+		if err != nil {
+			// Log but continue
+			slog.Error("Failed to add password to history", "error", err)
+			return err
+		}
+	}
 
 	// Hash the new password using the current version
 	hashedPassword, err := pm.hashPasswordWithVersion(newPassword, pm.currentVersion)
@@ -527,34 +525,15 @@ func (pm *PasswordManager) IsPasswordExpired(ctx context.Context, loginID string
 		return false, fmt.Errorf("invalid login ID: %w", err)
 	}
 
-	// Get the login entity
-	login, err := pm.repository.GetLoginById(ctx, loginUUID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get login: %w", err)
-	}
-
 	// Get the password expiration timestamp
 	expiresAt, valid, err := pm.repository.GetPasswordExpiresAt(ctx, loginUUID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get password expiration: %w", err)
 	}
 
-	// If password_expires_at is not set, set it now based on policy
+	// If password_expires_at is not set, return false
 	if !valid || expiresAt.IsZero() {
-		// Use updated_at as the base time if available, otherwise current time
-		baseTime := login.UpdatedAt
-		expiresTime := baseTime.Add(pm.policyChecker.GetPolicy().GetExpirationPeriod())
-
-		// Update the expiration time in the database
-		err = pm.repository.UpdatePasswordTimestamps(ctx, loginUUID, baseTime, expiresTime)
-		if err != nil {
-			slog.Error("Failed to set initial password expiration", "err", err)
-			// Continue with the check using the calculated expiration
-		}
-
-		// Check if the calculated expiration is in the past
-		now := time.Now().UTC()
-		return now.After(expiresTime), nil
+		return false, nil
 	}
 
 	// Check if the current time is after the expiration time

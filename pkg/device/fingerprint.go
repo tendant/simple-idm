@@ -13,22 +13,28 @@ type FingerprintData struct {
 	AcceptHeaders    string
 	Timezone         string
 	ScreenResolution string
-	// Additional fields that could be used:
-	// - Browser plugins
-	// - Canvas fingerprint
-	// - WebGL fingerprint
+	DeviceID         string // For mobile devices
 }
 
 // GenerateFingerprint creates a unique fingerprint for a device based on the provided data
 // The fingerprint is a SHA-256 hash of the combined data
+// For web: hash of User-Agent, Accept-Headers, Screen Resolution, and Timezone
+// For mobile: hash of Device ID only
 func GenerateFingerprint(data FingerprintData) string {
-	// Combine the data into a single string
-	combined := fmt.Sprintf("%s|%s|%s|%s",
-		data.UserAgent,
-		data.AcceptHeaders,
-		data.Timezone,
-		data.ScreenResolution,
-	)
+	var combined string
+
+	if data.DeviceID != "" {
+		// For mobile devices, use only the device ID
+		combined = data.DeviceID
+	} else {
+		// For web browsers, use the standard combination
+		combined = fmt.Sprintf("%s|%s|%s|%s",
+			data.UserAgent,
+			data.AcceptHeaders,
+			data.Timezone,
+			data.ScreenResolution,
+		)
+	}
 
 	// Create a SHA-256 hash of the combined data
 	hash := sha256.Sum256([]byte(combined))
@@ -39,6 +45,9 @@ func GenerateFingerprint(data FingerprintData) string {
 
 // ExtractFingerprintDataFromRequest extracts fingerprint data from an HTTP request
 func ExtractFingerprintDataFromRequest(r *http.Request) FingerprintData {
+	// Check if the request is from a mobile device by looking for the Device-ID header
+	deviceID := r.Header.Get("X-Device-ID")
+
 	// Get the Accept headers
 	acceptHeaders := r.Header.Get("Accept") + "|" +
 		r.Header.Get("Accept-Language") + "|" +
@@ -49,6 +58,7 @@ func ExtractFingerprintDataFromRequest(r *http.Request) FingerprintData {
 		AcceptHeaders:    acceptHeaders,
 		Timezone:         r.Header.Get("Timezone"),
 		ScreenResolution: r.Header.Get("Screen-Resolution"),
+		DeviceID:         deviceID,
 	}
 }
 
