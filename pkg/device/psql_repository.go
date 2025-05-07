@@ -17,8 +17,8 @@ import (
 
 // PostgresDeviceRepository implements DeviceRepository using PostgreSQL
 type PostgresDeviceRepository struct {
-	db       DBTX
-	options  DeviceRepositoryOptions
+	db      DBTX
+	options DeviceRepositoryOptions
 }
 
 // DBTX is an interface that allows us to use either a database connection or a transaction
@@ -31,16 +31,16 @@ type DBTX interface {
 // NewPostgresDeviceRepository creates a new PostgreSQL device repository
 func NewPostgresDeviceRepository(db DBTX) *PostgresDeviceRepository {
 	return &PostgresDeviceRepository{
-		db:       db,
-		options:  DefaultDeviceRepositoryOptions(),
+		db:      db,
+		options: DefaultDeviceRepositoryOptions(),
 	}
 }
 
 // NewPostgresDeviceRepositoryWithOptions creates a new PostgreSQL device repository with custom options
 func NewPostgresDeviceRepositoryWithOptions(db DBTX, options DeviceRepositoryOptions) *PostgresDeviceRepository {
 	return &PostgresDeviceRepository{
-		db:       db,
-		options:  options,
+		db:      db,
+		options: options,
 	}
 }
 
@@ -79,7 +79,7 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 	// Check if we need to include device_id in the query
 	var query string
 	var args []interface{}
-	
+
 	if device.DeviceID != uuid.Nil {
 		// Include device_id in the query
 		query = `
@@ -179,11 +179,12 @@ func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, f
 		&deviceID,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Debug("Device not found", "fingerprint", fingerprint)
 			return Device{}, errors.New("device not found")
 		}
-		slog.Error("Failed to get device by fingerprint", "err", err, "fingerprint", fingerprint)
-		return Device{}, fmt.Errorf("failed to get device by fingerprint: %w", err)
+		slog.Error("Failed to get device", "err", err, "fingerprint", fingerprint)
+		return Device{}, fmt.Errorf("failed to get device: %w", err)
 	}
 
 	// Convert pgtype.UUID to uuid.UUID if valid
@@ -199,17 +200,17 @@ func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, e
 	query := `
 		SELECT fingerprint, user_agent, accept_headers, timezone, screen_resolution, device_name, device_type, last_login_at, created_at, device_id
 		FROM device
-		ORDER BY last_login_at DESC
+		ORDER BY created_at DESC
 	`
 
 	rows, err := r.db.Query(ctx, query)
 	if err != nil {
-		slog.Error("Failed to query devices", "err", err)
-		return nil, fmt.Errorf("failed to query devices: %w", err)
+		slog.Error("Failed to find devices", "err", err)
+		return nil, fmt.Errorf("failed to find devices: %w", err)
 	}
 	defer rows.Close()
 
-	devices := []Device{}
+	var devices []Device
 	for rows.Next() {
 		var device Device
 		var deviceID pgtype.UUID
@@ -226,23 +227,24 @@ func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, e
 			&deviceID,
 		)
 		if err != nil {
-			slog.Error("Failed to scan device row", "err", err)
-			return nil, fmt.Errorf("failed to scan device row: %w", err)
+			slog.Error("Failed to scan device", "err", err)
+			return nil, fmt.Errorf("failed to scan device: %w", err)
 		}
-		
+
 		// Convert pgtype.UUID to uuid.UUID if valid
 		if deviceID.Valid {
 			device.DeviceID = uuid.UUID(deviceID.Bytes)
 		}
-		
+
 		devices = append(devices, device)
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("Error iterating device rows", "err", err)
-		return nil, fmt.Errorf("error iterating device rows: %w", err)
+		slog.Error("Error iterating over devices", "err", err)
+		return nil, fmt.Errorf("error iterating over devices: %w", err)
 	}
 
+	slog.Debug("Found devices", "count", len(devices))
 	return devices, nil
 }
 
@@ -258,12 +260,12 @@ func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, login
 
 	rows, err := r.db.Query(ctx, query, loginID)
 	if err != nil {
-		slog.Error("Failed to query devices by login", "err", err, "loginID", loginID)
-		return nil, fmt.Errorf("failed to query devices by login: %w", err)
+		slog.Error("Failed to find devices by login", "err", err, "loginID", loginID)
+		return nil, fmt.Errorf("failed to find devices by login: %w", err)
 	}
 	defer rows.Close()
 
-	devices := []Device{}
+	var devices []Device
 	for rows.Next() {
 		var device Device
 		var deviceID pgtype.UUID
@@ -280,23 +282,24 @@ func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, login
 			&deviceID,
 		)
 		if err != nil {
-			slog.Error("Failed to scan device row", "err", err)
-			return nil, fmt.Errorf("failed to scan device row: %w", err)
+			slog.Error("Failed to scan device", "err", err)
+			return nil, fmt.Errorf("failed to scan device: %w", err)
 		}
-		
+
 		// Convert pgtype.UUID to uuid.UUID if valid
 		if deviceID.Valid {
 			device.DeviceID = uuid.UUID(deviceID.Bytes)
 		}
-		
+
 		devices = append(devices, device)
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("Error iterating device rows", "err", err)
-		return nil, fmt.Errorf("error iterating device rows: %w", err)
+		slog.Error("Error iterating over devices", "err", err)
+		return nil, fmt.Errorf("error iterating over devices: %w", err)
 	}
 
+	slog.Debug("Found devices by login", "loginID", loginID, "count", len(devices))
 	return devices, nil
 }
 
@@ -326,7 +329,8 @@ func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fi
 		&deviceID,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Debug("Device not found for update", "fingerprint", fingerprint)
 			return Device{}, errors.New("device not found")
 		}
 		slog.Error("Failed to update device last login", "err", err, "fingerprint", fingerprint)
@@ -593,20 +597,20 @@ func determineDeviceName(userAgent string) string {
 // determineDeviceType categorizes the device as Mobile, Tablet, Desktop, or Other
 func determineDeviceType(userAgent string) string {
 	if userAgent == "" {
-		return "Other"
+		return DeviceTypeOther
 	}
 
 	// Mobile devices
 	if contains(userAgent, "iPhone") ||
 		(contains(userAgent, "Android") && contains(userAgent, "Mobile")) ||
 		contains(userAgent, "Windows Phone") {
-		return "Mobile"
+		return DeviceTypeMobile
 	}
 
 	// Tablets
 	if contains(userAgent, "iPad") ||
 		(contains(userAgent, "Android") && !contains(userAgent, "Mobile")) {
-		return "Tablet"
+		return DeviceTypeTablet
 	}
 
 	// Desktops
@@ -614,10 +618,10 @@ func determineDeviceType(userAgent string) string {
 		contains(userAgent, "Macintosh") ||
 		contains(userAgent, "Linux") ||
 		contains(userAgent, "CrOS") {
-		return "Desktop"
+		return DeviceTypeDesktop
 	}
 
-	return "Other"
+	return DeviceTypeOther
 }
 
 // contains is a helper function to check if a string contains a substring (case insensitive)

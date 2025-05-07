@@ -69,6 +69,12 @@ type DeviceRepository interface {
 
 const (
 	DefaultDeviceExpiryDuration = 90 * 24 * time.Hour // Default expiration is 90 days
+
+	// Device types
+	DeviceTypeMobile  = "mobile"
+	DeviceTypeTablet  = "tablet"
+	DeviceTypeDesktop = "desktop"
+	DeviceTypeOther   = "other"
 )
 
 // DeviceRepositoryOptions contains options for configuring the device repository
