@@ -62,7 +62,7 @@ func ExtractFingerprintDataFromRequest(r *http.Request) FingerprintData {
 		slog.Error("Mobile device detected but no device ID provided")
 		isMobile = true
 	}
-	slog.Info("IsMobile", "isMobile", isMobile)
+	slog.Info("IsMobile", "isMobile", isMobile, "deviceID", deviceID)
 	return FingerprintData{
 		UserAgent:        r.UserAgent(),
 		AcceptHeaders:    acceptHeaders,
