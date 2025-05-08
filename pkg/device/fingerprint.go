@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/http"
 )
 
@@ -25,9 +26,11 @@ func GenerateFingerprint(data FingerprintData) string {
 
 	if data.DeviceID != "" {
 		// For mobile devices, use only the device ID
+		slog.Info("Using Device ID to generate fingerprint", "deviceID", data.DeviceID)
 		combined = data.DeviceID
 	} else {
 		// For web browsers, use the standard combination
+		slog.Info("Using User Agent to generate fingerprint", "userAgent", data.UserAgent)
 		combined = fmt.Sprintf("%s|%s|%s|%s",
 			data.UserAgent,
 			data.AcceptHeaders,
@@ -47,6 +50,7 @@ func GenerateFingerprint(data FingerprintData) string {
 func ExtractFingerprintDataFromRequest(r *http.Request) FingerprintData {
 	// Check if the request is from a mobile device by looking for the Device-ID header
 	deviceID := r.Header.Get("X-Device-ID")
+	slog.Info("Device ID", "deviceID", deviceID, "userAgent", r.UserAgent())
 
 	// Get the Accept headers
 	acceptHeaders := r.Header.Get("Accept") + "|" +
