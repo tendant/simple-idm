@@ -23,6 +23,7 @@ func setupDeviceService(t *testing.T) *DeviceService {
 	}
 	loginQueries := logindb.New(dbPool)
 	loginRepository := login.NewPostgresLoginRepository(loginQueries)
+	// psqlRepo := NewPostgresDeviceRepository(dbPool)
 	service := NewDeviceService(repo, loginRepository)
 	return service
 }
