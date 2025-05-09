@@ -64,7 +64,7 @@ CREATE TABLE public.device (
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
     device_name character varying(255),
     device_type character varying(50),
-    device_id uuid
+    device_id character varying(255)
 );
 
 
