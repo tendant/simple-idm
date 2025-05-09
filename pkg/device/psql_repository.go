@@ -2,6 +2,7 @@ package device
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // PostgresDeviceRepository implements DeviceRepository using PostgreSQL
@@ -80,7 +80,7 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 	var query string
 	var args []interface{}
 
-	if device.DeviceID != uuid.Nil {
+	if device.DeviceID != "" {
 		// Include device_id in the query
 		query = `
 			INSERT INTO device (
@@ -127,7 +127,7 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 	row := r.db.QueryRow(ctx, query, args...)
 
 	var result Device
-	var deviceID pgtype.UUID
+	var deviceID sql.NullString
 	err = row.Scan(
 		&result.Fingerprint,
 		&result.UserAgent,
@@ -145,9 +145,9 @@ func (r *PostgresDeviceRepository) CreateDevice(ctx context.Context, device Devi
 		return Device{}, fmt.Errorf("failed to create device: %w", err)
 	}
 
-	// Convert pgtype.UUID to uuid.UUID if valid
+	// Set device ID if valid
 	if deviceID.Valid {
-		result.DeviceID = uuid.UUID(deviceID.Bytes)
+		result.DeviceID = deviceID.String
 	}
 
 	slog.Debug("Device created", "fingerprint", result.Fingerprint)
@@ -165,7 +165,7 @@ func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, f
 	row := r.db.QueryRow(ctx, query, fingerprint)
 
 	var device Device
-	var deviceID pgtype.UUID
+	var deviceID sql.NullString
 	err := row.Scan(
 		&device.Fingerprint,
 		&device.UserAgent,
@@ -187,9 +187,9 @@ func (r *PostgresDeviceRepository) GetDeviceByFingerprint(ctx context.Context, f
 		return Device{}, fmt.Errorf("failed to get device: %w", err)
 	}
 
-	// Convert pgtype.UUID to uuid.UUID if valid
+	// Set device ID if valid
 	if deviceID.Valid {
-		device.DeviceID = uuid.UUID(deviceID.Bytes)
+		device.DeviceID = deviceID.String
 	}
 
 	return device, nil
@@ -213,7 +213,7 @@ func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, e
 	var devices []Device
 	for rows.Next() {
 		var device Device
-		var deviceID pgtype.UUID
+		var deviceID sql.NullString
 		err := rows.Scan(
 			&device.Fingerprint,
 			&device.UserAgent,
@@ -231,9 +231,9 @@ func (r *PostgresDeviceRepository) FindDevices(ctx context.Context) ([]Device, e
 			return nil, fmt.Errorf("failed to scan device: %w", err)
 		}
 
-		// Convert pgtype.UUID to uuid.UUID if valid
+		// Set device ID if valid
 		if deviceID.Valid {
-			device.DeviceID = uuid.UUID(deviceID.Bytes)
+			device.DeviceID = deviceID.String
 		}
 
 		devices = append(devices, device)
@@ -268,7 +268,7 @@ func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, login
 	var devices []Device
 	for rows.Next() {
 		var device Device
-		var deviceID pgtype.UUID
+		var deviceID sql.NullString
 		err := rows.Scan(
 			&device.Fingerprint,
 			&device.UserAgent,
@@ -286,9 +286,9 @@ func (r *PostgresDeviceRepository) FindDevicesByLogin(ctx context.Context, login
 			return nil, fmt.Errorf("failed to scan device: %w", err)
 		}
 
-		// Convert pgtype.UUID to uuid.UUID if valid
+		// Set device ID if valid
 		if deviceID.Valid {
-			device.DeviceID = uuid.UUID(deviceID.Bytes)
+			device.DeviceID = deviceID.String
 		}
 
 		devices = append(devices, device)
@@ -315,7 +315,7 @@ func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fi
 	row := r.db.QueryRow(ctx, query, fingerprint, lastLogin)
 
 	var device Device
-	var deviceID pgtype.UUID
+	var deviceID sql.NullString
 	err := row.Scan(
 		&device.Fingerprint,
 		&device.UserAgent,
@@ -337,9 +337,9 @@ func (r *PostgresDeviceRepository) UpdateDeviceLastLogin(ctx context.Context, fi
 		return Device{}, fmt.Errorf("failed to update device last login: %w", err)
 	}
 
-	// Convert pgtype.UUID to uuid.UUID if valid
+	// Set device ID if valid
 	if deviceID.Valid {
-		device.DeviceID = uuid.UUID(deviceID.Bytes)
+		device.DeviceID = deviceID.String
 	}
 
 	return device, nil
@@ -357,7 +357,7 @@ func (r *PostgresDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx co
 	row := r.db.QueryRow(ctx, query, fingerprint, loginID)
 
 	var loginDevice LoginDevice
-	var deletedAt pgtype.Timestamp
+	var deletedAt sql.NullTime
 	err := row.Scan(
 		&loginDevice.ID,
 		&loginDevice.LoginID,
@@ -378,7 +378,7 @@ func (r *PostgresDeviceRepository) FindLoginDeviceByFingerprintAndLoginID(ctx co
 		return LoginDevice{}, fmt.Errorf("failed to find login device: %w", err)
 	}
 
-	// Convert pgtype.Timestamp to time.Time if valid
+	// Set DeletedAt if valid
 	if deletedAt.Valid {
 		loginDevice.DeletedAt = deletedAt.Time
 	}
@@ -419,7 +419,7 @@ func (r *PostgresDeviceRepository) LinkLoginToDevice(ctx context.Context, loginI
 	row := r.db.QueryRow(ctx, query, loginID, fingerprint, device.DeviceName, now, expiresAt, now, now)
 
 	var loginDevice LoginDevice
-	var deletedAt pgtype.Timestamp
+	var deletedAt sql.NullTime
 	err = row.Scan(
 		&loginDevice.ID,
 		&loginDevice.LoginID,
@@ -436,7 +436,7 @@ func (r *PostgresDeviceRepository) LinkLoginToDevice(ctx context.Context, loginI
 		return LoginDevice{}, fmt.Errorf("failed to create device link: %w", err)
 	}
 
-	// Convert pgtype.Timestamp to time.Time if valid
+	// Set DeletedAt if valid
 	if deletedAt.Valid {
 		loginDevice.DeletedAt = deletedAt.Time
 	}
@@ -482,7 +482,7 @@ func (r *PostgresDeviceRepository) UpdateLoginDeviceDisplayName(ctx context.Cont
 	row := r.db.QueryRow(ctx, query, fingerprint, loginID, displayName, time.Now().UTC())
 
 	var updatedLoginDevice LoginDevice
-	var deletedAt pgtype.Timestamp
+	var deletedAt sql.NullTime
 	err := row.Scan(
 		&updatedLoginDevice.ID,
 		&updatedLoginDevice.LoginID,
@@ -503,7 +503,7 @@ func (r *PostgresDeviceRepository) UpdateLoginDeviceDisplayName(ctx context.Cont
 		return LoginDevice{}, fmt.Errorf("failed to update device display name: %w", err)
 	}
 
-	// Convert pgtype.Timestamp to time.Time if valid
+	// Set DeletedAt if valid
 	if deletedAt.Valid {
 		updatedLoginDevice.DeletedAt = deletedAt.Time
 	}

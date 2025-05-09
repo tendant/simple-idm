@@ -42,13 +42,19 @@ func (r *InMemDeviceRepository) CreateDevice(ctx context.Context, device Device)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.devices[device.Fingerprint]; exists {
-		slog.Debug("Device already exists", "fingerprint", device.Fingerprint)
+	// Check if device already exists
+	_, err := r.GetDeviceByFingerprint(ctx, device.Fingerprint)
+	if err == nil {
 		return Device{}, errors.New("device already exists")
 	}
 
+	// If DeviceID is empty, generate a new one
+	if device.DeviceID == "" {
+		device.DeviceID = uuid.New().String()
+	}
+
 	// Log if this is a mobile device with a device ID
-	if device.DeviceID != uuid.Nil {
+	if device.DeviceID != "" {
 		slog.Info("Creating mobile device with device ID", "fingerprint", device.Fingerprint, "deviceID", device.DeviceID)
 	}
 
