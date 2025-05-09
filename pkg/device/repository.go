@@ -17,7 +17,7 @@ type Device struct {
 	DeviceType       string
 	LastLoginAt      time.Time
 	CreatedAt        time.Time
-	DeviceID         uuid.UUID
+	DeviceID         string
 }
 
 type LoginDevice struct {

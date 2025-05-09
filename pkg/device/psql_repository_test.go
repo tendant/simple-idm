@@ -32,7 +32,7 @@ func TestPostgresDeviceRepository_CreateDeviceWithDeviceID(t *testing.T) {
 
 	// Generate a unique fingerprint for this test
 	testFingerprint := "test_fingerprint_" + uuid.New().String()
-	deviceID := uuid.New()
+	deviceID := uuid.New().String()
 
 	// Create a device with a device_id
 	device := Device{
@@ -96,14 +96,14 @@ func TestPostgresDeviceRepository_CreateDeviceWithoutDeviceID(t *testing.T) {
 
 	// Verify the device was created with a nil device_id
 	assert.Equal(t, testFingerprint, createdDevice.Fingerprint)
-	assert.Equal(t, uuid.Nil, createdDevice.DeviceID)
+	assert.Empty(t, createdDevice.DeviceID)
 
 	// Retrieve the device to verify it was stored correctly
 	retrievedDevice, err := repo.GetDeviceByFingerprint(ctx, testFingerprint)
 	require.NoError(t, err)
 
 	// Verify the device_id is nil
-	assert.Equal(t, uuid.Nil, retrievedDevice.DeviceID)
+	assert.Empty(t, retrievedDevice.DeviceID)
 
 	// Clean up
 	_, _ = repo.db.Exec(ctx, "DELETE FROM device WHERE fingerprint = $1", testFingerprint)
@@ -121,7 +121,7 @@ func TestPostgresDeviceRepository_FindDevicesByLogin(t *testing.T) {
 	// Generate a unique fingerprint and login ID for this test
 	testFingerprint := "test_fingerprint_" + uuid.New().String()
 	loginID := uuid.MustParse("e36d828b-a400-4eaa-89d4-dd027038af2e")
-	deviceID := uuid.New()
+	deviceID := uuid.New().String()
 
 	// Create a device with a device_id
 	device := Device{
@@ -174,7 +174,7 @@ func TestPostgresDeviceRepository_UpdateDeviceLastLogin(t *testing.T) {
 
 	// Generate a unique fingerprint for this test
 	testFingerprint := "test_fingerprint_" + uuid.New().String()
-	deviceID := uuid.New()
+	deviceID := uuid.New().String()
 
 	// Create a device with a device_id
 	device := Device{
