@@ -200,7 +200,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, loginID, ne
 	}
 
 	if match {
-		return fmt.Errorf("new password cannot match any of your %d recent passwords", pm.policyChecker.GetPolicy().HistoryCheckCount)
+		return fmt.Errorf("You cannot reuse any of your previous %d passwords", pm.policyChecker.GetPolicy().HistoryCheckCount)
 	}
 
 	// Now check against password history
@@ -228,7 +228,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, loginID, ne
 		}
 
 		if match {
-			return fmt.Errorf("new password cannot match any of your %d recent passwords", pm.policyChecker.GetPolicy().HistoryCheckCount)
+			return fmt.Errorf("You cannot reuse any of your previous %d passwords", pm.policyChecker.GetPolicy().HistoryCheckCount)
 		}
 	}
 
