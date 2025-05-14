@@ -433,7 +433,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			// Return a standardized response for account lockout
 			return &Response{
 				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
-				body:        "Your account has been locked due to too many failed login attempts. Please try again later.",
+				body:        "Your account has been temporarily locked. Please try again in 30 minutes.",
 				contentType: "application/json",
 			}
 		}
