@@ -96,6 +96,12 @@ func HashEmail(email string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// hashPhone generates a SHA-256 hash of the phone number.
+func HashPhone(phone string) string {
+	hash := sha256.Sum256([]byte(phone))
+	return hex.EncodeToString(hash[:])
+}
+
 // maskEmail masks part of the email for display.
 func MaskEmail(email string) string {
 	parts := strings.Split(email, "@")
@@ -112,6 +118,14 @@ func MaskEmail(email string) string {
 		return localPart[:1] + "*" + localPart[1:] + "@" + domain
 	}
 	return localPart + "@" + domain // For single character local parts, don't mask
+}
+
+// MaskPhone masks a phone number, showing only the last 4 digits
+func MaskPhone(phone string) string {
+	if len(phone) <= 4 {
+		return phone
+	}
+	return strings.Repeat("*", len(phone)-4) + phone[len(phone)-4:]
 }
 
 // NullStringToNullUUID converts a sql.NullString to uuid.NullUUID
