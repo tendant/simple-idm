@@ -75,6 +75,9 @@ func Check2FAEnabled(
 		case twofa.TWO_FACTOR_TYPE_EMAIL:
 			options := getUniqueEmailsFromUsers(idmUsers)
 			curMethod.DeliveryOptions = options
+		case twofa.TWO_FACTOR_TYPE_SMS:
+			options := getUniquePhonesFromUsers(idmUsers)
+			curMethod.DeliveryOptions = options
 		default:
 			curMethod.DeliveryOptions = []DeliveryOption{}
 		}
@@ -131,6 +134,31 @@ func getUniqueEmailsFromUsers(users []mapper.User) []DeliveryOption {
 			HashedValue:  utils.HashEmail(email),
 		})
 		emailMap[email] = true
+	}
+
+	return deliveryOptions
+}
+
+// getUniquePhonesFromUsers extracts unique phones from a list of users
+func getUniquePhonesFromUsers(users []mapper.User) []DeliveryOption {
+	phoneMap := make(map[string]bool)
+	var deliveryOptions []DeliveryOption
+
+	for _, user := range users {
+		// Get phone from UserInfo
+		phone := user.UserInfo.PhoneNumber
+		if phoneMap[phone] || phone == "" {
+			continue
+		}
+
+		deliveryOptions = append(deliveryOptions, DeliveryOption{
+			Type:         "sms",
+			Value:        phone,
+			UserID:       user.UserId,
+			DisplayValue: utils.MaskPhone(phone),
+			HashedValue:  utils.HashPhone(phone),
+		})
+		phoneMap[phone] = true
 	}
 
 	return deliveryOptions
