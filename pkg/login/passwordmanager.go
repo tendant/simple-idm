@@ -200,7 +200,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, loginID, ne
 	}
 
 	if match {
-		return errors.New("new password cannot be the same as your current password")
+		return fmt.Errorf("new password cannot match any of your %d recent passwords", pm.policyChecker.GetPolicy().HistoryCheckCount)
 	}
 
 	// Now check against password history
@@ -228,7 +228,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, loginID, ne
 		}
 
 		if match {
-			return errors.New("new password cannot match any of your recent passwords")
+			return fmt.Errorf("new password cannot match any of your %d recent passwords", pm.policyChecker.GetPolicy().HistoryCheckCount)
 		}
 	}
 
