@@ -28,6 +28,7 @@ type TwoFactorService interface {
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
 	DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error
 	SendTwofaPasscodeEmail(ctx context.Context, email, passcode string, userId uuid.UUID) error
+	SendTwofaPasscodeSms(ctx context.Context, phone, passcode string, userId uuid.UUID) error
 	Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error)
 }
 
@@ -59,12 +60,12 @@ func NewTwoFaService(queries *twofadb.Queries, opts ...TwoFaServiceOption) *TwoF
 	service := &TwoFaService{
 		queries: queries,
 	}
-	
+
 	// Apply all options
 	for _, opt := range opts {
 		opt(service)
 	}
-	
+
 	return service
 }
 
@@ -144,10 +145,19 @@ func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId, userId
 		}
 	}
 
-	// send the passcode by email
-	err = s.SendTwofaPasscodeEmail(ctx, emailToUse, passcode, userId)
-	if err != nil {
-		return fmt.Errorf("failed to send 2FA passcode: %w", err)
+	switch twoFactorType {
+	case TWO_FACTOR_TYPE_EMAIL:
+		// send the passcode by email
+		err = s.SendTwofaPasscodeEmail(ctx, emailToUse, passcode, userId)
+		if err != nil {
+			return fmt.Errorf("failed to send 2FA passcode: %w", err)
+		}
+		// case TWO_FACTOR_TYPE_SMS:
+		// 	// send the passcode by sms
+		// 	err = s.SendTwofaPasscodeSms(ctx, phone, passcode, userId)
+		// 	if err != nil {
+		// 		return fmt.Errorf("failed to send 2FA passcode: %w", err)
+		// 	}
 	}
 
 	return nil
@@ -318,8 +328,20 @@ func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcod
 		"TwofaPasscode": passcode,
 		"UserId":        userId.String(),
 	}
-	return s.notificationManager.Send(notice.TwofaCodeNotice, notification.NotificationData{
+	return s.notificationManager.Send(notice.TwofaCodeNoticeEmail, notification.NotificationData{
 		To:   email,
+		Data: data,
+	})
+}
+
+func (s TwoFaService) SendTwofaPasscodeSms(ctx context.Context, phone, passcode string, userId uuid.UUID) error {
+	// TODO: use userId to send sms to users
+	data := map[string]string{
+		"TwofaPasscode": passcode,
+		"UserId":        userId.String(),
+	}
+	return s.notificationManager.Send(notice.TwofaCodeNoticeSms, notification.NotificationData{
+		To:   phone,
 		Data: data,
 	})
 }
