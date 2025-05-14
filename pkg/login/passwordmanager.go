@@ -291,7 +291,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 		slog.Error("Failed to check if password change is allowed", "err", err)
 		// Continue with password change even if check fails
 	} else if !allowed {
-		return "", fmt.Errorf("password was changed too recently. Please try again later")
+		return "", fmt.Errorf("The password was changed too recently. Please try again after %d hours.", int(pm.policyChecker.GetPolicy().MinPasswordAgePeriod.Hours()))
 	}
 
 	// Check if the new password meets complexity requirements
@@ -408,7 +408,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 		slog.Error("Failed to check if password change is allowed", "err", err)
 		// Continue with password change even if check fails
 	} else if !allowed {
-		return fmt.Errorf("password was changed too recently. Please try again later")
+		return fmt.Errorf("password was changed too recently. Please try again after %d hours.", int(pm.policyChecker.GetPolicy().MinPasswordAgePeriod.Hours()))
 	}
 
 	// Get the password version
