@@ -379,6 +379,13 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	}
 	slog.Info("Updated password reset required to false")
 
+	err = pm.repository.ResetFailedLoginAttempts(ctx, tokenInfo.LoginID)
+	if err != nil {
+		slog.Error("Failed to reset failed login attempts", "err", err)
+		return "", err
+	}
+	slog.Info("Reset failed login attempts")
+
 	// Return the loginID so the service layer can use it
 	return tokenInfo.LoginID.String(), nil
 }
