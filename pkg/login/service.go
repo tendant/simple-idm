@@ -253,6 +253,18 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
 	}
 
+	// Reset failed login attempts and locked until time if locked until time is not zero
+	_, _, lockedUntil, err := s.repository.GetFailedLoginAttempts(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to get failed login attempts", "err", err)
+	}
+	if !lockedUntil.IsZero() {
+		err := s.repository.ResetFailedLoginAttempts(ctx, login.ID)
+		if err != nil {
+			slog.Error("Failed to reset failed login attempts", "err", err)
+		}
+	}
+
 	// Verify password
 	valid, err := s.CheckPasswordByLoginId(ctx, login.ID, password, string(login.Password))
 	if err != nil {
