@@ -177,6 +177,8 @@ func main() {
 		login.WithUserMapper(userMapper),
 		login.WithDelegatedUserMapper(delegatedUserMapper),
 		login.WithPasswordManager(passwordManager),
+		login.WithMaxFailedAttempts(5),
+		login.WithLockoutDuration(15*time.Minute),
 	)
 
 	// Create JWT token generator
