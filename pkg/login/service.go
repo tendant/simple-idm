@@ -267,9 +267,13 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		result.FailureReason = FAILURE_REASON_INVALID_CREDENTIALS
 
 		// Increment failed login attempts counter
-		_, _, err := s.IncrementFailedAttemptsAndCheckLock(ctx, login.ID)
+		locked, _, err := s.IncrementFailedAttemptsAndCheckLock(ctx, login.ID)
 		if err != nil {
 			slog.Error("Failed to increment failed login attempts", "err", err)
+		}
+		if locked {
+			_, _, lockedUntil, _ := s.repository.GetFailedLoginAttempts(ctx, login.ID)
+			return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
 		}
 
 		return result, fmt.Errorf("invalid username or password")

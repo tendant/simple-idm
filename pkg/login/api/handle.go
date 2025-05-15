@@ -432,8 +432,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		if login.IsAccountLockedError(err) {
 			// Return a standardized response for account lockout
 			return &Response{
-				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
-				body:        "Your account has been temporarily locked. Please try again in 30 minutes.",
+				Code:        http.StatusTooManyRequests,                                                  // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been temporarily locked. Please try again in 15 minutes.", // FIXME: hard code for mow
 				contentType: "application/json",
 			}
 		}
@@ -1048,7 +1048,7 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 			// Return a standardized response for account lockout
 			return &Response{
 				Code:        http.StatusTooManyRequests,                                                  // 429 is appropriate for rate limiting/lockout
-				body:        "Your account has been temporarily locked. Please try again in 30 minutes.", // FIX-ME: hard code for now
+				body:        "Your account has been temporarily locked. Please try again in 15 minutes.", // FIX-ME: hard code for now
 				contentType: "application/json",
 			}
 		}
