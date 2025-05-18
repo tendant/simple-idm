@@ -29,46 +29,44 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 	// Create mail client options
 	opts := []mail.Option{
 		mail.WithPort(config.Port),
-		// mail.WithTimeout(30), // Set timeout to 30 seconds
-		// mail.WithDebugLog(),  // Enable debug logging
-		// mail.WithoutNoop(),   // Disable NOOP command
+		mail.WithTimeout(30), // Set timeout to 30 seconds
 	}
 
 	// Only add authentication if username and password are provided
 	if config.Username != "" && config.Password != "" {
 		slog.Info("Adding authentication", "user", config.Username)
 		opts = append(opts,
-			mail.WithSMTPAuth(mail.SMTPAuthPlain),
+			mail.WithSMTPAuth(mail.SMTPAuthLogin), // Changed from PLAIN to LOGIN
 			mail.WithUsername(config.Username),
 			mail.WithPassword(config.Password),
 		)
 	}
 
+	// Configure TLS settings
 	if !config.TLS {
-		slog.Info("NoTLS")
+		slog.Info("Using NoTLS policy")
 		opts = append(opts,
-			mail.WithTLSConfig(&tls.Config{ // Configure TLS settings
+			mail.WithTLSConfig(&tls.Config{
 				InsecureSkipVerify: true, // Skip hostname verification
 			}),
 			mail.WithTLSPolicy(mail.NoTLS),
 		)
 	} else {
-		slog.Info("With TLS")
+		slog.Info("Using TLS Mandatory policy")
 		opts = append(opts,
-			mail.WithTLSPolicy(mail.TLSMandatory))
+			mail.WithTLSConfig(&tls.Config{
+				InsecureSkipVerify: true,
+			}),
+			mail.WithTLSPolicy(mail.TLSMandatory),
+		)
 	}
 
 	slog.Info("Creating mail client", "Host", config.Host, "Port", config.Port)
 	client, err := mail.NewClient(config.Host, opts...)
-	if !config.TLS {
-		client.SetSSL(false)
-	}
 	if err != nil {
 		slog.Error("Failed to create mail client", "err", err)
 		return nil, err
 	}
-
-	// Connection will be handled automatically when sending emails
 
 	return &EmailNotifier{SMTPConfig: config, client: client, opts: opts}, nil
 }
@@ -139,16 +137,11 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 		}
 	}
 
-	// Connection is handled automatically by the mail client
-
 	// Send the email
 	if err := e.client.DialAndSend(msg); err != nil {
 		slog.Error("Failed to send email", "err", err)
 		return err
 	}
-
-	// Close the connection
-	e.client.Close()
 
 	slog.Info("Email sent successfully", "to", notification.To, "host", e.SMTPConfig.Host, "port", e.SMTPConfig.Port)
 	return nil
