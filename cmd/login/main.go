@@ -171,14 +171,15 @@ func main() {
 	// Create login service with the custom password manager
 	loginRepository := login.NewPostgresLoginRepository(loginQueries)
 	// Use the same repository instance for both LoginRepository and UserRepository interfaces
+	// FIX-ME: hard code for bat, do not enforce account lockout
 	loginService := login.NewLoginServiceWithOptions(
 		loginRepository,
 		login.WithNotificationManager(notificationManager),
 		login.WithUserMapper(userMapper),
 		login.WithDelegatedUserMapper(delegatedUserMapper),
 		login.WithPasswordManager(passwordManager),
-		login.WithMaxFailedAttempts(5),
-		login.WithLockoutDuration(15*time.Minute),
+		login.WithMaxFailedAttempts(100000),
+		login.WithLockoutDuration(0*time.Second),
 	)
 
 	// Create JWT token generator
@@ -351,6 +352,7 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 	slog.Info("Min password age period", "minPasswordAgePeriod", minPasswordAgePeriod)
 
 	// Create a policy based on the configuration
+	// FIX-ME: hard code for bat now
 	return &login.PasswordPolicy{
 		MinLength:            config.RequiredLength,
 		RequireUppercase:     config.RequiredUppercase,
@@ -360,8 +362,8 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 		DisallowCommonPwds:   config.DisallowCommonPwds,
 		MaxRepeatedChars:     config.MaxRepeatedChars,
 		HistoryCheckCount:    config.HistoryCheckCount,
-		ExpirationPeriod:     expirationPeriod.ToTimeDuration(),
+		ExpirationPeriod:     100 * 365 * 24 * time.Hour,
 		CommonPasswordsPath:  "",
-		MinPasswordAgePeriod: minPasswordAgePeriod.ToTimeDuration(),
+		MinPasswordAgePeriod: 0 * time.Second,
 	}
 }
