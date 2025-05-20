@@ -361,7 +361,7 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 		RequireSpecialChar:   config.RequiredNonAlphanumeric,
 		DisallowCommonPwds:   config.DisallowCommonPwds,
 		MaxRepeatedChars:     config.MaxRepeatedChars,
-		HistoryCheckCount:    config.HistoryCheckCount,
+		HistoryCheckCount:    0,
 		ExpirationPeriod:     100 * 365 * 24 * time.Hour,
 		CommonPasswordsPath:  "",
 		MinPasswordAgePeriod: 0 * time.Second,
