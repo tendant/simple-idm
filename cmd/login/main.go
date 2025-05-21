@@ -126,7 +126,6 @@ func main() {
 
 	config := Config{}
 	cleanenv.ReadEnv(&config)
-	slog.Info("Config loaded", "config", config)
 
 	server := app.DefaultApp()
 
