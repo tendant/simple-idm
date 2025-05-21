@@ -98,6 +98,12 @@ type PasswordComplexityConfig struct {
 	MinPasswordAgePeriod    string `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE_PERIOD" env-default:"P1D"` // 1 day
 }
 
+type LoginConfig struct {
+	MaxFailedAttempts    int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"5"`
+	LockoutDuration      string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT15M"`
+	DeviceExpirationDays string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
+}
+
 type Config struct {
 	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:3000"`
 	IdmDbConfig              IdmDbConfig
@@ -105,7 +111,7 @@ type Config struct {
 	JwtConfig                JwtConfig
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
-	DeviceExpirationDays     string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
+	LoginConfig              LoginConfig
 }
 
 func main() {
@@ -120,6 +126,7 @@ func main() {
 
 	config := Config{}
 	cleanenv.ReadEnv(&config)
+	slog.Info("Config loaded", "config", config)
 
 	server := app.DefaultApp()
 
@@ -171,16 +178,21 @@ func main() {
 	// Create login service with the custom password manager
 	loginRepository := login.NewPostgresLoginRepository(loginQueries)
 	// Use the same repository instance for both LoginRepository and UserRepository interfaces
-	// FIX-ME: hard code for bat, do not enforce account lockout
+
+	lockoutDuration, err := duration.Parse(config.LoginConfig.LockoutDuration)
+	if err != nil {
+		slog.Error("Failed to parse lockout duration", "err", err)
+	}
 	loginService := login.NewLoginServiceWithOptions(
 		loginRepository,
 		login.WithNotificationManager(notificationManager),
 		login.WithUserMapper(userMapper),
 		login.WithDelegatedUserMapper(delegatedUserMapper),
 		login.WithPasswordManager(passwordManager),
-		login.WithMaxFailedAttempts(100000),
-		login.WithLockoutDuration(0*time.Second),
+		login.WithMaxFailedAttempts(config.LoginConfig.MaxFailedAttempts),
+		login.WithLockoutDuration(lockoutDuration.ToTimeDuration()),
 	)
+	slog.Info("Login service created", "maxFailedAttempts", config.LoginConfig.MaxFailedAttempts, "lockoutDuration", lockoutDuration.ToTimeDuration())
 
 	// Create JWT token generator
 	tokenGenerator := tokengenerator.NewJwtTokenGenerator(
@@ -205,7 +217,7 @@ func main() {
 
 	// Initialize device recognition service and routes
 	// Configure device expiration using the value from config
-	deviceExpirationDays := config.DeviceExpirationDays
+	deviceExpirationDays := config.LoginConfig.DeviceExpirationDays
 	// Declare the device expiry duration variable
 	var deviceExpiryDuration time.Duration
 	// Parse ISO 8601 duration using the duration package
@@ -361,9 +373,9 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 		RequireSpecialChar:   config.RequiredNonAlphanumeric,
 		DisallowCommonPwds:   config.DisallowCommonPwds,
 		MaxRepeatedChars:     config.MaxRepeatedChars,
-		HistoryCheckCount:    0,
-		ExpirationPeriod:     100 * 365 * 24 * time.Hour,
+		HistoryCheckCount:    config.HistoryCheckCount,
+		ExpirationPeriod:     expirationPeriod.ToTimeDuration(),
 		CommonPasswordsPath:  "",
-		MinPasswordAgePeriod: 0 * time.Second,
+		MinPasswordAgePeriod: minPasswordAgePeriod.ToTimeDuration(),
 	}
 }
