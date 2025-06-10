@@ -103,7 +103,6 @@ const getRoleIdByName = `-- name: GetRoleIdByName :one
 SELECT id
 FROM roles
 WHERE name = $1
-AND deleted_at IS NULL
 `
 
 func (q *Queries) GetRoleIdByName(ctx context.Context, name string) (uuid.UUID, error) {

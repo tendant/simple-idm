@@ -41,5 +41,4 @@ RETURNING *;
 -- name: GetRoleIdByName :one
 SELECT id
 FROM roles
-WHERE name = $1
-AND deleted_at IS NULL;
+WHERE name = $1;

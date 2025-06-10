@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -185,6 +186,14 @@ func (r *PostgresRoleRepository) AddUserToRole(ctx context.Context, roleID, user
 	// This is a stub implementation for the PostgresRoleRepository
 	// In a real implementation, this would call the appropriate database query
 	// For now, we'll just return nil to satisfy the interface
+	_, err := r.queries.CreateUserRole(ctx, roledb.CreateUserRoleParams{
+		UserID: userID,
+		RoleID: roleID,
+	})
+	if err != nil {
+		slog.Error("Failed to add user to role", "error", err)
+		return err
+	}
 	return nil
 }
 
@@ -317,6 +326,7 @@ func (s *RoleService) RemoveUserFromRole(ctx context.Context, roleID, userID uui
 // AddUserToRole adds a user to a role
 func (s *RoleService) AddUserToRole(ctx context.Context, roleID, userID uuid.UUID, username string) error {
 	// Check if role exists
+	slog.Info("Checking role existence", "role_id", roleID)
 	_, err := s.repo.GetRoleById(ctx, roleID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
