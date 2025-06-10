@@ -242,9 +242,28 @@ func main() {
 		twofa.WithNotificationManager(notificationManager),
 		twofa.WithUserMapper(userMapper),
 	)
+
+	// Initialize role repository and service
+	roleRepo := role.NewPostgresRoleRepository(roleQueries)
+	roleService := role.NewRoleService(roleRepo)
+
+	// Initialize IAM repository and service
+	iamRepo := iam.NewPostgresIamRepository(iamQueries)
+	iamService := iam.NewIamService(iamRepo)
+
+	// Initialize logins management service and routes
+	loginsQueries := loginsdb.New(pool)
+	loginsServiceOptions := &logins.LoginsServiceOptions{
+		PasswordManager: passwordManager,
+	}
+	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
+
 	// Create a new handle with the domain login service directly
 	loginHandle := loginapi.NewHandle(
 		loginapi.WithLoginService(loginService),
+		loginapi.WithIamService(*iamService),
+		loginapi.WithRoleService(*roleService),
+		loginapi.WithLoginsService(*loginsService),
 		loginapi.WithTokenService(tokenService),
 		loginapi.WithTokenCookieService(tokenCookieService),
 		loginapi.WithUserMapper(userMapper),
@@ -291,15 +310,10 @@ func main() {
 		r.Mount("/api/idm/profile", profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
-		// Initialize IAM repository and service
-		iamRepo := iam.NewPostgresIamRepository(iamQueries)
-		iamService := iam.NewIamService(iamRepo)
+
 		userHandle := iamapi.NewHandle(iamService)
 		r.Mount("/idm/users", iamapi.SecureHandler(userHandle))
 
-		// Initialize role repository and service
-		roleRepo := role.NewPostgresRoleRepository(roleQueries)
-		roleService := role.NewRoleService(roleRepo)
 		roleHandle := roleapi.NewHandle(roleService)
 
 		// Create a secure handler for roles that uses the IAM admin middleware
@@ -317,17 +331,9 @@ func main() {
 		deviceHandle := deviceapi.NewDeviceHandler(deviceService)
 		r.Mount("/api/idm/device", deviceapi.Handler(deviceHandle))
 
-		// Initialize logins management service and routes
-		loginsQueries := loginsdb.New(pool)
-		loginsServiceOptions := &logins.LoginsServiceOptions{
-			PasswordManager: passwordManager,
-		}
-		loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
 		loginsHandle := logins.NewHandle(
 			logins.WithLoginService(loginsService),
 			logins.WithTwoFactorService(twoFaService),
-			logins.WithIamService(iamService),
-			logins.WithRoleService(roleService),
 		)
 		loginsRouter := chi.NewRouter()
 		loginsRouter.Group(func(r chi.Router) {

@@ -1,4 +1,4 @@
-package logins
+package api
 
 // InvitationCodes contains all the invitation codes and their corresponding roles
 // These are used in the registration process to assign roles to new users

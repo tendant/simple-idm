@@ -3,14 +3,11 @@ package logins
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/pkg/iam"
-	"github.com/tendant/simple-idm/pkg/role"
 	"github.com/tendant/simple-idm/pkg/twofa"
 )
 
@@ -18,8 +15,6 @@ import (
 type LoginsHandle struct {
 	loginService     *LoginsService
 	twoFactorService twofa.TwoFactorService
-	iamService       *iam.IamService
-	roleService      *role.RoleService
 }
 
 // Ensure LoginsHandle implements ServerInterface
@@ -42,29 +37,15 @@ func WithTwoFactorService(service twofa.TwoFactorService) Option {
 	}
 }
 
-// WithIamService sets the IAM service for the handle
-func WithIamService(service *iam.IamService) Option {
-	return func(h *LoginsHandle) {
-		h.iamService = service
-	}
-}
-
-// WithRoleService sets the role service for the handle
-func WithRoleService(service *role.RoleService) Option {
-	return func(h *LoginsHandle) {
-		h.roleService = service
-	}
-}
-
 // NewHandle creates a new login handler
 func NewHandle(opts ...Option) *LoginsHandle {
 	h := &LoginsHandle{}
-	
+
 	// Apply all options
 	for _, opt := range opts {
 		opt(h)
 	}
-	
+
 	return h
 }
 
@@ -76,7 +57,6 @@ func (h *LoginsHandle) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}", h.GetLogin)
 		r.Put("/{id}", h.UpdateLogin)
 		r.Delete("/{id}", h.DeleteLogin)
-		r.Post("/register", h.RegisterUser)
 	})
 }
 
@@ -332,78 +312,6 @@ func (h *LoginsHandle) PutID(w http.ResponseWriter, r *http.Request, id string) 
 
 	h.UpdateLogin(w, r)
 	return nil
-}
-
-// 2025-06-10: Designed for sales demo instance to allow user to register with optional invitation code
-func (h *LoginsHandle) RegisterUser(w http.ResponseWriter, r *http.Request) {
-	// Parse request body
-	var request RegisterRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		slog.Error("Failed to decode request body", "error", err)
-		http.Error(w, "Please check your registration information and try again", http.StatusBadRequest)
-		return
-	}
-
-	// Validate required fields
-	if request.Username == "" || request.Password == "" || request.FullName == "" || request.Email == "" {
-		slog.Error("Full name, username, password, and email are required")
-		http.Error(w, "Full name, username, password, and email are required", http.StatusBadRequest)
-		return
-	}
-
-	// Create login request from registration request
-	loginRequest := LoginCreateRequest{
-		Username: request.Username,
-		Password: request.Password,
-	}
-
-	// Determine role based on invitation code
-	role := "demo"
-	if request.InvitationCode != "" {
-		// Get role from invitation code
-		assignedRole, valid := GetRoleForInvitationCode(request.InvitationCode)
-		if !valid {
-			slog.Error("Unrecognized invitation code", "code", request.InvitationCode)
-			http.Error(w, "Invalid invitation code", http.StatusBadRequest)
-			return
-		}
-		role = assignedRole
-		slog.Info("Role assigned based on invitation code", "code", request.InvitationCode, "role", role)
-	}
-
-	roleID, err := h.roleService.GetRoleIdByName(r.Context(), role)
-	if err != nil {
-		slog.Error("Failed to get role ID", "error", err)
-		http.Error(w, "Failed to register user", http.StatusBadRequest)
-		return
-	}
-
-	// Create the login
-	login, err := h.loginService.CreateLogin(r.Context(), loginRequest, role)
-	if err != nil {
-		slog.Error("Failed to create login", "error", err)
-		http.Error(w, "Failed to register user", http.StatusBadRequest)
-		return
-	}
-
-	user, err := h.iamService.CreateUser(r.Context(), request.Email, request.Username, request.FullName, []uuid.UUID{}, login.ID)
-	if err != nil {
-		slog.Error("Failed to create user", "error", err)
-		http.Error(w, "Failed to register user", http.StatusBadRequest)
-		return
-	}
-
-	// Add user to role
-	err = h.roleService.AddUserToRole(r.Context(), user.ID, roleID, login.Username)
-	if err != nil {
-		slog.Error("Failed to add user to role", "error", err)
-		http.Error(w, "Failed to register user", http.StatusBadRequest)
-		return
-	}
-
-	// Return the created login
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(login)
 }
 
 // Get login 2FA methods
