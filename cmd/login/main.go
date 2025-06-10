@@ -17,6 +17,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
+	"github.com/tendant/simple-idm/pkg/signup"
 
 	// "github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 
@@ -102,6 +103,7 @@ type LoginConfig struct {
 	MaxFailedAttempts    int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"5"`
 	LockoutDuration      string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT15M"`
 	DeviceExpirationDays string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
+	RegistrationEnabled  bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
 }
 
 type Config struct {
@@ -254,7 +256,34 @@ func main() {
 		loginapi.WithDeviceExpirationDays(deviceExpiryDuration),
 	)
 
+	// Initialize IAM repository and service
+	iamRepo := iam.NewPostgresIamRepository(iamQueries)
+	iamService := iam.NewIamService(iamRepo)
+	userHandle := iamapi.NewHandle(iamService)
+
+	// Initialize role repository and service
+	roleRepo := role.NewPostgresRoleRepository(roleQueries)
+	roleService := role.NewRoleService(roleRepo)
+	roleHandle := roleapi.NewHandle(roleService)
+
+	// Initialize logins management service and routes
+	loginsQueries := loginsdb.New(pool)
+	loginsServiceOptions := &logins.LoginsServiceOptions{
+		PasswordManager: passwordManager,
+	}
+	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
+	loginsHandle := logins.NewHandle(loginsService, twoFaService)
+
+	signupHandle := signup.NewHandle(
+		signup.WithIamService(*iamService),
+		signup.WithRoleService(*roleService),
+		signup.WithLoginsService(*loginsService),
+		signup.WithRegistrationEnabled(config.LoginConfig.RegistrationEnabled),
+	)
+
+	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
+	server.R.Mount("/api/idm/signup", signup.Handler(signupHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
@@ -291,16 +320,8 @@ func main() {
 		r.Mount("/api/idm/profile", profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
-		// Initialize IAM repository and service
-		iamRepo := iam.NewPostgresIamRepository(iamQueries)
-		iamService := iam.NewIamService(iamRepo)
-		userHandle := iamapi.NewHandle(iamService)
-		r.Mount("/idm/users", iamapi.SecureHandler(userHandle))
 
-		// Initialize role repository and service
-		roleRepo := role.NewPostgresRoleRepository(roleQueries)
-		roleService := role.NewRoleService(roleRepo)
-		roleHandle := roleapi.NewHandle(roleService)
+		r.Mount("/idm/users", iamapi.SecureHandler(userHandle))
 
 		// Create a secure handler for roles that uses the IAM admin middleware
 		roleRouter := chi.NewRouter()
@@ -317,13 +338,6 @@ func main() {
 		deviceHandle := deviceapi.NewDeviceHandler(deviceService)
 		r.Mount("/api/idm/device", deviceapi.Handler(deviceHandle))
 
-		// Initialize logins management service and routes
-		loginsQueries := loginsdb.New(pool)
-		loginsServiceOptions := &logins.LoginsServiceOptions{
-			PasswordManager: passwordManager,
-		}
-		loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
-		loginsHandle := logins.NewHandle(loginsService, twoFaService)
 		loginsRouter := chi.NewRouter()
 		loginsRouter.Group(func(r chi.Router) {
 			r.Use(client.AdminRoleMiddleware)
