@@ -3,6 +3,7 @@ package logins
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -298,16 +299,19 @@ func (h *LoginsHandle) PutID(w http.ResponseWriter, r *http.Request, id string) 
 	return nil
 }
 
+// 2025-06-10: Designed for sales demo instance to allow user to register with optional invitation code
 func (h *LoginsHandle) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var request RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		slog.Error("Failed to decode request body", "error", err)
+		http.Error(w, "Please check your registration information and try again", http.StatusBadRequest)
 		return
 	}
 
 	// Validate required fields
 	if request.Username == "" || request.Password == "" || request.FullName == "" || request.Email == "" {
+		slog.Error("Full name, username, password, and email are required")
 		http.Error(w, "Full name, username, password, and email are required", http.StatusBadRequest)
 		return
 	}
@@ -321,36 +325,44 @@ func (h *LoginsHandle) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	// Determine role based on invitation code
 	role := "demo"
 	if request.InvitationCode != "" {
-		// TODO: implement invitation code logic
-		switch request.InvitationCode {
-		default:
-			role = "demo"
+		// Get role from invitation code
+		assignedRole, valid := GetRoleForInvitationCode(request.InvitationCode)
+		if !valid {
+			slog.Error("Unrecognized invitation code", "code", request.InvitationCode)
+			http.Error(w, "Invalid invitation code", http.StatusBadRequest)
+			return
 		}
+		role = assignedRole
+		slog.Info("Role assigned based on invitation code", "code", request.InvitationCode, "role", role)
 	}
 
 	roleID, err := h.roleService.GetRoleIdByName(r.Context(), role)
 	if err != nil {
-		http.Error(w, "Failed to get role ID: "+err.Error(), http.StatusBadRequest)
+		slog.Error("Failed to get role ID", "error", err)
+		http.Error(w, "Failed to register user", http.StatusBadRequest)
 		return
 	}
 
 	// Create the login
 	login, err := h.loginService.CreateLogin(r.Context(), loginRequest, role)
 	if err != nil {
-		http.Error(w, "Failed to register user: "+err.Error(), http.StatusBadRequest)
+		slog.Error("Failed to create login", "error", err)
+		http.Error(w, "Failed to register user", http.StatusBadRequest)
 		return
 	}
 
 	user, err := h.iamService.CreateUser(r.Context(), request.Email, request.Username, request.FullName, []uuid.UUID{}, login.ID)
 	if err != nil {
-		http.Error(w, "Failed to register user: "+err.Error(), http.StatusBadRequest)
+		slog.Error("Failed to create user", "error", err)
+		http.Error(w, "Failed to register user", http.StatusBadRequest)
 		return
 	}
 
 	// Add user to role
 	err = h.roleService.AddUserToRole(r.Context(), user.ID, roleID, login.Username)
 	if err != nil {
-		http.Error(w, "Failed to register user: "+err.Error(), http.StatusBadRequest)
+		slog.Error("Failed to add user to role", "error", err)
+		http.Error(w, "Failed to register user", http.StatusBadRequest)
 		return
 	}
 
