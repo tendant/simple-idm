@@ -31,13 +31,29 @@ type LoginService struct {
 
 // PostPasswordUpdateFunc is a function that will be called after a password update
 // It receives the username and password that were updated
+// This function is for backward compatibility which updates password in the old idm system
 type PostPasswordUpdateFunc func(username string, password []byte) error
 
+// PostLoginHookParams contains all parameters for the post login hook
+type PostLoginHookParams struct {
+	LoginID           uuid.UUID
+	IPAddress         string
+	UserAgent         string
+	DeviceFingerprint string
+	Success           bool
+	FailureReason     string
+}
+
+type PostPasswordResetHookParams struct {
+	LoginID uuid.UUID
+	Token   string
+}
+
 // PostLoginHookFunc defines a function that will be called after a successful login
-type PostLoginHookFunc func(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, deviceFingerprint string, success bool, failureReason string) error
+type PostLoginHookFunc func(ctx context.Context, params PostLoginHookParams) error
 
 // PostPasswordResetHookFunc defines a function that will be called after a successful password reset
-type PostPasswordResetHookFunc func(ctx context.Context, token string) error
+type PostPasswordResetHookFunc func(ctx context.Context, params PostPasswordResetHookParams) error
 
 // LoginServiceOptions contains optional parameters for creating a LoginService
 type LoginServiceOptions struct {
@@ -563,11 +579,18 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 			return err
 		}
 	}
+
 	if s.postPasswordResetHook != nil {
-		err := (*s.postPasswordResetHook)(ctx, token)
+		loginUuid, err := uuid.Parse(loginID)
+		if err != nil {
+			slog.Error("Failed to parse login ID", "err", err)
+		}
+		err = (*s.postPasswordResetHook)(ctx, PostPasswordResetHookParams{
+			LoginID: loginUuid,
+			Token:   token,
+		})
 		if err != nil {
 			slog.Error("Failed in post-password reset hook", "err", err)
-			// We don't fail the login attempt recording if the hook fails, just log the error
 		}
 	}
 	return nil
@@ -741,7 +764,15 @@ func (s *LoginService) RecordLoginAttempt(ctx context.Context, loginID uuid.UUID
 
 	// Execute post login hook if configured
 	if s.postLoginHook != nil {
-		hookErr := (*s.postLoginHook)(ctx, loginID, ipAddress, userAgent, deviceFingerprint, success, failureReason)
+		hookParams := PostLoginHookParams{
+			LoginID:           loginID,
+			IPAddress:         ipAddress,
+			UserAgent:         userAgent,
+			DeviceFingerprint: deviceFingerprint,
+			Success:           success,
+			FailureReason:     failureReason,
+		}
+		hookErr := (*s.postLoginHook)(ctx, hookParams)
 		if hookErr != nil {
 			slog.Error("Post login hook failed", "err", hookErr, "loginID", loginID)
 			// We don't fail the login attempt recording if the hook fails, just log the error
