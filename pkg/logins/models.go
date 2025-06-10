@@ -34,6 +34,14 @@ type LoginUpdateRequest struct {
 	Username string `json:"username,omitempty"`
 }
 
+type RegisterRequest struct {
+	Username       string `json:"username"`
+	Password       string `json:"password"`
+	FullName       string `json:"full_name"`
+	Email          string `json:"email"`
+	InvitationCode string `json:"invitation_code,omitempty"`
+}
+
 // PasswordUpdateRequest represents the request to update a password
 type PasswordUpdateRequest struct {
 	CurrentPassword string `json:"current_password"`

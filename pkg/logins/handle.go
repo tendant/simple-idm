@@ -8,6 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/iam"
+	"github.com/tendant/simple-idm/pkg/role"
 	"github.com/tendant/simple-idm/pkg/twofa"
 )
 
@@ -15,6 +17,8 @@ import (
 type LoginsHandle struct {
 	loginService     *LoginsService
 	twoFactorService twofa.TwoFactorService
+	iamService       *iam.IamService
+	roleService      *role.RoleService
 }
 
 // Ensure LoginsHandle implements ServerInterface
@@ -36,6 +40,7 @@ func (h *LoginsHandle) RegisterRoutes(r chi.Router) {
 		r.Get("/{id}", h.GetLogin)
 		r.Put("/{id}", h.UpdateLogin)
 		r.Delete("/{id}", h.DeleteLogin)
+		r.Post("/register", h.RegisterUser)
 	})
 }
 
@@ -291,6 +296,67 @@ func (h *LoginsHandle) PutID(w http.ResponseWriter, r *http.Request, id string) 
 
 	h.UpdateLogin(w, r)
 	return nil
+}
+
+func (h *LoginsHandle) RegisterUser(w http.ResponseWriter, r *http.Request) {
+	// Parse request body
+	var request RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate required fields
+	if request.Username == "" || request.Password == "" || request.FullName == "" || request.Email == "" {
+		http.Error(w, "Full name, username, password, and email are required", http.StatusBadRequest)
+		return
+	}
+
+	// Create login request from registration request
+	loginRequest := LoginCreateRequest{
+		Username: request.Username,
+		Password: request.Password,
+	}
+
+	// Determine role based on invitation code
+	role := "demo"
+	if request.InvitationCode != "" {
+		// TODO: implement invitation code logic
+		switch request.InvitationCode {
+		default:
+			role = "demo"
+		}
+	}
+
+	roleID, err := h.roleService.GetRoleIdByName(r.Context(), role)
+	if err != nil {
+		http.Error(w, "Failed to get role ID: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Create the login
+	login, err := h.loginService.CreateLogin(r.Context(), loginRequest, role)
+	if err != nil {
+		http.Error(w, "Failed to register user: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.iamService.CreateUser(r.Context(), request.Email, request.Username, request.FullName, []uuid.UUID{}, login.ID)
+	if err != nil {
+		http.Error(w, "Failed to register user: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Add user to role
+	err = h.roleService.AddUserToRole(r.Context(), user.ID, roleID, login.Username)
+	if err != nil {
+		http.Error(w, "Failed to register user: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Return the created login
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(login)
 }
 
 // Get login 2FA methods
