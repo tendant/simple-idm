@@ -25,12 +25,47 @@ type LoginsHandle struct {
 // Ensure LoginsHandle implements ServerInterface
 var _ ServerInterface = (*LoginsHandle)(nil)
 
-// NewHandle creates a new login handler
-func NewHandle(loginService *LoginsService, twoFactorService twofa.TwoFactorService) *LoginsHandle {
-	return &LoginsHandle{
-		loginService:     loginService,
-		twoFactorService: twoFactorService,
+// Option is a function that configures a LoginsHandle
+type Option func(*LoginsHandle)
+
+// WithLoginService sets the login service for the handle
+func WithLoginService(service *LoginsService) Option {
+	return func(h *LoginsHandle) {
+		h.loginService = service
 	}
+}
+
+// WithTwoFactorService sets the two-factor service for the handle
+func WithTwoFactorService(service twofa.TwoFactorService) Option {
+	return func(h *LoginsHandle) {
+		h.twoFactorService = service
+	}
+}
+
+// WithIamService sets the IAM service for the handle
+func WithIamService(service *iam.IamService) Option {
+	return func(h *LoginsHandle) {
+		h.iamService = service
+	}
+}
+
+// WithRoleService sets the role service for the handle
+func WithRoleService(service *role.RoleService) Option {
+	return func(h *LoginsHandle) {
+		h.roleService = service
+	}
+}
+
+// NewHandle creates a new login handler
+func NewHandle(opts ...Option) *LoginsHandle {
+	h := &LoginsHandle{}
+	
+	// Apply all options
+	for _, opt := range opts {
+		opt(h)
+	}
+	
+	return h
 }
 
 // RegisterRoutes registers the login routes

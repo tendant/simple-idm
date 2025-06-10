@@ -323,7 +323,12 @@ func main() {
 			PasswordManager: passwordManager,
 		}
 		loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
-		loginsHandle := logins.NewHandle(loginsService, twoFaService)
+		loginsHandle := logins.NewHandle(
+			logins.WithLoginService(loginsService),
+			logins.WithTwoFactorService(twoFaService),
+			logins.WithIamService(iamService),
+			logins.WithRoleService(roleService),
+		)
 		loginsRouter := chi.NewRouter()
 		loginsRouter.Group(func(r chi.Router) {
 			r.Use(client.AdminRoleMiddleware)
