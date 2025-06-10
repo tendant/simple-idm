@@ -17,19 +17,27 @@ import (
 )
 
 type LoginService struct {
-	repository          LoginRepository
-	notificationManager *notification.NotificationManager
-	userMapper          mapper.UserMapper
-	delegatedUserMapper mapper.DelegatedUserMapper
-	passwordManager     *PasswordManager
-	postPasswordUpdate  *PostPasswordUpdateFunc
-	maxFailedAttempts   int
-	lockoutDuration     time.Duration
+	repository            LoginRepository
+	notificationManager   *notification.NotificationManager
+	userMapper            mapper.UserMapper
+	delegatedUserMapper   mapper.DelegatedUserMapper
+	passwordManager       *PasswordManager
+	postPasswordUpdate    *PostPasswordUpdateFunc
+	postLoginHook         *PostLoginHookFunc
+	postPasswordResetHook *PostPasswordResetHookFunc
+	maxFailedAttempts     int
+	lockoutDuration       time.Duration
 }
 
 // PostPasswordUpdateFunc is a function that will be called after a password update
 // It receives the username and password that were updated
 type PostPasswordUpdateFunc func(username string, password []byte) error
+
+// PostLoginHookFunc defines a function that will be called after a successful login
+type PostLoginHookFunc func(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, deviceFingerprint string, success bool, failureReason string) error
+
+// PostPasswordResetHookFunc defines a function that will be called after a successful password reset
+type PostPasswordResetHookFunc func(ctx context.Context, token string) error
 
 // LoginServiceOptions contains optional parameters for creating a LoginService
 type LoginServiceOptions struct {
@@ -71,6 +79,20 @@ func WithPasswordManager(passwordManager *PasswordManager) Option {
 func WithPostPasswordUpdate(postPasswordUpdate *PostPasswordUpdateFunc) Option {
 	return func(ls *LoginService) {
 		ls.postPasswordUpdate = postPasswordUpdate
+	}
+}
+
+// WithPostLoginHook sets the post login hook function for the LoginService
+func WithPostLoginHook(postLoginHook *PostLoginHookFunc) Option {
+	return func(ls *LoginService) {
+		ls.postLoginHook = postLoginHook
+	}
+}
+
+// WithPostPasswordResetHook sets the post password reset hook function for the LoginService
+func WithPostPasswordResetHook(postPasswordResetHook *PostPasswordResetHookFunc) Option {
+	return func(ls *LoginService) {
+		ls.postPasswordResetHook = postPasswordResetHook
 	}
 }
 
@@ -541,6 +563,13 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 			return err
 		}
 	}
+	if s.postPasswordResetHook != nil {
+		err := (*s.postPasswordResetHook)(ctx, token)
+		if err != nil {
+			slog.Error("Failed in post-password reset hook", "err", err)
+			// We don't fail the login attempt recording if the hook fails, just log the error
+		}
+	}
 	return nil
 }
 
@@ -700,7 +729,8 @@ func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (s
 
 // RecordLoginAttempt records a login attempt
 func (s *LoginService) RecordLoginAttempt(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, deviceFingerprint string, success bool, failureReason string) error {
-	return s.repository.RecordLoginAttempt(ctx, LoginAttempt{
+	// Record the login attempt in the repository
+	err := s.repository.RecordLoginAttempt(ctx, LoginAttempt{
 		LoginID:           loginID,
 		IPAddress:         ipAddress,
 		UserAgent:         userAgent,
@@ -708,6 +738,17 @@ func (s *LoginService) RecordLoginAttempt(ctx context.Context, loginID uuid.UUID
 		Success:           success,
 		FailureReason:     failureReason,
 	})
+
+	// Execute post login hook if configured
+	if s.postLoginHook != nil {
+		hookErr := (*s.postLoginHook)(ctx, loginID, ipAddress, userAgent, deviceFingerprint, success, failureReason)
+		if hookErr != nil {
+			slog.Error("Post login hook failed", "err", hookErr, "loginID", loginID)
+			// We don't fail the login attempt recording if the hook fails, just log the error
+		}
+	}
+
+	return err
 }
 
 // IncrementFailedAttemptsAndCheckLock increments the failed login attempts counter
