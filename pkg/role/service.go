@@ -68,7 +68,7 @@ type PostgresRoleRepository struct {
 
 // GetRoleIdByName implements RoleRepository.
 func (r *PostgresRoleRepository) GetRoleIdByName(ctx context.Context, name string) (uuid.UUID, error) {
-	panic("unimplemented")
+	return r.queries.GetRoleIdByName(ctx, name)
 }
 
 // NewPostgresRoleRepository creates a new PostgresRoleRepository
