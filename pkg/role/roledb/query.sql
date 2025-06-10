@@ -32,3 +32,14 @@ ORDER BY u.email;
 -- name: RemoveUserFromRole :exec
 DELETE FROM user_roles 
 WHERE user_id = $1 AND role_id = $2;
+
+-- name: CreateUserRole :one
+INSERT INTO user_roles (user_id, role_id)
+VALUES ($1, $2)
+RETURNING *;
+
+-- name: GetRoleIdByName :one
+SELECT id
+FROM roles
+WHERE name = $1
+AND deleted_at IS NULL;
