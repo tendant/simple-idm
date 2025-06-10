@@ -27,9 +27,9 @@ type Role struct {
 
 // RoleUser represents a user assigned to a role
 type RoleUser struct {
-	ID    uuid.UUID
-	Email string
-	Name  string
+	ID        uuid.UUID
+	Email     string
+	Name      string
 	NameValid bool
 }
 
@@ -56,6 +56,7 @@ type RoleRepository interface {
 	HasUsers(ctx context.Context, roleID uuid.UUID) (bool, error)
 	RemoveUserFromRole(ctx context.Context, arg RemoveUserFromRoleParams) error
 	AddUserToRole(ctx context.Context, roleID, userID uuid.UUID, username string) error
+	GetRoleIdByName(ctx context.Context, name string) (uuid.UUID, error)
 	WithTx(tx interface{}) RoleRepository
 	WithPgxTx(tx pgx.Tx) RoleRepository
 }
@@ -63,6 +64,11 @@ type RoleRepository interface {
 // PostgresRoleRepository implements RoleRepository using roledb.Queries
 type PostgresRoleRepository struct {
 	queries *roledb.Queries
+}
+
+// GetRoleIdByName implements RoleRepository.
+func (r *PostgresRoleRepository) GetRoleIdByName(ctx context.Context, name string) (uuid.UUID, error) {
+	panic("unimplemented")
 }
 
 // NewPostgresRoleRepository creates a new PostgresRoleRepository
@@ -78,7 +84,7 @@ func (r *PostgresRoleRepository) FindRoles(ctx context.Context) ([]Role, error) 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	roles := make([]Role, len(dbRoles))
 	for i, dbRole := range dbRoles {
 		roles[i] = Role{
@@ -86,7 +92,7 @@ func (r *PostgresRoleRepository) FindRoles(ctx context.Context) ([]Role, error) 
 			Name: dbRole.Name,
 		}
 	}
-	
+
 	return roles, nil
 }
 
@@ -115,7 +121,7 @@ func (r *PostgresRoleRepository) GetRoleById(ctx context.Context, id uuid.UUID) 
 	if err != nil {
 		return Role{}, err
 	}
-	
+
 	return Role{
 		ID:   dbRole.ID,
 		Name: dbRole.Name,
@@ -128,17 +134,17 @@ func (r *PostgresRoleRepository) GetRoleUsers(ctx context.Context, roleID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	
+
 	users := make([]RoleUser, len(dbUsers))
 	for i, dbUser := range dbUsers {
 		users[i] = RoleUser{
-			ID:    dbUser.ID,
-			Email: dbUser.Email,
-			Name:  dbUser.Name.String,
+			ID:        dbUser.ID,
+			Email:     dbUser.Email,
+			Name:      dbUser.Name.String,
 			NameValid: dbUser.Name.Valid,
 		}
 	}
-	
+
 	return users, nil
 }
 
@@ -327,4 +333,9 @@ func (s *RoleService) AddUserToRole(ctx context.Context, roleID, userID uuid.UUI
 	}
 
 	return nil
+}
+
+// GetRoleIdByName gets the role ID by name
+func (s *RoleService) GetRoleIdByName(ctx context.Context, name string) (uuid.UUID, error) {
+	return s.repo.GetRoleIdByName(ctx, name)
 }
