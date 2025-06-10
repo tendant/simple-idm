@@ -57,6 +57,7 @@ type Handle struct {
 	deviceService        device.DeviceService
 	responseHandler      ResponseHandler
 	deviceExpirationDays time.Duration
+	registrationEnabled  bool
 }
 
 type Option func(*Handle)
@@ -135,6 +136,12 @@ func WithResponseHandler(rh ResponseHandler) Option {
 func WithDeviceExpirationDays(days time.Duration) Option {
 	return func(h *Handle) {
 		h.deviceExpirationDays = days
+	}
+}
+
+func WithRegistrationEnabled(enabled bool) Option {
+	return func(h *Handle) {
+		h.registrationEnabled = enabled
 	}
 }
 
@@ -2128,6 +2135,12 @@ func (h Handle) GetDeviceExpiration(w http.ResponseWriter, r *http.Request) *Res
 // RegisterUser handles user registration with optional invitation code
 // 2025-06-10: Designed for sales demo instance to allow user to register with optional invitation code
 func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
+	if !h.registrationEnabled {
+		return &Response{
+			Code: http.StatusForbidden,
+			body: "Registration is disabled",
+		}
+	}
 	// Parse request body
 	var request RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {

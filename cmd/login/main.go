@@ -102,6 +102,7 @@ type LoginConfig struct {
 	MaxFailedAttempts    int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"5"`
 	LockoutDuration      string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT15M"`
 	DeviceExpirationDays string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
+	RegistrationEnabled  bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
 }
 
 type Config struct {
@@ -271,6 +272,7 @@ func main() {
 		loginapi.WithTwoFactorService(twoFaService),
 		loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()),
 		loginapi.WithDeviceExpirationDays(deviceExpiryDuration),
+		loginapi.WithRegistrationEnabled(config.LoginConfig.RegistrationEnabled),
 	)
 
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
