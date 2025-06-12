@@ -460,7 +460,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 		return &Response{
 			body: "Account not active",
-			Code: http.StatusUnauthorized,
+			Code: http.StatusForbidden,
 		}
 	}
 
