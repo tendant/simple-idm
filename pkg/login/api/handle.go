@@ -459,8 +459,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		// Record failed login attempt
 		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 		return &Response{
-			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
+			body: "Account not active",
+			Code: http.StatusUnauthorized,
 		}
 	}
 
