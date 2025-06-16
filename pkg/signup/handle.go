@@ -16,6 +16,7 @@ type Handle struct {
 	roleService         role.RoleService
 	loginsService       logins.LoginsService
 	registrationEnabled bool
+	defaultRole         string
 }
 
 type Option func(*Handle)
@@ -55,6 +56,12 @@ func WithRegistrationEnabled(enabled bool) Option {
 	}
 }
 
+func WithDefaultRole(role string) Option {
+	return func(h *Handle) {
+		h.defaultRole = role
+	}
+}
+
 // RegisterUser handles user registration with optional invitation code
 // 2025-06-10: Designed for sales demo instance to allow user to register with optional invitation code
 func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
@@ -84,7 +91,7 @@ func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Determine role based on invitation code
-	role := "demo"
+	role := h.defaultRole
 	if request.InvitationCode != "" {
 		// Get role from invitation code
 		assignedRole, valid := GetRoleForInvitationCode(request.InvitationCode)
