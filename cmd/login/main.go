@@ -100,10 +100,11 @@ type PasswordComplexityConfig struct {
 }
 
 type LoginConfig struct {
-	MaxFailedAttempts    int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"5"`
-	LockoutDuration      string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT15M"`
-	DeviceExpirationDays string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
-	RegistrationEnabled  bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
+	MaxFailedAttempts       int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"5"`
+	LockoutDuration         string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT15M"`
+	DeviceExpirationDays    string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
+	RegistrationEnabled     bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
+	RegistrationDefaultRole string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"user"`
 }
 
 type Config struct {
@@ -279,6 +280,7 @@ func main() {
 		signup.WithRoleService(*roleService),
 		signup.WithLoginsService(*loginsService),
 		signup.WithRegistrationEnabled(config.LoginConfig.RegistrationEnabled),
+		signup.WithDefaultRole(config.LoginConfig.RegistrationDefaultRole),
 	)
 
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
