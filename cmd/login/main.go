@@ -104,7 +104,7 @@ type LoginConfig struct {
 	LockoutDuration         string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT15M"`
 	DeviceExpirationDays    string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
 	RegistrationEnabled     bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
-	RegistrationDefaultRole string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"user"`
+	RegistrationDefaultRole string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"readonlyuser"`
 }
 
 type Config struct {
