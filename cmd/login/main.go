@@ -281,6 +281,7 @@ func main() {
 		signup.WithLoginsService(*loginsService),
 		signup.WithRegistrationEnabled(config.LoginConfig.RegistrationEnabled),
 		signup.WithDefaultRole(config.LoginConfig.RegistrationDefaultRole),
+		signup.WithLoginService(*loginService),
 	)
 
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
