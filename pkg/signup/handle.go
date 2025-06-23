@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/iam"
@@ -123,6 +124,29 @@ func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 		Password: request.Password,
 	}, "")
 	if err != nil {
+		// Username already exists
+		if strings.Contains(err.Error(), "username already exists") {
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: map[string]interface{}{
+					"error": "Username already exists",
+				},
+				contentType: "application/json",
+			}
+		}
+		// Password complexity error
+		if strings.Contains(err.Error(), "password does not meet complexity requirements:") {
+			detail := strings.TrimPrefix(err.Error(), "password does not meet complexity requirements: ")
+			return &Response{
+				Code: http.StatusBadRequest,
+				body: map[string]interface{}{
+					"error":   "Password does not meet complexity requirements",
+					"details": detail,
+				},
+				contentType: "application/json",
+			}
+		}
+		// All other errors
 		slog.Error("Failed to create login", "error", err)
 		return &Response{
 			Code: http.StatusBadRequest,
