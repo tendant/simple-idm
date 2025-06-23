@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/iam"
+	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/logins"
 	"github.com/tendant/simple-idm/pkg/role"
 )
@@ -15,6 +16,7 @@ import (
 type Handle struct {
 	iamService          iam.IamService
 	roleService         role.RoleService
+	loginService        login.LoginService
 	loginsService       logins.LoginsService
 	registrationEnabled bool
 	defaultRole         string
@@ -48,6 +50,12 @@ func WithRoleService(rs role.RoleService) Option {
 func WithLoginsService(ls logins.LoginsService) Option {
 	return func(h *Handle) {
 		h.loginsService = ls
+	}
+}
+
+func WithLoginService(ls login.LoginService) Option {
+	return func(h *Handle) {
+		h.loginService = ls
 	}
 }
 
@@ -178,6 +186,16 @@ func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 	return &Response{
 		Code:        http.StatusCreated,
 		body:        login,
+		contentType: "application/json",
+	}
+}
+
+// GetPasswordPolicy returns the password complexity requirements
+func (h Handle) GetPasswordPolicy(w http.ResponseWriter, r *http.Request) *Response {
+	policy := h.loginService.GetPasswordPolicy()
+	return &Response{
+		Code:        http.StatusOK,
+		body:        policy,
 		contentType: "application/json",
 	}
 }
