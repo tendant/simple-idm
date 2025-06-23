@@ -2,9 +2,9 @@ package signup
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/iam"
@@ -132,8 +132,12 @@ func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 		Password: request.Password,
 	}, "")
 	if err != nil {
+		// Check for specific error types
+		var usernameErr logins.ErrUsernameAlreadyExists
+		var passwordErr logins.ErrPasswordComplexity
+		
 		// Username already exists
-		if strings.Contains(err.Error(), "username already exists") {
+		if errors.As(err, &usernameErr) {
 			return &Response{
 				Code: http.StatusBadRequest,
 				body: map[string]interface{}{
@@ -142,14 +146,14 @@ func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 				contentType: "application/json",
 			}
 		}
+		
 		// Password complexity error
-		if strings.Contains(err.Error(), "password does not meet complexity requirements:") {
-			detail := strings.TrimPrefix(err.Error(), "password does not meet complexity requirements: ")
+		if errors.As(err, &passwordErr) {
 			return &Response{
 				Code: http.StatusBadRequest,
 				body: map[string]interface{}{
 					"error":   "Password does not meet complexity requirements",
-					"details": detail,
+					"details": passwordErr.Details,
 				},
 				contentType: "application/json",
 			}

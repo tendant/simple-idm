@@ -105,7 +105,7 @@ func (s *LoginsService) CreateLogin(ctx context.Context, request LoginCreateRequ
 	}
 	// Validate password complexity
 	if err := s.passwordManager.CheckPasswordComplexity(request.Password); err != nil {
-		return nil, fmt.Errorf("password does not meet complexity requirements: %w", err)
+		return nil, ErrPasswordComplexity{Details: err.Error()}
 	}
 
 	// Hash the password
