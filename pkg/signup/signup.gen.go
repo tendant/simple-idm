@@ -21,6 +21,36 @@ import (
 	"github.com/go-chi/render"
 )
 
+// PasswordPolicyResponse defines model for PasswordPolicyResponse.
+type PasswordPolicyResponse struct {
+	// Whether common passwords are disallowed
+	DisallowCommonPwds *bool `json:"disallow_common_pwds,omitempty"`
+
+	// Number of days until password expires
+	ExpirationDays *int `json:"expiration_days,omitempty"`
+
+	// Number of previous passwords to check against
+	HistoryCheckCount *int `json:"history_check_count,omitempty"`
+
+	// Maximum number of repeated characters allowed
+	MaxRepeatedChars *int `json:"max_repeated_chars,omitempty"`
+
+	// Minimum length of the password
+	MinLength *int `json:"min_length,omitempty"`
+
+	// Whether the password requires a digit
+	RequireDigit *bool `json:"require_digit,omitempty"`
+
+	// Whether the password requires a lowercase letter
+	RequireLowercase *bool `json:"require_lowercase,omitempty"`
+
+	// Whether the password requires a special character
+	RequireSpecialChar *bool `json:"require_special_char,omitempty"`
+
+	// Whether the password requires an uppercase letter
+	RequireUppercase *bool `json:"require_uppercase,omitempty"`
+}
+
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	Email          string `json:"email"`
@@ -94,11 +124,24 @@ func RegisterUserJSON201Response(body struct {
 	}
 }
 
+// GetPasswordPolicyJSON200Response is a constructor method for a GetPasswordPolicy response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetPasswordPolicyJSON200Response(body PasswordPolicyResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Register a new user
 	// (POST /)
 	RegisterUser(w http.ResponseWriter, r *http.Request) *Response
+	// Get password policy
+	// (GET /password/policy)
+	GetPasswordPolicy(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -113,6 +156,24 @@ func (siw *ServerInterfaceWrapper) RegisterUser(w http.ResponseWriter, r *http.R
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.RegisterUser(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetPasswordPolicy operation middleware
+func (siw *ServerInterfaceWrapper) GetPasswordPolicy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetPasswordPolicy(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -241,6 +302,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Post("/", wrapper.RegisterUser)
+		r.Get("/password/policy", wrapper.GetPasswordPolicy)
 	})
 	return r
 }
@@ -266,14 +328,19 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/5RSTW8TMRD9K6uB4+ajcNsTrbgUCQkVcUIIufYk62jtcWfGaVfV/ndkJ80HCQdu1thv",
-	"3vN77xUshUQRowp0ryC2x2Dq8QHXXhT5AZ8yipZRYkrI6rE+wGD8UA8vJqQBoYMN9XHuCD/tR3NLAVrQ",
-	"MZVbUfZxDVMLqzwM0QQ8R3+hPjafCa8hfNx6Neop/rbkKvDiTTIiz8Tu6mUW5EvKIthdY5xaYHzKntFB",
-	"9/Mo+GRRu3fghPjXYQ89btAqtPAyW9OMUlFuhtnWDBmhU85YKARtZq/j92L7ztU7NIx8m7U/5FH2Pdbx",
-	"UWevmmCaqjMrqj/2Wr/0Q5CbryaaNQaM2tx+u4cWtsjiKUIHN/PlfFkcoYTRJA8dfKyj8g/tq4hFTZt2",
-	"qZfMq/P3DrpDLQoN7ExC0TtyY3lrKSrGCjMpDd5W4GIjhfqtXuX0nnEFHbxbHPu32Jdv8XfzpvM0qnll",
-	"IImi7Fz7sLz5L/p/NHlFHIxCd0j2shXn+VZpDsWyrxG/+W8ZjaJrJFuLIqU+Y4VLDsHweGJkY5qIz02p",
-	"VVk3/QkAAP//Vh7Lj5MDAAA=",
+	"H4sIAAAAAAAC/6xVXW/rNgz9K4K2xzTJ3d78tHsx4KIDOhQthj0Mg6HKjK3OElWKSmIU/u+D5MTOh1Og",
+	"w94MWucc8pAS36VG69GB4yCLdxl0A1blz0cVwg6pesTW6O4JgkcXIP3xhB6IDeRzlQmqbXFXarQWXel3",
+	"1RCHoMl4NuhkIf9sgBsgMRwS/kAehCIQRwqo5EJy50EW8gWxBeVkv5Cw94ZUIior1c2Q/x7tC5DAjUj/",
+	"RXRs2lFCZDiEido4hhooUTcmMFJX6gb0P6XG6Pgjek+wNRjDSf6MIoOFqpVxgWdlrNqXBB4UQ1XqRtFM",
+	"EQ9qb2y0wo1qR4RICKUZKIgrn05VjCtbcDU3M+zGZfbhf2LnBsYyZukI3qIhKCtTG77d0VMeccAEocQA",
+	"m+vnkThVQloNQ/U58hEqWmAG+lAneNBGtdn4z0sd0FMTPtSK3v/HmpwYsbeL6scQvryC5iT9BLUJDPQE",
+	"bxECX99QsMq0+WOvrG8T+hUbt6wQfjmElhrtJBeYjKsT9ya2rVMWztG/YePErwhzCOO2hofLqrHKwKsz",
+	"49jN/YwB6FoyJVzNKU7eV7L4a0r4hGhxcOBE+O9LHxdyf1fjHeZmqfZuq9oIsmCKkCQC6EiGu+f0Pg6u",
+	"fgNFQF/jcNvyw5lblcNTng2zl32fndlgrthwLumPACQelFM1WHAsvj7ey4XcAoVhXr4s18t1cgQ9OOWN",
+	"LOTPOZTq4CYnscrdxqHrqefZ+ftKFuNYJBk5mASBv2HVpbMaHcPw2CnvW6MzcPUakvRxD6SvHwk2spA/",
+	"rKZFsTpsidXl5PXn3cjmpcCwOnLCP62/fEr+xiRvkKxiWYydvZ6Ki3uSQuf3MfuvaXhiQ9QaQkjj02V4",
+	"iNYq6k6MFEo42Ik0VvnE6jhNK59XZMqrhplOfAc+X6byypT1/9aTG2t7pv7nseSLgr8DTw/Uoba+7/t/",
+	"AwAA//8Ncz8bLQgAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
