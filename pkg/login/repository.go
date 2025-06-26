@@ -3,9 +3,11 @@ package login
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,6 +32,17 @@ type LoginEntity struct {
 	LockedUntil         time.Time
 	PasswordUpdatedAt   time.Time
 	PasswordExpiresAt   time.Time
+	IsPasswordless      bool // New field for passwordless login
+}
+
+// MagicLinkToken represents a magic link token for passwordless login
+type MagicLinkToken struct {
+	ID        uuid.UUID
+	LoginID   uuid.UUID
+	Token     string
+	CreatedAt time.Time
+	ExpireAt  time.Time
+	UsedAt    *time.Time // Pointer to allow nil for unused tokens
 }
 
 // PasswordResetToken represents a password reset token
@@ -146,13 +159,38 @@ type LoginRepository interface {
 	ResetFailedLoginAttempts(ctx context.Context, loginID uuid.UUID) error
 	GetFailedLoginAttempts(ctx context.Context, loginID uuid.UUID) (int32, time.Time, time.Time, error)
 
+	// Passwordless login methods
+	SetPasswordlessFlag(ctx context.Context, loginID uuid.UUID, isPasswordless bool) error
+	IsPasswordlessLogin(ctx context.Context, loginID uuid.UUID) (bool, error)
+
+	// Magic link methods
+	GenerateMagicLinkToken(ctx context.Context, loginID uuid.UUID, token string, expireAt time.Time) error
+	ValidateMagicLinkToken(ctx context.Context, token string) (uuid.UUID, error)
+	MarkMagicLinkTokenUsed(ctx context.Context, token string) error
+
 	// Transaction support
 	WithTx(tx interface{}) LoginRepository
 }
 
+// InMemoryMagicLinkTokenRepository implements magic link token storage in memory
+type InMemoryMagicLinkTokenRepository struct {
+	tokens      map[string]MagicLinkToken
+	tokensMutex sync.RWMutex
+}
+
+// NewInMemoryMagicLinkTokenRepository creates a new in-memory magic link token repository
+func NewInMemoryMagicLinkTokenRepository() *InMemoryMagicLinkTokenRepository {
+	return &InMemoryMagicLinkTokenRepository{
+		tokens: make(map[string]MagicLinkToken),
+	}
+}
+
 // PostgresLoginRepository implements LoginRepository using PostgreSQL
 type PostgresLoginRepository struct {
-	queries *logindb.Queries
+	queries            *logindb.Queries
+	magicLinkTokens    *InMemoryMagicLinkTokenRepository
+	passwordlessLogins map[uuid.UUID]bool
+	passwordlessMutex  sync.RWMutex
 }
 
 // PostgresLoginRepositoryAdapter adapts the PostgresLoginRepository to the LoginRepository interface
@@ -165,7 +203,9 @@ type PostgresLoginRepositoryAdapter interface {
 // NewPostgresLoginRepository creates a new PostgreSQL-based login repository
 func NewPostgresLoginRepository(queries *logindb.Queries) *PostgresLoginRepository {
 	return &PostgresLoginRepository{
-		queries: queries,
+		queries:            queries,
+		magicLinkTokens:    NewInMemoryMagicLinkTokenRepository(),
+		passwordlessLogins: make(map[uuid.UUID]bool),
 	}
 }
 
@@ -565,15 +605,98 @@ func (r *PostgresLoginRepository) WithTx(tx interface{}) LoginRepository {
 
 	// Use the pgx.Tx with the queries
 	return &PostgresLoginRepository{
-		queries: r.queries.WithTx(pgxTx),
+		queries:            r.queries.WithTx(pgxTx),
+		magicLinkTokens:    r.magicLinkTokens,
+		passwordlessLogins: r.passwordlessLogins,
 	}
 }
 
 // WithPgxTx returns a new repository with the given pgx transaction
 func (r *PostgresLoginRepository) WithPgxTx(tx pgx.Tx) LoginRepository {
 	return &PostgresLoginRepository{
-		queries: r.queries.WithTx(tx),
+		queries:            r.queries.WithTx(tx),
+		magicLinkTokens:    r.magicLinkTokens,
+		passwordlessLogins: r.passwordlessLogins,
 	}
+}
+
+// SetPasswordlessFlag sets whether a login uses passwordless authentication
+func (r *PostgresLoginRepository) SetPasswordlessFlag(ctx context.Context, loginID uuid.UUID, isPasswordless bool) error {
+	r.passwordlessMutex.Lock()
+	defer r.passwordlessMutex.Unlock()
+
+	r.passwordlessLogins[loginID] = isPasswordless
+	return nil
+}
+
+// IsPasswordlessLogin checks if a login uses passwordless authentication
+func (r *PostgresLoginRepository) IsPasswordlessLogin(ctx context.Context, loginID uuid.UUID) (bool, error) {
+	r.passwordlessMutex.RLock()
+	defer r.passwordlessMutex.RUnlock()
+
+	isPasswordless, exists := r.passwordlessLogins[loginID]
+	if !exists {
+		return false, nil // Default to false if not set
+	}
+
+	return isPasswordless, nil
+}
+
+// GenerateMagicLinkToken generates a magic link token
+func (r *PostgresLoginRepository) GenerateMagicLinkToken(ctx context.Context, loginID uuid.UUID, token string, expireAt time.Time) error {
+	r.magicLinkTokens.tokensMutex.Lock()
+	defer r.magicLinkTokens.tokensMutex.Unlock()
+
+	r.magicLinkTokens.tokens[token] = MagicLinkToken{
+		ID:        uuid.New(),
+		LoginID:   loginID,
+		Token:     token,
+		CreatedAt: time.Now().UTC(),
+		ExpireAt:  expireAt,
+		UsedAt:    nil,
+	}
+
+	return nil
+}
+
+// ValidateMagicLinkToken validates a magic link token
+func (r *PostgresLoginRepository) ValidateMagicLinkToken(ctx context.Context, token string) (uuid.UUID, error) {
+	r.magicLinkTokens.tokensMutex.RLock()
+	defer r.magicLinkTokens.tokensMutex.RUnlock()
+
+	tokenInfo, exists := r.magicLinkTokens.tokens[token]
+	if !exists {
+		return uuid.Nil, errors.New("token not found")
+	}
+
+	// Check if token is expired
+	if time.Now().UTC().After(tokenInfo.ExpireAt) {
+		return uuid.Nil, errors.New("token expired")
+	}
+
+	// Check if token is already used
+	if tokenInfo.UsedAt != nil {
+		return uuid.Nil, errors.New("token already used")
+	}
+
+	return tokenInfo.LoginID, nil
+}
+
+// MarkMagicLinkTokenUsed marks a magic link token as used
+func (r *PostgresLoginRepository) MarkMagicLinkTokenUsed(ctx context.Context, token string) error {
+	r.magicLinkTokens.tokensMutex.Lock()
+	defer r.magicLinkTokens.tokensMutex.Unlock()
+
+	tokenInfo, exists := r.magicLinkTokens.tokens[token]
+	if !exists {
+		return errors.New("token not found")
+	}
+
+	now := time.Now().UTC()
+	tokenInfo.UsedAt = &now
+	r.magicLinkTokens.tokens[token] = tokenInfo
+
+	return nil
 }
 
 // GetPasswordUpdatedAt gets the password updated at timestamp for a login
