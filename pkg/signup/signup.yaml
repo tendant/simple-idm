@@ -24,6 +24,27 @@ paths:
                   email:
                     type: string
                     format: email
+  /passwordless:
+    post:
+      summary: Register a new user without password
+      operationId: register_user_passwordless
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordlessRegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
   /password/policy:
     get:
       summary: Get password policy
@@ -59,6 +80,25 @@ components:
         - username
         - email
         - password
+    PasswordlessRegisterRequest:
+      type: object
+      x-go-optional-value: true
+      properties:
+        fullname:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          example: john.doe@example.com
+        username:
+          type: string
+          example: johndoe
+        invitation_code:
+          type: string
+      required:
+        - fullname
+        - username
+        - email
     PasswordPolicyResponse:
       type: object
       properties:
