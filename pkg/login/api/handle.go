@@ -2099,3 +2099,138 @@ func (h Handle) GetDeviceExpiration(w http.ResponseWriter, r *http.Request) *Res
 		contentType: "application/json",
 	}
 }
+
+// InitiateMagicLinkLogin handles requests for magic link login
+// (POST /login/magic-link)
+func (h Handle) InitiateMagicLinkLogin(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
+	var request MagicLinkLoginRequest
+	if err := render.DecodeJSON(r.Body, &request); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+
+	// Generate magic link token
+	token, email, err := h.loginService.GenerateMagicLinkToken(r.Context(), request.Username)
+	if err != nil {
+		// Return success even if user not found to prevent username enumeration
+		return &Response{
+			Code: http.StatusOK,
+			body: map[string]string{
+				"message": "If an account exists with that username, we will send a login link to the associated email.",
+			},
+			contentType: "application/json",
+		}
+	}
+
+	// Send magic link email
+	err = h.loginService.SendMagicLinkEmail(r.Context(), login.SendMagicLinkEmailParams{
+		Email:    email,
+		Token:    token,
+		Username: request.Username,
+	})
+	if err != nil {
+		slog.Error("Failed to send magic link email", "error", err)
+		// Return success anyway to prevent username enumeration
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"message": "If an account exists with that username, we will send a login link to the associated email.",
+		},
+		contentType: "application/json",
+	}
+}
+
+// ValidateMagicLinkToken validates a magic link token and logs the user in
+// (GET /login/magic-link/validate)
+func (h Handle) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, params ValidateMagicLinkTokenParams) *Response {
+	// Get token from query params
+	token := params.Token
+
+	// Validate token
+	loginResult, err := h.loginService.ValidateMagicLinkToken(r.Context(), token)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"message": "Invalid or expired token",
+			},
+			contentType: "application/json",
+		}
+	}
+
+	// Get IP address and user agent for login attempt recording
+	ipAddress := getIPAddressFromRequest(r)
+	userAgent := getUserAgentFromRequest(r)
+	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr := device.GenerateFingerprint(fingerprintData)
+
+	// Check if there are multiple users
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginResult.LoginID, loginResult.Users)
+	if err != nil {
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	if isMultipleUsers {
+		// Prepare user selection response
+		return h.responseHandler.PrepareUserSelectionResponse(loginResult.Users, loginResult.LoginID, tempToken.Token)
+	}
+
+	// Single user case - proceed with normal flow
+	tokenUser := loginResult.Users[0]
+
+	// Create JWT tokens
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
+	tokens, err := h.tokenService.GenerateTokens(tokenUser.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create tokens",
+		}
+	}
+
+	// Set tokens in cookies
+	err = h.tokenCookieService.SetTokensCookie(w, tokens)
+	if err != nil {
+		slog.Error("Failed to set tokens cookie", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to set tokens cookie",
+		}
+	}
+
+	// Record successful login attempt
+	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr)
+
+	// Create response with user information
+	apiUsers := make([]User, len(loginResult.Users))
+	for i, mu := range loginResult.Users {
+		email, _ := mu.ExtraClaims["email"].(string)
+		name := mu.DisplayName
+
+		apiUsers[i] = User{
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
+		}
+	}
+
+	response := Login{
+		Status:  STATUS_SUCCESS,
+		Message: "Login successful",
+		User:    apiUsers[0],
+		Users:   apiUsers,
+	}
+
+	return PostLoginJSON200Response(response)
+}
