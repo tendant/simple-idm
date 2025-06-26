@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { LoginResponse } from './user';
 
 export interface Login {
   id?: string;
@@ -8,6 +9,7 @@ export interface Login {
   two_factor_enabled?: boolean;
   password_last_changed?: string;
   status?: string;
+  is_passwordless?: boolean;
 }
 
 export interface TwoFactorMethod {
@@ -38,6 +40,25 @@ export const loginApi = {
     const response = await apiClient.get('/idm/logins');
     if (!response.ok) {
       throw new Error('Failed to fetch logins');
+    }
+    return response.json();
+  },
+
+  // Magic link login methods
+  requestMagicLink: async (username: string): Promise<{ message: string }> => {
+    const response = await apiClient.post('/api/idm/auth/login/magic-link', { username }, { skipAuth: true });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || 'Failed to request magic link');
+    }
+    return response.json();
+  },
+
+  validateMagicLink: async (token: string): Promise<LoginResponse> => {
+    const response = await apiClient.get(`/api/idm/auth/login/magic-link/validate?token=${encodeURIComponent(token)}`, { skipAuth: true });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || 'Invalid or expired magic link');
     }
     return response.json();
   },

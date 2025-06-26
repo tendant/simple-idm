@@ -188,6 +188,21 @@ const Login: Component = () => {
                   Forgot your username?
                 </A>
               </div>
+              <div class="mt-4 flex justify-center space-x-4">
+                <A
+                  href="/magic-link-login"
+                  class="text-sm text-blue-600 hover:text-blue-500"
+                >
+                  Login with magic link
+                </A>
+                <span class="text-gray-8">•</span>
+                <A
+                  href="/passwordless-signup"
+                  class="text-sm text-blue-600 hover:text-blue-500"
+                >
+                  Sign up without password
+                </A>
+              </div>
             </div>
           </form>
         </div>
