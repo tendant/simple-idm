@@ -77,6 +77,12 @@ type LoginResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// MagicLinkLoginRequest defines model for MagicLinkLoginRequest.
+type MagicLinkLoginRequest struct {
+	// Username or email to send magic link to
+	Username string `json:"username"`
+}
+
 // MultiUsersResponse defines model for MultiUsersResponse.
 type MultiUsersResponse struct {
 	Users []User `json:"users,omitempty"`
@@ -224,6 +230,15 @@ type PostLoginJSONBody struct {
 	Username string `json:"username"`
 }
 
+// InitiateMagicLinkLoginJSONBody defines parameters for InitiateMagicLinkLogin.
+type InitiateMagicLinkLoginJSONBody MagicLinkLoginRequest
+
+// ValidateMagicLinkTokenParams defines parameters for ValidateMagicLinkToken.
+type ValidateMagicLinkTokenParams struct {
+	// Magic link token
+	Token string `json:"token"`
+}
+
 // PostMobile2faSendJSONBody defines parameters for PostMobile2faSend.
 type PostMobile2faSendJSONBody struct {
 	DeliveryOption string `json:"delivery_option"`
@@ -327,6 +342,14 @@ type PostLoginJSONRequestBody PostLoginJSONBody
 
 // Bind implements render.Binder.
 func (PostLoginJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// InitiateMagicLinkLoginJSONRequestBody defines body for InitiateMagicLinkLogin for application/json ContentType.
+type InitiateMagicLinkLoginJSONRequestBody InitiateMagicLinkLoginJSONBody
+
+// Bind implements render.Binder.
+func (InitiateMagicLinkLoginJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -544,6 +567,62 @@ func PostLoginJSON429Response(body AccountLockedResponse) *Response {
 	return &Response{
 		body:        body,
 		Code:        429,
+		contentType: "application/json",
+	}
+}
+
+// InitiateMagicLinkLoginJSON200Response is a constructor method for a InitiateMagicLinkLogin response.
+// A *Response is returned with the configured status code and content type from the spec.
+func InitiateMagicLinkLoginJSON200Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// InitiateMagicLinkLoginJSON400Response is a constructor method for a InitiateMagicLinkLogin response.
+// A *Response is returned with the configured status code and content type from the spec.
+func InitiateMagicLinkLoginJSON400Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        400,
+		contentType: "application/json",
+	}
+}
+
+// ValidateMagicLinkTokenJSON200Response is a constructor method for a ValidateMagicLinkToken response.
+// A *Response is returned with the configured status code and content type from the spec.
+func ValidateMagicLinkTokenJSON200Response(body LoginResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// ValidateMagicLinkTokenJSON202Response is a constructor method for a ValidateMagicLinkToken response.
+// A *Response is returned with the configured status code and content type from the spec.
+func ValidateMagicLinkTokenJSON202Response(body SelectUserRequiredResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        202,
+		contentType: "application/json",
+	}
+}
+
+// ValidateMagicLinkTokenJSON400Response is a constructor method for a ValidateMagicLinkToken response.
+// A *Response is returned with the configured status code and content type from the spec.
+func ValidateMagicLinkTokenJSON400Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        400,
 		contentType: "application/json",
 	}
 }
@@ -790,6 +869,12 @@ type ServerInterface interface {
 	// Login a user
 	// (POST /login)
 	PostLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Initiate magic link login
+	// (POST /login/magic-link)
+	InitiateMagicLinkLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Validate magic link token
+	// (GET /login/magic-link/validate)
+	ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, params ValidateMagicLinkTokenParams) *Response
 	// Logout user
 	// (POST /logout)
 	PostLogout(w http.ResponseWriter, r *http.Request) *Response
@@ -921,6 +1006,53 @@ func (siw *ServerInterfaceWrapper) PostLogin(w http.ResponseWriter, r *http.Requ
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// InitiateMagicLinkLogin operation middleware
+func (siw *ServerInterfaceWrapper) InitiateMagicLinkLogin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.InitiateMagicLinkLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// ValidateMagicLinkToken operation middleware
+func (siw *ServerInterfaceWrapper) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ValidateMagicLinkTokenParams
+
+	// ------------- Required query parameter "token" -------------
+
+	if err := runtime.BindQueryParameter("form", true, true, "token", r.URL.Query(), &params.Token); err != nil {
+		err = fmt.Errorf("invalid format for parameter token: %w", err)
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{err, "token"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.ValidateMagicLinkToken(w, r, params)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -1353,6 +1485,8 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Get("/device/expiration", wrapper.GetDeviceExpiration)
 		r.Post("/email/verify", wrapper.PostEmailVerify)
 		r.Post("/login", wrapper.PostLogin)
+		r.Post("/login/magic-link", wrapper.InitiateMagicLinkLogin)
+		r.Get("/login/magic-link/validate", wrapper.ValidateMagicLinkToken)
 		r.Post("/logout", wrapper.PostLogout)
 		r.Post("/mobile/2fa/send", wrapper.PostMobile2faSend)
 		r.Post("/mobile/2fa/validate", wrapper.PostMobile2faValidate)
@@ -1393,53 +1527,56 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"rrtEAAA=",
+	"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",
+	"AwAA///hhghI3koAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
