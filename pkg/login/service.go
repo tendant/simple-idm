@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -538,6 +539,12 @@ type SendPasswordResetEmailParams struct {
 	Username   string
 }
 
+type SendMagicLinkEmailParams struct {
+	Email    string
+	Token    string
+	Username string
+}
+
 func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPasswordResetEmailParams) error {
 	resetLink := fmt.Sprintf("%s/auth/user/reset-password?token=%s", s.notificationManager.BaseUrl, param.ResetToken)
 	slog.Info("Sending password reset email", "email", param.Email, "resetLink", resetLink)
@@ -550,6 +557,97 @@ func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPas
 		To:   param.Email,
 		Data: data,
 	})
+}
+
+// SendMagicLinkEmail sends a magic link email for passwordless login
+func (s *LoginService) SendMagicLinkEmail(ctx context.Context, param SendMagicLinkEmailParams) error {
+	if s.notificationManager == nil {
+		return errors.New("notification manager is not configured")
+	}
+
+	magicLink := fmt.Sprintf("%s/magic-link-validate?token=%s", s.notificationManager.BaseUrl, param.Token)
+	slog.Info("Sending magic link email", "email", param.Email, "magicLink", magicLink)
+
+	data := map[string]string{
+		"Link":     magicLink,
+		"Username": param.Username,
+	}
+
+	return s.notificationManager.Send(notice.MagicLinkLogin, notification.NotificationData{
+		To:   param.Email,
+		Data: data,
+	})
+}
+
+// GenerateMagicLinkToken generates a token for magic link login
+func (s *LoginService) GenerateMagicLinkToken(ctx context.Context, username string) (string, string, error) {
+	// Find login by username
+	login, err := s.FindLoginByUsername(ctx, username)
+	if err != nil {
+		return "", "", fmt.Errorf("user not found: %w", err)
+	}
+
+	// Check if this is a passwordless account
+	_, err = s.repository.IsPasswordlessLogin(ctx, login.ID)
+	if err != nil {
+		slog.Warn("Failed to check if account is passwordless", "error", err)
+		// Continue anyway, as we'll allow magic link login for all accounts
+	}
+
+	// Generate a secure random token
+	token := utils.GenerateRandomString(32)
+
+	// Set expiration time (15 minutes from now)
+	expiresAt := time.Now().UTC().Add(15 * time.Minute)
+
+	// Store the token in the database
+	err = s.repository.GenerateMagicLinkToken(ctx, login.ID, token, expiresAt)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate magic link token: %w", err)
+	}
+
+	// Get user's email
+	users, err := s.userMapper.FindUsersByLoginID(ctx, login.ID)
+	if err != nil || len(users) == 0 {
+		return "", "", fmt.Errorf("failed to find user info: %w", err)
+	}
+
+	email := users[0].UserInfo.Email
+
+	return token, email, nil
+}
+
+// ValidateMagicLinkToken validates a magic link token
+func (s *LoginService) ValidateMagicLinkToken(ctx context.Context, token string) (LoginResult, error) {
+	// Validate the token
+	loginID, err := s.repository.ValidateMagicLinkToken(ctx, token)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("invalid or expired token: %w", err)
+	}
+
+	// Mark the token as used
+	err = s.repository.MarkMagicLinkTokenUsed(ctx, token)
+	if err != nil {
+		slog.Error("Failed to mark token as used", "error", err)
+		// Continue anyway
+	}
+
+	// Get users associated with this login
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("failed to get user info: %w", err)
+	}
+
+	if len(users) == 0 {
+		return LoginResult{}, fmt.Errorf("no users found for login")
+	}
+
+	// Return login result
+	return LoginResult{
+		Users:   users,
+		LoginID: loginID,
+		Success: true,
+	}, nil
 }
 
 // ResetPassword validates the reset token and updates the user's password
