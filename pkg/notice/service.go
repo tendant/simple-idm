@@ -33,6 +33,7 @@ const (
 	PasswordResetInit    notification.NoticeType = "password_reset_init"
 	TwofaCodeNoticeEmail notification.NoticeType = "twofa_code_notice_email"
 	TwofaCodeNoticeSms   notification.NoticeType = "twofa_code_notice_sms"
+	MagicLinkLogin       notification.NoticeType = "magic_link_login"
 )
 
 // NewService creates a new email service instance
@@ -65,6 +66,14 @@ func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig) 
 	err = notificationManager.RegisterNotification(TwofaCodeNoticeEmail, notification.EmailSystem, notification.NoticeTemplate{
 		Subject: "2FA Code Init",
 		Html:    loadTemplate("templates/email/2fa_code_notice.html"),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = notificationManager.RegisterNotification(MagicLinkLogin, notification.EmailSystem, notification.NoticeTemplate{
+		Subject: "Your Login Link",
+		Html:    loadTemplate("templates/email/magic_link_login.html"),
 	})
 	if err != nil {
 		return nil, err
