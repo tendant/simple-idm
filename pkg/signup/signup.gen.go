@@ -51,6 +51,14 @@ type PasswordPolicyResponse struct {
 	RequireUppercase *bool `json:"require_uppercase,omitempty"`
 }
 
+// PasswordlessRegisterRequest defines model for PasswordlessRegisterRequest.
+type PasswordlessRegisterRequest struct {
+	Email          string `json:"email"`
+	Fullname       string `json:"fullname"`
+	InvitationCode string `json:"invitation_code,omitempty"`
+	Username       string `json:"username"`
+}
+
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	Email          string `json:"email"`
@@ -63,11 +71,22 @@ type RegisterRequest struct {
 // RegisterUserJSONBody defines parameters for RegisterUser.
 type RegisterUserJSONBody RegisterRequest
 
+// RegisterUserPasswordlessJSONBody defines parameters for RegisterUserPasswordless.
+type RegisterUserPasswordlessJSONBody PasswordlessRegisterRequest
+
 // RegisterUserJSONRequestBody defines body for RegisterUser for application/json ContentType.
 type RegisterUserJSONRequestBody RegisterUserJSONBody
 
 // Bind implements render.Binder.
 func (RegisterUserJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// RegisterUserPasswordlessJSONRequestBody defines body for RegisterUserPasswordless for application/json ContentType.
+type RegisterUserPasswordlessJSONRequestBody RegisterUserPasswordlessJSONBody
+
+// Bind implements render.Binder.
+func (RegisterUserPasswordlessJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -134,6 +153,18 @@ func GetPasswordPolicyJSON200Response(body PasswordPolicyResponse) *Response {
 	}
 }
 
+// RegisterUserPasswordlessJSON201Response is a constructor method for a RegisterUserPasswordless response.
+// A *Response is returned with the configured status code and content type from the spec.
+func RegisterUserPasswordlessJSON201Response(body struct {
+	Email *openapi_types.Email `json:"email,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        201,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Register a new user
@@ -142,6 +173,9 @@ type ServerInterface interface {
 	// Get password policy
 	// (GET /password/policy)
 	GetPasswordPolicy(w http.ResponseWriter, r *http.Request) *Response
+	// Register a new user without password
+	// (POST /passwordless)
+	RegisterUserPasswordless(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -174,6 +208,24 @@ func (siw *ServerInterfaceWrapper) GetPasswordPolicy(w http.ResponseWriter, r *h
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.GetPasswordPolicy(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// RegisterUserPasswordless operation middleware
+func (siw *ServerInterfaceWrapper) RegisterUserPasswordless(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.RegisterUserPasswordless(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -303,6 +355,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Post("/", wrapper.RegisterUser)
 		r.Get("/password/policy", wrapper.GetPasswordPolicy)
+		r.Post("/passwordless", wrapper.RegisterUserPasswordless)
 	})
 	return r
 }
@@ -328,19 +381,19 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/6xVXW/rNgz9K4K2xzTJ3d78tHsx4KIDOhQthj0Mg6HKjK3OElWKSmIU/u+D5MTOh1Og",
-	"w94MWucc8pAS36VG69GB4yCLdxl0A1blz0cVwg6pesTW6O4JgkcXIP3xhB6IDeRzlQmqbXFXarQWXel3",
-	"1RCHoMl4NuhkIf9sgBsgMRwS/kAehCIQRwqo5EJy50EW8gWxBeVkv5Cw94ZUIior1c2Q/x7tC5DAjUj/",
-	"RXRs2lFCZDiEido4hhooUTcmMFJX6gb0P6XG6Pgjek+wNRjDSf6MIoOFqpVxgWdlrNqXBB4UQ1XqRtFM",
-	"EQ9qb2y0wo1qR4RICKUZKIgrn05VjCtbcDU3M+zGZfbhf2LnBsYyZukI3qIhKCtTG77d0VMeccAEocQA",
-	"m+vnkThVQloNQ/U58hEqWmAG+lAneNBGtdn4z0sd0FMTPtSK3v/HmpwYsbeL6scQvryC5iT9BLUJDPQE",
-	"bxECX99QsMq0+WOvrG8T+hUbt6wQfjmElhrtJBeYjKsT9ya2rVMWztG/YePErwhzCOO2hofLqrHKwKsz",
-	"49jN/YwB6FoyJVzNKU7eV7L4a0r4hGhxcOBE+O9LHxdyf1fjHeZmqfZuq9oIsmCKkCQC6EiGu+f0Pg6u",
-	"fgNFQF/jcNvyw5lblcNTng2zl32fndlgrthwLumPACQelFM1WHAsvj7ey4XcAoVhXr4s18t1cgQ9OOWN",
-	"LOTPOZTq4CYnscrdxqHrqefZ+ftKFuNYJBk5mASBv2HVpbMaHcPw2CnvW6MzcPUakvRxD6SvHwk2spA/",
-	"rKZFsTpsidXl5PXn3cjmpcCwOnLCP62/fEr+xiRvkKxiWYydvZ6Ki3uSQuf3MfuvaXhiQ9QaQkjj02V4",
-	"iNYq6k6MFEo42Ik0VvnE6jhNK59XZMqrhplOfAc+X6byypT1/9aTG2t7pv7nseSLgr8DTw/Uoba+7/t/",
-	"AwAA//8Ncz8bLQgAAA==",
+	"H4sIAAAAAAAC/+RWUWvkNhD+K0Lt4yaba9/81DsKxxWuhBylD6UYRZ61lUoa3WiUXXP4vxfJXns364Sm",
+	"tIVyb0bWfN9834w0+iI1uoAePEdZfZFRd+BU+bxVMe6Rmlu0Rvd3EAP6CPlPIAxAbKDsa0xU1uK+1ugc",
+	"+jrsm3EdoiYT2KCXlfy1A+6AxLhJhAk8CkUgjhDQyI3kPoCs5D2iBeXlsJFwCIZUBqob1a+A/5zcPZDA",
+	"ncj/RfJs7EwhSjjEBdp4hhYoQ3cmMlJf6w70H7XG5Pkl+EDwaDDFk/wZRQkWqlXGR16lcepQEwRQDE2t",
+	"O0UrIj6qg3HJCT+zHSNEjlCagaK48OmUxfjagm+5W0E3vqCP/zM6dzDLWIUj+JwMQd2Y1vDzFT3FEVNM",
+	"FEqMYWv1PAJnJaTV2FSvA59DhQVmoBd5YgBtlC3Gv55qil6K8CJXCuFvavJijn1e1DAv4f0DaM7Ux4Nq",
+	"IcY7aE1koDv4nCDy5WkFp4wtHwflgs1ID9j56wbhh2npWqNbqCOT8W3m2SVrvXJwHv0Tdl78iLAWYfyj",
+	"4fHgamxK4MWeFIEuUXNOzRroYnUjq9+WnE6ANpPI3596tZGHqxavsBRE2atHZRPIiinBsJH/P+vm0/vf",
+	"+npC/CqLh42MoBMZ7j/lMTO6+g4UAb1N46VV5k/p+LK85NkxBzkMxZkdFsWGi6RfIpD4qLxqwYFn8fb2",
+	"g9zIR6A4Hrs31zfXN9kRDOBVMLKS35elrIO7ksS2VBvHqueaF+c/NLKa2yLTyNEkiPwOmz7v1egZxpmh",
+	"QrBGl8DtQ8zUx3Gav74l2MlKfrNd5u12Grbbp503nFdj6k+aJnBJ+LubN6+if6aTd0hOsazmyl52xZPr",
+	"Ji+dX2vFf03jpIpJa4gxt09fwmNyTlF/YqRQwsNe5LYqO7bHbtqG8tLIebWwUon3wOdvEnlhys0/VpNn",
+	"Xj8r+j/Nkp8Ifg+83POTtjPB+cL+a413esX/S0340hT5ahpS7A13mJa6ZfzhzwAAAP//N/MVPyULAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
