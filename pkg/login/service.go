@@ -522,8 +522,10 @@ func (s LoginService) extractRolesFromUser(user mapper.User) []string {
 }
 
 func (s *LoginService) SendUsernameEmail(ctx context.Context, email string, username string) error {
+	link := fmt.Sprintf("%s/auth/login", s.notificationManager.BaseUrl)
 	data := map[string]string{
 		"Username": username,
+		"Link":     link,
 	}
 	return s.notificationManager.Send(notification.UsernameReminderNotice, notification.NotificationData{
 		To:   email,
