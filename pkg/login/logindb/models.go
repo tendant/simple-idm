@@ -31,7 +31,7 @@ type Device struct {
 	CreatedAt        time.Time      `json:"created_at"`
 	DeviceName       sql.NullString `json:"device_name"`
 	DeviceType       sql.NullString `json:"device_type"`
-	DeviceID         uuid.NullUUID  `json:"device_id"`
+	DeviceID         sql.NullString `json:"device_id"`
 }
 
 type GooseDbVersion struct {

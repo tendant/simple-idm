@@ -60,7 +60,7 @@ const findLoginByUsername = `-- name: FindLoginByUsername :one
 SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at,
        l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until, l.password_updated_at, l.password_expires_at
 FROM login l
-WHERE l.username = $1
+WHERE LOWER(l.username) = LOWER($1)
 AND l.deleted_at IS NULL
 `
 
@@ -78,7 +78,7 @@ type FindLoginByUsernameRow struct {
 	PasswordExpiresAt   sql.NullTime   `json:"password_expires_at"`
 }
 
-func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullString) (FindLoginByUsernameRow, error) {
+func (q *Queries) FindLoginByUsername(ctx context.Context, username string) (FindLoginByUsernameRow, error) {
 	row := q.db.QueryRow(ctx, findLoginByUsername, username)
 	var i FindLoginByUsernameRow
 	err := row.Scan(
