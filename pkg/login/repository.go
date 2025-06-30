@@ -211,8 +211,7 @@ func NewPostgresLoginRepository(queries *logindb.Queries) *PostgresLoginReposito
 
 // FindLoginByUsername finds a login by username
 func (r *PostgresLoginRepository) FindLoginByUsername(ctx context.Context, username string, usernameValid bool) (LoginEntity, error) {
-	sqlUsername := sql.NullString{String: username, Valid: usernameValid}
-	dbLogin, err := r.queries.FindLoginByUsername(ctx, sqlUsername)
+	dbLogin, err := r.queries.FindLoginByUsername(ctx, username)
 	if err != nil {
 		return LoginEntity{}, err
 	}
