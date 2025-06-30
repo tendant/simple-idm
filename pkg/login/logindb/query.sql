@@ -1,26 +1,26 @@
 -- name: FindUser :one
 SELECT id, username, password, password_version
 FROM login
-WHERE username = $1
+WHERE LOWER(username) = LOWER(@username)
 AND deleted_at IS NULL;
 
 -- name: ResetPassword :exec
 UPDATE login
 SET password = $1, 
     last_modified_at = NOW() at time zone 'UTC'
-WHERE username = $2; 
+WHERE LOWER(username) = LOWER(@username); 
 
 -- name: FindLoginByUsername :one
 SELECT l.id, l.username, l.password, l.password_version, l.created_at, l.updated_at,
        l.failed_login_attempts, l.last_failed_attempt_at, l.locked_until, l.password_updated_at, l.password_expires_at
 FROM login l
-WHERE l.username = $1
+WHERE LOWER(l.username) = LOWER(@username)
 AND l.deleted_at IS NULL;
 
 -- name: InitPasswordByUsername :one
 SELECT id
 FROM login
-WHERE username = $1;
+WHERE LOWER(username) = LOWER(@username);
 
 -- name: UpdatePasswordResetRequired :exec
 UPDATE login
