@@ -203,6 +203,10 @@ const (
 	FAILURE_REASON_2FA_VALIDATION_FAILED = "2fa_validation_failed"
 )
 
+func (s LoginService) GetLockoutDuration() time.Duration {
+	return s.lockoutDuration
+}
+
 func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
 	// Get users from repository
 	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
