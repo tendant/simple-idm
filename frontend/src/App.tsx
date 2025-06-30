@@ -17,6 +17,9 @@ import PasswordReset from './pages/PasswordReset';
 import Settings from './pages/Settings';
 import FindUsername from './pages/FindUsername';
 import TwoFactorVerification from './pages/TwoFactorVerification';
+import PasswordlessSignup from './pages/PasswordlessSignup';
+import MagicLinkLogin from './pages/MagicLinkLogin';
+import MagicLinkValidate from './pages/MagicLinkValidate';
 
 const UsersPage: Component = () => {
   return (
@@ -151,6 +154,9 @@ const App: Component = () => {
   return (
     <Router>
       <Route path="/login" component={Login} />
+      <Route path="/passwordless-signup" component={PasswordlessSignup} />
+      <Route path="/magic-link-login" component={MagicLinkLogin} />
+      <Route path="/magic-link-validate" component={MagicLinkValidate} />
       <Route path="/two-factor-verification" component={TwoFactorVerification} />
       <Route path="/" component={UsersPage} />
       <Route path="/users" component={UsersPage} />

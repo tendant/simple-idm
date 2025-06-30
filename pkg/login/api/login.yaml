@@ -56,6 +56,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AccountLockedResponse"
+  /login/magic-link:
+    post:
+      summary: Initiate magic link login
+      operationId: initiate_magic_link_login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MagicLinkLoginRequest'
+      responses:
+        '200':
+          description: Magic link sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Magic link sent to your email"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Username not found"
+
+  /login/magic-link/validate:
+    get:
+      summary: Validate magic link token
+      operationId: validate_magic_link_token
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Magic link token
+      responses:
+        '200':
+          description: Token validated successfully, user logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid or expired token"
+        '202':
+          description: Token validated but further action required (user selection)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelectUserRequiredResponse"
   /password/reset/init:
     post:
       summary: Initiate password reset using username
@@ -545,6 +611,14 @@ paths:
                     description: Number of days a device is remembered for 2FA
 components:
   schemas:
+    MagicLinkLoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Username or email to send magic link to
+      required:
+        - username
     MultiUsersResponse:
       x-go-optional-value: true
       type: object

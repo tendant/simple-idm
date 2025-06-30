@@ -101,11 +101,11 @@ func (s *LoginsService) CreateLogin(ctx context.Context, request LoginCreateRequ
 	// Check if username already exists
 	_, err := s.loginsRepo.GetLoginByUsername(ctx, usernameSQL)
 	if err == nil {
-		return nil, fmt.Errorf("username already exists")
+		return nil, ErrUsernameAlreadyExists{Username: request.Username}
 	}
 	// Validate password complexity
 	if err := s.passwordManager.CheckPasswordComplexity(request.Password); err != nil {
-		return nil, fmt.Errorf("password does not meet complexity requirements: %w", err)
+		return nil, ErrPasswordComplexity{Details: err.Error()}
 	}
 
 	// Hash the password
@@ -160,4 +160,31 @@ func (s *LoginsService) DeleteLogin(ctx context.Context, id uuid.UUID) error {
 		return fmt.Errorf("failed to delete login: %w", err)
 	}
 	return nil
+}
+
+// CreateLoginWithoutPassword creates a new login without a password
+// This is useful for passwordless accounts where authentication is done via magic links
+func (s *LoginsService) CreateLoginWithoutPassword(ctx context.Context, username string, createdBy string) (*LoginModel, error) {
+	// Convert username to sql.NullString
+	usernameSQL := utils.ToNullString(username)
+	createdBySQL := utils.ToNullString(createdBy)
+
+	// Check if username already exists
+	_, err := s.loginsRepo.GetLoginByUsername(ctx, usernameSQL)
+	if err == nil {
+		return nil, ErrUsernameAlreadyExists{Username: username}
+	}
+
+	// Create login with empty password
+	login, err := s.loginsRepo.CreateLogin(ctx, loginsdb.CreateLoginParams{
+		Username:  usernameSQL,
+		Password:  []byte{}, // Empty password
+		CreatedBy: createdBySQL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create login: %w", err)
+	}
+
+	result := FromDBLogin(&login)
+	return &result, nil
 }

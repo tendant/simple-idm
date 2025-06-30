@@ -21,6 +21,44 @@ import (
 	"github.com/go-chi/render"
 )
 
+// PasswordPolicyResponse defines model for PasswordPolicyResponse.
+type PasswordPolicyResponse struct {
+	// Whether common passwords are disallowed
+	DisallowCommonPwds *bool `json:"disallow_common_pwds,omitempty"`
+
+	// Number of days until password expires
+	ExpirationDays *int `json:"expiration_days,omitempty"`
+
+	// Number of previous passwords to check against
+	HistoryCheckCount *int `json:"history_check_count,omitempty"`
+
+	// Maximum number of repeated characters allowed
+	MaxRepeatedChars *int `json:"max_repeated_chars,omitempty"`
+
+	// Minimum length of the password
+	MinLength *int `json:"min_length,omitempty"`
+
+	// Whether the password requires a digit
+	RequireDigit *bool `json:"require_digit,omitempty"`
+
+	// Whether the password requires a lowercase letter
+	RequireLowercase *bool `json:"require_lowercase,omitempty"`
+
+	// Whether the password requires a special character
+	RequireSpecialChar *bool `json:"require_special_char,omitempty"`
+
+	// Whether the password requires an uppercase letter
+	RequireUppercase *bool `json:"require_uppercase,omitempty"`
+}
+
+// PasswordlessRegisterRequest defines model for PasswordlessRegisterRequest.
+type PasswordlessRegisterRequest struct {
+	Email          string `json:"email"`
+	Fullname       string `json:"fullname"`
+	InvitationCode string `json:"invitation_code,omitempty"`
+	Username       string `json:"username"`
+}
+
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
 	Email          string `json:"email"`
@@ -33,11 +71,22 @@ type RegisterRequest struct {
 // RegisterUserJSONBody defines parameters for RegisterUser.
 type RegisterUserJSONBody RegisterRequest
 
+// RegisterUserPasswordlessJSONBody defines parameters for RegisterUserPasswordless.
+type RegisterUserPasswordlessJSONBody PasswordlessRegisterRequest
+
 // RegisterUserJSONRequestBody defines body for RegisterUser for application/json ContentType.
 type RegisterUserJSONRequestBody RegisterUserJSONBody
 
 // Bind implements render.Binder.
 func (RegisterUserJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// RegisterUserPasswordlessJSONRequestBody defines body for RegisterUserPasswordless for application/json ContentType.
+type RegisterUserPasswordlessJSONRequestBody RegisterUserPasswordlessJSONBody
+
+// Bind implements render.Binder.
+func (RegisterUserPasswordlessJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -94,11 +143,39 @@ func RegisterUserJSON201Response(body struct {
 	}
 }
 
+// GetPasswordPolicyJSON200Response is a constructor method for a GetPasswordPolicy response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetPasswordPolicyJSON200Response(body PasswordPolicyResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// RegisterUserPasswordlessJSON201Response is a constructor method for a RegisterUserPasswordless response.
+// A *Response is returned with the configured status code and content type from the spec.
+func RegisterUserPasswordlessJSON201Response(body struct {
+	Email *openapi_types.Email `json:"email,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        201,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Register a new user
 	// (POST /)
 	RegisterUser(w http.ResponseWriter, r *http.Request) *Response
+	// Get password policy
+	// (GET /password/policy)
+	GetPasswordPolicy(w http.ResponseWriter, r *http.Request) *Response
+	// Register a new user without password
+	// (POST /passwordless)
+	RegisterUserPasswordless(w http.ResponseWriter, r *http.Request) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -113,6 +190,42 @@ func (siw *ServerInterfaceWrapper) RegisterUser(w http.ResponseWriter, r *http.R
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.RegisterUser(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetPasswordPolicy operation middleware
+func (siw *ServerInterfaceWrapper) GetPasswordPolicy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetPasswordPolicy(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// RegisterUserPasswordless operation middleware
+func (siw *ServerInterfaceWrapper) RegisterUserPasswordless(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.RegisterUserPasswordless(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -241,6 +354,8 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Post("/", wrapper.RegisterUser)
+		r.Get("/password/policy", wrapper.GetPasswordPolicy)
+		r.Post("/passwordless", wrapper.RegisterUserPasswordless)
 	})
 	return r
 }
@@ -266,14 +381,19 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/5RSTW8TMRD9K6uB4+ajcNsTrbgUCQkVcUIIufYk62jtcWfGaVfV/ndkJ80HCQdu1thv",
-	"3vN77xUshUQRowp0ryC2x2Dq8QHXXhT5AZ8yipZRYkrI6rE+wGD8UA8vJqQBoYMN9XHuCD/tR3NLAVrQ",
-	"MZVbUfZxDVMLqzwM0QQ8R3+hPjafCa8hfNx6Neop/rbkKvDiTTIiz8Tu6mUW5EvKIthdY5xaYHzKntFB",
-	"9/Mo+GRRu3fghPjXYQ89btAqtPAyW9OMUlFuhtnWDBmhU85YKARtZq/j92L7ztU7NIx8m7U/5FH2Pdbx",
-	"UWevmmCaqjMrqj/2Wr/0Q5CbryaaNQaM2tx+u4cWtsjiKUIHN/PlfFkcoYTRJA8dfKyj8g/tq4hFTZt2",
-	"qZfMq/P3DrpDLQoN7ExC0TtyY3lrKSrGCjMpDd5W4GIjhfqtXuX0nnEFHbxbHPu32Jdv8XfzpvM0qnll",
-	"IImi7Fz7sLz5L/p/NHlFHIxCd0j2shXn+VZpDsWyrxG/+W8ZjaJrJFuLIqU+Y4VLDsHweGJkY5qIz02p",
-	"VVk3/QkAAP//Vh7Lj5MDAAA=",
+	"H4sIAAAAAAAC/+RWUWvkNhD+K0Lt4yaba9/81DsKxxWuhBylD6UYRZ61lUoa3WiUXXP4vxfJXns364Sm",
+	"tIVyb0bWfN9834w0+iI1uoAePEdZfZFRd+BU+bxVMe6Rmlu0Rvd3EAP6CPlPIAxAbKDsa0xU1uK+1ugc",
+	"+jrsm3EdoiYT2KCXlfy1A+6AxLhJhAk8CkUgjhDQyI3kPoCs5D2iBeXlsJFwCIZUBqob1a+A/5zcPZDA",
+	"ncj/RfJs7EwhSjjEBdp4hhYoQ3cmMlJf6w70H7XG5Pkl+EDwaDDFk/wZRQkWqlXGR16lcepQEwRQDE2t",
+	"O0UrIj6qg3HJCT+zHSNEjlCagaK48OmUxfjagm+5W0E3vqCP/zM6dzDLWIUj+JwMQd2Y1vDzFT3FEVNM",
+	"FEqMYWv1PAJnJaTV2FSvA59DhQVmoBd5YgBtlC3Gv55qil6K8CJXCuFvavJijn1e1DAv4f0DaM7Ux4Nq",
+	"IcY7aE1koDv4nCDy5WkFp4wtHwflgs1ID9j56wbhh2npWqNbqCOT8W3m2SVrvXJwHv0Tdl78iLAWYfyj",
+	"4fHgamxK4MWeFIEuUXNOzRroYnUjq9+WnE6ANpPI3596tZGHqxavsBRE2atHZRPIiinBsJH/P+vm0/vf",
+	"+npC/CqLh42MoBMZ7j/lMTO6+g4UAb1N46VV5k/p+LK85NkxBzkMxZkdFsWGi6RfIpD4qLxqwYFn8fb2",
+	"g9zIR6A4Hrs31zfXN9kRDOBVMLKS35elrIO7ksS2VBvHqueaF+c/NLKa2yLTyNEkiPwOmz7v1egZxpmh",
+	"QrBGl8DtQ8zUx3Gav74l2MlKfrNd5u12Grbbp503nFdj6k+aJnBJ+LubN6+if6aTd0hOsazmyl52xZPr",
+	"Ji+dX2vFf03jpIpJa4gxt09fwmNyTlF/YqRQwsNe5LYqO7bHbtqG8tLIebWwUon3wOdvEnlhys0/VpNn",
+	"Xj8r+j/Nkp8Ifg+83POTtjPB+cL+a413esX/S0340hT5ahpS7A13mJa6ZfzhzwAAAP//N/MVPyULAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
