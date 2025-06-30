@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -431,9 +432,12 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		// Check if this is an account lockout error
 		if login.IsAccountLockedError(err) {
 			// Return a standardized response for account lockout
+			lockoutDuration := h.loginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
 			return &Response{
-				Code:        http.StatusTooManyRequests,                                                  // 429 is appropriate for rate limiting/lockout
-				body:        "Your account has been temporarily locked. Please try again in 15 minutes.", // FIXME: hard code for mow
+				Code:        http.StatusTooManyRequests,                                                                                    // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.", // FIXME: hard code for mow
 				contentType: "application/json",
 			}
 		}
