@@ -585,6 +585,36 @@ func (s *LoginService) SendMagicLinkEmail(ctx context.Context, param SendMagicLi
 	})
 }
 
+// SendPasswordResetNoticeParams contains parameters for sending a password reset success notification
+type SendPasswordResetNoticeParams struct {
+	ResetToken string
+	LoginID    uuid.UUID
+}
+
+// SendPasswordResetNotice sends a notification when a user successfully resets their password
+func (s *LoginService) SendPasswordResetNotice(ctx context.Context, params SendPasswordResetNoticeParams) error {
+	if s.notificationManager == nil {
+		return errors.New("notification manager is not configured")
+	}
+
+	slog.Info("Sending password reset success notification", "login_id", params.LoginID)
+
+	// Get current timestamp
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	// Prepare data for the template as a flat map
+	data := map[string]string{
+		"reset_token": params.ResetToken,
+		"login_id":    params.LoginID.String(),
+		"timestamp":   timestamp,
+	}
+
+	// Send the notification
+	return s.notificationManager.Send(notification.PasswordResetNotice, notification.NotificationData{
+		Data: data,
+	})
+}
+
 // GenerateMagicLinkToken generates a token for magic link login
 func (s *LoginService) GenerateMagicLinkToken(ctx context.Context, username string) (string, string, error) {
 	// Find login by username
