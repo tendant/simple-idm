@@ -96,15 +96,20 @@ func TestUpdateUsername(t *testing.T) {
 	// Create repository and service
 	queries := profiledb.New(pool)
 	repository := NewPostgresProfileRepository(queries)
-	// Create a mock user mapper and notification manager for testing
-	service := NewProfileService(repository, nil, nil, nil)
+	// Create a temporary password manager for testing
+	tempPasswordManager := login.NewPasswordManager(nil)
+	// Create service with options
+	service := NewProfileServiceWithOptions(
+		repository,
+		WithPasswordManager(tempPasswordManager),
+	)
 
 	// Create a test user with a known password
 	ctx := context.Background()
 	password := "testpass"
 	// Create a temporary password manager for hashing
-	tempPasswordManager := login.NewPasswordManager(nil)
-	hashedPassword, err := tempPasswordManager.HashPassword(password)
+	passwordHasher := login.NewPasswordManager(nil)
+	hashedPassword, err := passwordHasher.HashPassword(password)
 	require.NoError(t, err)
 
 	// Create test user directly in database
@@ -196,15 +201,20 @@ func TestUpdatePassword(t *testing.T) {
 	// Create repository and service
 	queries := profiledb.New(pool)
 	repository := NewPostgresProfileRepository(queries)
-	// Create a mock user mapper and notification manager for testing
-	service := NewProfileService(repository, nil, nil, nil)
+	// Create a temporary password manager for testing
+	tempPasswordManager := login.NewPasswordManager(nil)
+	// Create service with options
+	service := NewProfileServiceWithOptions(
+		repository,
+		WithPasswordManager(tempPasswordManager),
+	)
 
 	// Create a test user with a known password
 	ctx := context.Background()
 	initialPassword := "oldpass"
 	// Create a temporary password manager for hashing
-	tempPasswordManager := login.NewPasswordManager(nil)
-	hashedPassword, err := tempPasswordManager.HashPassword(initialPassword)
+	passwordHasher := login.NewPasswordManager(nil)
+	hashedPassword, err := passwordHasher.HashPassword(initialPassword)
 	require.NoError(t, err)
 
 	// Create test user directly in database
@@ -267,8 +277,8 @@ func TestUpdatePassword(t *testing.T) {
 				require.NoError(t, err)
 
 				// Verify new password works
-				tempPasswordManager := login.NewPasswordManager(nil)
-				match, err := tempPasswordManager.CheckPasswordHash(tt.params.NewPassword, string(storedPassword), login.PasswordV1)
+				passwordVerifier := login.NewPasswordManager(nil)
+				match, err := passwordVerifier.CheckPasswordHash(tt.params.NewPassword, string(storedPassword), login.PasswordV1)
 				require.NoError(t, err)
 				require.True(t, match, "New password should match stored hash")
 			}

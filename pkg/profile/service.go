@@ -157,7 +157,31 @@ type ProfileService struct {
 	notificationManager *notification.NotificationManager
 }
 
-// NewProfileService creates a new ProfileService
+// Option is a function that configures a ProfileService
+type Option func(*ProfileService)
+
+// WithUserMapper sets the user mapper for the ProfileService
+func WithUserMapper(userMapper mapper.UserMapper) Option {
+	return func(ps *ProfileService) {
+		ps.userMapper = userMapper
+	}
+}
+
+// WithPasswordManager sets the password manager for the ProfileService
+func WithPasswordManager(passwordManager *login.PasswordManager) Option {
+	return func(ps *ProfileService) {
+		ps.passwordManager = passwordManager
+	}
+}
+
+// WithNotificationManager sets the notification manager for the ProfileService
+func WithNotificationManager(notificationManager *notification.NotificationManager) Option {
+	return func(ps *ProfileService) {
+		ps.notificationManager = notificationManager
+	}
+}
+
+// NewProfileService creates a new ProfileService (legacy constructor)
 func NewProfileService(repository ProfileRepository, passwordManager *login.PasswordManager, userMapper mapper.UserMapper, notificationManager *notification.NotificationManager) *ProfileService {
 	return &ProfileService{
 		repository:          repository,
@@ -165,6 +189,21 @@ func NewProfileService(repository ProfileRepository, passwordManager *login.Pass
 		userMapper:          userMapper,
 		notificationManager: notificationManager,
 	}
+}
+
+// NewProfileServiceWithOptions creates a new ProfileService with the given options
+func NewProfileServiceWithOptions(repository ProfileRepository, opts ...Option) *ProfileService {
+	// Create service with default values
+	ps := &ProfileService{
+		repository: repository,
+	}
+
+	// Apply all options
+	for _, opt := range opts {
+		opt(ps)
+	}
+
+	return ps
 }
 
 type UpdateUsernameParams struct {
