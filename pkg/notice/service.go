@@ -29,11 +29,14 @@ func loadTemplate(filename string) string {
 }
 
 const (
-	UsernameReminder     notification.NoticeType = "username_reminder"
-	PasswordResetInit    notification.NoticeType = "password_reset_init"
-	TwofaCodeNoticeEmail notification.NoticeType = "twofa_code_notice_email"
-	TwofaCodeNoticeSms   notification.NoticeType = "twofa_code_notice_sms"
-	MagicLinkLogin       notification.NoticeType = "magic_link_login"
+	UsernameReminder       notification.NoticeType = "username_reminder"
+	PasswordResetInit      notification.NoticeType = "password_reset_init"
+	TwofaCodeNoticeEmail   notification.NoticeType = "twofa_code_notice_email"
+	TwofaCodeNoticeSms     notification.NoticeType = "twofa_code_notice_sms"
+	MagicLinkLogin         notification.NoticeType = "magic_link_login"
+	PasswordResetNotice    notification.NoticeType = "password_reset"
+	PasswordUpdateNotice   notification.NoticeType = "password_update"
+	UsernameReminderNotice notification.NoticeType = "username_reminder"
 )
 
 // NewService creates a new email service instance
