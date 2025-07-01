@@ -258,12 +258,12 @@ func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswo
 
 	// Send notification about password change
 	if s.notificationManager != nil {
-		err = s.SendPasswordChangeNotice(ctx, SendPasswordChangeNoticeParams{
+		err = s.SendPasswordUpdateNotice(ctx, SendPasswordUpdateNoticeParams{
 			LoginID: params.LoginID,
 		})
 		if err != nil {
 			// Log the error but don't fail the password change
-			slog.Error("Failed to send password change notification", "err", err)
+			slog.Error("Failed to send password update notification", "err", err)
 		}
 	}
 
@@ -304,17 +304,17 @@ func (s *ProfileService) GetLoginById(ctx context.Context, id uuid.UUID) (LoginR
 }
 
 // SendPasswordChangeNoticeParams contains parameters for sending a password change notification
-type SendPasswordChangeNoticeParams struct {
+type SendPasswordUpdateNoticeParams struct {
 	LoginID uuid.UUID
 }
 
-// SendPasswordChangeNotice sends a notification when a user successfully changes their password
-func (s *ProfileService) SendPasswordChangeNotice(ctx context.Context, params SendPasswordChangeNoticeParams) error {
+// SendPasswordUpdateNotice sends a notification when a user successfully changes their password
+func (s *ProfileService) SendPasswordUpdateNotice(ctx context.Context, params SendPasswordUpdateNoticeParams) error {
 	if s.notificationManager == nil {
 		return errors.New("notification manager is not configured")
 	}
 
-	slog.Info("Sending password change notification", "loginID", params.LoginID)
+	slog.Info("Sending password update notification", "loginID", params.LoginID)
 
 	// Get current timestamp
 	timestamp := time.Now().UTC().Format(time.RFC3339)
@@ -326,7 +326,7 @@ func (s *ProfileService) SendPasswordChangeNotice(ctx context.Context, params Se
 	}
 
 	// Send the notification
-	return s.notificationManager.Send(notification.PasswordResetNotice, notification.NotificationData{
+	return s.notificationManager.Send(notification.PasswordUpdateNotice, notification.NotificationData{
 		Data: data,
 	})
 }
