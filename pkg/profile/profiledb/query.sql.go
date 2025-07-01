@@ -50,7 +50,7 @@ UPDATE login_2fa
 SET two_factor_secret = $1::text,
     two_factor_enabled = TRUE,
     two_factor_backup_codes = $2::text[],
-    last_modified_at = NOW()
+    last_modified_at = NOW() at time zone 'utc'
 WHERE login_id = $3
 AND deleted_at IS NULL
 `
@@ -171,7 +171,7 @@ func (q *Queries) UpdateUserLoginId(ctx context.Context, arg UpdateUserLoginIdPa
 const updateUsername = `-- name: UpdateUsername :exec
 UPDATE login
 SET username = $2,
-    updated_at = NOW()
+    updated_at = NOW() at time zone 'utc'
 WHERE id = $1
 `
 
