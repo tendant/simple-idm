@@ -18,16 +18,15 @@ import (
 )
 
 type LoginService struct {
-	repository            LoginRepository
-	notificationManager   *notification.NotificationManager
-	userMapper            mapper.UserMapper
-	delegatedUserMapper   mapper.DelegatedUserMapper
-	passwordManager       *PasswordManager
-	postPasswordUpdate    *PostPasswordUpdateFunc
-	postLoginHook         *PostLoginHookFunc
-	postPasswordResetHook *PostPasswordResetHookFunc
-	maxFailedAttempts     int
-	lockoutDuration       time.Duration
+	repository          LoginRepository
+	notificationManager *notification.NotificationManager
+	userMapper          mapper.UserMapper
+	delegatedUserMapper mapper.DelegatedUserMapper
+	passwordManager     *PasswordManager
+	postPasswordUpdate  *PostPasswordUpdateFunc
+	postLoginHook       *PostLoginHookFunc
+	maxFailedAttempts   int
+	lockoutDuration     time.Duration
 }
 
 // PostPasswordUpdateFunc is a function that will be called after a password update
@@ -103,13 +102,6 @@ func WithPostPasswordUpdate(postPasswordUpdate *PostPasswordUpdateFunc) Option {
 func WithPostLoginHook(postLoginHook *PostLoginHookFunc) Option {
 	return func(ls *LoginService) {
 		ls.postLoginHook = postLoginHook
-	}
-}
-
-// WithPostPasswordResetHook sets the post password reset hook function for the LoginService
-func WithPostPasswordResetHook(postPasswordResetHook *PostPasswordResetHookFunc) Option {
-	return func(ls *LoginService) {
-		ls.postPasswordResetHook = postPasswordResetHook
 	}
 }
 
@@ -694,10 +686,11 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 		slog.Error("Failed to reset password", "err", err)
 		return err
 	}
+	var loginUuid uuid.UUID
 	// if new login succeed, try to update in old login for backward-compatibility
 	if s.postPasswordUpdate != nil {
 		passwordBytes := []byte(newPassword)
-		loginUuid, err := uuid.Parse(loginID)
+		loginUuid, err = uuid.Parse(loginID)
 		if err != nil {
 			slog.Error("Failed to parse login ID", "err", err)
 			return err
@@ -714,19 +707,9 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 		}
 	}
 
-	if s.postPasswordResetHook != nil {
-		loginUuid, err := uuid.Parse(loginID)
-		if err != nil {
-			slog.Error("Failed to parse login ID", "err", err)
-		}
-		err = (*s.postPasswordResetHook)(ctx, PostPasswordResetHookParams{
-			LoginID: loginUuid,
-			Token:   token,
-		})
-		if err != nil {
-			slog.Error("Failed in post-password reset hook", "err", err)
-		}
-	}
+	s.SendPasswordResetNotice(ctx, SendPasswordResetNoticeParams{
+		LoginID: loginUuid,
+	})
 	return nil
 }
 
