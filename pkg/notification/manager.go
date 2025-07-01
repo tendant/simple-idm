@@ -18,6 +18,7 @@ const (
 
 	ExampleNotice          NoticeType = "example"
 	PasswordResetNotice    NoticeType = "password_reset"
+	PasswordUpdateNotice   NoticeType = "password_update"
 	UsernameReminderNotice NoticeType = "username_reminder"
 )
 
