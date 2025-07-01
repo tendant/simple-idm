@@ -96,12 +96,15 @@ func TestUpdateUsername(t *testing.T) {
 	// Create repository and service
 	queries := profiledb.New(pool)
 	repository := NewPostgresProfileRepository(queries)
-	service := NewProfileService(repository, nil)
+	// Create a mock user mapper and notification manager for testing
+	service := NewProfileService(repository, nil, nil, nil)
 
 	// Create a test user with a known password
 	ctx := context.Background()
 	password := "testpass"
-	hashedPassword, err := login.HashPassword(password)
+	// Create a temporary password manager for hashing
+	tempPasswordManager := login.NewPasswordManager(nil)
+	hashedPassword, err := tempPasswordManager.HashPassword(password)
 	require.NoError(t, err)
 
 	// Create test user directly in database
@@ -129,7 +132,7 @@ func TestUpdateUsername(t *testing.T) {
 		{
 			name: "successful username update",
 			params: UpdateUsernameParams{
-				UserId:          userUUID,
+				LoginID:         userUUID,
 				CurrentPassword: password,
 				NewUsername:     "newusername",
 			},
@@ -138,7 +141,7 @@ func TestUpdateUsername(t *testing.T) {
 		{
 			name: "invalid current password",
 			params: UpdateUsernameParams{
-				UserId:          userUUID,
+				LoginID:         userUUID,
 				CurrentPassword: "wrongpass",
 				NewUsername:     "newusername2",
 			},
@@ -147,7 +150,7 @@ func TestUpdateUsername(t *testing.T) {
 		{
 			name: "username already taken",
 			params: UpdateUsernameParams{
-				UserId:          userUUID,
+				LoginID:         userUUID,
 				CurrentPassword: password,
 				NewUsername:     "existinguser",
 			},
@@ -156,7 +159,7 @@ func TestUpdateUsername(t *testing.T) {
 		{
 			name: "user not found",
 			params: UpdateUsernameParams{
-				UserId:          uuid.New(), // Different UUID
+				LoginID:         uuid.New(), // Different UUID
 				CurrentPassword: password,
 				NewUsername:     "newusername3",
 			},
@@ -177,7 +180,7 @@ func TestUpdateUsername(t *testing.T) {
 
 				// Verify username was actually updated
 				var storedUsername string
-				err = pool.QueryRow(ctx, "SELECT username FROM users WHERE uuid = $1", tt.params.UserId).Scan(&storedUsername)
+				err = pool.QueryRow(ctx, "SELECT username FROM users WHERE uuid = $1", tt.params.LoginID).Scan(&storedUsername)
 				require.NoError(t, err)
 				require.Equal(t, tt.params.NewUsername, storedUsername, "New username should be stored in database")
 			}
@@ -193,12 +196,15 @@ func TestUpdatePassword(t *testing.T) {
 	// Create repository and service
 	queries := profiledb.New(pool)
 	repository := NewPostgresProfileRepository(queries)
-	service := NewProfileService(repository, nil)
+	// Create a mock user mapper and notification manager for testing
+	service := NewProfileService(repository, nil, nil, nil)
 
 	// Create a test user with a known password
 	ctx := context.Background()
 	initialPassword := "oldpass"
-	hashedPassword, err := login.HashPassword(initialPassword)
+	// Create a temporary password manager for hashing
+	tempPasswordManager := login.NewPasswordManager(nil)
+	hashedPassword, err := tempPasswordManager.HashPassword(initialPassword)
 	require.NoError(t, err)
 
 	// Create test user directly in database
@@ -218,7 +224,7 @@ func TestUpdatePassword(t *testing.T) {
 		{
 			name: "successful password update",
 			params: UpdatePasswordParams{
-				UserUuid:        userUUID,
+				LoginID:         userUUID,
 				CurrentPassword: initialPassword,
 				NewPassword:     "newpass",
 			},
@@ -227,7 +233,7 @@ func TestUpdatePassword(t *testing.T) {
 		{
 			name: "invalid current password",
 			params: UpdatePasswordParams{
-				UserUuid:        userUUID,
+				LoginID:         userUUID,
 				CurrentPassword: "wrongpass",
 				NewPassword:     "newpass",
 			},
@@ -236,7 +242,7 @@ func TestUpdatePassword(t *testing.T) {
 		{
 			name: "user not found",
 			params: UpdatePasswordParams{
-				UserUuid:        uuid.New(), // Different UUID
+				LoginID:         uuid.New(), // Different UUID
 				CurrentPassword: initialPassword,
 				NewPassword:     "newpass",
 			},
@@ -257,11 +263,12 @@ func TestUpdatePassword(t *testing.T) {
 
 				// Verify password was actually updated
 				var storedPassword []byte
-				err = pool.QueryRow(ctx, "SELECT password FROM users WHERE uuid = $1", tt.params.UserUuid).Scan(&storedPassword)
+				err = pool.QueryRow(ctx, "SELECT password FROM users WHERE uuid = $1", tt.params.LoginID).Scan(&storedPassword)
 				require.NoError(t, err)
 
 				// Verify new password works
-				match, err := login.CheckPasswordHash(tt.params.NewPassword, string(storedPassword))
+				tempPasswordManager := login.NewPasswordManager(nil)
+				match, err := tempPasswordManager.CheckPasswordHash(tt.params.NewPassword, string(storedPassword), login.PasswordV1)
 				require.NoError(t, err)
 				require.True(t, match, "New password should match stored hash")
 			}
