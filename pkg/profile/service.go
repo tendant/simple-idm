@@ -2,12 +2,14 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/profile/profiledb"
 	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
@@ -149,17 +151,19 @@ func (r *PostgresProfileRepository) UpdateLoginId(ctx context.Context, arg Updat
 
 // ProfileService provides profile-related operations
 type ProfileService struct {
-	repository      ProfileRepository
-	userMapper      mapper.UserMapper
-	passwordManager *login.PasswordManager
+	repository          ProfileRepository
+	userMapper          mapper.UserMapper
+	passwordManager     *login.PasswordManager
+	notificationManager *notification.NotificationManager
 }
 
 // NewProfileService creates a new ProfileService
-func NewProfileService(repository ProfileRepository, passwordManager *login.PasswordManager, userMapper mapper.UserMapper) *ProfileService {
+func NewProfileService(repository ProfileRepository, passwordManager *login.PasswordManager, userMapper mapper.UserMapper, notificationManager *notification.NotificationManager) *ProfileService {
 	return &ProfileService{
-		repository:      repository,
-		passwordManager: passwordManager,
-		userMapper:      userMapper,
+		repository:          repository,
+		passwordManager:     passwordManager,
+		userMapper:          userMapper,
+		notificationManager: notificationManager,
 	}
 }
 
@@ -212,6 +216,18 @@ func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswo
 		slog.Error("Failed to change password", "uuid", params.LoginID, "err", err)
 		return err
 	}
+
+	// Send notification about password change
+	if s.notificationManager != nil {
+		err = s.SendPasswordChangeNotice(ctx, SendPasswordChangeNoticeParams{
+			LoginID: params.LoginID,
+		})
+		if err != nil {
+			// Log the error but don't fail the password change
+			slog.Error("Failed to send password change notification", "err", err)
+		}
+	}
+
 	return nil
 }
 
@@ -246,6 +262,34 @@ func (s *ProfileService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUI
 
 func (s *ProfileService) GetLoginById(ctx context.Context, id uuid.UUID) (LoginRecord, error) {
 	return s.repository.GetLoginById(ctx, id)
+}
+
+// SendPasswordChangeNoticeParams contains parameters for sending a password change notification
+type SendPasswordChangeNoticeParams struct {
+	LoginID uuid.UUID
+}
+
+// SendPasswordChangeNotice sends a notification when a user successfully changes their password
+func (s *ProfileService) SendPasswordChangeNotice(ctx context.Context, params SendPasswordChangeNoticeParams) error {
+	if s.notificationManager == nil {
+		return errors.New("notification manager is not configured")
+	}
+
+	slog.Info("Sending password change notification", "loginID", params.LoginID)
+
+	// Get current timestamp
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	// Prepare data for the template
+	data := map[string]string{
+		"login_id":  params.LoginID.String(),
+		"timestamp": timestamp,
+	}
+
+	// Send the notification
+	return s.notificationManager.Send(notification.PasswordResetNotice, notification.NotificationData{
+		Data: data,
+	})
 }
 
 // Disable2FA disables 2FA for a user after verifying their password and 2FA code
