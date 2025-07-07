@@ -41,7 +41,7 @@ type MagicLinkToken struct {
 	LoginID   uuid.UUID
 	Token     string
 	CreatedAt time.Time
-	ExpireAt  time.Time
+	ExpiresAt time.Time
 	UsedAt    *time.Time // Pointer to allow nil for unused tokens
 }
 
@@ -164,7 +164,7 @@ type LoginRepository interface {
 	IsPasswordlessLogin(ctx context.Context, loginID uuid.UUID) (bool, error)
 
 	// Magic link methods
-	GenerateMagicLinkToken(ctx context.Context, loginID uuid.UUID, token string, expireAt time.Time) error
+	GenerateMagicLinkToken(ctx context.Context, loginID uuid.UUID, token string, expiresAt time.Time) error
 	ValidateMagicLinkToken(ctx context.Context, token string) (uuid.UUID, error)
 	MarkMagicLinkTokenUsed(ctx context.Context, token string) error
 
@@ -622,81 +622,47 @@ func (r *PostgresLoginRepository) WithPgxTx(tx pgx.Tx) LoginRepository {
 
 // SetPasswordlessFlag sets whether a login uses passwordless authentication
 func (r *PostgresLoginRepository) SetPasswordlessFlag(ctx context.Context, loginID uuid.UUID, isPasswordless bool) error {
-	r.passwordlessMutex.Lock()
-	defer r.passwordlessMutex.Unlock()
-
-	r.passwordlessLogins[loginID] = isPasswordless
-	return nil
+	return r.queries.UpdatePasswordlessFlag(ctx, logindb.UpdatePasswordlessFlagParams{
+		ID:             loginID,
+		IsPasswordless: sql.NullBool{Bool: isPasswordless, Valid: true},
+	})
 }
 
 // IsPasswordlessLogin checks if a login uses passwordless authentication
 func (r *PostgresLoginRepository) IsPasswordlessLogin(ctx context.Context, loginID uuid.UUID) (bool, error) {
-	r.passwordlessMutex.RLock()
-	defer r.passwordlessMutex.RUnlock()
-
-	isPasswordless, exists := r.passwordlessLogins[loginID]
-	if !exists {
-		return false, nil // Default to false if not set
+	nullBool, err := r.queries.GetPasswordlessFlag(ctx, loginID)
+	if err != nil {
+		return false, err
 	}
-
-	return isPasswordless, nil
+	return nullBool.Bool, nil
 }
 
 // GenerateMagicLinkToken generates a magic link token
-func (r *PostgresLoginRepository) GenerateMagicLinkToken(ctx context.Context, loginID uuid.UUID, token string, expireAt time.Time) error {
-	r.magicLinkTokens.tokensMutex.Lock()
-	defer r.magicLinkTokens.tokensMutex.Unlock()
-
-	r.magicLinkTokens.tokens[token] = MagicLinkToken{
-		ID:        uuid.New(),
+func (r *PostgresLoginRepository) GenerateMagicLinkToken(ctx context.Context, loginID uuid.UUID, token string, expiresAt time.Time) error {
+	// Create the timestamp with explicit UTC time zone
+	_, err := r.queries.CreateMagicLinkToken(ctx, logindb.CreateMagicLinkTokenParams{
 		LoginID:   loginID,
 		Token:     token,
-		CreatedAt: time.Now().UTC(),
-		ExpireAt:  expireAt,
-		UsedAt:    nil,
-	}
-
-	return nil
+		ExpiresAt: expiresAt,
+	})
+	return err
 }
 
 // ValidateMagicLinkToken validates a magic link token
 func (r *PostgresLoginRepository) ValidateMagicLinkToken(ctx context.Context, token string) (uuid.UUID, error) {
-	r.magicLinkTokens.tokensMutex.RLock()
-	defer r.magicLinkTokens.tokensMutex.RUnlock()
-
-	tokenInfo, exists := r.magicLinkTokens.tokens[token]
-	if !exists {
-		return uuid.Nil, errors.New("token not found")
+	tokenInfo, err := r.queries.ValidateMagicLinkToken(ctx, token)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, errors.New("token not found")
+		}
+		return uuid.Nil, fmt.Errorf("invalid or expired token: %w", err)
 	}
-
-	// Check if token is expired
-	if time.Now().UTC().After(tokenInfo.ExpireAt) {
-		return uuid.Nil, errors.New("token expired")
-	}
-
-	// Check if token is already used
-	if tokenInfo.UsedAt != nil {
-		return uuid.Nil, errors.New("token already used")
-	}
-
 	return tokenInfo.LoginID, nil
 }
 
 // MarkMagicLinkTokenUsed marks a magic link token as used
 func (r *PostgresLoginRepository) MarkMagicLinkTokenUsed(ctx context.Context, token string) error {
-	r.magicLinkTokens.tokensMutex.Lock()
-	defer r.magicLinkTokens.tokensMutex.Unlock()
-
-	tokenInfo, exists := r.magicLinkTokens.tokens[token]
-	if !exists {
-		return errors.New("token not found")
-	}
-
-	now := time.Now().UTC()
-	tokenInfo.UsedAt = &now
-	r.magicLinkTokens.tokens[token] = tokenInfo
-
-	return nil
+	return r.queries.MarkMagicLinkTokenUsed(ctx, token)
 }
 
 // GetPasswordUpdatedAt gets the password updated at timestamp for a login
