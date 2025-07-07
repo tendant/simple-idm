@@ -239,10 +239,10 @@ func (s *LoginService) FindLoginByUsername(ctx context.Context, username string)
 	login, err := s.repository.FindLoginByUsername(ctx, usernameStr, usernameValid)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			slog.Error("no login found with username: %s", username)
+			slog.Error("no login found with username", "err", err, "username", username)
 			return LoginEntity{}, fmt.Errorf("invalid username or password")
 		}
-		slog.Error("error finding login with username: %s", username)
+		slog.Error("error finding login with username", "err", err, "username", username)
 		return LoginEntity{}, fmt.Errorf("error finding user: %w", err)
 	}
 	return login, nil
