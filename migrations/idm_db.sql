@@ -192,7 +192,7 @@ ALTER TABLE public.login_device OWNER TO idm;
 --
 
 CREATE TABLE public.login_magic_link_tokens (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
     login_id uuid NOT NULL,
     token character varying(255) NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL,
