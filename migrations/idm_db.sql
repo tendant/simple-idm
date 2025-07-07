@@ -124,7 +124,8 @@ CREATE TABLE public.login (
     password_expires_at timestamp without time zone,
     failed_login_attempts integer DEFAULT 0,
     locked_until timestamp without time zone,
-    last_failed_attempt_at timestamp without time zone
+    last_failed_attempt_at timestamp without time zone,
+    is_passwordless boolean DEFAULT false
 );
 
 
@@ -185,6 +186,22 @@ CREATE TABLE public.login_device (
 
 
 ALTER TABLE public.login_device OWNER TO idm;
+
+--
+-- Name: login_magic_link_tokens; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.login_magic_link_tokens (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    login_id uuid NOT NULL,
+    token character varying(255) NOT NULL,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL,
+    expires_at timestamp without time zone NOT NULL,
+    used_at timestamp without time zone
+);
+
+
+ALTER TABLE public.login_magic_link_tokens OWNER TO idm;
 
 --
 -- Name: login_password_history; Type: TABLE; Schema: public; Owner: idm
@@ -334,6 +351,14 @@ ALTER TABLE ONLY public.login
 
 
 --
+-- Name: login_magic_link_tokens login_magic_link_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login_magic_link_tokens
+    ADD CONSTRAINT login_magic_link_tokens_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: login_password_history login_password_history_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
@@ -432,6 +457,20 @@ CREATE INDEX idx_login_device_login_id ON public.login_device USING btree (login
 
 
 --
+-- Name: idx_login_magic_link_tokens_login_id; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_login_magic_link_tokens_login_id ON public.login_magic_link_tokens USING btree (login_id);
+
+
+--
+-- Name: idx_login_magic_link_tokens_token; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_login_magic_link_tokens_token ON public.login_magic_link_tokens USING btree (token);
+
+
+--
 -- Name: idx_login_password_reset_tokens_login_id; Type: INDEX; Schema: public; Owner: idm
 --
 
@@ -497,6 +536,14 @@ ALTER TABLE ONLY public.login_device
 
 ALTER TABLE ONLY public.login_device
     ADD CONSTRAINT login_device_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
+
+
+--
+-- Name: login_magic_link_tokens login_magic_link_tokens_login_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.login_magic_link_tokens
+    ADD CONSTRAINT login_magic_link_tokens_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
 
 
 --
