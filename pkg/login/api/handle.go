@@ -2190,6 +2190,7 @@ func (h Handle) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, p
 	}
 
 	// Single user case - proceed with normal flow
+	slog.Info("Single user case - proceed with normal flow", "login_id", loginResult.LoginID, "user_id", loginResult.Users[0].UserId)
 	tokenUser := loginResult.Users[0]
 
 	// Create JWT tokens
@@ -2202,6 +2203,7 @@ func (h Handle) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, p
 			body: "Failed to create tokens",
 		}
 	}
+	slog.Info("Tokens created successfully", "login_id", loginResult.LoginID)
 
 	// Set tokens in cookies
 	err = h.tokenCookieService.SetTokensCookie(w, tokens)
@@ -2212,6 +2214,7 @@ func (h Handle) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, p
 			body: "Failed to set tokens cookie",
 		}
 	}
+	slog.Info("Tokens set successfully", "login_id", loginResult.LoginID)
 
 	// Record successful login attempt
 	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr)
