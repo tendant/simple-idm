@@ -1474,7 +1474,20 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		// Record failed 2FA validation attempt
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
 		// 2025-07-15: we increment failed attempts when passcode is invalid
-		h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		locked, _, err := h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		if err != nil {
+			slog.Error("Failed to increment failed attempts", "err", err)
+		}
+		if locked {
+			lockoutDuration := h.loginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
+			return &Response{
+				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
+				contentType: "application/json",
+			}
+		}
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "2fa validation failed",
@@ -1767,7 +1780,20 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 		// Record failed 2FA validation attempt
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
 		// 2025-07-15: we increment failed attempts when passcode is invalid
-		h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		locked, _, err := h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		if err != nil {
+			slog.Error("Failed to increment failed attempts", "err", err)
+		}
+		if locked {
+			lockoutDuration := h.loginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
+			return &Response{
+				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
+				contentType: "application/json",
+			}
+		}
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "2fa validation failed",
