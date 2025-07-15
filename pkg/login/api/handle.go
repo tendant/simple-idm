@@ -1463,6 +1463,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
 	if err != nil {
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		// 2025-07-15: we do not increment failed attempts if error occurs due to internal error
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "failed to validate 2fa: " + err.Error(),
@@ -1472,6 +1473,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	if !valid {
 		// Record failed 2FA validation attempt
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		// 2025-07-15: we increment failed attempts when passcode is invalid
 		h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
 		return &Response{
 			Code: http.StatusBadRequest,
@@ -1754,10 +1756,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
 	if err != nil {
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
-
-		if strings.Contains(err.Error(), "failed to validate 2FA passcode") {
-			h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
-		}
+		// 2025-07-15: we do not increment failed attempts if error occurs due to internal error
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "failed to validate 2fa: " + err.Error(),
@@ -1767,7 +1766,8 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	if !valid {
 		// Record failed 2FA validation attempt
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
-
+		// 2025-07-15: we increment failed attempts when passcode is invalid
+		h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "2fa validation failed",
