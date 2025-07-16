@@ -172,23 +172,23 @@ type LoginRepository interface {
 	WithTx(tx interface{}) LoginRepository
 }
 
-// InMemoryMagicLinkTokenRepository implements magic link token storage in memory
-type InMemoryMagicLinkTokenRepository struct {
-	tokens      map[string]MagicLinkToken
-	tokensMutex sync.RWMutex
-}
+// // InMemoryMagicLinkTokenRepository implements magic link token storage in memory
+// type InMemoryMagicLinkTokenRepository struct {
+// 	tokens      map[string]MagicLinkToken
+// 	tokensMutex sync.RWMutex
+// }
 
 // NewInMemoryMagicLinkTokenRepository creates a new in-memory magic link token repository
-func NewInMemoryMagicLinkTokenRepository() *InMemoryMagicLinkTokenRepository {
-	return &InMemoryMagicLinkTokenRepository{
-		tokens: make(map[string]MagicLinkToken),
-	}
-}
+// func NewInMemoryMagicLinkTokenRepository() *InMemoryMagicLinkTokenRepository {
+// 	return &InMemoryMagicLinkTokenRepository{
+// 		tokens: make(map[string]MagicLinkToken),
+// 	}
+// }
 
 // PostgresLoginRepository implements LoginRepository using PostgreSQL
 type PostgresLoginRepository struct {
-	queries            *logindb.Queries
-	magicLinkTokens    *InMemoryMagicLinkTokenRepository
+	queries *logindb.Queries
+	// magicLinkTokens    *InMemoryMagicLinkTokenRepository
 	passwordlessLogins map[uuid.UUID]bool
 	passwordlessMutex  sync.RWMutex
 }
@@ -203,8 +203,8 @@ type PostgresLoginRepositoryAdapter interface {
 // NewPostgresLoginRepository creates a new PostgreSQL-based login repository
 func NewPostgresLoginRepository(queries *logindb.Queries) *PostgresLoginRepository {
 	return &PostgresLoginRepository{
-		queries:            queries,
-		magicLinkTokens:    NewInMemoryMagicLinkTokenRepository(),
+		queries: queries,
+		// magicLinkTokens:    NewInMemoryMagicLinkTokenRepository(),
 		passwordlessLogins: make(map[uuid.UUID]bool),
 	}
 }
@@ -605,8 +605,8 @@ func (r *PostgresLoginRepository) WithTx(tx interface{}) LoginRepository {
 
 	// Use the pgx.Tx with the queries
 	return &PostgresLoginRepository{
-		queries:            r.queries.WithTx(pgxTx),
-		magicLinkTokens:    r.magicLinkTokens,
+		queries: r.queries.WithTx(pgxTx),
+		// magicLinkTokens:    r.magicLinkTokens,
 		passwordlessLogins: r.passwordlessLogins,
 	}
 }
@@ -614,8 +614,8 @@ func (r *PostgresLoginRepository) WithTx(tx interface{}) LoginRepository {
 // WithPgxTx returns a new repository with the given pgx transaction
 func (r *PostgresLoginRepository) WithPgxTx(tx pgx.Tx) LoginRepository {
 	return &PostgresLoginRepository{
-		queries:            r.queries.WithTx(tx),
-		magicLinkTokens:    r.magicLinkTokens,
+		queries: r.queries.WithTx(tx),
+		// magicLinkTokens:    r.magicLinkTokens,
 		passwordlessLogins: r.passwordlessLogins,
 	}
 }
