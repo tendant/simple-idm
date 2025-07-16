@@ -576,8 +576,9 @@ func (s *LoginService) SendMagicLinkEmail(ctx context.Context, param SendMagicLi
 	slog.Info("Sending magic link email", "email", param.Email, "magicLink", magicLink)
 
 	data := map[string]string{
-		"Link":     magicLink,
-		"Username": param.Username,
+		"Link":           magicLink,
+		"Username":       param.Username,
+		"ExpirationTime": fmt.Sprintf("%d", int(s.magicLinkTokenExpiration.Hours())),
 	}
 
 	return s.notificationManager.Send(notice.MagicLinkLogin, notification.NotificationData{
