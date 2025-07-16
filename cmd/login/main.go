@@ -100,11 +100,12 @@ type PasswordComplexityConfig struct {
 }
 
 type LoginConfig struct {
-	MaxFailedAttempts       int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"5"`
-	LockoutDuration         string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT15M"`
-	DeviceExpirationDays    string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
-	RegistrationEnabled     bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
-	RegistrationDefaultRole string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"readonlyuser"`
+	MaxFailedAttempts        int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"5"`
+	LockoutDuration          string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT15M"`
+	DeviceExpirationDays     string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
+	RegistrationEnabled      bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
+	RegistrationDefaultRole  string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"readonlyuser"`
+	MagicLinkTokenExpiration string `env:"MAGIC_LINK_TOKEN_EXPIRATION" env-default:"PT6H"` // 15 minutes
 }
 
 type Config struct {
@@ -185,6 +186,12 @@ func main() {
 	if err != nil {
 		slog.Error("Failed to parse lockout duration", "err", err)
 	}
+
+	magicLinkExpiration, err := duration.Parse(config.LoginConfig.MagicLinkTokenExpiration)
+	if err != nil {
+		slog.Error("Failed to parse magic link token expiration", "err", err)
+	}
+	slog.Info("Magic link token expiration", "duration", magicLinkExpiration)
 	loginService := login.NewLoginServiceWithOptions(
 		loginRepository,
 		login.WithNotificationManager(notificationManager),
@@ -193,6 +200,7 @@ func main() {
 		login.WithPasswordManager(passwordManager),
 		login.WithMaxFailedAttempts(config.LoginConfig.MaxFailedAttempts),
 		login.WithLockoutDuration(lockoutDuration.ToTimeDuration()),
+		login.WithMagicLinkTokenExpiration(magicLinkExpiration.ToTimeDuration()), // 10 minutes for magic link token
 	)
 	slog.Info("Login service created", "maxFailedAttempts", config.LoginConfig.MaxFailedAttempts, "lockoutDuration", lockoutDuration.ToTimeDuration())
 
