@@ -18,15 +18,16 @@ import (
 )
 
 type LoginService struct {
-	repository          LoginRepository
-	notificationManager *notification.NotificationManager
-	userMapper          mapper.UserMapper
-	delegatedUserMapper mapper.DelegatedUserMapper
-	passwordManager     *PasswordManager
-	postPasswordUpdate  *PostPasswordUpdateFunc
-	postLoginHook       *PostLoginHookFunc
-	maxFailedAttempts   int
-	lockoutDuration     time.Duration
+	repository               LoginRepository
+	notificationManager      *notification.NotificationManager
+	userMapper               mapper.UserMapper
+	delegatedUserMapper      mapper.DelegatedUserMapper
+	passwordManager          *PasswordManager
+	postPasswordUpdate       *PostPasswordUpdateFunc
+	postLoginHook            *PostLoginHookFunc
+	maxFailedAttempts        int
+	lockoutDuration          time.Duration
+	magicLinkTokenExpiration time.Duration
 }
 
 // PostPasswordUpdateFunc is a function that will be called after a password update
@@ -119,6 +120,13 @@ func WithLockoutDuration(lockoutDuration time.Duration) Option {
 	}
 }
 
+// WithMagicLinkTokenExpiration sets the duration for which magic link tokens are valid
+func WithMagicLinkTokenExpiration(duration time.Duration) Option {
+	return func(ls *LoginService) {
+		ls.magicLinkTokenExpiration = duration
+	}
+}
+
 // NewLoginService creates a new LoginService with the given options
 func NewLoginService(
 	repository LoginRepository,
@@ -154,10 +162,11 @@ func NewLoginServiceWithOptions(repository LoginRepository, opts ...Option) *Log
 
 	// Create service with default values
 	ls := &LoginService{
-		repository:        repository,
-		passwordManager:   passwordManager,
-		maxFailedAttempts: 5,                // Default to 5 failed attempts
-		lockoutDuration:   30 * time.Minute, // Default to 30 minute lockout
+		repository:               repository,
+		passwordManager:          passwordManager,
+		maxFailedAttempts:        5,                // Default to 5 failed attempts
+		lockoutDuration:          30 * time.Minute, // Default to 30 minute lockout
+		magicLinkTokenExpiration: 15 * time.Minute, // Default to 15 minute expiration
 	}
 
 	// Apply all options
@@ -625,8 +634,8 @@ func (s *LoginService) GenerateMagicLinkToken(ctx context.Context, username stri
 	// Generate a secure random token
 	token := utils.GenerateRandomString(32)
 
-	// Set expiration time (15 minutes from now)
-	expiresAt := time.Now().UTC().Add(15 * time.Minute)
+	// Set expiration time using the configurable duration
+	expiresAt := time.Now().UTC().Add(s.magicLinkTokenExpiration)
 
 	// Store the token in the database
 	err = s.repository.GenerateMagicLinkToken(ctx, login.ID, token, expiresAt)
