@@ -2,9 +2,9 @@ import { apiClient } from './client';
 import { User } from './user';
 
 export interface PasswordlessSignupRequest {
-  username: string;
+  username?: string;
   email: string;
-  fullname: string;
+  fullname?: string;
   invitation_code?: string;
 }
 
