@@ -20,9 +20,9 @@ const PasswordlessSignup: Component = () => {
 
     try {
       const response = await signupApi.passwordlessSignup({
-        username: username(),
+        ...(username() ? { username: username() } : {}),
         email: email(),
-        fullname: fullname(),
+        ...(fullname() ? { fullname: fullname() } : {}),
         invitation_code: invitationCode() || undefined,
       });
 
@@ -81,27 +81,6 @@ const PasswordlessSignup: Component = () => {
           <form class="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label
-                for="username"
-                class="block text-sm font-medium text-gray-11"
-              >
-                Username
-              </label>
-              <div class="mt-1">
-                <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  autocomplete="username"
-                  required
-                  value={username()}
-                  onInput={(e) => setUsername(e.currentTarget.value)}
-                  class="appearance-none block w-full px-3 py-2 border border-gray-7 rounded-lg shadow-sm placeholder:text-gray-8 focus:outline-none focus:ring-2 focus:ring-primary-7 focus:border-primary-7"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
                 for="email"
                 class="block text-sm font-medium text-gray-11"
               >
@@ -123,10 +102,30 @@ const PasswordlessSignup: Component = () => {
 
             <div>
               <label
+                for="username"
+                class="block text-sm font-medium text-gray-11"
+              >
+                Username (Optional)
+              </label>
+              <div class="mt-1">
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  autocomplete="username"
+                  value={username()}
+                  onInput={(e) => setUsername(e.currentTarget.value)}
+                  class="appearance-none block w-full px-3 py-2 border border-gray-7 rounded-lg shadow-sm placeholder:text-gray-8 focus:outline-none focus:ring-2 focus:ring-primary-7 focus:border-primary-7"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
                 for="fullname"
                 class="block text-sm font-medium text-gray-11"
               >
-                Full Name
+                Full Name (Optional)
               </label>
               <div class="mt-1">
                 <input
@@ -134,7 +133,6 @@ const PasswordlessSignup: Component = () => {
                   name="fullname"
                   type="text"
                   autocomplete="name"
-                  required
                   value={fullname()}
                   onInput={(e) => setFullname(e.currentTarget.value)}
                   class="appearance-none block w-full px-3 py-2 border border-gray-7 rounded-lg shadow-sm placeholder:text-gray-8 focus:outline-none focus:ring-2 focus:ring-primary-7 focus:border-primary-7"
