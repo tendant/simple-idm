@@ -96,6 +96,16 @@ func HashEmail(email string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// GetShortHashEmail generates a shorter username from the email hash
+// by taking the first 8 characters of the hash
+func GetShortHashEmail(email string) string {
+	fullHash := HashEmail(email)
+	if len(fullHash) <= 8 {
+		return fullHash
+	}
+	return fullHash[:8]
+}
+
 // hashPhone generates a SHA-256 hash of the phone number.
 func HashPhone(phone string) string {
 	hash := sha256.Sum256([]byte(phone))
