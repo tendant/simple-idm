@@ -45,8 +45,8 @@ export const loginApi = {
   },
 
   // Magic link login methods
-  requestMagicLink: async (username: string): Promise<{ message: string }> => {
-    const response = await apiClient.post('/api/idm/auth/login/magic-link', { username }, { skipAuth: true });
+  requestMagicLink: async (email: string): Promise<{ message: string }> => {
+    const response = await apiClient.post('/api/idm/auth/login/magic-link', { email }, { skipAuth: true });
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       throw new Error(errorData?.message || 'Failed to request magic link');
