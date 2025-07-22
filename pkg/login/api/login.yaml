@@ -614,11 +614,11 @@ components:
     MagicLinkLoginRequest:
       type: object
       properties:
-        username:
+        email:
           type: string
-          description: Username or email to send magic link to
+          description: Email to send magic link to
       required:
-        - username
+        - email
     MultiUsersResponse:
       x-go-optional-value: true
       type: object
