@@ -2139,14 +2139,27 @@ func (h Handle) InitiateMagicLinkLogin(w http.ResponseWriter, r *http.Request) *
 		}
 	}
 
+	// Find username by email
+	username, valid, err := h.loginService.FindUsernameByEmail(r.Context(), request.Email)
+	if err != nil || !valid {
+		// Return success even if email not found to prevent email enumeration
+		return &Response{
+			Code: http.StatusOK,
+			body: map[string]string{
+				"message": "If an account exists with that email, we will send a login link to it.",
+			},
+			contentType: "application/json",
+		}
+	}
+
 	// Generate magic link token
-	token, email, err := h.loginService.GenerateMagicLinkToken(r.Context(), request.Username)
+	token, email, err := h.loginService.GenerateMagicLinkToken(r.Context(), username)
 	if err != nil {
 		// Return success even if user not found to prevent username enumeration
 		return &Response{
 			Code: http.StatusOK,
 			body: map[string]string{
-				"message": "If an account exists with that username, we will send a login link to the associated email.",
+				"message": "If an account exists with that email, we will send a login link to it.",
 			},
 			contentType: "application/json",
 		}
@@ -2156,17 +2169,17 @@ func (h Handle) InitiateMagicLinkLogin(w http.ResponseWriter, r *http.Request) *
 	err = h.loginService.SendMagicLinkEmail(r.Context(), login.SendMagicLinkEmailParams{
 		Email:    email,
 		Token:    token,
-		Username: request.Username,
+		Username: username,
 	})
 	if err != nil {
 		slog.Error("Failed to send magic link email", "error", err)
-		// Return success anyway to prevent username enumeration
+		// Return success anyway to prevent email enumeration
 	}
 
 	return &Response{
 		Code: http.StatusOK,
 		body: map[string]string{
-			"message": "If an account exists with that username, we will send a login link to the associated email.",
+			"message": "If an account exists with that email, we will send a login link to it.",
 		},
 		contentType: "application/json",
 	}
