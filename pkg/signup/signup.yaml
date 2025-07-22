@@ -96,8 +96,6 @@ components:
         invitation_code:
           type: string
       required:
-        - fullname
-        - username
         - email
     PasswordPolicyResponse:
       type: object
