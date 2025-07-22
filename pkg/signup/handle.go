@@ -11,6 +11,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/logins"
 	"github.com/tendant/simple-idm/pkg/role"
+	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 type Handle struct {
@@ -224,12 +225,18 @@ func (h Handle) RegisterUserPasswordless(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Validate required fields
-	if request.Username == "" || request.Fullname == "" || request.Email == "" {
-		slog.Error("Full name, username, and email are required")
+	if request.Email == "" {
+		slog.Error("Email is required")
 		return &Response{
 			Code: http.StatusBadRequest,
-			body: "Full name, username, and email are required",
+			body: "Email is required",
 		}
+	}
+
+	// If username is empty, use the hash of the email
+	if request.Username == "" {
+		request.Username = utils.HashEmail(request.Email)
+		slog.Info("Using hashed email as username", "email", request.Email, "username", request.Username)
 	}
 
 	// Determine role based on invitation code
