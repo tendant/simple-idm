@@ -38,6 +38,11 @@ type Login struct {
 	Username         *string    `json:"username,omitempty"`
 }
 
+// SuccessResponse defines model for SuccessResponse.
+type SuccessResponse struct {
+	Result string `json:"result,omitempty"`
+}
+
 // TwoFactorMethod defines model for TwoFactorMethod.
 type TwoFactorMethod struct {
 	Enabled     bool   `json:"enabled"`
@@ -74,6 +79,30 @@ type PostJSONBody CreateLoginRequest
 // PutIDJSONBody defines parameters for PutID.
 type PutIDJSONBody UpdateLoginRequest
 
+// Post2faDisableJSONBody defines parameters for Post2faDisable.
+type Post2faDisableJSONBody struct {
+	TwofaType Post2faDisableJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Post2faDisableJSONBodyTwofaType defines parameters for Post2faDisable.
+type Post2faDisableJSONBodyTwofaType string
+
+// Post2faEnableJSONBody defines parameters for Post2faEnable.
+type Post2faEnableJSONBody struct {
+	TwofaType Post2faEnableJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Post2faEnableJSONBodyTwofaType defines parameters for Post2faEnable.
+type Post2faEnableJSONBodyTwofaType string
+
+// Post2faSetupJSONBody defines parameters for Post2faSetup.
+type Post2faSetupJSONBody struct {
+	TwofaType Post2faSetupJSONBodyTwofaType `json:"twofa_type"`
+}
+
+// Post2faSetupJSONBodyTwofaType defines parameters for Post2faSetup.
+type Post2faSetupJSONBodyTwofaType string
+
 // PostJSONRequestBody defines body for Post for application/json ContentType.
 type PostJSONRequestBody PostJSONBody
 
@@ -87,6 +116,30 @@ type PutIDJSONRequestBody PutIDJSONBody
 
 // Bind implements render.Binder.
 func (PutIDJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faDisableJSONRequestBody defines body for Post2faDisable for application/json ContentType.
+type Post2faDisableJSONRequestBody Post2faDisableJSONBody
+
+// Bind implements render.Binder.
+func (Post2faDisableJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faEnableJSONRequestBody defines body for Post2faEnable for application/json ContentType.
+type Post2faEnableJSONRequestBody Post2faEnableJSONBody
+
+// Bind implements render.Binder.
+func (Post2faEnableJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// Post2faSetupJSONRequestBody defines body for Post2faSetup for application/json ContentType.
+type Post2faSetupJSONRequestBody Post2faSetupJSONBody
+
+// Bind implements render.Binder.
+func (Post2faSetupJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -246,6 +299,36 @@ func Get2faMethodsByLoginIDJSON404Response(body struct {
 	}
 }
 
+// Post2faDisableJSON200Response is a constructor method for a Post2faDisable response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faDisableJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// Post2faEnableJSON200Response is a constructor method for a Post2faEnable response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faEnableJSON200Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// Post2faSetupJSON201Response is a constructor method for a Post2faSetup response.
+// A *Response is returned with the configured status code and content type from the spec.
+func Post2faSetupJSON201Response(body SuccessResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        201,
+		contentType: "application/json",
+	}
+}
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// List all logins
@@ -266,6 +349,15 @@ type ServerInterface interface {
 	// Get login 2FA methods
 	// (GET /{id}/2fa)
 	Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Request, id string) *Response
+	// Disable an existing 2FA method
+	// (POST /{id}/2fa/disable)
+	Post2faDisable(w http.ResponseWriter, r *http.Request, id string) *Response
+	// Enable an existing 2FA method
+	// (POST /{id}/2fa/enable)
+	Post2faEnable(w http.ResponseWriter, r *http.Request, id string) *Response
+	// Create a new 2FA method
+	// (POST /{id}/2fa/setup)
+	Post2faSetup(w http.ResponseWriter, r *http.Request, id string) *Response
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -441,6 +533,84 @@ func (siw *ServerInterfaceWrapper) Get2faMethodsByLoginID(w http.ResponseWriter,
 	handler(w, r.WithContext(ctx))
 }
 
+// Post2faDisable operation middleware
+func (siw *ServerInterfaceWrapper) Post2faDisable(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faDisable(w, r, id)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post2faEnable operation middleware
+func (siw *ServerInterfaceWrapper) Post2faEnable(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faEnable(w, r, id)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Post2faSetup operation middleware
+func (siw *ServerInterfaceWrapper) Post2faSetup(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Post2faSetup(w, r, id)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
 type UnescapedCookieParamError struct {
 	err       error
 	paramName string
@@ -562,6 +732,9 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Get("/{id}", wrapper.GetID)
 		r.Put("/{id}", wrapper.PutID)
 		r.Get("/{id}/2fa", wrapper.Get2faMethodsByLoginID)
+		r.Post("/{id}/2fa/disable", wrapper.Post2faDisable)
+		r.Post("/{id}/2fa/enable", wrapper.Post2faEnable)
+		r.Post("/{id}/2fa/setup", wrapper.Post2faSetup)
 	})
 	return r
 }
@@ -587,22 +760,25 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9xXTW/bOBD9K8TsHpXa9eakW7tBiwANtthtT0URjMWRw4IfCjlMYgT+7wuScvwhxXW6",
-	"QRbtxRBIaubNezOP1j00znTOkuUA9T2E5ooM5sc/PSHTB7dQ9m+6jhQ4rXbedeRZUT7TYQi3zsv0zMuO",
-	"oIbAXtkFrCqIgbxFQyObqwo8XUflSUL9ZXOy2kT8Wq1fcvNv1HCKmMEMUTQZqbzEjLB13qQnkMh0wiqH",
-	"HYBTcudsjEqOHVvDubwhH5SzW7Uoy7Qgn07xrbtssWHnL8niXNM2IXPnNKHNjHTyyUAPszig6NOte5eR",
-	"XBBfOTkk6yDArUKOJKgsfE/gvFs95B5oW8HdycKduI6Vs6hPblBHgpp9pGFNYaQDXLQ8ro3ZvKOYTH74",
-	"3VMLNfw22TT/pO/8yT6BG5LRe1wOSlvHr3oQY337Oet+eJR+YFqeRGOKomzrcnzFOr2WEQVxgRYXZMiy",
-	"ePPxHCp4aHZ4/Wr6appKcB1Z7BTU8EdeSqPBVxn5JP0sKNeUKsKU/VxCDe+J80GPhph8gPrLPUgKjVcZ",
-	"ItRwgXfKRCNsNHPywrVCF1DshCeO3kLCDTVcR/JLqKCQBFoZlaIX3VJuSS1GzVDPptWgEVbVfua/2jYQ",
-	"i9Z50eFC2Qz7kWQunx3PdlSyfwh9cyWYvMkZW6WZkrp9uY/kDfm1nbz7vfE1NUfonA2lj2bTaZkIy1Rm",
-	"ArtOqyaXN/kWiodt4u12YY/m2GEphjwYkQrYMepC0zYNn9LyQGsYY3B/itLSbrAPKvBWkHQgRGPQL9eb",
-	"qPXDbgWdCyM9+jGtlgGjwG+dXD6JvkPsjNygq91h7g1uT8DXz4ag12eEu7Qh+otThNg0FEIbtc7qnf6n",
-	"HjIUAi6ykdEdmi5bzefetARqTyiXgu5U4DC8Uo5R/tzeoFZS+AdWt6UvtAsUlm6L/PnA5F7JVWlJTUzD",
-	"TjjL6+dnQ8vKo5n8bjOZ+TbcFXJ7Sr9zb45M7elwWopIBe6YSKfPLVJJaF1yxWjlj4mzH2RXnELyWpbq",
-	"0Xvj/5Jh+lKzJ4lR6fDzKvmeuMgo5ktxfpYdNo4ZbHxJMZ/fxUf+vB3l4i/WSf1XxS9iEIXufd+ezFo8",
-	"9Ddz1mL/cfB2meP//P4x+OoZoXL27o0oHyCFy5frgVmLfebwPP0wHvAxy9kUnnlZ/RsAAP//nq3IpcgQ",
-	"AAA=",
+	"H4sIAAAAAAAC/+xYW08buRf/Kpb//8ehCVn2YfPWLtsKqWir0j5VKDrMnAmufBnsYyBC+e4r2xPmmhAK",
+	"osuqL1Hk8Zxz/Lsc23PHc6Mqo1GT4/M77vJLVBD//mkRCD+apdCf8cqjozBaWVOhJYFxTgXO3RhbhP+0",
+	"qpDPuSMr9JKvM+4dWg0KRx6uM27xyguLBZ9/a2ZmTcTzbPOSufiOOYWIsZhhFXmstFhArLA0VoV/vADC",
+	"AxIx7KA4UXTmei+KsWmbchbXaJ0wurUWoQmXaMMsujGLEnIydoEaLiS2AbkwRiLoiEhVPLrQ3SgOIDrz",
+	"eY7OfUZXGe1wCJZF5yXtEy3jtwdLc2AqEkaDPLgG6ZHPyXpcZ/zLjXkfl3yKdGmKYaKdSLQQ25OJNPCQ",
+	"kuLT7D73+ZPW5EakZrymcRGo5h1BqOKf/1ss+Zz/b9K4bFJbbNIHsMEfrIXVYGmb+FldxJhBvkaB7fbs",
+	"D9jyUTCGKEKXJsYXJMNrsSLHTkHDEhVqYm8/nfCM37uKH76ZvpmGJZgKNVSCz/lvcSh4kC5j5ZPws8S4",
+	"prAiCNlPCj7nH5DiRAsKCa3j8293vECXWxFL5HN+CrdCecW0VxdomSmZTEWRYRbJW81D3XzOrzzaFc94",
+	"AolLoUSInngLuQssIXpoNs0GQlhn/cx/l6VDYqWxrIKl0LHsLclMnDueba9kZwg2v2SEVsWMpZCEgd16",
+	"uVvyuvhaJ29fG+dBHKmrRDZm02lyhCZMnoCqkiKPy5t8d6lZNvG6Kqyr2dcsqfMPLJJxMgQywdSG4UsY",
+	"HnDNxxDsuygMdYN9FI5aQcIE55UCu9o8BCnvn2a8Mm5Eo5/CaDIYOnpnitWj4NuFzshWve6auW5wPQIP",
+	"n62Cmp8R7MIDVu/QzKXdqfRSRvaOnqQhhc7BMjYyvAVVxVbztW5aDKRFKFYMb4UjN9xS9mH+RF+DFAWz",
+	"96i2qU+wM2AabxL9ccLkThTrJEmJhEMlHMfxk+Nhy4rWDP2ucWbcDbtEtl36wL454tqjoVsSSancMZKO",
+	"npuklFCb0BW9Ln6MnH6QLjkJ5A0t2dZ942fRMH0p7xVIIKR7vUx+QEo0sosVOzmOHdaPNVj/kmQ+fxcf",
+	"Obzt1cVfTEn19eU/0iAS3P2+PZmVsOuYOSuhvhy8W8X4r79/DG49I1DO3r9l6QKSsHw5DcxKqDO759HD",
+	"eMBtLadZuOuKZFIIFy6ZcTFbD3yzEo7ref/uxtTlg25MCYvNlRu1V+E+iAqEDHcEFY5T4OkSNYWQxi6g",
+	"qlrXxG238ybs+ShfL9fq+t9Jdmu+5nrrAXbnqZG1eG+csjVXS5MZ/308PoUzrmQO7TVahtYa2z/+pIoZ",
+	"6HQADjfAJklPyulzyYNK/kv/EvIrF3L9Yez16Dhpbj8ZOyRfPajiszjrl4ifLuLDnyTiB74mPE7Ef+wU",
+	"ce8jwlOU3Pla0NHwev1PAAAA//81DffRhxkAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
