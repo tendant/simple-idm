@@ -3,28 +3,31 @@ package logins
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/twofa"
 )
 
 // LoginsHandle handles HTTP requests for login management
 type LoginsHandle struct {
-	loginService     *LoginsService
-	twoFactorService twofa.TwoFactorService
+	loginService *LoginsService
+	twoFaService twofa.TwoFaService
 }
 
 // Ensure LoginsHandle implements ServerInterface
 var _ ServerInterface = (*LoginsHandle)(nil)
 
 // NewHandle creates a new login handler
-func NewHandle(loginService *LoginsService, twoFactorService twofa.TwoFactorService) *LoginsHandle {
+func NewHandle(loginService *LoginsService, twoFaService twofa.TwoFaService) *LoginsHandle {
 	return &LoginsHandle{
-		loginService:     loginService,
-		twoFactorService: twoFactorService,
+		loginService: loginService,
+		twoFaService: twoFaService,
 	}
 }
 
@@ -304,7 +307,7 @@ func (h *LoginsHandle) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	res, err := h.twoFactorService.FindTwoFAsByLoginId(r.Context(), loginId)
+	res, err := h.twoFaService.FindTwoFAsByLoginId(r.Context(), loginId)
 	if err != nil {
 		return &Response{
 			Code: http.StatusInternalServerError,
@@ -329,4 +332,134 @@ func (h *LoginsHandle) Get2faMethodsByLoginID(w http.ResponseWriter, r *http.Req
 	resp.Methods = methods
 
 	return Get2faMethodsByLoginIDJSON200Response(resp)
+}
+
+// Create a new 2FA method
+// (POST /{id}/2fa/setup)
+func (h *LoginsHandle) Post2faSetup(w http.ResponseWriter, r *http.Request, id string) *Response {
+	var resp SuccessResponse
+	_, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	loginId, err := uuid.Parse(id)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	data := Post2faSetupJSONRequestBody{}
+	err = render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Create new 2FA method
+	err = h.twoFaService.CreateTwoFactor(r.Context(), loginId, string(data.TwofaType))
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "failed to create 2fa: " + err.Error(),
+		}
+	}
+
+	// Return success response
+	resp.Result = "success"
+	return Post2faSetupJSON201Response(resp)
+}
+
+// Enable an existing 2FA method
+// (POST /{id}/2fa/enable)
+func (h *LoginsHandle) Post2faEnable(w http.ResponseWriter, r *http.Request, id string) *Response {
+	var resp SuccessResponse
+	_, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	loginId, err := uuid.Parse(id)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	data := Post2faEnableJSONRequestBody{}
+	err = render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	// Find enabled 2FA methods
+	err = h.twoFaService.EnableTwoFactor(r.Context(), loginId, string(data.TwofaType))
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: err.Error(),
+		}
+	}
+
+	return Post2faEnableJSON200Response(resp)
+}
+
+// Disable an existing 2FA method
+// (POST /{id}/2fa/disable)
+func (h *LoginsHandle) Post2faDisable(w http.ResponseWriter, r *http.Request, id string) *Response {
+	var resp SuccessResponse
+	_, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	loginId, err := uuid.Parse(id)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	data := Post2faEnableJSONRequestBody{}
+	err = render.DecodeJSON(r.Body, &data)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "unable to parse body",
+		}
+	}
+
+	err = h.twoFaService.DisableTwoFactor(r.Context(), loginId, string(data.TwofaType))
+	if err != nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: err.Error(),
+		}
+	}
+
+	return Post2faDisableJSON200Response(resp)
 }
