@@ -142,14 +142,16 @@ func NewDefaultResponseHandler() ResponseHandler {
 func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.User, loginID uuid.UUID, tempTokenStr string) *Response {
 	apiUsers := make([]User, len(idmUsers))
 	for i, mu := range idmUsers {
-		email, _ := mu.ExtraClaims["email"].(string)
+		email := mu.UserInfo.Email
 		name := mu.DisplayName
 		id := mu.UserId
+		role := mu.ExtraClaims["roles"].([]string)
 
 		apiUsers[i] = User{
 			ID:    id,
 			Email: email,
 			Name:  name,
+			Role:  role[0],
 		}
 	}
 
@@ -467,6 +469,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 			Code: http.StatusForbidden,
 		}
 	}
+
+	slog.Info("Idm users", "idmUsers", idmUsers)
 
 	// Get the first user
 	tokenUser := idmUsers[0]
