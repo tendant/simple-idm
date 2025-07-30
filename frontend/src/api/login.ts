@@ -37,7 +37,7 @@ export interface UpdateLoginRequest {
 
 export const loginApi = {
   listLogins: async (): Promise<Login[]> => {
-    const response = await apiClient.get('/idm/logins');
+    const response = await apiClient.get('/api/idm/logins');
     if (!response.ok) {
       throw new Error('Failed to fetch logins');
     }
@@ -64,7 +64,7 @@ export const loginApi = {
   },
 
   getLogin: async (id: string): Promise<Login> => {
-    const response = await apiClient.get(`/idm/logins/${id}`);
+    const response = await apiClient.get(`/api/idm/logins/${id}`);
     if (!response.ok) {
       throw new Error('Failed to fetch login');
     }
@@ -72,7 +72,7 @@ export const loginApi = {
   },
 
   createLogin: async (login: CreateLoginRequest): Promise<Login> => {
-    const response = await apiClient.post('/idm/logins', login);
+    const response = await apiClient.post('/api/idm/logins', login);
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
       if (errorData && errorData.message) {
@@ -84,7 +84,7 @@ export const loginApi = {
   },
 
   updateLogin: async (id: string, login: UpdateLoginRequest): Promise<Login> => {
-    const response = await apiClient.put(`/idm/logins/${id}`, login);
+    const response = await apiClient.put(`/api/idm/logins/${id}`, login);
     if (!response.ok) {
       throw new Error('Failed to update login');
     }
@@ -92,21 +92,21 @@ export const loginApi = {
   },
 
   deleteLogin: async (id: string): Promise<void> => {
-    const response = await apiClient.delete(`/idm/logins/${id}`);
+    const response = await apiClient.delete(`/api/idm/logins/${id}`);
     if (!response.ok) {
       throw new Error('Failed to delete login');
     }
   },
 
   resetPassword: async (id: string, newPassword: string): Promise<void> => {
-    const response = await apiClient.post(`/idm/logins/${id}/reset-password`, { password: newPassword });
+    const response = await apiClient.post(`/api/idm/logins/${id}/reset-password`, { password: newPassword });
     if (!response.ok) {
       throw new Error('Failed to reset password');
     }
   },
 
   enable2FA: async (id: string): Promise<{ secret: string; qrCode: string }> => {
-    const response = await apiClient.post(`/idm/logins/${id}/2fa/enable`, {});
+    const response = await apiClient.post(`/api/idm/logins/${id}/2fa/enable`, {});
     if (!response.ok) {
       throw new Error('Failed to enable 2FA');
     }
@@ -114,14 +114,14 @@ export const loginApi = {
   },
 
   disable2FA: async (id: string, code: string): Promise<void> => {
-    const response = await apiClient.post(`/idm/logins/${id}/2fa/disable`, { code });
+    const response = await apiClient.post(`/api/idm/logins/${id}/2fa/disable`, { code });
     if (!response.ok) {
       throw new Error('Failed to disable 2FA');
     }
   },
 
   verify2FA: async (id: string, code: string): Promise<boolean> => {
-    const response = await apiClient.post(`/idm/logins/${id}/2fa/verify`, { code });
+    const response = await apiClient.post(`/api/idm/logins/${id}/2fa/verify`, { code });
     if (!response.ok) {
       throw new Error('Failed to verify 2FA code');
     }
@@ -129,7 +129,7 @@ export const loginApi = {
   },
 
   generateBackupCodes: async (id: string): Promise<string[]> => {
-    const response = await apiClient.post(`/idm/logins/${id}/2fa/backup-codes`, {});
+    const response = await apiClient.post(`/api/idm/logins/${id}/2fa/backup-codes`, {});
     if (!response.ok) {
       throw new Error('Failed to generate backup codes');
     }
@@ -137,7 +137,7 @@ export const loginApi = {
   },
   
   get2FAMethods: async (id: string): Promise<TwoFactorMethods> => {
-    const response = await apiClient.get(`/idm/logins/${id}/2fa`);
+    const response = await apiClient.get(`/api/idm/logins/${id}/2fa`);
     if (!response.ok) {
       throw new Error('Failed to fetch 2FA methods');
     }
