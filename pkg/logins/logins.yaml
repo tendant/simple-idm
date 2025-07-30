@@ -178,6 +178,114 @@ paths:
                   message:
                     type: string
                     example: "Login 2fa methods not found"
+  /{id}/2fa/setup:
+    post:
+      summary: Create a new 2FA method
+      operationId: post_2fa_setup
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - twofa_type
+      responses:
+        "201":
+          description: 2FA method created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "409":
+          description: 2FA method already exists
+        "500":
+          description: Internal server error
+  /{id}/2fa/enable:
+    post:
+      summary: Enable an existing 2FA method
+      operationId: post_2fa_enable
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - twofa_type
+      responses:
+        "200":
+          description: 2FA method enabled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: 2FA method not found
+        "500":
+          description: Internal server error
+  /{id}/2fa/disable:
+    post:
+      summary: Disable an existing 2FA method
+      operationId: post_2fa_disable
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                  enum: ["email", "sms", "authenticator_app"]
+              required:
+                - twofa_type
+      responses:
+        "200":
+          description: 2FA method disabled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "400":
+          description: Invalid request parameters
+        "404":
+          description: 2FA method not found
+        "500":
+          description: Internal server error
 
 components:
   schemas:
@@ -247,3 +355,9 @@ components:
       required:
         - type
         - enabled
+    SuccessResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        result:
+          type: string
