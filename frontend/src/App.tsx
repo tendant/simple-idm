@@ -171,6 +171,7 @@ const App: Component = () => {
       <Route path="/logins/:id/edit" component={EditLoginPage} />
       <Route path="/password-reset-init" component={PasswordResetInit} />
       <Route path="/password-reset/:code" component={PasswordReset} />
+      <Route path="/auth/user/reset-password" component={PasswordReset} />
       <Route path="/find-username" component={FindUsername} />
       <Route path="/settings" component={SettingsPage} />
     </Router>
