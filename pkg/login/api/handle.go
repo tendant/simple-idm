@@ -470,8 +470,6 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	slog.Info("Idm users", "idmUsers", idmUsers)
-
 	// Get the first user
 	tokenUser := idmUsers[0]
 
