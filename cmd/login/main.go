@@ -281,7 +281,7 @@ func main() {
 		PasswordManager: passwordManager,
 	}
 	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
-	loginsHandle := logins.NewHandle(loginsService, twoFaService)
+	loginsHandle := logins.NewHandle(loginsService, *twoFaService)
 
 	signupHandle := signup.NewHandle(
 		signup.WithIamService(*iamService),
@@ -359,7 +359,7 @@ func main() {
 			r.Use(client.AdminRoleMiddleware)
 			r.Mount("/", logins.Handler(loginsHandle))
 		})
-		r.Mount("/idm/logins", loginsRouter)
+		r.Mount("/api/idm/logins", loginsRouter)
 
 		// Initialize impersonate service and routes
 		// impersonateService := impersonate.NewService(userMapper, nil)
