@@ -17,7 +17,7 @@ test.describe('Logins Page', () => {
     });
     
     // Mock the logins API response
-    await page.route('**/idm/logins', async (route) => {
+    await page.route('**/api/idm/logins', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -92,7 +92,7 @@ test.describe('Logins Page', () => {
 
   test('should delete a login after confirmation', async ({ page }) => {
     // Mock the delete API response
-    await page.route('**/idm/logins/2', async (route) => {
+    await page.route('**/api/idm/logins/2', async (route) => {
       if (route.request().method() === 'DELETE') {
         await route.fulfill({
           status: 200,
@@ -118,7 +118,7 @@ test.describe('Logins Page', () => {
 
   test('should show error when delete fails', async ({ page }) => {
     // Mock the delete API response to fail
-    await page.route('**/idm/logins/2', async (route) => {
+    await page.route('**/api/idm/logins/2', async (route) => {
       if (route.request().method() === 'DELETE') {
         await route.fulfill({
           status: 500,
@@ -140,7 +140,7 @@ test.describe('Logins Page', () => {
 
   test('should display empty state when no logins exist', async ({ page }) => {
     // Mock the logins API response with empty array
-    await page.route('/idm/logins', async (route) => {
+    await page.route('/api/idm/logins', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
