@@ -44,9 +44,15 @@ AND deleted_at Is NULL;
 -- name: UpdateUserLoginId :one
 UPDATE users
 SET login_id = $2,
-    last_modified_at = NOW()
+    last_modified_at = NOW() at time zone 'utc'
 WHERE id = $1
 RETURNING login_id;
+
+-- name: UpdateUserPhone :exec
+UPDATE users
+SET phone = $2,
+    last_modified_at = NOW() at time zone 'utc'
+WHERE id = $1;
 
 -- name: UpdateUserPassword :exec
 -- UPDATE users
