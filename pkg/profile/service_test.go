@@ -40,6 +40,64 @@ func containerLog(ctx context.Context, container testcontainers.Container) {
 	}
 }
 
+func TestUpdateUserPhone(t *testing.T) {
+	// Setup test database
+	pool, cleanup := setupTestDatabase(t)
+	defer cleanup()
+
+	// Create repository and service
+	queries := profiledb.New(pool)
+	repository := NewPostgresProfileRepository(queries)
+	service := NewProfileServiceWithOptions(repository)
+
+	// Create a test user directly in database
+	ctx := context.Background()
+	userID := uuid.New()
+	initialPhone := "+1234567890"
+
+	// Insert test user with initial phone
+	_, err := pool.Exec(ctx, `
+		INSERT INTO users (id, email, created_at, last_modified_at, phone)
+		VALUES ($1, $2, NOW(), NOW(), $3)
+	`, userID, "test@example.com", initialPhone)
+	require.NoError(t, err)
+
+	// Test cases
+	tests := []struct {
+		name          string
+		userID        uuid.UUID
+		phone         string
+		expectedError string
+	}{
+		{
+			name:          "successful phone update",
+			userID:        userID,
+			phone:         "+9876543210",
+			expectedError: "",
+		}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Call the method
+			err := service.UpdateUserPhone(ctx, tt.userID, tt.phone)
+
+			// Check error
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				require.NoError(t, err)
+
+				// Verify phone was actually updated
+				var storedPhone string
+				err = pool.QueryRow(ctx, "SELECT phone FROM users WHERE id = $1", tt.userID).Scan(&storedPhone)
+				require.NoError(t, err)
+				require.Equal(t, tt.phone, storedPhone, "New phone should be stored in database")
+			}
+		})
+	}
+}
+
 func setupTestDatabase(t *testing.T) (*pgxpool.Pool, func()) {
 	ctx := context.Background()
 
