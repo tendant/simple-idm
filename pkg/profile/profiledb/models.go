@@ -56,6 +56,7 @@ type Login struct {
 	FailedLoginAttempts   pgtype.Int4    `json:"failed_login_attempts"`
 	LockedUntil           sql.NullTime   `json:"locked_until"`
 	LastFailedAttemptAt   sql.NullTime   `json:"last_failed_attempt_at"`
+	IsPasswordless        sql.NullBool   `json:"is_passwordless"`
 }
 
 type Login2fa struct {
@@ -93,6 +94,15 @@ type LoginDevice struct {
 	CreatedAt   sql.NullTime   `json:"created_at"`
 }
 
+type LoginMagicLinkToken struct {
+	ID        uuid.UUID    `json:"id"`
+	LoginID   uuid.UUID    `json:"login_id"`
+	Token     string       `json:"token"`
+	CreatedAt time.Time    `json:"created_at"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	UsedAt    sql.NullTime `json:"used_at"`
+}
+
 type LoginPasswordHistory struct {
 	ID              uuid.UUID    `json:"id"`
 	CreatedAt       time.Time    `json:"created_at"`
@@ -127,6 +137,7 @@ type User struct {
 	Email          string         `json:"email"`
 	Name           sql.NullString `json:"name"`
 	LoginID        uuid.NullUUID  `json:"login_id"`
+	Phone          sql.NullString `json:"phone"`
 }
 
 type UserRole struct {
