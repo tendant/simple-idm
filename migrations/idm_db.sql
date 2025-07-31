@@ -273,7 +273,8 @@ CREATE TABLE public.users (
     created_by character varying(255),
     email character varying(255) NOT NULL,
     name character varying(255),
-    login_id uuid
+    login_id uuid,
+    phone character varying(255)
 );
 
 
