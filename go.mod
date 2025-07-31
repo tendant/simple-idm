@@ -23,12 +23,13 @@ require (
 	github.com/tendant/db-utils v0.0.1
 	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.35.0
-	github.com/torpago/notice-proc v0.0.0-20250731162045-1424a4b88e44
 	github.com/twilio/twilio-go v1.27.0
 	github.com/wneessen/go-mail v0.6.2
 	golang.org/x/crypto v0.33.0
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f
 )
+
+require github.com/rogpeppe/go-internal v1.12.0 // indirect
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
