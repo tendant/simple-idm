@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	twclient "github.com/torpago/notice-proc/twsms"
 	"github.com/twilio/twilio-go"
 	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
 type SMSNotifier struct {
-	client       *twclient.TwSmsClient
+	client       *twilio.RestClient
 	TwilioConfig TwilioConfig
 }
 
@@ -23,10 +22,7 @@ type TwilioConfig struct {
 func NewSMSNotifier(config TwilioConfig) *SMSNotifier {
 	client := twilio.NewRestClient()
 	return &SMSNotifier{
-		client: &twclient.TwSmsClient{
-			Client: client,
-			From:   config.TwilioFrom,
-		},
+		client:       client,
 		TwilioConfig: config,
 	}
 }
@@ -41,7 +37,7 @@ func (s *SMSNotifier) Send(noticeType NoticeType, notification NotificationData,
 	params.SetFrom(s.TwilioConfig.TwilioFrom)
 	params.SetBody(notification.Body)
 
-	resp, err := s.client.Client.Api.CreateMessage(params)
+	resp, err := s.client.Api.CreateMessage(params)
 
 	if err != nil {
 		return err
