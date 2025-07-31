@@ -87,7 +87,9 @@ func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig, 
 
 	err = notificationManager.RegisterNotification(TwofaCodeNoticeSms, notification.SMSSystem, notification.NoticeTemplate{
 		Subject: "2FA Code Init",
-		Html:    loadTemplate("templates/email/2fa_code_notice.html"),
+		// FIX-ME: SMS does not use HTML, but we keep the structure for consistency
+		// Question: how to handle SMS templates?
+		Html: loadTemplate(""),
 	})
 	if err != nil {
 		return nil, err
