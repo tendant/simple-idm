@@ -40,7 +40,7 @@ const (
 )
 
 // NewService creates a new email service instance
-func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig) (*notification.NotificationManager, error) {
+func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig, twConfig notification.TwilioConfig) (*notification.NotificationManager, error) {
 	notificationManager := notification.NewNotificationManager(baseUrl)
 
 	emailNotifier, err := notification.NewEmailNotifier(smtpConfig)
@@ -48,7 +48,10 @@ func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig) 
 		return nil, err
 	}
 
+	smsNotifier := notification.NewSMSNotifier(twConfig)
+
 	notificationManager.RegisterNotifier(notification.EmailSystem, emailNotifier)
+	notificationManager.RegisterNotifier(notification.SMSSystem, smsNotifier)
 
 	err = notificationManager.RegisterNotification(UsernameReminder, notification.EmailSystem, notification.NoticeTemplate{
 		Subject: "Username Reminder",
@@ -77,6 +80,14 @@ func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig) 
 	err = notificationManager.RegisterNotification(MagicLinkLogin, notification.EmailSystem, notification.NoticeTemplate{
 		Subject: "Your Login Link",
 		Html:    loadTemplate("templates/email/magic_link_login.html"),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = notificationManager.RegisterNotification(TwofaCodeNoticeSms, notification.SMSSystem, notification.NoticeTemplate{
+		Subject: "2FA Code Init",
+		Html:    loadTemplate("templates/email/2fa_code_notice.html"),
 	})
 	if err != nil {
 		return nil, err
