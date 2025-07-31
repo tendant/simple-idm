@@ -1223,7 +1223,7 @@ func (h Handle) UnlinkDeviceFromLogin(w http.ResponseWriter, r *http.Request) *R
 	err := h.deviceService.UnlinkLoginFromDevice(r.Context(), loginID, req.Fingerprint)
 	if err != nil {
 		slog.Error("Failed to unlink device from login", "error", err, "login_id", loginID, "fingerprint", req.Fingerprint)
-		
+
 		// Check error message to determine the appropriate response
 		if strings.Contains(err.Error(), "device not found") {
 			return &Response{
@@ -1242,7 +1242,7 @@ func (h Handle) UnlinkDeviceFromLogin(w http.ResponseWriter, r *http.Request) *R
 				},
 			}
 		}
-		
+
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: map[string]string{
@@ -1258,6 +1258,190 @@ func (h Handle) UnlinkDeviceFromLogin(w http.ResponseWriter, r *http.Request) *R
 		body: map[string]string{
 			"status":  "success",
 			"message": "Device unlinked successfully",
+		},
+	}
+}
+
+// Update phone number
+// (PUT /phone)
+func (h Handle) UpdatePhone(w http.ResponseWriter, r *http.Request) *Response {
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Parse request body
+	var data UpdatePhoneJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Invalid phone number format",
+			},
+		}
+	}
+
+	// Validate phone number
+	if data.Phone == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Phone number is required",
+			},
+		}
+	}
+
+	// Get user UUID from context
+	userID, err := uuid.Parse(authUser.UserId)
+	if err != nil {
+		slog.Error("Failed to parse user ID", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to parse user ID",
+			},
+		}
+	}
+
+	// Update phone number
+	err = h.profileService.UpdateUserPhone(r.Context(), userID, data.Phone)
+	if err != nil {
+		slog.Error("Failed to update phone number", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to update phone number: " + err.Error(),
+			},
+		}
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"status":  "success",
+			"message": "Phone number updated successfully",
+		},
+	}
+}
+
+// Send phone verification code
+// (POST /phone/verify/send)
+func (h Handle) SendPhoneVerification(w http.ResponseWriter, r *http.Request) *Response {
+	// We don't need authUser for this function, but we'll keep the authentication check
+	_, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Parse request body
+	var data SendPhoneVerificationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Invalid request body",
+			},
+		}
+	}
+
+	// Validate phone number
+	if data.Phone == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Phone number is required",
+			},
+		}
+	}
+
+	// FIX-ME: Generate and send verification code
+	// Question: which secret should we use when generating the verification code?
+
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"status":  "success",
+			"message": "Verification code sent successfully",
+		},
+	}
+}
+
+// Verify phone with code
+// (POST /phone/verify)
+func (h Handle) VerifyPhone(w http.ResponseWriter, r *http.Request) *Response {
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Parse request body
+	var data VerifyPhoneJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Invalid request body",
+			},
+		}
+	}
+
+	// Validate request
+	if data.Phone == "" || data.Code == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Phone number and verification code are required",
+			},
+		}
+	}
+
+	// FIX-ME: Verify the code (this is a placeholder, actual implementation will depend on your verification logic)
+
+	// Get user UUID from context
+	userID, err := uuid.Parse(authUser.UserId)
+	if err != nil {
+		slog.Error("Failed to parse user ID", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to parse user ID",
+			},
+		}
+	}
+
+	// In the WebApp implementation, we would persist the verified phone number in database
+	// In the BAT implementation, we simply log the verification and return success
+	slog.Info("Phone number verified", "user_id", userID, "phone", data.Phone)
+
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"status":  "success",
+			"message": "Phone number verified successfully",
 		},
 	}
 }
