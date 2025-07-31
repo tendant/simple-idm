@@ -58,6 +58,8 @@ type ProfileRepository interface {
 	UpdateUsername(ctx context.Context, arg UpdateUsernameParam) error
 	// UpdateLoginId updates a user's login ID
 	UpdateLoginId(ctx context.Context, arg UpdateLoginIdParam) (uuid.UUID, error)
+	// UpdateUserPhone
+	UpdateUserPhone(ctx context.Context, arg UpdatePhoneParams) error
 	// Additional methods can be added as needed
 }
 
@@ -133,6 +135,18 @@ func (r *PostgresProfileRepository) UpdateUsername(ctx context.Context, arg Upda
 	if err != nil {
 		slog.Error("Failed to update username", "err", err)
 		return fmt.Errorf("failed to update username: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresProfileRepository) UpdateUserPhone(ctx context.Context, arg UpdatePhoneParams) error {
+	err := r.queries.UpdateUserPhone(ctx, profiledb.UpdateUserPhoneParams{
+		ID:    arg.ID,
+		Phone: utils.ToNullString(arg.Phone),
+	})
+	if err != nil {
+		slog.Error("Failed to update phone number", "err", err)
+		return fmt.Errorf("failed to update phone number: %w", err)
 	}
 	return nil
 }
@@ -232,6 +246,26 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	if err != nil {
 		slog.Error("Failed to update username", "uuid", params.LoginID, "err", err)
 		return fmt.Errorf("failed to update username")
+	}
+
+	return nil
+}
+
+type UpdatePhoneParams struct {
+	ID    uuid.UUID
+	Phone string
+}
+
+// UpdateUserPhone updates a user's phone number
+func (s *ProfileService) UpdateUserPhone(ctx context.Context, userID uuid.UUID, phone string) error {
+	// Update the phone number
+	err := s.repository.UpdateUserPhone(ctx, UpdatePhoneParams{
+		ID:    userID,
+		Phone: phone,
+	})
+	if err != nil {
+		slog.Error("Failed to update phone number", "uuid", userID, "err", err)
+		return fmt.Errorf("failed to update phone number")
 	}
 
 	return nil
