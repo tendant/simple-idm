@@ -585,8 +585,6 @@ github.com/tklauser/go-sysconf v0.3.12 h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFA
 github.com/tklauser/go-sysconf v0.3.12/go.mod h1:Ho14jnntGE1fpdOqQEEaiKRpvIavV0hSfmBq8nJbHYI=
 github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+Fk=
 github.com/tklauser/numcpus v0.6.1/go.mod h1:1XfjsgE2zo8GVw7POkMbHENHzVg3GzmoZ9fESEdAacY=
-github.com/torpago/notice-proc v0.0.0-20250731162045-1424a4b88e44 h1:dviTU2/iEYO+xAfKstWLWO0CYp7BfOS18vlnIyn+CpA=
-github.com/torpago/notice-proc v0.0.0-20250731162045-1424a4b88e44/go.mod h1:fqq6bQLT5hCpj0Ps5p1ncXY7a/gE/102QKNBDHBqoHM=
 github.com/twilio/twilio-go v1.27.0 h1:XmxS8jrNbTj4dKsgkpCFKKr0AvQt7FMix2AA0mXWa1s=
 github.com/twilio/twilio-go v1.27.0/go.mod h1:FpgNWMoD8CFnmukpKq9RNpUSGXC0BwnbeKZj2YHlIkw=
 github.com/ugorji/go v1.2.7 h1:qYhyWUUd6WbiM+C6JZAUkIJt/1WrjzNHY9+KCIjVqTo=
