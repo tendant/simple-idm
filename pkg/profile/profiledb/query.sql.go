@@ -151,7 +151,7 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 const updateUserLoginId = `-- name: UpdateUserLoginId :one
 UPDATE users
 SET login_id = $2,
-    last_modified_at = NOW()
+    last_modified_at = NOW() at time zone 'utc'
 WHERE id = $1
 RETURNING login_id
 `
@@ -166,6 +166,23 @@ func (q *Queries) UpdateUserLoginId(ctx context.Context, arg UpdateUserLoginIdPa
 	var login_id uuid.NullUUID
 	err := row.Scan(&login_id)
 	return login_id, err
+}
+
+const updateUserPhone = `-- name: UpdateUserPhone :exec
+UPDATE users
+SET phone = $2,
+    last_modified_at = NOW() at time zone 'utc'
+WHERE id = $1
+`
+
+type UpdateUserPhoneParams struct {
+	ID    uuid.UUID      `json:"id"`
+	Phone sql.NullString `json:"phone"`
+}
+
+func (q *Queries) UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams) error {
+	_, err := q.db.Exec(ctx, updateUserPhone, arg.ID, arg.Phone)
+	return err
 }
 
 const updateUsername = `-- name: UpdateUsername :exec
