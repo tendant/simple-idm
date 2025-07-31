@@ -14,11 +14,7 @@ func TestNewService(t *testing.T) {
 		Password: "password",
 	}
 
-	twilioConfig := notification.TwilioConfig{
-		TwilioAccountSid: "",
-		TwilioAuthToken:  "your_auth_token",
-		TwilioFrom:       "+15005550006",
-	}
+	twilioConfig := notification.TwilioConfig{}
 
 	manager, err := NewNotificationManager("http://localhost:3000", smtpConfig, twilioConfig)
 	if err != nil {
