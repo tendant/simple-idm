@@ -1389,7 +1389,7 @@ func (h Handle) SendPhoneVerification(w http.ResponseWriter, r *http.Request) *R
 
 	// Send the verification code via SM
 	userId, err := uuid.Parse(authUser.UserId)
-	err = h.twoFaService.SendTwofaPasscodeSms(r.Context(), data.Phone, code, userId)
+	err = h.twoFaService.SendPhoneVerificationCode(r.Context(), data.Phone, code, userId)
 	if err != nil {
 		slog.Warn("Failed to send verification code via SMS", "error", err, "phone", utils.MaskPhone(data.Phone))
 	} else {
