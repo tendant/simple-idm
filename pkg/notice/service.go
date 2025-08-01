@@ -39,59 +39,121 @@ const (
 	UsernameReminderNotice notification.NoticeType = "username_reminder"
 )
 
-// NewService creates a new email service instance
-func NewNotificationManager(baseUrl string, smtpConfig notification.SMTPConfig, twConfig notification.TwilioConfig) (*notification.NotificationManager, error) {
+// NotificationManagerOption is a function that configures a NotificationManager
+type NotificationManagerOption func(*notification.NotificationManager) error
+
+// WithSMTP adds an email notifier with the provided SMTP configuration
+func WithSMTP(config notification.SMTPConfig) NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		emailNotifier, err := notification.NewEmailNotifier(config)
+		if err != nil {
+			return err
+		}
+		nm.RegisterNotifier(notification.EmailSystem, emailNotifier)
+		return nil
+	}
+}
+
+// WithTwilio adds an SMS notifier with the provided Twilio configuration
+func WithTwilio(config notification.TwilioConfig) NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		smsNotifier := notification.NewSMSNotifier(config)
+		nm.RegisterNotifier(notification.SMSSystem, smsNotifier)
+		return nil
+	}
+}
+
+// WithUsernameReminderTemplate registers the username reminder template
+func WithUsernameReminderTemplate() NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		return nm.RegisterNotification(UsernameReminder, notification.EmailSystem, notification.NoticeTemplate{
+			Subject: "Username Reminder",
+			Html:    loadTemplate("templates/email/username_reminder.html"),
+		})
+	}
+}
+
+// WithPasswordResetTemplate registers the password reset template
+func WithPasswordResetTemplate() NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		return nm.RegisterNotification(PasswordResetInit, notification.EmailSystem, notification.NoticeTemplate{
+			Subject: "Password Reset Request",
+			Html:    loadTemplate("templates/email/password_reset.html"),
+		})
+	}
+}
+
+// WithTwofaCodeEmailTemplate registers the 2FA code email template
+func WithTwofaCodeEmailTemplate() NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		return nm.RegisterNotification(TwofaCodeNoticeEmail, notification.EmailSystem, notification.NoticeTemplate{
+			Subject: "2FA Code Init",
+			Html:    loadTemplate("templates/email/2fa_code_notice.html"),
+		})
+	}
+}
+
+// WithMagicLinkLoginTemplate registers the magic link login template
+func WithMagicLinkLoginTemplate() NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		return nm.RegisterNotification(MagicLinkLogin, notification.EmailSystem, notification.NoticeTemplate{
+			Subject: "Your Login Link",
+			Html:    loadTemplate("templates/email/magic_link_login.html"),
+		})
+	}
+}
+
+// WithTwofaCodeSmsTemplate registers the 2FA code SMS template
+func WithTwofaCodeSmsTemplate() NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		return nm.RegisterNotification(TwofaCodeNoticeSms, notification.SMSSystem, notification.NoticeTemplate{
+			Subject: "2FA Code Init",
+			// SMS does not need HTML
+		})
+	}
+}
+
+// WithDefaultTemplates registers all default notification templates
+func WithDefaultTemplates() NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		options := []NotificationManagerOption{
+			WithUsernameReminderTemplate(),
+			WithPasswordResetTemplate(),
+			WithTwofaCodeEmailTemplate(),
+			WithMagicLinkLoginTemplate(),
+			WithTwofaCodeSmsTemplate(),
+		}
+
+		for _, opt := range options {
+			if err := opt(nm); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+}
+
+// NewNotificationManager creates a new notification manager with the provided options
+func NewNotificationManager(baseUrl string, opts ...NotificationManagerOption) (*notification.NotificationManager, error) {
 	notificationManager := notification.NewNotificationManager(baseUrl)
 
-	emailNotifier, err := notification.NewEmailNotifier(smtpConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	smsNotifier := notification.NewSMSNotifier(twConfig)
-
-	notificationManager.RegisterNotifier(notification.EmailSystem, emailNotifier)
-	notificationManager.RegisterNotifier(notification.SMSSystem, smsNotifier)
-
-	err = notificationManager.RegisterNotification(UsernameReminder, notification.EmailSystem, notification.NoticeTemplate{
-		Subject: "Username Reminder",
-		Html:    loadTemplate("templates/email/username_reminder.html"),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	err = notificationManager.RegisterNotification(PasswordResetInit, notification.EmailSystem, notification.NoticeTemplate{
-		Subject: "Password Reset Request",
-		Html:    loadTemplate("templates/email/password_reset.html"),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	err = notificationManager.RegisterNotification(TwofaCodeNoticeEmail, notification.EmailSystem, notification.NoticeTemplate{
-		Subject: "2FA Code Init",
-		Html:    loadTemplate("templates/email/2fa_code_notice.html"),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	err = notificationManager.RegisterNotification(MagicLinkLogin, notification.EmailSystem, notification.NoticeTemplate{
-		Subject: "Your Login Link",
-		Html:    loadTemplate("templates/email/magic_link_login.html"),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	err = notificationManager.RegisterNotification(TwofaCodeNoticeSms, notification.SMSSystem, notification.NoticeTemplate{
-		Subject: "2FA Code Init",
-		// SMS does not need HTML
-	})
-	if err != nil {
-		return nil, err
+	// Apply all options
+	for _, opt := range opts {
+		if err := opt(notificationManager); err != nil {
+			return nil, err
+		}
 	}
 
 	return notificationManager, nil
+}
+
+// For backward compatibility
+func NewNotificationManagerWithConfigs(baseUrl string, smtpConfig notification.SMTPConfig, twConfig notification.TwilioConfig) (*notification.NotificationManager, error) {
+	return NewNotificationManager(
+		baseUrl,
+		WithSMTP(smtpConfig),
+		WithTwilio(twConfig),
+		WithDefaultTemplates(),
+	)
 }
