@@ -1,5 +1,5 @@
 import { Component, createSignal } from 'solid-js';
-import { useNavigate, useParams } from '@solidjs/router';
+import { useNavigate, useParams, useSearchParams } from '@solidjs/router';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,11 +8,17 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const PasswordReset: Component = () => {
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const [password, setPassword] = createSignal('');
   const [confirmPassword, setConfirmPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal<string | null>(null);
   const navigate = useNavigate();
+  
+  // Get token from either route params or query params
+  const getToken = () => {
+    return params.code || searchParams.token;
+  };
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -30,7 +36,7 @@ const PasswordReset: Component = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          token: params.code,
+          token: getToken(),
           new_password: password(),
         }),
       });

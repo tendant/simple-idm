@@ -69,7 +69,7 @@ test.describe('Navigation Component', () => {
 
   test('should navigate to Logins page', async ({ page }) => {
     // Mock the logins API response
-    await page.route('**/idm/logins', async (route) => {
+    await page.route('**/api/idm/logins', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

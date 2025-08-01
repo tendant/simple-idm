@@ -17,6 +17,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
+	"github.com/tendant/simple-idm/pkg/signup"
 
 	// "github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 
@@ -93,9 +94,18 @@ type PasswordComplexityConfig struct {
 	RequiredLength          int    `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
 	DisallowCommonPwds      bool   `env:"PASSWORD_COMPLEXITY_DISALLOW_COMMON_PWDS" env-default:"true"`
 	MaxRepeatedChars        int    `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
-	HistoryCheckCount       int    `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
-	ExpirationPeriod        string `env:"PASSWORD_COMPLEXITY_EXPIRATION_PERIOD" env-default:"P90D"`      // 90 days
-	MinPasswordAgePeriod    string `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE_PERIOD" env-default:"P1D"` // 1 day
+	HistoryCheckCount       int    `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"0"`
+	ExpirationPeriod        string `env:"PASSWORD_COMPLEXITY_EXPIRATION_PERIOD" env-default:"P100Y"`      // 100 years
+	MinPasswordAgePeriod    string `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE_PERIOD" env-default:"PT0M"` // 0 minutes
+}
+
+type LoginConfig struct {
+	MaxFailedAttempts        int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"10000"`
+	LockoutDuration          string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT0M"`
+	DeviceExpirationDays     string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
+	RegistrationEnabled      bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
+	RegistrationDefaultRole  string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"readonlyuser"`
+	MagicLinkTokenExpiration string `env:"MAGIC_LINK_TOKEN_EXPIRATION" env-default:"PT6H"`
 }
 
 type Config struct {
@@ -105,7 +115,7 @@ type Config struct {
 	JwtConfig                JwtConfig
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
-	DeviceExpirationDays     string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
+	LoginConfig              LoginConfig
 }
 
 func main() {
@@ -171,13 +181,28 @@ func main() {
 	// Create login service with the custom password manager
 	loginRepository := login.NewPostgresLoginRepository(loginQueries)
 	// Use the same repository instance for both LoginRepository and UserRepository interfaces
+
+	lockoutDuration, err := duration.Parse(config.LoginConfig.LockoutDuration)
+	if err != nil {
+		slog.Error("Failed to parse lockout duration", "err", err)
+	}
+
+	magicLinkExpiration, err := duration.Parse(config.LoginConfig.MagicLinkTokenExpiration)
+	if err != nil {
+		slog.Error("Failed to parse magic link token expiration", "err", err)
+	}
+	slog.Info("Magic link token expiration", "duration", magicLinkExpiration)
 	loginService := login.NewLoginServiceWithOptions(
 		loginRepository,
 		login.WithNotificationManager(notificationManager),
 		login.WithUserMapper(userMapper),
 		login.WithDelegatedUserMapper(delegatedUserMapper),
 		login.WithPasswordManager(passwordManager),
+		login.WithMaxFailedAttempts(config.LoginConfig.MaxFailedAttempts),
+		login.WithLockoutDuration(lockoutDuration.ToTimeDuration()),
+		login.WithMagicLinkTokenExpiration(magicLinkExpiration.ToTimeDuration()), // 10 minutes for magic link token
 	)
+	slog.Info("Login service created", "maxFailedAttempts", config.LoginConfig.MaxFailedAttempts, "lockoutDuration", lockoutDuration.ToTimeDuration())
 
 	// Create JWT token generator
 	tokenGenerator := tokengenerator.NewJwtTokenGenerator(
@@ -202,7 +227,7 @@ func main() {
 
 	// Initialize device recognition service and routes
 	// Configure device expiration using the value from config
-	deviceExpirationDays := config.DeviceExpirationDays
+	deviceExpirationDays := config.LoginConfig.DeviceExpirationDays
 	// Declare the device expiry duration variable
 	var deviceExpiryDuration time.Duration
 	// Parse ISO 8601 duration using the duration package
@@ -240,7 +265,36 @@ func main() {
 		loginapi.WithDeviceExpirationDays(deviceExpiryDuration),
 	)
 
+	// Initialize IAM repository and service
+	iamRepo := iam.NewPostgresIamRepository(iamQueries)
+	iamService := iam.NewIamService(iamRepo)
+	userHandle := iamapi.NewHandle(iamService)
+
+	// Initialize role repository and service
+	roleRepo := role.NewPostgresRoleRepository(roleQueries)
+	roleService := role.NewRoleService(roleRepo)
+	roleHandle := roleapi.NewHandle(roleService)
+
+	// Initialize logins management service and routes
+	loginsQueries := loginsdb.New(pool)
+	loginsServiceOptions := &logins.LoginsServiceOptions{
+		PasswordManager: passwordManager,
+	}
+	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
+	loginsHandle := logins.NewHandle(loginsService, *twoFaService)
+
+	signupHandle := signup.NewHandle(
+		signup.WithIamService(*iamService),
+		signup.WithRoleService(*roleService),
+		signup.WithLoginsService(*loginsService),
+		signup.WithRegistrationEnabled(config.LoginConfig.RegistrationEnabled),
+		signup.WithDefaultRole(config.LoginConfig.RegistrationDefaultRole),
+		signup.WithLoginService(*loginService),
+	)
+
+	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
+	server.R.Mount("/api/idm/signup", signup.Handler(signupHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
@@ -271,22 +325,19 @@ func main() {
 
 		profileQueries := profiledb.New(pool)
 		profileRepo := profile.NewPostgresProfileRepository(profileQueries)
-		profileService := profile.NewProfileService(profileRepo, passwordManager, userMapper)
+		profileService := profile.NewProfileServiceWithOptions(
+			profileRepo,
+			profile.WithPasswordManager(passwordManager),
+			profile.WithUserMapper(userMapper),
+			profile.WithNotificationManager(notificationManager),
+		)
 		responseHandler := profileapi.NewDefaultResponseHandler()
 		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService, deviceService, responseHandler)
 		r.Mount("/api/idm/profile", profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
-		// Initialize IAM repository and service
-		iamRepo := iam.NewPostgresIamRepository(iamQueries)
-		iamService := iam.NewIamService(iamRepo)
-		userHandle := iamapi.NewHandle(iamService)
-		r.Mount("/idm/users", iamapi.SecureHandler(userHandle))
 
-		// Initialize role repository and service
-		roleRepo := role.NewPostgresRoleRepository(roleQueries)
-		roleService := role.NewRoleService(roleRepo)
-		roleHandle := roleapi.NewHandle(roleService)
+		r.Mount("/idm/users", iamapi.SecureHandler(userHandle))
 
 		// Create a secure handler for roles that uses the IAM admin middleware
 		roleRouter := chi.NewRouter()
@@ -303,19 +354,12 @@ func main() {
 		deviceHandle := deviceapi.NewDeviceHandler(deviceService)
 		r.Mount("/api/idm/device", deviceapi.Handler(deviceHandle))
 
-		// Initialize logins management service and routes
-		loginsQueries := loginsdb.New(pool)
-		loginsServiceOptions := &logins.LoginsServiceOptions{
-			PasswordManager: passwordManager,
-		}
-		loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
-		loginsHandle := logins.NewHandle(loginsService, twoFaService)
 		loginsRouter := chi.NewRouter()
 		loginsRouter.Group(func(r chi.Router) {
 			r.Use(client.AdminRoleMiddleware)
 			r.Mount("/", logins.Handler(loginsHandle))
 		})
-		r.Mount("/idm/logins", loginsRouter)
+		r.Mount("/api/idm/logins", loginsRouter)
 
 		// Initialize impersonate service and routes
 		// impersonateService := impersonate.NewService(userMapper, nil)
@@ -349,6 +393,7 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 	slog.Info("Min password age period", "minPasswordAgePeriod", minPasswordAgePeriod)
 
 	// Create a policy based on the configuration
+	// FIX-ME: hard code for bat now
 	return &login.PasswordPolicy{
 		MinLength:            config.RequiredLength,
 		RequireUppercase:     config.RequiredUppercase,

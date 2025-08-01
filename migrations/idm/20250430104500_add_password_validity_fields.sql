@@ -5,13 +5,6 @@ ALTER TABLE login ADD COLUMN password_expires_at TIMESTAMP WITHOUT TIME ZONE;
 ALTER TABLE login ADD COLUMN failed_login_attempts INTEGER DEFAULT 0;
 ALTER TABLE login ADD COLUMN locked_until TIMESTAMP WITHOUT TIME ZONE;
 ALTER TABLE login ADD COLUMN last_failed_attempt_at TIMESTAMP WITHOUT TIME ZONE;
-
--- Set default values for existing records
-UPDATE login 
-SET password_updated_at = updated_at,
-    password_expires_at = updated_at + INTERVAL '90 days',
-    failed_login_attempts = 0
-WHERE deleted_at IS NULL;
 -- +goose StatementEnd
 
 -- +goose Down

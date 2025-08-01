@@ -120,6 +120,103 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PasswordPolicyResponse"
+  /phone:
+    put:
+      summary: Update phone number
+      operationId: UpdatePhone
+      description: Update the user's phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                  description: New phone number to set
+              required:
+                - phone
+      responses:
+        "200":
+          description: Phone number updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Phone number updated successfully"
+  /phone/verify/send:
+    post:
+      summary: Send phone verification code
+      operationId: SendPhoneVerification
+      description: Send a verification code to the user's phone via SMS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                  description: Phone number to verify
+              required:
+                - phone
+      responses:
+        "200":
+          description: Verification code sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Verification code sent successfully"
+  /phone/verify:
+    post:
+      summary: Verify phone with code
+      operationId: VerifyPhone
+      description: Verify a phone number using the verification code sent via SMS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                  description: Phone number to verify
+                code:
+                  type: string
+                  description: Verification code received via SMS
+              required:
+                - phone
+                - code
+      responses:
+        "200":
+          description: Phone number verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Phone number verified successfully"
   /2fa:
     get:
       operationId: get_2fa_methods

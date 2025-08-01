@@ -25,14 +25,14 @@ UPDATE login_2fa
 SET two_factor_secret = $1::text,
     two_factor_enabled = TRUE,
     two_factor_backup_codes = $2::text[],
-    last_modified_at = NOW()
+    last_modified_at = NOW() at time zone 'utc'
 WHERE login_id = $3
 AND deleted_at IS NULL;
 
 -- name: UpdateUsername :exec
 UPDATE login
 SET username = $2,
-    updated_at = NOW()
+    updated_at = NOW() at time zone 'utc'
 WHERE id = $1;
 
 -- name: FindUserByUsername :many
@@ -44,9 +44,15 @@ AND deleted_at Is NULL;
 -- name: UpdateUserLoginId :one
 UPDATE users
 SET login_id = $2,
-    last_modified_at = NOW()
+    last_modified_at = NOW() at time zone 'utc'
 WHERE id = $1
 RETURNING login_id;
+
+-- name: UpdateUserPhone :exec
+UPDATE users
+SET phone = $2,
+    last_modified_at = NOW() at time zone 'utc'
+WHERE id = $1;
 
 -- name: UpdateUserPassword :exec
 -- UPDATE users

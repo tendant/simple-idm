@@ -246,3 +246,33 @@ WHERE id = $1;
 SELECT failed_login_attempts, last_failed_attempt_at, locked_until
 FROM login
 WHERE id = $1;
+
+-- name: CreateMagicLinkToken :one
+INSERT INTO login_magic_link_tokens (login_id, token, expires_at)
+VALUES ($1, $2, $3)
+RETURNING id, expires_at;
+
+-- name: ValidateMagicLinkToken :one
+SELECT id, login_id
+FROM login_magic_link_tokens
+WHERE token = $1
+  AND expires_at > NOW() at time zone 'UTC'
+  AND used_at IS NULL
+LIMIT 1;
+
+-- name: MarkMagicLinkTokenUsed :exec
+UPDATE login_magic_link_tokens
+SET used_at = NOW() at time zone 'UTC'
+WHERE token = $1;
+
+-- name: UpdatePasswordlessFlag :exec
+UPDATE login
+SET is_passwordless = $2,
+    updated_at = NOW() at time zone 'UTC'
+WHERE id = $1;
+
+-- name: GetPasswordlessFlag :one
+SELECT is_passwordless
+FROM login
+WHERE id = $1
+AND deleted_at IS NULL;

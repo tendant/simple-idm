@@ -1,0 +1,135 @@
+openapi: 3.0.0
+info:
+  title: User Management API
+  version: 1.0.0
+paths:
+  /:
+    post:
+      summary: Register a new user
+      operationId: register_user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
+  /passwordless:
+    post:
+      summary: Register a new user without password
+      operationId: register_user_passwordless
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordlessRegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
+  /password/policy:
+    get:
+      summary: Get password policy
+      operationId: get_password_policy
+      responses:
+        "200":
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordPolicyResponse"
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      x-go-optional-value: true
+      properties:
+        fullname:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          example: john.doe@example.com
+        username:
+          type: string
+          example: johndoe
+        password:
+          type: string
+        invitation_code:
+          type: string
+      required:
+        - fullname
+        - username
+        - email
+        - password
+    PasswordlessRegisterRequest:
+      type: object
+      x-go-optional-value: true
+      properties:
+        fullname:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          example: john.doe@example.com
+        username:
+          type: string
+          example: johndoe
+        invitation_code:
+          type: string
+      required:
+        - fullname
+        - username
+        - email
+    PasswordPolicyResponse:
+      type: object
+      properties:
+        min_length:
+          type: integer
+          description: Minimum length of the password
+        require_uppercase:
+          type: boolean
+          description: Whether the password requires an uppercase letter
+        require_lowercase:
+          type: boolean
+          description: Whether the password requires a lowercase letter
+        require_digit:
+          type: boolean
+          description: Whether the password requires a digit
+        require_special_char:
+          type: boolean
+          description: Whether the password requires a special character
+        disallow_common_pwds:
+          type: boolean
+          description: Whether common passwords are disallowed
+        max_repeated_chars:
+          type: integer
+          description: Maximum number of repeated characters allowed
+        history_check_count:
+          type: integer
+          description: Number of previous passwords to check against
+        expiration_days:
+          type: integer
+          description: Number of days until password expires
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer

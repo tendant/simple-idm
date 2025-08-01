@@ -51,6 +51,10 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, fingerprint string, 
 		LastLoginAt:      now,
 		CreatedAt:        now,
 	}
+	// If device ID is provided, use it directly
+	if fingerprintData.DeviceID != "" {
+		newDevice.DeviceID = fingerprintData.DeviceID
+	}
 	createdDevice, err := s.deviceRepository.CreateDevice(ctx, newDevice)
 	if err != nil {
 		return Device{}, fmt.Errorf("failed to create device: %w", err)

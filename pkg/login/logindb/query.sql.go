@@ -30,6 +30,30 @@ func (q *Queries) AddPasswordToHistory(ctx context.Context, arg AddPasswordToHis
 	return err
 }
 
+const createMagicLinkToken = `-- name: CreateMagicLinkToken :one
+INSERT INTO login_magic_link_tokens (login_id, token, expires_at)
+VALUES ($1, $2, $3)
+RETURNING id, expires_at
+`
+
+type CreateMagicLinkTokenParams struct {
+	LoginID   uuid.UUID `json:"login_id"`
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type CreateMagicLinkTokenRow struct {
+	ID        uuid.UUID `json:"id"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+func (q *Queries) CreateMagicLinkToken(ctx context.Context, arg CreateMagicLinkTokenParams) (CreateMagicLinkTokenRow, error) {
+	row := q.db.QueryRow(ctx, createMagicLinkToken, arg.LoginID, arg.Token, arg.ExpiresAt)
+	var i CreateMagicLinkTokenRow
+	err := row.Scan(&i.ID, &i.ExpiresAt)
+	return i, err
+}
+
 const expirePasswordResetToken = `-- name: ExpirePasswordResetToken :exec
 UPDATE login_password_reset_tokens
 SET expire_at = NOW() at time zone 'UTC'
@@ -402,6 +426,20 @@ func (q *Queries) GetPasswordVersion(ctx context.Context, id uuid.UUID) (pgtype.
 	return password_version, err
 }
 
+const getPasswordlessFlag = `-- name: GetPasswordlessFlag :one
+SELECT is_passwordless
+FROM login
+WHERE id = $1
+AND deleted_at IS NULL
+`
+
+func (q *Queries) GetPasswordlessFlag(ctx context.Context, id uuid.UUID) (sql.NullBool, error) {
+	row := q.db.QueryRow(ctx, getPasswordlessFlag, id)
+	var is_passwordless sql.NullBool
+	err := row.Scan(&is_passwordless)
+	return is_passwordless, err
+}
+
 const getRecentFailedAttempts = `-- name: GetRecentFailedAttempts :one
 SELECT COUNT(*) 
 FROM login_attempt 
@@ -556,6 +594,17 @@ func (q *Queries) MarkBackupCodeUsed(ctx context.Context) error {
 	return err
 }
 
+const markMagicLinkTokenUsed = `-- name: MarkMagicLinkTokenUsed :exec
+UPDATE login_magic_link_tokens
+SET used_at = NOW() at time zone 'UTC'
+WHERE token = $1
+`
+
+func (q *Queries) MarkMagicLinkTokenUsed(ctx context.Context, token string) error {
+	_, err := q.db.Exec(ctx, markMagicLinkTokenUsed, token)
+	return err
+}
+
 const markPasswordResetTokenUsed = `-- name: MarkPasswordResetTokenUsed :exec
 UPDATE login_password_reset_tokens
 SET used_at = NOW() at time zone 'UTC'
@@ -690,6 +739,23 @@ func (q *Queries) UpdatePasswordTimestamps(ctx context.Context, arg UpdatePasswo
 	return err
 }
 
+const updatePasswordlessFlag = `-- name: UpdatePasswordlessFlag :exec
+UPDATE login
+SET is_passwordless = $2,
+    updated_at = NOW() at time zone 'UTC'
+WHERE id = $1
+`
+
+type UpdatePasswordlessFlagParams struct {
+	ID             uuid.UUID    `json:"id"`
+	IsPasswordless sql.NullBool `json:"is_passwordless"`
+}
+
+func (q *Queries) UpdatePasswordlessFlag(ctx context.Context, arg UpdatePasswordlessFlagParams) error {
+	_, err := q.db.Exec(ctx, updatePasswordlessFlag, arg.ID, arg.IsPasswordless)
+	return err
+}
+
 const updateUserPassword = `-- name: UpdateUserPassword :exec
 UPDATE login
 SET password = $1,
@@ -737,6 +803,27 @@ func (q *Queries) ValidateBackupCode(ctx context.Context) (bool, error) {
 	var is_valid bool
 	err := row.Scan(&is_valid)
 	return is_valid, err
+}
+
+const validateMagicLinkToken = `-- name: ValidateMagicLinkToken :one
+SELECT id, login_id
+FROM login_magic_link_tokens
+WHERE token = $1
+  AND expires_at > NOW() at time zone 'UTC'
+  AND used_at IS NULL
+LIMIT 1
+`
+
+type ValidateMagicLinkTokenRow struct {
+	ID      uuid.UUID `json:"id"`
+	LoginID uuid.UUID `json:"login_id"`
+}
+
+func (q *Queries) ValidateMagicLinkToken(ctx context.Context, token string) (ValidateMagicLinkTokenRow, error) {
+	row := q.db.QueryRow(ctx, validateMagicLinkToken, token)
+	var i ValidateMagicLinkTokenRow
+	err := row.Scan(&i.ID, &i.LoginID)
+	return i, err
 }
 
 const validatePasswordResetToken = `-- name: ValidatePasswordResetToken :one

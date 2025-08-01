@@ -28,6 +28,7 @@ type TwoFactorService interface {
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
 	DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error
 	SendTwofaPasscodeEmail(ctx context.Context, email, passcode string, userId uuid.UUID) error
+	SendTwofaPasscodeSms(ctx context.Context, phone, passcode string, userId uuid.UUID) error
 	Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error)
 }
 
@@ -59,12 +60,12 @@ func NewTwoFaService(queries *twofadb.Queries, opts ...TwoFaServiceOption) *TwoF
 	service := &TwoFaService{
 		queries: queries,
 	}
-	
+
 	// Apply all options
 	for _, opt := range opts {
 		opt(service)
 	}
-	
+
 	return service
 }
 
@@ -134,20 +135,37 @@ func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId, userId
 		return fmt.Errorf("failed to generate and send 2FA passcode: %w", err)
 	}
 
+	if hashedDeliveryOption == "" {
+		slog.Error("delivery option is empty", "loginId", loginId, "twoFactorType", twoFactorType)
+		return fmt.Errorf("failed to send 2FA passcode: delivery option is empty")
+	}
+
 	// If delivery_option is provided and the type is email, use it instead of the email parameter
-	emailToUse := hashedDeliveryOption
-	if twoFactorType == TWO_FACTOR_TYPE_EMAIL && hashedDeliveryOption != "" {
+	deliveryOptionToUse := hashedDeliveryOption
+
+	switch twoFactorType {
+	case TWO_FACTOR_TYPE_EMAIL:
 		// get the plaintext email by hash
-		emailToUse, err = s.GetPlaintextEmailByHash(ctx, loginId, hashedDeliveryOption)
+		deliveryOptionToUse, err = s.GetPlaintextEmailByHash(ctx, loginId, hashedDeliveryOption)
 		if err != nil {
 			return fmt.Errorf("failed to get user plaintext email: %w", err)
 		}
-	}
-
-	// send the passcode by email
-	err = s.SendTwofaPasscodeEmail(ctx, emailToUse, passcode, userId)
-	if err != nil {
-		return fmt.Errorf("failed to send 2FA passcode: %w", err)
+		// send the passcode by email
+		err = s.SendTwofaPasscodeEmail(ctx, deliveryOptionToUse, passcode, userId)
+		if err != nil {
+			return fmt.Errorf("failed to send 2FA passcode: %w", err)
+		}
+	case TWO_FACTOR_TYPE_SMS:
+		// get the phone by hash
+		phone, err := s.GetPlaintextPhoneByHash(ctx, loginId, hashedDeliveryOption)
+		if err != nil {
+			return fmt.Errorf("failed to get user plaintext phone: %w", err)
+		}
+		// send the passcode by sms
+		err = s.SendTwofaPasscodeSms(ctx, phone, passcode, userId)
+		if err != nil {
+			return fmt.Errorf("failed to send 2FA passcode: %w", err)
+		}
 	}
 
 	return nil
@@ -318,8 +336,20 @@ func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcod
 		"TwofaPasscode": passcode,
 		"UserId":        userId.String(),
 	}
-	return s.notificationManager.Send(notice.TwofaCodeNotice, notification.NotificationData{
+	return s.notificationManager.Send(notice.TwofaCodeNoticeEmail, notification.NotificationData{
 		To:   email,
+		Data: data,
+	})
+}
+
+func (s TwoFaService) SendTwofaPasscodeSms(ctx context.Context, phone, passcode string, userId uuid.UUID) error {
+	// TODO: use userId to send sms to users
+	data := map[string]string{
+		"TwofaPasscode": passcode,
+		"UserId":        userId.String(),
+	}
+	return s.notificationManager.Send(notice.TwofaCodeNoticeSms, notification.NotificationData{
+		To:   phone,
 		Data: data,
 	})
 }
@@ -388,6 +418,22 @@ func (s TwoFaService) GetPlaintextEmailByHash(ctx context.Context, loginID uuid.
 	}
 
 	return "", fmt.Errorf("email not found")
+}
+
+func (s TwoFaService) GetPlaintextPhoneByHash(ctx context.Context, loginID uuid.UUID, hashedPhone string) (string, error) {
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to get users by login ID", "loginID", loginID, "error", err)
+		return "", fmt.Errorf("error getting users: %w", err)
+	}
+
+	for _, user := range users {
+		if utils.HashPhone(user.UserInfo.PhoneNumber) == hashedPhone {
+			return user.UserInfo.PhoneNumber, nil
+		}
+	}
+
+	return "", fmt.Errorf("phone not found")
 }
 
 func GenerateTotpSecret(loginUuid string) (string, error) {

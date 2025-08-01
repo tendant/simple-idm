@@ -200,7 +200,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, loginID, ne
 	}
 
 	if match {
-		return errors.New("new password cannot be the same as your current password")
+		return fmt.Errorf("You cannot reuse any of your previous %d passwords", pm.policyChecker.GetPolicy().HistoryCheckCount)
 	}
 
 	// Now check against password history
@@ -228,7 +228,7 @@ func (pm *PasswordManager) CheckPasswordHistory(ctx context.Context, loginID, ne
 		}
 
 		if match {
-			return errors.New("new password cannot match any of your recent passwords")
+			return fmt.Errorf("You cannot reuse any of your previous %d passwords", pm.policyChecker.GetPolicy().HistoryCheckCount)
 		}
 	}
 
@@ -291,7 +291,7 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 		slog.Error("Failed to check if password change is allowed", "err", err)
 		// Continue with password change even if check fails
 	} else if !allowed {
-		return "", fmt.Errorf("password was changed too recently. Please try again later")
+		return "", fmt.Errorf("The password was changed too recently. Please try again after %d hours.", int(pm.policyChecker.GetPolicy().MinPasswordAgePeriod.Hours()))
 	}
 
 	// Check if the new password meets complexity requirements
@@ -379,6 +379,13 @@ func (pm *PasswordManager) ResetPassword(ctx context.Context, token, newPassword
 	}
 	slog.Info("Updated password reset required to false")
 
+	err = pm.repository.ResetFailedLoginAttempts(ctx, tokenInfo.LoginID)
+	if err != nil {
+		slog.Error("Failed to reset failed login attempts", "err", err)
+		return "", err
+	}
+	slog.Info("Reset failed login attempts")
+
 	// Return the loginID so the service layer can use it
 	return tokenInfo.LoginID.String(), nil
 }
@@ -401,7 +408,7 @@ func (pm *PasswordManager) ChangePassword(ctx context.Context, loginID, currentP
 		slog.Error("Failed to check if password change is allowed", "err", err)
 		// Continue with password change even if check fails
 	} else if !allowed {
-		return fmt.Errorf("password was changed too recently. Please try again later")
+		return fmt.Errorf("password was changed too recently. Please try again after %d hours.", int(pm.policyChecker.GetPolicy().MinPasswordAgePeriod.Hours()))
 	}
 
 	// Get the password version

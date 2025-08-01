@@ -2,12 +2,14 @@ package profile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/profile/profiledb"
 	"github.com/tendant/simple-idm/pkg/utils"
 	"golang.org/x/exp/slog"
@@ -56,6 +58,8 @@ type ProfileRepository interface {
 	UpdateUsername(ctx context.Context, arg UpdateUsernameParam) error
 	// UpdateLoginId updates a user's login ID
 	UpdateLoginId(ctx context.Context, arg UpdateLoginIdParam) (uuid.UUID, error)
+	// UpdateUserPhone
+	UpdateUserPhone(ctx context.Context, arg UpdatePhoneParams) error
 	// Additional methods can be added as needed
 }
 
@@ -135,6 +139,18 @@ func (r *PostgresProfileRepository) UpdateUsername(ctx context.Context, arg Upda
 	return nil
 }
 
+func (r *PostgresProfileRepository) UpdateUserPhone(ctx context.Context, arg UpdatePhoneParams) error {
+	err := r.queries.UpdateUserPhone(ctx, profiledb.UpdateUserPhoneParams{
+		ID:    arg.ID,
+		Phone: utils.ToNullString(arg.Phone),
+	})
+	if err != nil {
+		slog.Error("Failed to update phone number", "err", err)
+		return fmt.Errorf("failed to update phone number: %w", err)
+	}
+	return nil
+}
+
 func (r *PostgresProfileRepository) UpdateLoginId(ctx context.Context, arg UpdateLoginIdParam) (uuid.UUID, error) {
 	login_id, err := r.queries.UpdateUserLoginId(ctx, profiledb.UpdateUserLoginIdParams{
 		ID:      arg.ID,
@@ -149,18 +165,59 @@ func (r *PostgresProfileRepository) UpdateLoginId(ctx context.Context, arg Updat
 
 // ProfileService provides profile-related operations
 type ProfileService struct {
-	repository      ProfileRepository
-	userMapper      mapper.UserMapper
-	passwordManager *login.PasswordManager
+	repository          ProfileRepository
+	userMapper          mapper.UserMapper
+	passwordManager     *login.PasswordManager
+	notificationManager *notification.NotificationManager
 }
 
-// NewProfileService creates a new ProfileService
-func NewProfileService(repository ProfileRepository, passwordManager *login.PasswordManager, userMapper mapper.UserMapper) *ProfileService {
-	return &ProfileService{
-		repository:      repository,
-		passwordManager: passwordManager,
-		userMapper:      userMapper,
+// Option is a function that configures a ProfileService
+type Option func(*ProfileService)
+
+// WithUserMapper sets the user mapper for the ProfileService
+func WithUserMapper(userMapper mapper.UserMapper) Option {
+	return func(ps *ProfileService) {
+		ps.userMapper = userMapper
 	}
+}
+
+// WithPasswordManager sets the password manager for the ProfileService
+func WithPasswordManager(passwordManager *login.PasswordManager) Option {
+	return func(ps *ProfileService) {
+		ps.passwordManager = passwordManager
+	}
+}
+
+// WithNotificationManager sets the notification manager for the ProfileService
+func WithNotificationManager(notificationManager *notification.NotificationManager) Option {
+	return func(ps *ProfileService) {
+		ps.notificationManager = notificationManager
+	}
+}
+
+// NewProfileService creates a new ProfileService (legacy constructor)
+func NewProfileService(repository ProfileRepository, passwordManager *login.PasswordManager, userMapper mapper.UserMapper, notificationManager *notification.NotificationManager) *ProfileService {
+	return &ProfileService{
+		repository:          repository,
+		passwordManager:     passwordManager,
+		userMapper:          userMapper,
+		notificationManager: notificationManager,
+	}
+}
+
+// NewProfileServiceWithOptions creates a new ProfileService with the given options
+func NewProfileServiceWithOptions(repository ProfileRepository, opts ...Option) *ProfileService {
+	// Create service with default values
+	ps := &ProfileService{
+		repository: repository,
+	}
+
+	// Apply all options
+	for _, opt := range opts {
+		opt(ps)
+	}
+
+	return ps
 }
 
 type UpdateUsernameParams struct {
@@ -194,6 +251,26 @@ func (s *ProfileService) UpdateUsername(ctx context.Context, params UpdateUserna
 	return nil
 }
 
+type UpdatePhoneParams struct {
+	ID    uuid.UUID
+	Phone string
+}
+
+// UpdateUserPhone updates a user's phone number
+func (s *ProfileService) UpdateUserPhone(ctx context.Context, userID uuid.UUID, phone string) error {
+	// Update the phone number
+	err := s.repository.UpdateUserPhone(ctx, UpdatePhoneParams{
+		ID:    userID,
+		Phone: phone,
+	})
+	if err != nil {
+		slog.Error("Failed to update phone number", "uuid", userID, "err", err)
+		return fmt.Errorf("failed to update phone number")
+	}
+
+	return nil
+}
+
 type UpdatePasswordParams struct {
 	LoginID         uuid.UUID
 	CurrentPassword string
@@ -212,6 +289,18 @@ func (s *ProfileService) UpdatePassword(ctx context.Context, params UpdatePasswo
 		slog.Error("Failed to change password", "uuid", params.LoginID, "err", err)
 		return err
 	}
+
+	// Send notification about password change
+	if s.notificationManager != nil {
+		err = s.SendPasswordUpdateNotice(ctx, SendPasswordUpdateNoticeParams{
+			LoginID: params.LoginID,
+		})
+		if err != nil {
+			// Log the error but don't fail the password change
+			slog.Error("Failed to send password update notification", "err", err)
+		}
+	}
+
 	return nil
 }
 
@@ -246,6 +335,34 @@ func (s *ProfileService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUI
 
 func (s *ProfileService) GetLoginById(ctx context.Context, id uuid.UUID) (LoginRecord, error) {
 	return s.repository.GetLoginById(ctx, id)
+}
+
+// SendPasswordChangeNoticeParams contains parameters for sending a password change notification
+type SendPasswordUpdateNoticeParams struct {
+	LoginID uuid.UUID
+}
+
+// SendPasswordUpdateNotice sends a notification when a user successfully changes their password
+func (s *ProfileService) SendPasswordUpdateNotice(ctx context.Context, params SendPasswordUpdateNoticeParams) error {
+	if s.notificationManager == nil {
+		return errors.New("notification manager is not configured")
+	}
+
+	slog.Info("Sending password update notification", "loginID", params.LoginID)
+
+	// Get current timestamp
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	// Prepare data for the template
+	data := map[string]string{
+		"login_id":  params.LoginID.String(),
+		"timestamp": timestamp,
+	}
+
+	// Send the notification
+	return s.notificationManager.Send(notification.PasswordUpdateNotice, notification.NotificationData{
+		Data: data,
+	})
 }
 
 // Disable2FA disables 2FA for a user after verifying their password and 2FA code

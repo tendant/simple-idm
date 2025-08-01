@@ -21,6 +21,19 @@ type BackupCode struct {
 	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type Device struct {
+	Fingerprint      string         `json:"fingerprint"`
+	UserAgent        pgtype.Text    `json:"user_agent"`
+	AcceptHeaders    pgtype.Text    `json:"accept_headers"`
+	Timezone         sql.NullString `json:"timezone"`
+	ScreenResolution sql.NullString `json:"screen_resolution"`
+	LastLoginAt      time.Time      `json:"last_login_at"`
+	CreatedAt        time.Time      `json:"created_at"`
+	DeviceName       sql.NullString `json:"device_name"`
+	DeviceType       sql.NullString `json:"device_type"`
+	DeviceID         sql.NullString `json:"device_id"`
+}
+
 type GooseDbVersion struct {
 	ID        int32        `json:"id"`
 	VersionID int64        `json:"version_id"`
@@ -38,6 +51,12 @@ type Login struct {
 	Username              sql.NullString `json:"username"`
 	PasswordVersion       pgtype.Int4    `json:"password_version"`
 	PasswordResetRequired sql.NullBool   `json:"password_reset_required"`
+	PasswordUpdatedAt     sql.NullTime   `json:"password_updated_at"`
+	PasswordExpiresAt     sql.NullTime   `json:"password_expires_at"`
+	FailedLoginAttempts   pgtype.Int4    `json:"failed_login_attempts"`
+	LockedUntil           sql.NullTime   `json:"locked_until"`
+	LastFailedAttemptAt   sql.NullTime   `json:"last_failed_attempt_at"`
+	IsPasswordless        sql.NullBool   `json:"is_passwordless"`
 }
 
 type Login2fa struct {
@@ -50,6 +69,38 @@ type Login2fa struct {
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            sql.NullTime   `json:"updated_at"`
 	DeletedAt            sql.NullTime   `json:"deleted_at"`
+}
+
+type LoginAttempt struct {
+	ID                uuid.UUID      `json:"id"`
+	LoginID           uuid.UUID      `json:"login_id"`
+	CreatedAt         time.Time      `json:"created_at"`
+	IpAddress         sql.NullString `json:"ip_address"`
+	UserAgent         pgtype.Text    `json:"user_agent"`
+	Success           bool           `json:"success"`
+	FailureReason     sql.NullString `json:"failure_reason"`
+	DeviceFingerprint sql.NullString `json:"device_fingerprint"`
+}
+
+type LoginDevice struct {
+	ID          uuid.UUID      `json:"id"`
+	LoginID     uuid.UUID      `json:"login_id"`
+	Fingerprint string         `json:"fingerprint"`
+	LinkedAt    time.Time      `json:"linked_at"`
+	ExpiresAt   time.Time      `json:"expires_at"`
+	DeletedAt   sql.NullTime   `json:"deleted_at"`
+	DisplayName sql.NullString `json:"display_name"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+}
+
+type LoginMagicLinkToken struct {
+	ID        uuid.UUID    `json:"id"`
+	LoginID   uuid.UUID    `json:"login_id"`
+	Token     string       `json:"token"`
+	CreatedAt time.Time    `json:"created_at"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	UsedAt    sql.NullTime `json:"used_at"`
 }
 
 type LoginPasswordHistory struct {
@@ -86,6 +137,7 @@ type User struct {
 	Email          string         `json:"email"`
 	Name           sql.NullString `json:"name"`
 	LoginID        uuid.NullUUID  `json:"login_id"`
+	Phone          sql.NullString `json:"phone"`
 }
 
 type UserRole struct {

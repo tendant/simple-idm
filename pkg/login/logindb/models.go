@@ -31,7 +31,7 @@ type Device struct {
 	CreatedAt        time.Time      `json:"created_at"`
 	DeviceName       sql.NullString `json:"device_name"`
 	DeviceType       sql.NullString `json:"device_type"`
-	DeviceID         uuid.NullUUID  `json:"device_id"`
+	DeviceID         sql.NullString `json:"device_id"`
 }
 
 type GooseDbVersion struct {
@@ -56,6 +56,7 @@ type Login struct {
 	FailedLoginAttempts   pgtype.Int4    `json:"failed_login_attempts"`
 	LockedUntil           sql.NullTime   `json:"locked_until"`
 	LastFailedAttemptAt   sql.NullTime   `json:"last_failed_attempt_at"`
+	IsPasswordless        sql.NullBool   `json:"is_passwordless"`
 }
 
 type Login2fa struct {
@@ -91,6 +92,15 @@ type LoginDevice struct {
 	DisplayName sql.NullString `json:"display_name"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
 	CreatedAt   sql.NullTime   `json:"created_at"`
+}
+
+type LoginMagicLinkToken struct {
+	ID        uuid.UUID    `json:"id"`
+	LoginID   uuid.UUID    `json:"login_id"`
+	Token     string       `json:"token"`
+	CreatedAt time.Time    `json:"created_at"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	UsedAt    sql.NullTime `json:"used_at"`
 }
 
 type LoginPasswordHistory struct {

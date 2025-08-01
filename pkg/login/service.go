@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,19 +18,43 @@ import (
 )
 
 type LoginService struct {
-	repository          LoginRepository
-	notificationManager *notification.NotificationManager
-	userMapper          mapper.UserMapper
-	delegatedUserMapper mapper.DelegatedUserMapper
-	passwordManager     *PasswordManager
-	postPasswordUpdate  *PostPasswordUpdateFunc
-	maxFailedAttempts   int
-	lockoutDuration     time.Duration
+	repository               LoginRepository
+	notificationManager      *notification.NotificationManager
+	userMapper               mapper.UserMapper
+	delegatedUserMapper      mapper.DelegatedUserMapper
+	passwordManager          *PasswordManager
+	postPasswordUpdate       *PostPasswordUpdateFunc
+	postLoginHook            *PostLoginHookFunc
+	maxFailedAttempts        int
+	lockoutDuration          time.Duration
+	magicLinkTokenExpiration time.Duration
 }
 
 // PostPasswordUpdateFunc is a function that will be called after a password update
 // It receives the username and password that were updated
+// This function is for backward compatibility which updates password in the old idm system
 type PostPasswordUpdateFunc func(username string, password []byte) error
+
+// PostLoginHookParams contains all parameters for the post login hook
+type PostLoginHookParams struct {
+	LoginID           uuid.UUID
+	IPAddress         string
+	UserAgent         string
+	DeviceFingerprint string
+	Success           bool
+	FailureReason     string
+}
+
+type PostPasswordResetHookParams struct {
+	LoginID uuid.UUID
+	Token   string
+}
+
+// PostLoginHookFunc defines a function that will be called after a successful login
+type PostLoginHookFunc func(ctx context.Context, params PostLoginHookParams) error
+
+// PostPasswordResetHookFunc defines a function that will be called after a successful password reset
+type PostPasswordResetHookFunc func(ctx context.Context, params PostPasswordResetHookParams) error
 
 // LoginServiceOptions contains optional parameters for creating a LoginService
 type LoginServiceOptions struct {
@@ -74,6 +99,13 @@ func WithPostPasswordUpdate(postPasswordUpdate *PostPasswordUpdateFunc) Option {
 	}
 }
 
+// WithPostLoginHook sets the post login hook function for the LoginService
+func WithPostLoginHook(postLoginHook *PostLoginHookFunc) Option {
+	return func(ls *LoginService) {
+		ls.postLoginHook = postLoginHook
+	}
+}
+
 // WithMaxFailedAttempts sets the maximum number of failed login attempts before locking an account
 func WithMaxFailedAttempts(maxFailedAttempts int) Option {
 	return func(ls *LoginService) {
@@ -85,6 +117,13 @@ func WithMaxFailedAttempts(maxFailedAttempts int) Option {
 func WithLockoutDuration(lockoutDuration time.Duration) Option {
 	return func(ls *LoginService) {
 		ls.lockoutDuration = lockoutDuration
+	}
+}
+
+// WithMagicLinkTokenExpiration sets the duration for which magic link tokens are valid
+func WithMagicLinkTokenExpiration(duration time.Duration) Option {
+	return func(ls *LoginService) {
+		ls.magicLinkTokenExpiration = duration
 	}
 }
 
@@ -123,10 +162,11 @@ func NewLoginServiceWithOptions(repository LoginRepository, opts ...Option) *Log
 
 	// Create service with default values
 	ls := &LoginService{
-		repository:        repository,
-		passwordManager:   passwordManager,
-		maxFailedAttempts: 5,                // Default to 5 failed attempts
-		lockoutDuration:   30 * time.Minute, // Default to 30 minute lockout
+		repository:               repository,
+		passwordManager:          passwordManager,
+		maxFailedAttempts:        5,                // Default to 5 failed attempts
+		lockoutDuration:          30 * time.Minute, // Default to 30 minute lockout
+		magicLinkTokenExpiration: 15 * time.Minute, // Default to 15 minute expiration
 	}
 
 	// Apply all options
@@ -163,6 +203,10 @@ const (
 	FAILURE_REASON_NO_USER_FOUND         = "no_user_found"
 	FAILURE_REASON_2FA_VALIDATION_FAILED = "2fa_validation_failed"
 )
+
+func (s LoginService) GetLockoutDuration() time.Duration {
+	return s.lockoutDuration
+}
 
 func (s LoginService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
 	// Get users from repository
@@ -204,10 +248,10 @@ func (s *LoginService) FindLoginByUsername(ctx context.Context, username string)
 	login, err := s.repository.FindLoginByUsername(ctx, usernameStr, usernameValid)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			slog.Error("no login found with username: %s", username)
+			slog.Error("no login found with username", "err", err, "username", username)
 			return LoginEntity{}, fmt.Errorf("invalid username or password")
 		}
-		slog.Error("error finding login with username: %s", username)
+		slog.Error("error finding login with username", "err", err, "username", username)
 		return LoginEntity{}, fmt.Errorf("error finding user: %w", err)
 	}
 	return login, nil
@@ -253,6 +297,18 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
 	}
 
+	// Reset failed login attempts and locked until time if locked until time is not zero
+	_, _, lockedUntil, err := s.repository.GetFailedLoginAttempts(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to get failed login attempts", "err", err)
+	}
+	if !lockedUntil.IsZero() {
+		err := s.repository.ResetFailedLoginAttempts(ctx, login.ID)
+		if err != nil {
+			slog.Error("Failed to reset failed login attempts", "err", err)
+		}
+	}
+
 	// Verify password
 	valid, err := s.CheckPasswordByLoginId(ctx, login.ID, password, string(login.Password))
 	if err != nil {
@@ -267,9 +323,13 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		result.FailureReason = FAILURE_REASON_INVALID_CREDENTIALS
 
 		// Increment failed login attempts counter
-		_, _, err := s.IncrementFailedAttemptsAndCheckLock(ctx, login.ID)
+		locked, _, err := s.IncrementFailedAttemptsAndCheckLock(ctx, login.ID)
 		if err != nil {
 			slog.Error("Failed to increment failed login attempts", "err", err)
+		}
+		if locked {
+			_, _, lockedUntil, _ := s.repository.GetFailedLoginAttempts(ctx, login.ID)
+			return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
 		}
 
 		return result, fmt.Errorf("invalid username or password")
@@ -468,8 +528,10 @@ func (s LoginService) extractRolesFromUser(user mapper.User) []string {
 }
 
 func (s *LoginService) SendUsernameEmail(ctx context.Context, email string, username string) error {
+	link := fmt.Sprintf("%s/auth/login", s.notificationManager.BaseUrl)
 	data := map[string]string{
 		"Username": username,
+		"Link":     link,
 	}
 	return s.notificationManager.Send(notification.UsernameReminderNotice, notification.NotificationData{
 		To:   email,
@@ -482,6 +544,12 @@ type SendPasswordResetEmailParams struct {
 	UserId     string
 	ResetToken string
 	Username   string
+}
+
+type SendMagicLinkEmailParams struct {
+	Email    string
+	Token    string
+	Username string
 }
 
 func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPasswordResetEmailParams) error {
@@ -498,6 +566,131 @@ func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPas
 	})
 }
 
+// SendMagicLinkEmail sends a magic link email for passwordless login
+func (s *LoginService) SendMagicLinkEmail(ctx context.Context, param SendMagicLinkEmailParams) error {
+	if s.notificationManager == nil {
+		return errors.New("notification manager is not configured")
+	}
+
+	magicLink := fmt.Sprintf("%s/magic-link-validate?token=%s", s.notificationManager.BaseUrl, param.Token)
+	slog.Info("Sending magic link email", "email", param.Email, "magicLink", magicLink)
+
+	data := map[string]string{
+		"Link":           magicLink,
+		"Username":       param.Username,
+		"ExpirationTime": fmt.Sprintf("%d", int(s.magicLinkTokenExpiration.Hours())),
+	}
+
+	return s.notificationManager.Send(notice.MagicLinkLogin, notification.NotificationData{
+		To:   param.Email,
+		Data: data,
+	})
+}
+
+// SendPasswordResetNoticeParams contains parameters for sending a password reset success notification
+type SendPasswordResetNoticeParams struct {
+	ResetToken string
+	LoginID    uuid.UUID
+}
+
+// SendPasswordResetNotice sends a notification when a user successfully resets their password
+func (s *LoginService) SendPasswordResetNotice(ctx context.Context, params SendPasswordResetNoticeParams) error {
+	if s.notificationManager == nil {
+		return errors.New("notification manager is not configured")
+	}
+
+	slog.Info("Sending password reset success notification", "login_id", params.LoginID)
+
+	// Get current timestamp
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	// Prepare data for the template as a flat map
+	data := map[string]string{
+		"reset_token": params.ResetToken,
+		"login_id":    params.LoginID.String(),
+		"timestamp":   timestamp,
+	}
+
+	// Send the notification
+	return s.notificationManager.Send(notification.PasswordResetNotice, notification.NotificationData{
+		Data: data,
+	})
+}
+
+// GenerateMagicLinkToken generates a token for magic link login
+func (s *LoginService) GenerateMagicLinkToken(ctx context.Context, username string) (string, string, error) {
+	// Find login by username
+	login, err := s.FindLoginByUsername(ctx, username)
+	if err != nil {
+		return "", "", fmt.Errorf("user not found: %w", err)
+	}
+
+	// Check if this is a passwordless account
+	_, err = s.repository.IsPasswordlessLogin(ctx, login.ID)
+	if err != nil {
+		slog.Warn("Failed to check if account is passwordless", "error", err)
+		// Continue anyway, as we'll allow magic link login for all accounts
+	}
+
+	// Generate a secure random token
+	token := utils.GenerateRandomString(32)
+
+	// Set expiration time using the configurable duration
+	expiresAt := time.Now().UTC().Add(s.magicLinkTokenExpiration)
+
+	// Store the token in the database
+	err = s.repository.GenerateMagicLinkToken(ctx, login.ID, token, expiresAt)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate magic link token: %w", err)
+	}
+
+	// Get user's email
+	users, err := s.userMapper.FindUsersByLoginID(ctx, login.ID)
+	if err != nil || len(users) == 0 {
+		return "", "", fmt.Errorf("failed to find user info: %w", err)
+	}
+
+	email := users[0].UserInfo.Email
+
+	return token, email, nil
+}
+
+// ValidateMagicLinkToken validates a magic link token
+func (s *LoginService) ValidateMagicLinkToken(ctx context.Context, token string) (LoginResult, error) {
+	// Validate the token
+	loginID, err := s.repository.ValidateMagicLinkToken(ctx, token)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("invalid or expired token: %w", err)
+	}
+	slog.Info("Magic link token validated successfully", "login_id", loginID, "token", token)
+
+	// Mark the token as used
+	err = s.repository.MarkMagicLinkTokenUsed(ctx, token)
+	if err != nil {
+		slog.Error("Failed to mark token as used", "error", err)
+		// Continue anyway
+	}
+	slog.Info("Magic link token marked as used", "login_id", loginID, "token", token)
+
+	// Get users associated with this login
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("failed to get user info: %w", err)
+	}
+
+	if len(users) == 0 {
+		return LoginResult{}, fmt.Errorf("no users found for login")
+	}
+	slog.Info("Users found for login", "login_id", loginID, "users_count", len(users))
+
+	// Return login result
+	return LoginResult{
+		Users:   users,
+		LoginID: loginID,
+		Success: true,
+	}, nil
+}
+
 // ResetPassword validates the reset token and updates the user's password
 func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword string) error {
 	// first try to reset password in new login
@@ -506,10 +699,11 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 		slog.Error("Failed to reset password", "err", err)
 		return err
 	}
+	var loginUuid uuid.UUID
 	// if new login succeed, try to update in old login for backward-compatibility
 	if s.postPasswordUpdate != nil {
 		passwordBytes := []byte(newPassword)
-		loginUuid, err := uuid.Parse(loginID)
+		loginUuid, err = uuid.Parse(loginID)
 		if err != nil {
 			slog.Error("Failed to parse login ID", "err", err)
 			return err
@@ -525,6 +719,10 @@ func (s *LoginService) ResetPassword(ctx context.Context, token, newPassword str
 			return err
 		}
 	}
+
+	s.SendPasswordResetNotice(ctx, SendPasswordResetNoticeParams{
+		LoginID: loginUuid,
+	})
 	return nil
 }
 
@@ -684,7 +882,8 @@ func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (s
 
 // RecordLoginAttempt records a login attempt
 func (s *LoginService) RecordLoginAttempt(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, deviceFingerprint string, success bool, failureReason string) error {
-	return s.repository.RecordLoginAttempt(ctx, LoginAttempt{
+	// Record the login attempt in the repository
+	err := s.repository.RecordLoginAttempt(ctx, LoginAttempt{
 		LoginID:           loginID,
 		IPAddress:         ipAddress,
 		UserAgent:         userAgent,
@@ -692,6 +891,25 @@ func (s *LoginService) RecordLoginAttempt(ctx context.Context, loginID uuid.UUID
 		Success:           success,
 		FailureReason:     failureReason,
 	})
+
+	// Execute post login hook if configured
+	if s.postLoginHook != nil {
+		hookParams := PostLoginHookParams{
+			LoginID:           loginID,
+			IPAddress:         ipAddress,
+			UserAgent:         userAgent,
+			DeviceFingerprint: deviceFingerprint,
+			Success:           success,
+			FailureReason:     failureReason,
+		}
+		hookErr := (*s.postLoginHook)(ctx, hookParams)
+		if hookErr != nil {
+			slog.Error("Post login hook failed", "err", hookErr, "loginID", loginID)
+			// We don't fail the login attempt recording if the hook fails, just log the error
+		}
+	}
+
+	return err
 }
 
 // IncrementFailedAttemptsAndCheckLock increments the failed login attempts counter

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -141,14 +142,16 @@ func NewDefaultResponseHandler() ResponseHandler {
 func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.User, loginID uuid.UUID, tempTokenStr string) *Response {
 	apiUsers := make([]User, len(idmUsers))
 	for i, mu := range idmUsers {
-		email, _ := mu.ExtraClaims["email"].(string)
+		email := mu.UserInfo.Email
 		name := mu.DisplayName
 		id := mu.UserId
+		role := mu.ExtraClaims["roles"].([]string)
 
 		apiUsers[i] = User{
 			ID:    id,
 			Email: email,
 			Name:  name,
+			Role:  role[0],
 		}
 	}
 
@@ -431,9 +434,12 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		// Check if this is an account lockout error
 		if login.IsAccountLockedError(err) {
 			// Return a standardized response for account lockout
+			lockoutDuration := h.loginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
 			return &Response{
 				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
-				body:        "Your account has been locked due to too many failed login attempts. Please try again later.",
+				body:        "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
 				contentType: "application/json",
 			}
 		}
@@ -459,8 +465,8 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		// Record failed login attempt
 		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 		return &Response{
-			body: "Username/Password is wrong",
-			Code: http.StatusBadRequest,
+			body: "Account not active",
+			Code: http.StatusForbidden,
 		}
 	}
 
@@ -1047,8 +1053,8 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 		if login.IsAccountLockedError(err) {
 			// Return a standardized response for account lockout
 			return &Response{
-				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
-				body:        "Your account has been locked due to too many failed login attempts. Please try again later.",
+				Code:        http.StatusTooManyRequests,                                                  // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been temporarily locked. Please try again in 15 minutes.", // FIX-ME: hard code for now
 				contentType: "application/json",
 			}
 		}
@@ -1459,10 +1465,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
 	if err != nil {
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
-
-		if strings.Contains(err.Error(), "failed to validate 2FA passcode") {
-			h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
-		}
+		// 2025-07-15: we do not increment failed attempts if error occurs due to internal error
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "failed to validate 2fa: " + err.Error(),
@@ -1472,6 +1475,21 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 	if !valid {
 		// Record failed 2FA validation attempt
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		// 2025-07-15: we increment failed attempts when passcode is invalid
+		locked, _, err := h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		if err != nil {
+			slog.Error("Failed to increment failed attempts", "err", err)
+		}
+		if locked {
+			lockoutDuration := h.loginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
+			return &Response{
+				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
+				contentType: "application/json",
+			}
+		}
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "2fa validation failed",
@@ -1753,10 +1771,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	valid, err := h.twoFactorService.Validate2faPasscode(r.Context(), loginId, data.TwofaType, data.Passcode)
 	if err != nil {
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
-
-		if strings.Contains(err.Error(), "failed to validate 2FA passcode") {
-			h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
-		}
+		// 2025-07-15: we do not increment failed attempts if error occurs due to internal error
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: "failed to validate 2fa: " + err.Error(),
@@ -1766,7 +1781,21 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 	if !valid {
 		// Record failed 2FA validation attempt
 		h.loginService.RecordLoginAttempt(r.Context(), loginId, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
-
+		// 2025-07-15: we increment failed attempts when passcode is invalid
+		locked, _, err := h.loginService.IncrementFailedAttemptsAndCheckLock(r.Context(), loginId)
+		if err != nil {
+			slog.Error("Failed to increment failed attempts", "err", err)
+		}
+		if locked {
+			lockoutDuration := h.loginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
+			return &Response{
+				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
+				contentType: "application/json",
+			}
+		}
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "2fa validation failed",
@@ -2098,4 +2127,142 @@ func (h Handle) GetDeviceExpiration(w http.ResponseWriter, r *http.Request) *Res
 		},
 		contentType: "application/json",
 	}
+}
+
+// InitiateMagicLinkLogin handles requests for magic link login
+// (POST /login/magic-link)
+func (h Handle) InitiateMagicLinkLogin(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
+	var request MagicLinkLoginRequest
+	if err := render.DecodeJSON(r.Body, &request); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+
+	// Generate magic link token
+	token, email, err := h.loginService.GenerateMagicLinkToken(r.Context(), request.Username)
+	if err != nil {
+		// Return success even if user not found to prevent username enumeration
+		return &Response{
+			Code: http.StatusOK,
+			body: map[string]string{
+				"message": "If an account exists with that username, we will send a login link to the associated email.",
+			},
+			contentType: "application/json",
+		}
+	}
+
+	// Send magic link email
+	err = h.loginService.SendMagicLinkEmail(r.Context(), login.SendMagicLinkEmailParams{
+		Email:    email,
+		Token:    token,
+		Username: request.Username,
+	})
+	if err != nil {
+		slog.Error("Failed to send magic link email", "error", err)
+		// Return success anyway to prevent username enumeration
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"message": "If an account exists with that username, we will send a login link to the associated email.",
+		},
+		contentType: "application/json",
+	}
+}
+
+// ValidateMagicLinkToken validates a magic link token and logs the user in
+// (GET /login/magic-link/validate)
+func (h Handle) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, params ValidateMagicLinkTokenParams) *Response {
+	// Get token from query params
+	token := params.Token
+
+	// Validate token
+	loginResult, err := h.loginService.ValidateMagicLinkToken(r.Context(), token)
+	if err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"message": "Invalid or expired token",
+			},
+			contentType: "application/json",
+		}
+	}
+
+	// Get IP address and user agent for login attempt recording
+	ipAddress := getIPAddressFromRequest(r)
+	userAgent := getUserAgentFromRequest(r)
+	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr := device.GenerateFingerprint(fingerprintData)
+
+	// Check if there are multiple users
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginResult.LoginID, loginResult.Users)
+	if err != nil {
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	if isMultipleUsers {
+		// Prepare user selection response
+		return h.responseHandler.PrepareUserSelectionResponse(loginResult.Users, loginResult.LoginID, tempToken.Token)
+	}
+
+	// Single user case - proceed with normal flow
+	slog.Info("Single user case - proceed with normal flow", "login_id", loginResult.LoginID, "user_id", loginResult.Users[0].UserId)
+	tokenUser := loginResult.Users[0]
+
+	// Create JWT tokens
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
+	tokens, err := h.tokenService.GenerateTokens(tokenUser.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to create tokens",
+		}
+	}
+	slog.Info("Tokens created successfully", "login_id", loginResult.LoginID)
+
+	// Set tokens in cookies
+	err = h.tokenCookieService.SetTokensCookie(w, tokens)
+	if err != nil {
+		slog.Error("Failed to set tokens cookie", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to set tokens cookie",
+		}
+	}
+	slog.Info("Tokens set successfully", "login_id", loginResult.LoginID)
+
+	// Record successful login attempt
+	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr)
+
+	// Create response with user information
+	apiUsers := make([]User, len(loginResult.Users))
+	for i, mu := range loginResult.Users {
+		email, _ := mu.ExtraClaims["email"].(string)
+		name := mu.DisplayName
+
+		apiUsers[i] = User{
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
+		}
+	}
+
+	response := Login{
+		Status:  STATUS_SUCCESS,
+		Message: "Login successful",
+		User:    apiUsers[0],
+		Users:   apiUsers,
+	}
+
+	return PostLoginJSON200Response(response)
 }
