@@ -29,14 +29,15 @@ func loadTemplate(filename string) string {
 }
 
 const (
-	UsernameReminder       notification.NoticeType = "username_reminder"
-	PasswordResetInit      notification.NoticeType = "password_reset_init"
-	TwofaCodeNoticeEmail   notification.NoticeType = "twofa_code_notice_email"
-	TwofaCodeNoticeSms     notification.NoticeType = "twofa_code_notice_sms"
-	MagicLinkLogin         notification.NoticeType = "magic_link_login"
-	PasswordResetNotice    notification.NoticeType = "password_reset"
-	PasswordUpdateNotice   notification.NoticeType = "password_update"
-	UsernameReminderNotice notification.NoticeType = "username_reminder"
+	UsernameReminder        notification.NoticeType = "username_reminder"
+	PasswordResetInit       notification.NoticeType = "password_reset_init"
+	TwofaCodeNoticeEmail    notification.NoticeType = "twofa_code_notice_email"
+	TwofaCodeNoticeSms      notification.NoticeType = "twofa_code_notice_sms"
+	MagicLinkLogin          notification.NoticeType = "magic_link_login"
+	PasswordResetNotice     notification.NoticeType = "password_reset"
+	PasswordUpdateNotice    notification.NoticeType = "password_update"
+	UsernameReminderNotice  notification.NoticeType = "username_reminder"
+	PhoneVerificationNotice notification.NoticeType = "phone_verification"
 )
 
 // NotificationManagerOption is a function that configures a NotificationManager
@@ -108,7 +109,16 @@ func WithTwofaCodeSmsTemplate() NotificationManagerOption {
 	return func(nm *notification.NotificationManager) error {
 		return nm.RegisterNotification(TwofaCodeNoticeSms, notification.SMSSystem, notification.NoticeTemplate{
 			Subject: "2FA Code Init",
-			// SMS does not need HTML
+			Text:    "Your 2FA code is: {{.TwofaPasscode}}",
+		})
+	}
+}
+
+func WithPhoneVerificationTemplate() NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		return nm.RegisterNotification(PhoneVerificationNotice, notification.SMSSystem, notification.NoticeTemplate{
+			Subject: "Phone Verification",
+			Text:    "Your phone verification code is: {{.Passcode}}",
 		})
 	}
 }
@@ -122,6 +132,7 @@ func WithDefaultTemplates() NotificationManagerOption {
 			WithTwofaCodeEmailTemplate(),
 			WithMagicLinkLoginTemplate(),
 			WithTwofaCodeSmsTemplate(),
+			WithPhoneVerificationTemplate(),
 		}
 
 		for _, opt := range options {
