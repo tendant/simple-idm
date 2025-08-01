@@ -6,6 +6,14 @@ export interface ProfileResponse {
   message: string;
 }
 
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  phone_number?: string;
+}
+
 export interface ListDevicesResponse {
   status: string;
   message: string;
@@ -38,6 +46,88 @@ export interface DeviceWithLogin {
 }
 
 export const profileApi = {
+  /**
+   * Get the user's profile information
+   * @returns Promise with the user's profile information
+   */
+  async getProfile(): Promise<UserProfile[]> {
+    const response = await fetchWithAuth('/api/idm/profile/users');
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch profile information');
+    }
+    
+    const data = await response.json();
+    return data.users || [];
+  },
+  /**
+   * Update phone number
+   * @param phone The phone number to update
+   * @returns Promise with the response
+   */
+  async updatePhone(phone: string): Promise<ProfileResponse> {
+    const response = await fetchWithAuth('/api/idm/profile/phone', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update phone number');
+    }
+    
+    return await response.json();
+  },
+
+  /**
+   * Send phone verification code
+   * @param phone The phone number to send verification code to
+   * @returns Promise with the response
+   */
+  async sendPhoneVerification(phone: string): Promise<ProfileResponse> {
+    const response = await fetchWithAuth('/api/idm/profile/phone/verify/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to send verification code');
+    }
+    
+    return await response.json();
+  },
+
+  /**
+   * Verify phone with code
+   * @param phone The phone number to verify
+   * @param code The verification code
+   * @returns Promise with the response
+   */
+  async verifyPhone(phone: string, code: string): Promise<ProfileResponse> {
+    const response = await fetchWithAuth('/api/idm/profile/phone/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone, code }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to verify phone number');
+    }
+    
+    return await response.json();
+  },
+
   /**
    * Get devices linked to the authenticated user's login
    * @returns Promise with the list of devices
