@@ -112,7 +112,7 @@ type LoginConfig struct {
 	RegistrationEnabled      bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
 	RegistrationDefaultRole  string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"readonlyuser"`
 	MagicLinkTokenExpiration string `env:"MAGIC_LINK_TOKEN_EXPIRATION" env-default:"PT6H"`
-	PhoneVerificationSecret  string `env:"PHONE_VERIFICATION_SECRET" env-default:"JDOGDBE2AGUU7YI4LE3WP2LDS546CDFX"`
+	PhoneVerificationSecret  string `env:"PHONE_VERIFICATION_SECRET" env-default:"secret"`
 }
 
 type Config struct {
