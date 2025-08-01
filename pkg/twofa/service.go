@@ -354,6 +354,18 @@ func (s TwoFaService) SendTwofaPasscodeSms(ctx context.Context, phone, passcode 
 	})
 }
 
+func (s TwoFaService) SendPhoneVerificationCode(ctx context.Context, phone, passcode string, userId uuid.UUID) error {
+	data := map[string]string{
+		"Passcode": passcode,
+		"UserId":   userId.String(),
+	}
+	return s.notificationManager.Send(notice.PhoneVerificationNotice, notification.NotificationData{
+		To:   phone,
+		Body: fmt.Sprintf("Your verification code is: %s", passcode),
+		Data: data,
+	})
+}
+
 func (s TwoFaService) DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error {
 	// TODO: add logic to check if 2FA is enabled before deleting
 
