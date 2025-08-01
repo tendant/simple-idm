@@ -151,14 +151,18 @@ func main() {
 	mapperQueries := mapperdb.New(pool)
 
 	// Initialize NotificationManager and register email notifier
-	notificationManager, err := notice.NewNotificationManager(config.BaseUrl, notification.SMTPConfig{
-		Host:     config.EmailConfig.Host,
-		Port:     int(config.EmailConfig.Port),
-		Username: config.EmailConfig.Username,
-		Password: config.EmailConfig.Password,
-		From:     config.EmailConfig.From,
-		TLS:      config.EmailConfig.TLS,
-	})
+	notificationManager, err := notice.NewNotificationManager(
+		config.BaseUrl,
+		notice.WithSMTP(notification.SMTPConfig{
+			Host:     config.EmailConfig.Host,
+			Port:     int(config.EmailConfig.Port),
+			Username: config.EmailConfig.Username,
+			Password: config.EmailConfig.Password,
+			From:     config.EmailConfig.From,
+			TLS:      config.EmailConfig.TLS,
+		}),
+		notice.WithDefaultTemplates(),
+	)
 	if err != nil {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
