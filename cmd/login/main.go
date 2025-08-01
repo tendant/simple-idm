@@ -86,6 +86,12 @@ type EmailConfig struct {
 	TLS      bool   `env:"EMAIL_TLS" env-default:"false"`
 }
 
+type TwilioConfig struct {
+	TwilioAccountSid string `env:"TWILIO_ACCOUNT_SID"`
+	TwilioAuthToken  string `env:"TWILIO_AUTH_TOKEN"`
+	TwilioFrom       string `env:"TWILIO_FROM" env-default:"+15005550006"`
+}
+
 type PasswordComplexityConfig struct {
 	RequiredDigit           bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
 	RequiredLowercase       bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
@@ -106,6 +112,7 @@ type LoginConfig struct {
 	RegistrationEnabled      bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
 	RegistrationDefaultRole  string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"readonlyuser"`
 	MagicLinkTokenExpiration string `env:"MAGIC_LINK_TOKEN_EXPIRATION" env-default:"PT6H"`
+	PhoneVerificationSecret  string `env:"PHONE_VERIFICATION_SECRET" env-default:"JDOGDBE2AGUU7YI4LE3WP2LDS546CDFX"`
 }
 
 type Config struct {
@@ -116,6 +123,7 @@ type Config struct {
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
 	LoginConfig              LoginConfig
+	TwilioConfig             TwilioConfig
 }
 
 func main() {
@@ -160,6 +168,11 @@ func main() {
 			Password: config.EmailConfig.Password,
 			From:     config.EmailConfig.From,
 			TLS:      config.EmailConfig.TLS,
+		}),
+		notice.WithTwilio(notification.TwilioConfig{
+			TwilioAccountSid: config.TwilioConfig.TwilioAccountSid,
+			TwilioAuthToken:  config.TwilioConfig.TwilioAuthToken,
+			TwilioFrom:       config.TwilioConfig.TwilioFrom,
 		}),
 		notice.WithDefaultTemplates(),
 	)
@@ -336,7 +349,7 @@ func main() {
 			profile.WithNotificationManager(notificationManager),
 		)
 		responseHandler := profileapi.NewDefaultResponseHandler()
-		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService, deviceService, responseHandler)
+		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService, deviceService, responseHandler, config.LoginConfig.PhoneVerificationSecret)
 		r.Mount("/api/idm/profile", profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
