@@ -11,9 +11,6 @@ import (
 
 const (
 	SOURCE = "simple-idm-server"
-
-	CLOUD_EVENT_TYPE_2FA_CODE           = "cloud_event_2fa_code"
-	CLOUD_EVENT_TYPE_PHONE_VERIFICATION = "cloud_event_phone_verification"
 )
 
 // CloudEventNotifier implements the simple-idm Notifier interface
