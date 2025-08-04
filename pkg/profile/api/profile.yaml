@@ -121,6 +121,21 @@ paths:
               schema:
                 $ref: "#/components/schemas/PasswordPolicyResponse"
   /phone:
+    get:
+      summary: Get phone number
+      operationId: GetPhone
+      description: Get the user's phone number
+      responses:
+        "200":
+          description: Phone number retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phone:
+                    type: string
+                    description: User's phone number
     put:
       summary: Update phone number
       operationId: UpdatePhone
