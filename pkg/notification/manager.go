@@ -12,9 +12,10 @@ type NotificationSystem string
 type NoticeType string
 
 const (
-	EmailSystem NotificationSystem = "email"
-	SMSSystem   NotificationSystem = "sms"
-	SlackSystem NotificationSystem = "slack"
+	EmailSystem      NotificationSystem = "email"
+	SMSSystem        NotificationSystem = "sms"
+	SlackSystem      NotificationSystem = "slack"
+	CloudEventSystem NotificationSystem = "cloudevent"
 
 	ExampleNotice          NoticeType = "example"
 	PasswordResetNotice    NoticeType = "password_reset"
