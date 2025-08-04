@@ -58,7 +58,9 @@ type ProfileRepository interface {
 	UpdateUsername(ctx context.Context, arg UpdateUsernameParam) error
 	// UpdateLoginId updates a user's login ID
 	UpdateLoginId(ctx context.Context, arg UpdateLoginIdParam) (uuid.UUID, error)
-	// UpdateUserPhone
+	// GetUserPhone gets a user's phone number
+	GetUserPhone(ctx context.Context, id uuid.UUID) (string, error)
+	// UpdateUserPhone updates a user's phone number
 	UpdateUserPhone(ctx context.Context, arg UpdatePhoneParams) error
 	// Additional methods can be added as needed
 }
@@ -161,6 +163,16 @@ func (r *PostgresProfileRepository) UpdateLoginId(ctx context.Context, arg Updat
 		return uuid.Nil, fmt.Errorf("failed to update login id: %w", err)
 	}
 	return login_id.UUID, nil
+}
+
+// GetUserPhone implements ProfileRepository.GetUserPhone
+func (r *PostgresProfileRepository) GetUserPhone(ctx context.Context, id uuid.UUID) (string, error) {
+	phone, err := r.queries.GetUserPhone(ctx, id)
+	if err != nil {
+		slog.Error("Failed to get phone number", "err", err)
+		return "", fmt.Errorf("failed to get phone number: %w", err)
+	}
+	return phone.String, nil
 }
 
 // ProfileService provides profile-related operations
@@ -335,6 +347,16 @@ func (s *ProfileService) GetUsersByLoginId(ctx context.Context, loginID uuid.UUI
 
 func (s *ProfileService) GetLoginById(ctx context.Context, id uuid.UUID) (LoginRecord, error) {
 	return s.repository.GetLoginById(ctx, id)
+}
+
+// GetUserPhone gets a user's phone number
+func (s *ProfileService) GetUserPhone(ctx context.Context, userID uuid.UUID) (string, error) {
+	phone, err := s.repository.GetUserPhone(ctx, userID)
+	if err != nil {
+		slog.Error("Failed to get phone number", "uuid", userID, "err", err)
+		return "", fmt.Errorf("failed to get phone number")
+	}
+	return phone, nil
 }
 
 // SendPasswordChangeNoticeParams contains parameters for sending a password change notification
