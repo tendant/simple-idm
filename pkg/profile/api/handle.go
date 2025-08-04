@@ -1289,6 +1289,21 @@ func (h Handle) UpdatePhone(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// FIXME: Add basic phone number format validation here
+	// The more comprehensive validation should be in the service layer
+	// Consider using github.com/nyaruka/phonenumbers for validation
+	// Example implementation:
+	// parsedNumber, err := phonenumbers.Parse(data.Phone, "")
+	// if err != nil || !phonenumbers.IsValidNumber(parsedNumber) {
+	//     return &Response{
+	//         Code: http.StatusBadRequest,
+	//         body: map[string]string{
+	//             "code":    "invalid_phone",
+	//             "message": "Invalid phone number format",
+	//         },
+	//     }
+	// }
+
 	// Validate phone number
 	if data.Phone == "" {
 		return &Response{
@@ -1360,6 +1375,22 @@ func (h Handle) SendPhoneVerification(w http.ResponseWriter, r *http.Request) *R
 			},
 		}
 	}
+
+	// FIXME: Add phone number validation using github.com/nyaruka/phonenumbers
+	// Consider using the same validation logic as in UpdatePhone
+	// Example implementation:
+	// parsedNumber, err := phonenumbers.Parse(data.Phone, "")
+	// if err != nil || !phonenumbers.IsValidNumber(parsedNumber) {
+	//     return &Response{
+	//         Code: http.StatusBadRequest,
+	//         body: map[string]string{
+	//             "code":    "invalid_phone",
+	//             "message": "Invalid phone number format",
+	//         },
+	//     }
+	// }
+	// formattedPhone := phonenumbers.Format(parsedNumber, phonenumbers.E164)
+	// Then use formattedPhone instead of data.Phone in the rest of the function
 
 	// Validate phone number
 	if data.Phone == "" {
