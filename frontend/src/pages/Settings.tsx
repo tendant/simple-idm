@@ -190,15 +190,23 @@ const Settings: Component = () => {
       const profiles = await profileApi.getProfile();
       if (profiles && profiles.length > 0) {
         setUserProfile(profiles[0]);
-        // If the user has a phone number, set it in the phone input
-        if (profiles[0].phone_number) {
-          setPhone(profiles[0].phone_number);
-        }
       }
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
     } finally {
       setIsLoadingProfile(false);
+    }
+  };
+  
+  // Fetch user's phone number
+  const fetchUserPhone = async () => {
+    try {
+      const data = await profileApi.getPhone();
+      if (data.phone) {
+        setPhone(data.phone);
+      }
+    } catch (err) {
+      console.error('Failed to fetch phone number:', err);
     }
   };
 
@@ -207,6 +215,7 @@ const Settings: Component = () => {
     fetch2FAMethods();
     fetchLinkedDevices();
     fetchUserProfile();
+    fetchUserPhone(); // Add this line to fetch the phone number
   });
 
   return (
