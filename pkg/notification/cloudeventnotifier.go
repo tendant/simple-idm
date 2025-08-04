@@ -54,7 +54,6 @@ func (n *CloudEventNotifier) Send(noticeType NoticeType, data NotificationData, 
 
 	// Log the event being sent
 	slog.Info("Sending cloud event", "eventType", eventData.Type, "subject", eventData.Subject, "source", eventData.Source)
-	slog.Info("Cloud event data", "data", eventData.Data)
 
 	// Send the event
 	err := n.eventClient.SendEventAsync(eventData)
