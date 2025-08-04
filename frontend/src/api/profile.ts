@@ -61,6 +61,21 @@ export const profileApi = {
     const data = await response.json();
     return data.users || [];
   },
+  
+  /**
+   * Get the user's phone number
+   * @returns Promise with the user's phone number
+   */
+  async getPhone(): Promise<{ phone: string }> {
+    const response = await fetchWithAuth('/api/idm/profile/phone');
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch phone number');
+    }
+    
+    return await response.json();
+  },
   /**
    * Update phone number
    * @param phone The phone number to update
