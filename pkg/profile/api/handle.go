@@ -1404,6 +1404,52 @@ func (h Handle) SendPhoneVerification(w http.ResponseWriter, r *http.Request) *R
 	}
 }
 
+// Get phone number
+// (GET /phone)
+func (h Handle) GetPhone(w http.ResponseWriter, r *http.Request) *Response {
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Get user UUID from context
+	userID, err := uuid.Parse(authUser.UserId)
+	if err != nil {
+		slog.Error("Failed to parse user ID", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to parse user ID",
+			},
+		}
+	}
+
+	// Get phone number
+	phone, err := h.profileService.GetUserPhone(r.Context(), userID)
+	if err != nil {
+		slog.Error("Failed to get phone number", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to get phone number: " + err.Error(),
+			},
+		}
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"phone": phone,
+		},
+	}
+}
+
 // Verify phone with code
 // (POST /phone/verify)
 func (h Handle) VerifyPhone(w http.ResponseWriter, r *http.Request) *Response {
