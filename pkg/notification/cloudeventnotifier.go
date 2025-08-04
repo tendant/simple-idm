@@ -22,6 +22,13 @@ type CloudEventNotifier struct {
 
 // NewCloudEventNotifier creates a new CloudEventNotifier
 func NewCloudEventNotifier(ctx context.Context, eventHubURL string, wg *sync.WaitGroup) (*CloudEventNotifier, error) {
+	if eventHubURL == "" {
+		return nil, fmt.Errorf("eventHubURL cannot be empty")
+	}
+	if wg == nil {
+		return nil, fmt.Errorf("WaitGroup cannot be nil")
+	}
+
 	eventClient, err := ce.NewEventClient(ctx, wg, eventHubURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create event client: %w", err)

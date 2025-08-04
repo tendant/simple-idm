@@ -22,7 +22,6 @@ const (
 	PasswordUpdateNotice   NoticeType = "password_update"
 	UsernameReminderNotice NoticeType = "username_reminder"
 
-	UsernameReminder        NoticeType = "username_reminder"
 	PasswordResetInit       NoticeType = "password_reset_init"
 	TwofaCodeNoticeEmail    NoticeType = "twofa_code_notice_email"
 	TwofaCodeNoticeSms      NoticeType = "twofa_code_notice_sms"
