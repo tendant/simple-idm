@@ -40,7 +40,6 @@ const (
 	PasswordUpdateNotice    notification.NoticeType = "password_update"
 	UsernameReminderNotice  notification.NoticeType = "username_reminder"
 	PhoneVerificationNotice notification.NoticeType = "phone_verification"
-	CloudEvent2FACode       notification.NoticeType = "cloud_event_2fa_code"
 )
 
 // NotificationManagerOption is a function that configures a NotificationManager
