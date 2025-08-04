@@ -89,7 +89,7 @@ type EmailConfig struct {
 type TwilioConfig struct {
 	TwilioAccountSid string `env:"TWILIO_ACCOUNT_SID"`
 	TwilioAuthToken  string `env:"TWILIO_AUTH_TOKEN"`
-	TwilioFrom       string `env:"TWILIO_FROM" env-default:"+15005550006"`
+	TwilioFrom       string `env:"TWILIO_FROM"`
 }
 
 type PasswordComplexityConfig struct {
