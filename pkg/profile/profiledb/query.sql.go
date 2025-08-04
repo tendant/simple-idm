@@ -148,6 +148,19 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 	return i, err
 }
 
+const getUserPhone = `-- name: GetUserPhone :one
+SELECT phone
+FROM users
+WHERE id = $1
+`
+
+func (q *Queries) GetUserPhone(ctx context.Context, id uuid.UUID) (sql.NullString, error) {
+	row := q.db.QueryRow(ctx, getUserPhone, id)
+	var phone sql.NullString
+	err := row.Scan(&phone)
+	return phone, err
+}
+
 const updateUserLoginId = `-- name: UpdateUserLoginId :one
 UPDATE users
 SET login_id = $2,
