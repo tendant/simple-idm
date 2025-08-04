@@ -75,8 +75,12 @@ func mapNoticeTypeToEventType(noticeType NoticeType) string {
 	// Map notification types to event types
 	// FIX-ME: Add mapping logic for other notice types as needed
 	switch noticeType {
-	case CLOUD_EVENT_TYPE_2FA_CODE:
-		return CLOUD_EVENT_TYPE_2FA_CODE
+	case TwofaCodeNoticeEmail:
+		return string(TwofaCodeNoticeEmail)
+	case TwofaCodeNoticeSms:
+		return string(TwofaCodeNoticeSms)
+	case PhoneVerificationNotice:
+		return string(PhoneVerificationNotice)
 	default:
 		return ""
 	}
@@ -86,8 +90,12 @@ func mapNoticeTypeToEventSubject(noticeType NoticeType) string {
 	// Map notification types to event types
 	// FIX-ME: Add mapping logic for other notice types as needed
 	switch noticeType {
-	case CLOUD_EVENT_TYPE_2FA_CODE:
-		return CLOUD_EVENT_TYPE_2FA_CODE
+	case TwofaCodeNoticeEmail:
+		return string(TwofaCodeNoticeEmail)
+	case TwofaCodeNoticeSms:
+		return string(TwofaCodeNoticeSms)
+	case PhoneVerificationNotice:
+		return string(PhoneVerificationNotice)
 	default:
 		return ""
 	}

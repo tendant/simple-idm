@@ -21,6 +21,13 @@ const (
 	PasswordResetNotice    NoticeType = "password_reset"
 	PasswordUpdateNotice   NoticeType = "password_update"
 	UsernameReminderNotice NoticeType = "username_reminder"
+
+	UsernameReminder        NoticeType = "username_reminder"
+	PasswordResetInit       NoticeType = "password_reset_init"
+	TwofaCodeNoticeEmail    NoticeType = "twofa_code_notice_email"
+	TwofaCodeNoticeSms      NoticeType = "twofa_code_notice_sms"
+	MagicLinkLogin          NoticeType = "magic_link_login"
+	PhoneVerificationNotice NoticeType = "phone_verification"
 )
 
 type NoticeTemplate struct {
