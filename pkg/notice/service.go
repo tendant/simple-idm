@@ -108,7 +108,10 @@ func WithTwofaCodeEmailTemplate() NotificationManagerOption {
 			return err
 		}
 		// Register second template for cloud events
-		if err := nm.RegisterNotification(TwofaCodeNoticeEmail, notification.CloudEventSystem, notification.NoticeTemplate{}); err != nil {
+		if err := nm.RegisterNotification(TwofaCodeNoticeEmail, notification.CloudEventSystem, notification.NoticeTemplate{
+			Subject: "2FA Code Init",
+			Text:    "Your 2FA code is: {{.TwofaPasscode}}",
+		}); err != nil {
 			return err
 		}
 		return nil
@@ -136,7 +139,10 @@ func WithTwofaCodeSmsTemplate() NotificationManagerOption {
 		}
 
 		// Register second template
-		if err := nm.RegisterNotification(TwofaCodeNoticeSms, notification.CloudEventSystem, notification.NoticeTemplate{}); err != nil {
+		if err := nm.RegisterNotification(TwofaCodeNoticeSms, notification.CloudEventSystem, notification.NoticeTemplate{
+			Subject: "2FA Code Init",
+			Text:    "Your 2FA code is: {{.TwofaPasscode}}",
+		}); err != nil {
 			return err
 		}
 
@@ -152,7 +158,10 @@ func WithPhoneVerificationTemplate() NotificationManagerOption {
 		}); err != nil {
 			return err
 		}
-		if err := nm.RegisterNotification(PhoneVerificationNotice, notification.CloudEventSystem, notification.NoticeTemplate{}); err != nil {
+		if err := nm.RegisterNotification(PhoneVerificationNotice, notification.CloudEventSystem, notification.NoticeTemplate{
+			Subject: "Phone Verification",
+			Text:    "Your phone verification code is: {{.Passcode}}",
+		}); err != nil {
 			return err
 		}
 		return nil
