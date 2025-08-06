@@ -3,7 +3,7 @@ import { A } from '@solidjs/router';
 import { loginApi } from '../api/login';
 
 const MagicLinkLogin: Component = () => {
-  const [username, setUsername] = createSignal('');
+  const [email, setEmail] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
@@ -15,11 +15,11 @@ const MagicLinkLogin: Component = () => {
     setLoading(true);
 
     try {
-      const response = await loginApi.requestMagicLink(username());
+      const response = await loginApi.requestMagicLink(email());
       setSuccess('Magic link sent! Please check your email to complete the login process.');
       
       // Clear form
-      setUsername('');
+      setEmail('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to request magic link');
     } finally {
@@ -34,7 +34,7 @@ const MagicLinkLogin: Component = () => {
           Magic Link Login
         </h2>
         <p class="mt-2 text-center text-sm text-gray-9">
-          Enter your username to receive a login link via email
+          Enter your email to receive a login link
         </p>
       </div>
 
@@ -63,20 +63,20 @@ const MagicLinkLogin: Component = () => {
           <form class="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label
-                for="username"
+                for="email"
                 class="block text-sm font-medium text-gray-11"
               >
-                Username
+                Email
               </label>
               <div class="mt-1">
                 <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  autocomplete="username"
+                  id="email"
+                  name="email"
+                  type="email"
+                  autocomplete="email"
                   required
-                  value={username()}
-                  onInput={(e) => setUsername(e.currentTarget.value)}
+                  value={email()}
+                  onInput={(e) => setEmail(e.currentTarget.value)}
                   class="appearance-none block w-full px-3 py-2 border border-gray-7 rounded-lg shadow-sm placeholder:text-gray-8 focus:outline-none focus:ring-2 focus:ring-primary-7 focus:border-primary-7"
                 />
               </div>
