@@ -26,24 +26,26 @@ import (
 )
 
 type Handle struct {
-	profileService     *profile.ProfileService
-	twoFaService       *twofa.TwoFaService
-	responseHandler    ResponseHandler
-	tokenService       tg.TokenService
-	tokenCookieService tg.TokenCookieService
-	loginService       *login.LoginService
-	deviceService      *device.DeviceService
+	profileService          *profile.ProfileService
+	twoFaService            *twofa.TwoFaService
+	responseHandler         ResponseHandler
+	tokenService            tg.TokenService
+	tokenCookieService      tg.TokenCookieService
+	loginService            *login.LoginService
+	deviceService           *device.DeviceService
+	phoneVerificationSecret string
 }
 
-func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService, deviceService *device.DeviceService, responseHandler ResponseHandler) Handle {
+func NewHandle(profileService *profile.ProfileService, twoFaService *twofa.TwoFaService, tokenService tg.TokenService, tokenCookieService tg.TokenCookieService, loginService *login.LoginService, deviceService *device.DeviceService, responseHandler ResponseHandler, secret string) Handle {
 	return Handle{
-		profileService:     profileService,
-		twoFaService:       twoFaService,
-		responseHandler:    responseHandler,
-		tokenService:       tokenService,
-		tokenCookieService: tokenCookieService,
-		loginService:       loginService,
-		deviceService:      deviceService,
+		profileService:          profileService,
+		twoFaService:            twoFaService,
+		responseHandler:         responseHandler,
+		tokenService:            tokenService,
+		tokenCookieService:      tokenCookieService,
+		loginService:            loginService,
+		deviceService:           deviceService,
+		phoneVerificationSecret: secret,
 	}
 }
 
@@ -1287,6 +1289,21 @@ func (h Handle) UpdatePhone(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
+	// FIXME: Add basic phone number format validation here
+	// The more comprehensive validation should be in the service layer
+	// Consider using github.com/nyaruka/phonenumbers for validation
+	// Example implementation:
+	// parsedNumber, err := phonenumbers.Parse(data.Phone, "")
+	// if err != nil || !phonenumbers.IsValidNumber(parsedNumber) {
+	//     return &Response{
+	//         Code: http.StatusBadRequest,
+	//         body: map[string]string{
+	//             "code":    "invalid_phone",
+	//             "message": "Invalid phone number format",
+	//         },
+	//     }
+	// }
+
 	// Validate phone number
 	if data.Phone == "" {
 		return &Response{
@@ -1337,7 +1354,7 @@ func (h Handle) UpdatePhone(w http.ResponseWriter, r *http.Request) *Response {
 // (POST /phone/verify/send)
 func (h Handle) SendPhoneVerification(w http.ResponseWriter, r *http.Request) *Response {
 	// We don't need authUser for this function, but we'll keep the authentication check
-	_, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
 		return &Response{
@@ -1359,6 +1376,22 @@ func (h Handle) SendPhoneVerification(w http.ResponseWriter, r *http.Request) *R
 		}
 	}
 
+	// FIXME: Add phone number validation using github.com/nyaruka/phonenumbers
+	// Consider using the same validation logic as in UpdatePhone
+	// Example implementation:
+	// parsedNumber, err := phonenumbers.Parse(data.Phone, "")
+	// if err != nil || !phonenumbers.IsValidNumber(parsedNumber) {
+	//     return &Response{
+	//         Code: http.StatusBadRequest,
+	//         body: map[string]string{
+	//             "code":    "invalid_phone",
+	//             "message": "Invalid phone number format",
+	//         },
+	//     }
+	// }
+	// formattedPhone := phonenumbers.Format(parsedNumber, phonenumbers.E164)
+	// Then use formattedPhone instead of data.Phone in the rest of the function
+
 	// Validate phone number
 	if data.Phone == "" {
 		return &Response{
@@ -1370,14 +1403,80 @@ func (h Handle) SendPhoneVerification(w http.ResponseWriter, r *http.Request) *R
 		}
 	}
 
-	// FIX-ME: Generate and send verification code
-	// Question: which secret should we use when generating the verification code?
+	// Generate a verification code using the secret
+	code, err := twofa.Generate2faPasscode(h.phoneVerificationSecret)
+	if err != nil {
+		slog.Error("Failed to generate verification code", "error", err, "phone", utils.MaskPhone(data.Phone))
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to generate verification code",
+			},
+		}
+	}
 
+	slog.Info("Generated verification code", "phone", utils.MaskPhone(data.Phone))
+
+	// Send the verification code via SM
+	userId, err := uuid.Parse(authUser.UserId)
+	err = h.twoFaService.SendPhoneVerificationCode(r.Context(), data.Phone, code, userId)
+	if err != nil {
+		slog.Warn("Failed to send verification code via SMS", "error", err, "phone", utils.MaskPhone(data.Phone))
+	} else {
+		slog.Info("Verification code sent successfully", "phone", utils.MaskPhone(data.Phone))
+	}
 	return &Response{
 		Code: http.StatusOK,
 		body: map[string]string{
 			"status":  "success",
 			"message": "Verification code sent successfully",
+		},
+	}
+}
+
+// Get phone number
+// (GET /phone)
+func (h Handle) GetPhone(w http.ResponseWriter, r *http.Request) *Response {
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Get user UUID from context
+	userID, err := uuid.Parse(authUser.UserId)
+	if err != nil {
+		slog.Error("Failed to parse user ID", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to parse user ID",
+			},
+		}
+	}
+
+	// Get phone number
+	phone, err := h.profileService.GetUserPhone(r.Context(), userID)
+	if err != nil {
+		slog.Error("Failed to get phone number", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to get phone number: " + err.Error(),
+			},
+		}
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"phone": phone,
 		},
 	}
 }
@@ -1418,7 +1517,29 @@ func (h Handle) VerifyPhone(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// FIX-ME: Verify the code (this is a placeholder, actual implementation will depend on your verification logic)
+	// Verify the code
+	valid, err := twofa.ValidateTotpPasscode(h.phoneVerificationSecret, data.Code)
+	if err != nil {
+		slog.Error("Failed to validate verification code", "error", err, "phone", utils.MaskPhone(data.Phone))
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to validate verification code",
+			},
+		}
+	}
+
+	if !valid {
+		slog.Warn("Invalid verification code", "phone", utils.MaskPhone(data.Phone))
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_code",
+				"message": "Invalid verification code",
+			},
+		}
+	}
 
 	// Get user UUID from context
 	userID, err := uuid.Parse(authUser.UserId)
@@ -1433,9 +1554,7 @@ func (h Handle) VerifyPhone(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// In the WebApp implementation, we would persist the verified phone number in database
-	// In the BAT implementation, we simply log the verification and return success
-	slog.Info("Phone number verified", "user_id", userID, "phone", data.Phone)
+	slog.Info("Phone number verified", "user_id", userID, "phone", utils.MaskPhone(data.Phone))
 
 	return &Response{
 		Code: http.StatusOK,

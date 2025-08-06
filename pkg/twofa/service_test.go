@@ -131,14 +131,17 @@ func TestGetTwoFactorSecretByLoginUuid(t *testing.T) {
 }
 
 func TestInitTwoFa(t *testing.T) {
-	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
-		Host:     "localhost",
-		Port:     1025,
-		Username: "noreply@example.com",
-		Password: "pwd",
-		From:     "noreply@example.com",
-		NoTLS:    true,
-	})
+	notificationManager, err := notice.NewNotificationManager(
+		"http://localhost:3000",
+		notice.WithSMTP(notification.SMTPConfig{
+			Host:     "localhost",
+			Port:     1025,
+			Username: "noreply@example.com",
+			Password: "pwd",
+			From:     "noreply@example.com",
+			TLS:      false,
+		}),
+	)
 	if err != nil {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
@@ -208,14 +211,17 @@ func TestDeleteTwoFactor(t *testing.T) {
 }
 
 func TestValidate2faPasscode(t *testing.T) {
-	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
-		Host:     "localhost",
-		Port:     1025,
-		Username: "noreply@example.com",
-		Password: "pwd",
-		From:     "noreply@example.com",
-		NoTLS:    true,
-	})
+	notificationManager, err := notice.NewNotificationManager(
+		"http://localhost:3000",
+		notice.WithSMTP(notification.SMTPConfig{
+			Host:     "localhost",
+			Port:     1025,
+			Username: "noreply@example.com",
+			Password: "pwd",
+			From:     "noreply@example.com",
+			TLS:      false,
+		}),
+	)
 	if err != nil {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
@@ -238,14 +244,17 @@ func TestValidate2faPasscode(t *testing.T) {
 }
 
 func TestFindEnabledTwoFAs(t *testing.T) {
-	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
-		Host:     "localhost",
-		Port:     1025,
-		Username: "noreply@example.com",
-		Password: "pwd",
-		From:     "noreply@example.com",
-		NoTLS:    true,
-	})
+	notificationManager, err := notice.NewNotificationManager(
+		"http://localhost:3000",
+		notice.WithSMTP(notification.SMTPConfig{
+			Host:     "localhost",
+			Port:     1025,
+			Username: "noreply@example.com",
+			Password: "pwd",
+			From:     "noreply@example.com",
+			TLS:      false,
+		}),
+	)
 	if err != nil {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
@@ -265,14 +274,17 @@ func TestFindEnabledTwoFAs(t *testing.T) {
 }
 
 func TestFindTwoFAsByLoginId(t *testing.T) {
-	notificationManager, err := notice.NewNotificationManager("http://localhost:3000", notification.SMTPConfig{
-		Host:     "localhost",
-		Port:     1025,
-		Username: "noreply@example.com",
-		Password: "pwd",
-		From:     "noreply@example.com",
-		NoTLS:    true,
-	})
+	notificationManager, err := notice.NewNotificationManager(
+		"http://localhost:3000",
+		notice.WithSMTP(notification.SMTPConfig{
+			Host:     "localhost",
+			Port:     1025,
+			Username: "noreply@example.com",
+			Password: "pwd",
+			From:     "noreply@example.com",
+			TLS:      false,
+		}),
+	)
 	if err != nil {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}

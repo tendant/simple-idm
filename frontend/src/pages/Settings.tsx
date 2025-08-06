@@ -32,6 +32,18 @@ const Settings: Component = () => {
   const [deviceError, setDeviceError] = createSignal<string | null>(null);
   const [editingDevice, setEditingDevice] = createSignal<string | null>(null);
   const [newDisplayName, setNewDisplayName] = createSignal('');
+  
+  // Phone verification state
+  const [phone, setPhone] = createSignal('');
+  const [verificationCode, setVerificationCode] = createSignal('');
+  const [isVerificationSent, setIsVerificationSent] = createSignal(false);
+  const [isVerifying, setIsVerifying] = createSignal(false);
+  const [isPhoneVerified, setIsPhoneVerified] = createSignal(false);
+  const [isUpdatingPhone, setIsUpdatingPhone] = createSignal(false);
+  const [phoneError, setPhoneError] = createSignal<string | null>(null);
+  const [phoneSuccess, setPhoneSuccess] = createSignal<string | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = createSignal(false);
+  const [userProfile, setUserProfile] = createSignal<any>(null);
 
   const { request } = useApi();
 
@@ -171,10 +183,39 @@ const Settings: Component = () => {
     }
   };
 
+  // Fetch user profile
+  const fetchUserProfile = async () => {
+    setIsLoadingProfile(true);
+    try {
+      const profiles = await profileApi.getProfile();
+      if (profiles && profiles.length > 0) {
+        setUserProfile(profiles[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch user profile:', err);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+  
+  // Fetch user's phone number
+  const fetchUserPhone = async () => {
+    try {
+      const data = await profileApi.getPhone();
+      if (data.phone) {
+        setPhone(data.phone);
+      }
+    } catch (err) {
+      console.error('Failed to fetch phone number:', err);
+    }
+  };
+
   // Fetch 2FA methods when component mounts
   createEffect(() => {
     fetch2FAMethods();
     fetchLinkedDevices();
+    fetchUserProfile();
+    fetchUserPhone(); // Add this line to fetch the phone number
   });
 
   return (
@@ -199,8 +240,9 @@ const Settings: Component = () => {
         )}
 
         <Tabs defaultValue="password" class="w-full">
-          <TabsList class="grid w-full grid-cols-4">
+          <TabsList class="grid w-full grid-cols-5">
             <TabsTrigger value="password">Password</TabsTrigger>
+            <TabsTrigger value="phone">Phone</TabsTrigger>
             <TabsTrigger value="2fa">Two-Factor Auth</TabsTrigger>
             <TabsTrigger value="devices">Devices</TabsTrigger>
             <TabsTrigger value="accounts">Associated Accounts</TabsTrigger>
@@ -250,6 +292,215 @@ const Settings: Component = () => {
                 Change Password
               </Button>
             </form>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="phone">
+        <Card>
+          <CardHeader>
+            <CardTitle>Phone Number</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {phoneError() && (
+              <Alert class="mb-4" variant="destructive">
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{phoneError()}</AlertDescription>
+              </Alert>
+            )}
+            
+            {phoneSuccess() && (
+              <Alert class="mb-4">
+                <AlertTitle>Success</AlertTitle>
+                <AlertDescription>{phoneSuccess()}</AlertDescription>
+              </Alert>
+            )}
+            
+            <div class="space-y-4">
+              <p class="text-sm text-gray-600">
+                Add or update your phone number. A verification code will be sent to your phone to confirm it's yours.
+              </p>
+              
+              <Show when={isLoadingProfile()}>
+                <div class="py-4 text-center">
+                  <p class="text-sm text-gray-500">Loading profile information...</p>
+                </div>
+              </Show>
+              
+              <div class="space-y-2">
+                <Label for="phone-number">Phone Number</Label>
+                <Input
+                  id="phone-number"
+                  type="tel"
+                  value={phone()}
+                  onInput={(e) => setPhone(e.currentTarget.value)}
+                  disabled={isVerifying()}
+                  placeholder={isLoadingProfile() ? "Loading..." : "Enter your phone number"}
+                />
+              </div>
+              
+              <Show when={!isVerificationSent() && !isPhoneVerified()}>
+                <Button
+                  onClick={async () => {
+                    if (!phone()) {
+                      setPhoneError('Phone number is required');
+                      return;
+                    }
+                    
+                    setPhoneError(null);
+                    setPhoneSuccess(null);
+                    setIsVerifying(true);
+                    
+                    try {
+                      await profileApi.sendPhoneVerification(phone());
+                      setIsVerificationSent(true);
+                      setPhoneSuccess('Verification code sent successfully');
+                    } catch (err) {
+                      if (err instanceof Error) {
+                        setPhoneError(err.message);
+                      } else {
+                        setPhoneError('Failed to send verification code');
+                      }
+                    } finally {
+                      setIsVerifying(false);
+                    }
+                  }}
+                  disabled={isVerifying() || !phone()}
+                  class="w-full"
+                >
+                  {isVerifying() ? 'Sending...' : 'Send Verification Code'}
+                </Button>
+              </Show>
+              
+              <Show when={isPhoneVerified()}>
+                <Button
+                  onClick={async () => {
+                    setPhoneError(null);
+                    setPhoneSuccess(null);
+                    setIsUpdatingPhone(true);
+                    
+                    try {
+                      await profileApi.updatePhone(phone());
+                      setPhoneSuccess('Phone number updated successfully');
+                      setIsPhoneVerified(false);
+                    } catch (err) {
+                      if (err instanceof Error) {
+                        setPhoneError(err.message);
+                      } else {
+                        setPhoneError('Failed to update phone number');
+                      }
+                    } finally {
+                      setIsUpdatingPhone(false);
+                    }
+                  }}
+                  disabled={isUpdatingPhone()}
+                  class="w-full"
+                >
+                  {isUpdatingPhone() ? 'Updating...' : 'Update Phone Number'}
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsPhoneVerified(false);
+                    setPhoneSuccess(null);
+                    setPhoneError(null);
+                  }}
+                  disabled={isUpdatingPhone()}
+                  class="w-full mt-2"
+                >
+                  Cancel
+                </Button>
+              </Show>
+              
+              <Show when={isVerificationSent()}>
+                <div class="space-y-2">
+                  <Label for="verification-code">Verification Code</Label>
+                  <Input
+                    id="verification-code"
+                    type="text"
+                    placeholder="Enter the 6-digit code"
+                    value={verificationCode()}
+                    onInput={(e) => setVerificationCode(e.currentTarget.value)}
+                    disabled={isVerifying()}
+                  />
+                </div>
+                
+                <div class="flex space-x-2">
+                  <Button
+                    onClick={async () => {
+                      if (!verificationCode()) {
+                        setPhoneError('Verification code is required');
+                        return;
+                      }
+                      
+                      setPhoneError(null);
+                      setPhoneSuccess(null);
+                      setIsVerifying(true);
+                      
+                      try {
+                        await profileApi.verifyPhone(phone(), verificationCode());
+                        setPhoneSuccess('Phone number verified successfully. Click "Update Phone Number" to save it.');
+                        setIsVerificationSent(false);
+                        setVerificationCode('');
+                        setIsPhoneVerified(true);
+                      } catch (err) {
+                        if (err instanceof Error) {
+                          setPhoneError(err.message);
+                        } else {
+                          setPhoneError('Failed to verify phone number');
+                        }
+                      } finally {
+                        setIsVerifying(false);
+                      }
+                    }}
+                    disabled={isVerifying() || !verificationCode()}
+                    class="flex-1"
+                  >
+                    {isVerifying() ? 'Verifying...' : 'Verify Phone Number'}
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsVerificationSent(false);
+                      setVerificationCode('');
+                      setPhoneError(null);
+                      setPhoneSuccess(null);
+                    }}
+                    disabled={isVerifying()}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                
+                <Button
+                  variant="ghost"
+                  onClick={async () => {
+                    setPhoneError(null);
+                    setPhoneSuccess(null);
+                    setIsVerifying(true);
+                    
+                    try {
+                      await profileApi.sendPhoneVerification(phone());
+                      setPhoneSuccess('Verification code resent successfully');
+                    } catch (err) {
+                      if (err instanceof Error) {
+                        setPhoneError(err.message);
+                      } else {
+                        setPhoneError('Failed to resend verification code');
+                      }
+                    } finally {
+                      setIsVerifying(false);
+                    }
+                  }}
+                  disabled={isVerifying()}
+                  class="w-full text-sm"
+                >
+                  Resend Verification Code
+                </Button>
+              </Show>
+            </div>
           </CardContent>
         </Card>
       </TabsContent>

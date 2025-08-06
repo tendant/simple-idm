@@ -48,6 +48,11 @@ SET login_id = $2,
 WHERE id = $1
 RETURNING login_id;
 
+-- name: GetUserPhone :one
+SELECT phone
+FROM users
+WHERE id = $1;
+
 -- name: UpdateUserPhone :exec
 UPDATE users
 SET phone = $2,
