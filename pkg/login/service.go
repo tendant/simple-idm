@@ -401,6 +401,7 @@ func (s *LoginService) LoginByEmail(ctx context.Context, email, password string)
 	}
 
 	// Find login by email
+	// 2025-08-11: For now we only support one login per email if using login by email
 	login, err := s.FindLoginByEmail(ctx, email)
 	if err != nil {
 		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
@@ -574,6 +575,7 @@ func (s *LoginService) InitPasswordResetByEmail(ctx context.Context, email strin
 // GenerateMagicLinkTokenByEmail generates a token for magic link login using email address
 func (s *LoginService) GenerateMagicLinkTokenByEmail(ctx context.Context, email string) (string, string, error) {
 	// Find login by email (use primary login)
+	// 2025-08-11: For now we only support one login per email if using email to generate magic link login
 	login, err := s.FindLoginByEmail(ctx, email)
 	if err != nil {
 		return "", "", fmt.Errorf("user not found: %w", err)
