@@ -276,3 +276,34 @@ SELECT is_passwordless
 FROM login
 WHERE id = $1
 AND deleted_at IS NULL;
+
+-- 2025-08-11: Email-based authentication queries
+
+-- name: FindLoginsByEmail :many
+SELECT DISTINCT l.id, l.username, l.password, l.password_version, 
+       l.created_at, l.updated_at, l.failed_login_attempts, 
+       l.last_failed_attempt_at, l.locked_until, l.password_updated_at, l.password_expires_at
+FROM login l
+JOIN users u ON u.login_id = l.id
+WHERE u.email = $1
+AND l.deleted_at IS NULL
+AND u.deleted_at IS NULL;
+
+-- name: FindPrimaryLoginByEmail :one
+SELECT l.id, l.username, l.password, l.password_version,
+       l.created_at, l.updated_at, l.failed_login_attempts,
+       l.last_failed_attempt_at, l.locked_until, l.password_updated_at, l.password_expires_at
+FROM login l
+JOIN users u ON u.login_id = l.id
+WHERE u.email = $1
+AND l.deleted_at IS NULL
+AND u.deleted_at IS NULL
+LIMIT 1;
+
+-- name: FindLoginIdsByEmail :many
+SELECT DISTINCT l.id
+FROM login l
+JOIN users u ON u.login_id = l.id
+WHERE u.email = $1
+AND l.deleted_at IS NULL
+AND u.deleted_at IS NULL;
