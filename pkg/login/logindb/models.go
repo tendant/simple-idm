@@ -137,6 +137,7 @@ type User struct {
 	Email          string         `json:"email"`
 	Name           sql.NullString `json:"name"`
 	LoginID        uuid.NullUUID  `json:"login_id"`
+	Phone          sql.NullString `json:"phone"`
 }
 
 type UserRole struct {

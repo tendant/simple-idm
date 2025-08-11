@@ -121,6 +121,139 @@ func (q *Queries) FindLoginByUsername(ctx context.Context, username sql.NullStri
 	return i, err
 }
 
+const findLoginIdsByEmail = `-- name: FindLoginIdsByEmail :many
+SELECT DISTINCT l.id
+FROM login l
+JOIN users u ON u.login_id = l.id
+WHERE u.email = $1
+AND l.deleted_at IS NULL
+AND u.deleted_at IS NULL
+`
+
+func (q *Queries) FindLoginIdsByEmail(ctx context.Context, email string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, findLoginIdsByEmail, email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findLoginsByEmail = `-- name: FindLoginsByEmail :many
+
+SELECT DISTINCT l.id, l.username, l.password, l.password_version, 
+       l.created_at, l.updated_at, l.failed_login_attempts, 
+       l.last_failed_attempt_at, l.locked_until, l.password_updated_at, l.password_expires_at
+FROM login l
+JOIN users u ON u.login_id = l.id
+WHERE u.email = $1
+AND l.deleted_at IS NULL
+AND u.deleted_at IS NULL
+`
+
+type FindLoginsByEmailRow struct {
+	ID                  uuid.UUID      `json:"id"`
+	Username            sql.NullString `json:"username"`
+	Password            []byte         `json:"password"`
+	PasswordVersion     pgtype.Int4    `json:"password_version"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	FailedLoginAttempts pgtype.Int4    `json:"failed_login_attempts"`
+	LastFailedAttemptAt sql.NullTime   `json:"last_failed_attempt_at"`
+	LockedUntil         sql.NullTime   `json:"locked_until"`
+	PasswordUpdatedAt   sql.NullTime   `json:"password_updated_at"`
+	PasswordExpiresAt   sql.NullTime   `json:"password_expires_at"`
+}
+
+// Email-based authentication queries
+func (q *Queries) FindLoginsByEmail(ctx context.Context, email string) ([]FindLoginsByEmailRow, error) {
+	rows, err := q.db.Query(ctx, findLoginsByEmail, email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindLoginsByEmailRow
+	for rows.Next() {
+		var i FindLoginsByEmailRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.Password,
+			&i.PasswordVersion,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FailedLoginAttempts,
+			&i.LastFailedAttemptAt,
+			&i.LockedUntil,
+			&i.PasswordUpdatedAt,
+			&i.PasswordExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findPrimaryLoginByEmail = `-- name: FindPrimaryLoginByEmail :one
+SELECT l.id, l.username, l.password, l.password_version,
+       l.created_at, l.updated_at, l.failed_login_attempts,
+       l.last_failed_attempt_at, l.locked_until, l.password_updated_at, l.password_expires_at
+FROM login l
+JOIN users u ON u.login_id = l.id
+WHERE u.email = $1
+AND l.deleted_at IS NULL
+AND u.deleted_at IS NULL
+LIMIT 1
+`
+
+type FindPrimaryLoginByEmailRow struct {
+	ID                  uuid.UUID      `json:"id"`
+	Username            sql.NullString `json:"username"`
+	Password            []byte         `json:"password"`
+	PasswordVersion     pgtype.Int4    `json:"password_version"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	FailedLoginAttempts pgtype.Int4    `json:"failed_login_attempts"`
+	LastFailedAttemptAt sql.NullTime   `json:"last_failed_attempt_at"`
+	LockedUntil         sql.NullTime   `json:"locked_until"`
+	PasswordUpdatedAt   sql.NullTime   `json:"password_updated_at"`
+	PasswordExpiresAt   sql.NullTime   `json:"password_expires_at"`
+}
+
+func (q *Queries) FindPrimaryLoginByEmail(ctx context.Context, email string) (FindPrimaryLoginByEmailRow, error) {
+	row := q.db.QueryRow(ctx, findPrimaryLoginByEmail, email)
+	var i FindPrimaryLoginByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Password,
+		&i.PasswordVersion,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FailedLoginAttempts,
+		&i.LastFailedAttemptAt,
+		&i.LockedUntil,
+		&i.PasswordUpdatedAt,
+		&i.PasswordExpiresAt,
+	)
+	return i, err
+}
+
 const findUser = `-- name: FindUser :one
 SELECT id, username, password, password_version
 FROM login
