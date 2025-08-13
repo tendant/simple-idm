@@ -11,7 +11,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/logins"
 	"github.com/tendant/simple-idm/pkg/role"
-	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 type Handle struct {
@@ -73,7 +72,6 @@ func WithDefaultRole(role string) Option {
 }
 
 // RegisterUser handles user registration with optional invitation code
-// 2025-06-10: Designed for sales demo instance to allow user to register with optional invitation code
 func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 	if !h.registrationEnabled {
 		return &Response{
@@ -233,10 +231,10 @@ func (h Handle) RegisterUserPasswordless(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// If username is empty, use the hash of the email
+	// If username is empty, use email
 	if request.Username == "" {
-		request.Username = utils.HashEmail(request.Email)
-		slog.Info("Using hashed email as username", "email", request.Email, "username", request.Username)
+		request.Username = request.Email
+		slog.Info("Username is empty, using email as username", "email", request.Email)
 	}
 
 	// Determine role based on invitation code
