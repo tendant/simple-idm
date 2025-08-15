@@ -18,6 +18,7 @@ import (
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
+	"github.com/tendant/simple-idm/pkg/oidc"
 	oidcapi "github.com/tendant/simple-idm/pkg/oidc/api"
 	"github.com/tendant/simple-idm/pkg/signup"
 
@@ -316,7 +317,18 @@ func main() {
 
 	// Initialize OAuth2 client service and OIDC handler
 	clientService := oauth2client.NewClientService()
-	oidcHandle := oidcapi.NewHandle(tokenAuth, clientService)
+
+	// Create OIDC repository and service
+	oidcRepository := oidc.NewInMemoryOIDCRepository()
+	oidcService := oidc.NewOIDCServiceWithOptions(
+		oidcRepository,
+		clientService,
+		oidc.WithTokenGenerator(tokenGenerator),
+		oidc.WithBaseURL("http://localhost:4000"),
+		oidc.WithLoginURL("http://localhost:3000/login"),
+	)
+
+	oidcHandle := oidcapi.NewHandle(tokenAuth, clientService, oidcService)
 
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
