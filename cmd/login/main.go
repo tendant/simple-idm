@@ -313,7 +313,7 @@ func main() {
 	)
 
 	// Initialize OAuth2 client service and OIDC handler
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Create OIDC repository and service
 	oidcRepository := oidc.NewInMemoryOIDCRepository()
