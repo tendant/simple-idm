@@ -1,0 +1,187 @@
+openapi: 3.0.0
+info:
+  title: OIDC API
+  version: 1.0.0
+  description: OpenID Connect and OAuth2 endpoints for simple-idm
+servers:
+  - url: http://localhost:4000
+    description: Development server
+paths:
+  /oauth2/authorize:
+    get:
+      operationId: authorize
+      summary: OAuth2 Authorization Endpoint
+      description: Initiates the OAuth2 authorization code flow
+      parameters:
+        - name: client_id
+          in: query
+          required: true
+          description: The client identifier
+          schema:
+            type: string
+            example: "golang_app"
+        - name: redirect_uri
+          in: query
+          required: true
+          description: The client's redirect URI
+          schema:
+            type: string
+            format: uri
+            example: "http://localhost:8181/demo/callback"
+        - name: response_type
+          in: query
+          required: true
+          description: The desired response type
+          schema:
+            type: string
+            enum: ["code"]
+            example: "code"
+        - name: scope
+          in: query
+          description: The requested scopes
+          schema:
+            type: string
+            example: "openid profile email"
+        - name: state
+          in: query
+          description: An opaque value used to maintain state between request and callback
+          schema:
+            type: string
+            example: "somestate"
+      responses:
+        '302':
+          description: Redirect to login page or back to client with authorization code
+          headers:
+            Location:
+              description: Redirect URL
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "invalid_request"
+                  error_description:
+                    type: string
+                    example: "Missing required parameter: client_id"
+        '401':
+          description: Unauthorized - invalid client
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "invalid_client"
+                  error_description:
+                    type: string
+                    example: "Client not found"
+  /oauth2/token:
+    post:
+      operationId: token
+      summary: OAuth2 Token Endpoint
+      description: Exchanges authorization code for access tokens
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                grant_type:
+                  type: string
+                  enum: ["authorization_code"]
+                  example: "authorization_code"
+                code:
+                  type: string
+                  description: The authorization code received from the authorization endpoint
+                  example: "b095d69b3add8d55be20021f83d38711b80162ae3b67253a65cb56f1f316a54a"
+                client_id:
+                  type: string
+                  description: The client identifier
+                  example: "golang_app"
+                client_secret:
+                  type: string
+                  description: The client secret
+                  example: "golang_secret"
+                redirect_uri:
+                  type: string
+                  format: uri
+                  description: The redirect URI used in the authorization request
+                  example: "http://localhost:8181/demo/callback"
+              required:
+                - grant_type
+                - code
+                - client_id
+                - client_secret
+                - redirect_uri
+      responses:
+        '200':
+          description: Successful token response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - invalid client or code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: The access token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          description: The token type
+          example: "Bearer"
+        expires_in:
+          type: integer
+          description: Token lifetime in seconds
+          example: 3600
+        refresh_token:
+          type: string
+          description: The refresh token (optional)
+          example: "def50200..."
+        scope:
+          type: string
+          description: The granted scopes
+          example: "openid profile email"
+      required:
+        - access_token
+        - token_type
+        - expires_in
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+        error_description:
+          type: string
+          description: Human-readable error description
+        error_uri:
+          type: string
+          format: uri
+          description: URI to error documentation
+      required:
+        - error

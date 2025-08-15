@@ -17,6 +17,9 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
+	"github.com/tendant/simple-idm/pkg/oauth2client"
+	"github.com/tendant/simple-idm/pkg/oidc"
+	oidcapi "github.com/tendant/simple-idm/pkg/oidc/api"
 	"github.com/tendant/simple-idm/pkg/signup"
 
 	// "github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
@@ -309,9 +312,27 @@ func main() {
 		signup.WithLoginService(*loginService),
 	)
 
+	// Initialize OAuth2 client service and OIDC handler
+	clientService := oauth2client.NewClientService()
+
+	// Create OIDC repository and service
+	oidcRepository := oidc.NewInMemoryOIDCRepository()
+	oidcService := oidc.NewOIDCServiceWithOptions(
+		oidcRepository,
+		clientService,
+		oidc.WithTokenGenerator(tokenGenerator),
+		oidc.WithBaseURL("http://localhost:4000"),
+		oidc.WithLoginURL("http://localhost:3000/login"),
+	)
+
+	oidcHandle := oidcapi.NewHandle(clientService, oidcService)
+
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 	server.R.Mount("/api/idm/signup", signup.Handler(signupHandle))
+
+	// Mount OIDC endpoints (public, no authentication required)
+	server.R.Mount("/", oidcapi.Handler(oidcHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 

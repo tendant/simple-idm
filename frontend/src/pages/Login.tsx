@@ -92,7 +92,15 @@ const Login: Component = () => {
           : searchParams.redirect;
       }
       console.log("Redirecting to:", redirectPath);
-      navigate(redirectPath);
+      
+      // Check if this is an OAuth2 authorization URL (backend API endpoint)
+      if (redirectPath.includes('oauth2/authorize')) {
+        // Use full page redirect for backend API endpoints
+        window.location.href = redirectPath;
+      } else {
+        // Use frontend router for internal routes
+        navigate(redirectPath);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
