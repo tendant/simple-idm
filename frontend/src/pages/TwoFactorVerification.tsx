@@ -171,10 +171,16 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
           : searchParams.redirect;
       }
       
-      // Add a small delay to ensure localStorage updates are complete
-      setTimeout(() => {
-        navigate(redirectPath, { replace: true });
-      }, 100);
+      // Check if this is an OAuth2 authorization URL (backend API endpoint)
+      if (redirectPath.includes('oauth2/authorize')) {
+        // Use full page redirect for backend API endpoints
+        window.location.href = redirectPath;
+      } else {
+        // Add a small delay to ensure localStorage updates are complete
+        setTimeout(() => {
+          navigate(redirectPath, { replace: true });
+        }, 100);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to switch user');
       setSwitchingUser(false);
@@ -223,8 +229,22 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
         }
       }
       
-      // Redirect to the users list page
-      navigate('/users');
+      // Redirect to the original page or default to /users
+      let redirectPath = '/users';
+      if (searchParams.redirect) {
+        redirectPath = Array.isArray(searchParams.redirect) 
+          ? searchParams.redirect[0] 
+          : searchParams.redirect;
+      }
+      
+      // Check if this is an OAuth2 authorization URL (backend API endpoint)
+      if (redirectPath.includes('oauth2/authorize')) {
+        // Use full page redirect for backend API endpoints
+        window.location.href = redirectPath;
+      } else {
+        // Use frontend router for internal routes
+        navigate(redirectPath);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Verification failed');
     } finally {
