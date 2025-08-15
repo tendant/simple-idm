@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	"github.com/tendant/simple-idm/pkg/oidc"
 )
@@ -32,7 +31,7 @@ type Handle struct {
 }
 
 // NewHandle creates a new OIDC API handle
-func NewHandle(jwtAuth *jwtauth.JWTAuth, clientService *oauth2client.ClientService, oidcService *oidc.OIDCService) *Handle {
+func NewHandle(clientService *oauth2client.ClientService, oidcService *oidc.OIDCService) *Handle {
 	return &Handle{
 		clientService: clientService,
 		oidcService:   oidcService,

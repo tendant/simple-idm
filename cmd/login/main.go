@@ -312,9 +312,6 @@ func main() {
 		signup.WithLoginService(*loginService),
 	)
 
-	// Create JWT authenticator first
-	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
-
 	// Initialize OAuth2 client service and OIDC handler
 	clientService := oauth2client.NewClientService()
 
@@ -328,7 +325,7 @@ func main() {
 		oidc.WithLoginURL("http://localhost:3000/login"),
 	)
 
-	oidcHandle := oidcapi.NewHandle(tokenAuth, clientService, oidcService)
+	oidcHandle := oidcapi.NewHandle(clientService, oidcService)
 
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
@@ -336,6 +333,8 @@ func main() {
 
 	// Mount OIDC endpoints (public, no authentication required)
 	server.R.Mount("/", oidcapi.Handler(oidcHandle))
+
+	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
 	server.R.Group(func(r chi.Router) {
 		r.Use(client.Verifier(tokenAuth))
