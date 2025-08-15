@@ -17,6 +17,8 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
+	"github.com/tendant/simple-idm/pkg/oauth2client"
+	oidcapi "github.com/tendant/simple-idm/pkg/oidc/api"
 	"github.com/tendant/simple-idm/pkg/signup"
 
 	// "github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
@@ -309,11 +311,19 @@ func main() {
 		signup.WithLoginService(*loginService),
 	)
 
+	// Create JWT authenticator first
+	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
+
+	// Initialize OAuth2 client service and OIDC handler
+	clientService := oauth2client.NewClientService()
+	oidcHandle := oidcapi.NewHandle(tokenAuth, clientService)
+
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 	server.R.Mount("/api/idm/signup", signup.Handler(signupHandle))
 
-	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
+	// Mount OIDC endpoints (public, no authentication required)
+	server.R.Mount("/", oidcapi.Handler(oidcHandle))
 
 	server.R.Group(func(r chi.Router) {
 		r.Use(client.Verifier(tokenAuth))
