@@ -13,7 +13,7 @@ import (
 func TestOIDCService_GenerateAuthorizationCode(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	service := NewOIDCServiceWithOptions(repository, clientService,
 		WithCodeExpiration(10*time.Minute),
@@ -57,7 +57,7 @@ func TestOIDCService_GenerateAuthorizationCode(t *testing.T) {
 func TestOIDCService_ValidateAndConsumeAuthorizationCode(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Create a TokenGenerator
 	tokenGen := tokengenerator.NewJwtTokenGenerator("test-secret", "simple-idm", "oidc-client")
@@ -107,7 +107,7 @@ func TestOIDCService_ValidateAndConsumeAuthorizationCode(t *testing.T) {
 func TestOIDCService_ValidateAndConsumeAuthorizationCode_WrongClient(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Create a TokenGenerator
 	tokenGen := tokengenerator.NewJwtTokenGenerator("test-secret", "simple-idm", "oidc-client")
@@ -139,7 +139,7 @@ func TestOIDCService_ValidateAndConsumeAuthorizationCode_WrongClient(t *testing.
 func TestOIDCService_GenerateAccessToken(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Create a TokenGenerator
 	tokenGen := tokengenerator.NewJwtTokenGenerator("test-secret", "simple-idm", "oidc-client")
@@ -295,7 +295,7 @@ func TestInMemoryOIDCRepository_MarkUsed(t *testing.T) {
 func TestOIDCService_GetAuthorizationCode(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	service := NewOIDCServiceWithOptions(repository, clientService,
 		WithCodeExpiration(10*time.Minute),
@@ -336,7 +336,7 @@ func TestOIDCService_GetAuthorizationCode(t *testing.T) {
 func TestOIDCService_GetAuthorizationCode_EmptyCode(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	service := NewOIDCServiceWithOptions(repository, clientService)
 	ctx := context.Background()
@@ -353,7 +353,7 @@ func TestOIDCService_GetAuthorizationCode_EmptyCode(t *testing.T) {
 func TestOIDCService_GenerateRefreshToken(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Create a TokenGenerator
 	tokenGen := tokengenerator.NewJwtTokenGenerator("test-secret", "simple-idm", "oidc-client")
@@ -424,7 +424,7 @@ func TestOIDCService_GenerateRefreshToken(t *testing.T) {
 func TestOIDCService_ValidateUserToken(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Create a TokenGenerator
 	tokenGen := tokengenerator.NewJwtTokenGenerator("test-secret", "simple-idm", "oidc-client")
@@ -474,7 +474,7 @@ func TestOIDCService_ValidateUserToken(t *testing.T) {
 func TestOIDCService_ValidateUserToken_InvalidToken(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Create a TokenGenerator
 	tokenGen := tokengenerator.NewJwtTokenGenerator("test-secret", "simple-idm", "oidc-client")
@@ -495,7 +495,7 @@ func TestOIDCService_ValidateUserToken_InvalidToken(t *testing.T) {
 func TestOIDCService_GetBaseURL(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Test with custom base URL
 	service := NewOIDCServiceWithOptions(repository, clientService,
@@ -518,7 +518,7 @@ func TestOIDCService_GetBaseURL(t *testing.T) {
 func TestOIDCService_GetLoginURL(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Test with custom login URL
 	service := NewOIDCServiceWithOptions(repository, clientService,
@@ -541,7 +541,7 @@ func TestOIDCService_GetLoginURL(t *testing.T) {
 func TestOIDCService_GetTokenExpiration(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Test with custom token expiration
 	customExpiration := 2 * time.Hour
@@ -565,7 +565,7 @@ func TestOIDCService_GetTokenExpiration(t *testing.T) {
 func TestOIDCService_GetCodeExpiration(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Test with custom code expiration
 	customExpiration := 5 * time.Minute
@@ -589,7 +589,7 @@ func TestOIDCService_GetCodeExpiration(t *testing.T) {
 func TestOIDCService_GenerateAccessToken_AdditionalClaims(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
-	clientService := oauth2client.NewClientService()
+	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
 	// Create a TokenGenerator
 	tokenGen := tokengenerator.NewJwtTokenGenerator("test-secret", "simple-idm", "oidc-client")
