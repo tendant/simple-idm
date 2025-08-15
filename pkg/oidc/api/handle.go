@@ -1,18 +1,16 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
+	"github.com/tendant/simple-idm/pkg/oidc"
 )
 
 // AuthorizationCode represents a temporary authorization code
@@ -29,23 +27,15 @@ type AuthorizationCode struct {
 
 // Handle implements the ServerInterface for OIDC endpoints
 type Handle struct {
-	// JWT Auth for validating user login tokens
-	JwtAuth *jwtauth.JWTAuth
-
-	// OAuth2 Client Service
-	ClientService *oauth2client.ClientService
-
-	// In-memory storage for authorization codes (temporary solution)
-	authCodes map[string]*AuthorizationCode
-	codeMutex sync.RWMutex
+	clientService *oauth2client.ClientService
+	oidcService   *oidc.OIDCService
 }
 
 // NewHandle creates a new OIDC API handle
-func NewHandle(jwtAuth *jwtauth.JWTAuth, clientService *oauth2client.ClientService) *Handle {
+func NewHandle(jwtAuth *jwtauth.JWTAuth, clientService *oauth2client.ClientService, oidcService *oidc.OIDCService) *Handle {
 	return &Handle{
-		JwtAuth:       jwtAuth,
-		ClientService: clientService,
-		authCodes:     make(map[string]*AuthorizationCode),
+		clientService: clientService,
+		oidcService:   oidcService,
 	}
 }
 
@@ -64,7 +54,7 @@ func (h *Handle) Authorize(w http.ResponseWriter, r *http.Request, params Author
 		scope = *params.Scope
 	}
 
-	client, err := h.ClientService.ValidateAuthorizationRequest(
+	client, err := h.clientService.ValidateAuthorizationRequest(
 		params.ClientID,
 		params.RedirectURI,
 		string(params.ResponseType),
@@ -82,11 +72,12 @@ func (h *Handle) Authorize(w http.ResponseWriter, r *http.Request, params Author
 	}
 
 	// 2. Check if user is authenticated
-	userClaims, err := h.validateUserToken(r)
+	accessToken, err := h.getAccessToken(r)
+	userClaims, err := h.oidcService.ValidateUserToken(accessToken)
 	if err != nil {
 		slog.Info("User not authenticated, redirecting to login", "error", err)
 		// Build the full authorization URL to redirect back to after login
-		authURL := fmt.Sprintf("http://localhost:4000%s", r.URL.String())
+		authURL := fmt.Sprintf("%s%s", h.oidcService.GetBaseURL(), r.URL.String())
 		loginURL := h.buildLoginRedirectURL(authURL)
 
 		slog.Info("Redirecting to login", "login_url", loginURL, "return_url", authURL)
@@ -112,7 +103,7 @@ func (h *Handle) Authorize(w http.ResponseWriter, r *http.Request, params Author
 	slog.Info("User authenticated successfully", "user_id", userID, "client_id", client.ClientID)
 
 	// 4. Generate authorization code
-	authCode, err := h.generateAuthorizationCode(client.ClientID, params.RedirectURI, scope, params.State, userID)
+	authCode, err := h.oidcService.GenerateAuthorizationCode(r.Context(), client.ClientID, params.RedirectURI, scope, params.State, userID)
 	if err != nil {
 		slog.Error("Failed to generate authorization code", "error", err)
 		return AuthorizeJSON400Response(struct {
@@ -148,99 +139,33 @@ func (h *Handle) Authorize(w http.ResponseWriter, r *http.Request, params Author
 	return nil
 }
 
-// validateUserToken validates the user's authentication token
-func (h *Handle) validateUserToken(r *http.Request) (map[string]interface{}, error) {
+// getAccessToken retrieves the access token from the request
+func (h *Handle) getAccessToken(r *http.Request) (string, error) {
 	// Try to retrieve the token from the Authorization header
 	authHeader := r.Header.Get("Authorization")
-	var accessToken string
 
 	if authHeader != "" {
 		// Format should be: "Bearer <token>"
 		parts := strings.Split(authHeader, " ")
 		if len(parts) == 2 && parts[0] == "Bearer" {
-			accessToken = parts[1]
+			return parts[1], nil
 		}
 	}
 
-	// If no Authorization header, check cookies (most common for web apps)
-	if accessToken == "" {
-		// Check for both possible cookie names
-		if cookie, err := r.Cookie("access_token"); err == nil {
-			accessToken = cookie.Value
-		} else if cookie, err := r.Cookie("accessToken"); err == nil {
-			accessToken = cookie.Value
-		}
+	// Check for both possible cookie names
+	if cookie, err := r.Cookie("access_token"); err == nil {
+		return cookie.Value, nil
+	} else if cookie, err := r.Cookie("accessToken"); err == nil {
+		return cookie.Value, nil
 	}
 
-	// If still no token, check URL parameters (for testing/development)
-	if accessToken == "" {
-		accessToken = r.URL.Query().Get("access_token")
-	}
+	accessToken := r.URL.Query().Get("access_token")
 
 	// If we still don't have a token, return an error
 	if accessToken == "" {
-		return nil, fmt.Errorf("missing access token")
+		return "", fmt.Errorf("missing access token")
 	}
-
-	// Validate the token using JwtAuth
-	if h.JwtAuth == nil {
-		return nil, fmt.Errorf("JWT authenticator not initialized")
-	}
-
-	// Verify the token and get the token object
-	token, err := jwtauth.VerifyToken(h.JwtAuth, accessToken)
-	if err != nil {
-		return nil, fmt.Errorf("invalid or expired token: %w", err)
-	}
-
-	// Extract claims from the token
-	claims, err := token.AsMap(r.Context())
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract claims from token: %w", err)
-	}
-
-	// Verify that required claims are present
-	if claims["sub"] == nil || claims["sub"] == "" {
-		return nil, fmt.Errorf("token missing required 'sub' claim")
-	}
-
-	return claims, nil
-}
-
-// generateAuthorizationCode creates a new authorization code
-func (h *Handle) generateAuthorizationCode(clientID, redirectURI, scope string, state *string, userID string) (string, error) {
-	// Generate a random code
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	code := hex.EncodeToString(bytes)
-
-	stateStr := ""
-	if state != nil {
-		stateStr = *state
-	}
-
-	// Store the authorization code
-	authCode := &AuthorizationCode{
-		Code:        code,
-		ClientID:    clientID,
-		RedirectURI: redirectURI,
-		Scope:       scope,
-		State:       stateStr,
-		UserID:      userID,
-		ExpiresAt:   time.Now().Add(10 * time.Minute), // 10 minutes expiration
-		Used:        false,
-	}
-
-	h.codeMutex.Lock()
-	h.authCodes[code] = authCode
-	h.codeMutex.Unlock()
-
-	// Clean up expired codes (simple cleanup)
-	go h.cleanupExpiredCodes()
-
-	return code, nil
+	return accessToken, nil
 }
 
 // buildCallbackURL constructs the callback URL with authorization code
@@ -264,56 +189,8 @@ func (h *Handle) buildCallbackURL(redirectURI, code string, state *string) (stri
 func (h *Handle) buildLoginRedirectURL(returnURL string) string {
 	// Redirect to the frontend login page (running on port 3000)
 	// The frontend will handle the login and redirect back to the OAuth2 flow
-	loginURL := fmt.Sprintf("http://localhost:3000/login?redirect=%s", url.QueryEscape(returnURL))
+	loginURL := fmt.Sprintf("%s?redirect=%s", h.oidcService.GetLoginURL(), url.QueryEscape(returnURL))
 	return loginURL
-}
-
-// cleanupExpiredCodes removes expired authorization codes
-func (h *Handle) cleanupExpiredCodes() {
-	h.codeMutex.Lock()
-	defer h.codeMutex.Unlock()
-
-	now := time.Now()
-	for code, authCode := range h.authCodes {
-		if now.After(authCode.ExpiresAt) {
-			delete(h.authCodes, code)
-		}
-	}
-}
-
-// GetAuthorizationCode retrieves an authorization code (for token endpoint)
-func (h *Handle) GetAuthorizationCode(code string) (*AuthorizationCode, error) {
-	h.codeMutex.RLock()
-	defer h.codeMutex.RUnlock()
-
-	authCode, exists := h.authCodes[code]
-	if !exists {
-		return nil, fmt.Errorf("authorization code not found")
-	}
-
-	if time.Now().After(authCode.ExpiresAt) {
-		return nil, fmt.Errorf("authorization code expired")
-	}
-
-	if authCode.Used {
-		return nil, fmt.Errorf("authorization code already used")
-	}
-
-	return authCode, nil
-}
-
-// MarkAuthorizationCodeUsed marks an authorization code as used
-func (h *Handle) MarkAuthorizationCodeUsed(code string) error {
-	h.codeMutex.Lock()
-	defer h.codeMutex.Unlock()
-
-	authCode, exists := h.authCodes[code]
-	if !exists {
-		return fmt.Errorf("authorization code not found")
-	}
-
-	authCode.Used = true
-	return nil
 }
 
 // Token implements the OAuth2 token endpoint
@@ -355,7 +232,7 @@ func (h *Handle) Token(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Validate client credentials
-	client, err := h.ClientService.ValidateClientCredentials(clientID, clientSecret)
+	client, err := h.clientService.ValidateClientCredentials(clientID, clientSecret)
 	if err != nil {
 		slog.Error("Invalid client credentials", "error", err, "client_id", clientID)
 		h.writeErrorResponse(w, "invalid_client", "Invalid client credentials", http.StatusUnauthorized)
@@ -363,47 +240,35 @@ func (h *Handle) Token(w http.ResponseWriter, r *http.Request) *Response {
 	}
 
 	// Get and validate authorization code
-	authCode, err := h.GetAuthorizationCode(code)
+	authCode, err := h.oidcService.ValidateAndConsumeAuthorizationCode(r.Context(), code, clientID, redirectURI)
 	if err != nil {
 		slog.Error("Invalid authorization code", "error", err, "code", code)
 		h.writeErrorResponse(w, "invalid_grant", "Invalid or expired authorization code", http.StatusBadRequest)
 		return nil
 	}
 
-	// Validate that the authorization code matches the client and redirect URI
-	if authCode.ClientID != clientID {
-		slog.Error("Authorization code client mismatch", "expected", authCode.ClientID, "provided", clientID)
-		h.writeErrorResponse(w, "invalid_grant", "Authorization code was issued to a different client", http.StatusBadRequest)
-		return nil
-	}
-
-	if authCode.RedirectURI != redirectURI {
-		slog.Error("Authorization code redirect URI mismatch", "expected", authCode.RedirectURI, "provided", redirectURI)
-		h.writeErrorResponse(w, "invalid_grant", "Redirect URI mismatch", http.StatusBadRequest)
-		return nil
-	}
-
-	// Mark the authorization code as used
-	if err := h.MarkAuthorizationCodeUsed(code); err != nil {
-		slog.Error("Failed to mark authorization code as used", "error", err)
-		h.writeErrorResponse(w, "server_error", "Internal server error", http.StatusInternalServerError)
-		return nil
-	}
-
 	// Generate access token
-	accessToken, err := h.generateAccessToken(authCode.UserID, client.ClientID, authCode.Scope)
+	accessToken, err := h.oidcService.GenerateAccessToken(r.Context(), authCode.UserID, client.ClientID, authCode.Scope)
 	if err != nil {
 		slog.Error("Failed to generate access token", "error", err)
 		h.writeErrorResponse(w, "server_error", "Failed to generate access token", http.StatusInternalServerError)
 		return nil
 	}
 
+	refreshToken, err := h.oidcService.GenerateRefreshToken(r.Context(), authCode.UserID, client.ClientID, authCode.Scope)
+	if err != nil {
+		slog.Error("Failed to generate refresh token", "error", err)
+		h.writeErrorResponse(w, "server_error", "Failed to generate refresh token", http.StatusInternalServerError)
+		return nil
+	}
+
 	// Create token response
 	tokenResponse := TokenResponse{
-		AccessToken: accessToken,
-		TokenType:   "Bearer",
-		ExpiresIn:   3600, // 1 hour
-		Scope:       stringPtr(authCode.Scope),
+		AccessToken:  accessToken,
+		RefreshToken: &refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    3600, // 1 hour
+		Scope:        stringPtr(authCode.Scope),
 	}
 
 	slog.Info("Token exchange successful",
@@ -413,32 +278,6 @@ func (h *Handle) Token(w http.ResponseWriter, r *http.Request) *Response {
 
 	h.writeJSONResponse(w, tokenResponse, http.StatusOK)
 	return nil
-}
-
-// generateAccessToken creates a JWT access token for the user
-func (h *Handle) generateAccessToken(userID, clientID, scope string) (string, error) {
-	if h.JwtAuth == nil {
-		return "", fmt.Errorf("JWT authenticator not initialized")
-	}
-
-	// Create claims for the access token
-	claims := map[string]interface{}{
-		"sub":       userID,                           // Subject (user ID)
-		"aud":       clientID,                         // Audience (client ID)
-		"iss":       "simple-idm",                     // Issuer
-		"scope":     scope,                            // Granted scopes
-		"token_use": "access",                         // Token usage type
-		"exp":       time.Now().Add(time.Hour).Unix(), // Expires in 1 hour
-		"iat":       time.Now().Unix(),                // Issued at
-	}
-
-	// Generate the JWT token
-	_, tokenString, err := h.JwtAuth.Encode(claims)
-	if err != nil {
-		return "", fmt.Errorf("failed to encode JWT token: %w", err)
-	}
-
-	return tokenString, nil
 }
 
 // writeErrorResponse writes an OAuth2 error response
