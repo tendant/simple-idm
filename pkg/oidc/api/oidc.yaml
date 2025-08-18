@@ -7,7 +7,7 @@ servers:
   - url: http://localhost:4000
     description: Development server
 paths:
-  /oauth2/authorize:
+  /authorize:
     get:
       operationId: authorize
       summary: OAuth2 Authorization Endpoint
@@ -83,7 +83,7 @@ paths:
                   error_description:
                     type: string
                     example: "Client not found"
-  /oauth2/token:
+  /token:
     post:
       operationId: token
       summary: OAuth2 Token Endpoint
