@@ -1,0 +1,288 @@
+openapi: 3.0.3
+info:
+  title: External Provider API
+  description: API for external identity provider OAuth2/OIDC integration
+  version: 1.0.0
+servers:
+  - url: http://localhost:4000
+    description: Development server
+
+paths:
+  /providers:
+    get:
+      summary: List available external providers
+      description: Returns a list of all enabled external identity providers
+      operationId: listProviders
+      responses:
+        '200':
+          description: List of enabled providers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  providers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExternalProvider'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{provider}:
+    get:
+      summary: Initiate OAuth2 flow
+      description: Redirects to the external provider's authorization endpoint
+      operationId: initiateOAuth2Flow
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          description: Provider ID (e.g., google, microsoft, github)
+          schema:
+            type: string
+            enum: [google, microsoft, github]
+        - name: redirect_url
+          in: query
+          required: false
+          description: URL to redirect to after successful authentication
+          schema:
+            type: string
+            format: uri
+      responses:
+        '302':
+          description: Redirect to external provider
+          headers:
+            Location:
+              description: External provider authorization URL
+              schema:
+                type: string
+                format: uri
+        '400':
+          description: Bad request - invalid provider or parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Provider not found or disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{provider}/callback:
+    get:
+      summary: Handle OAuth2 callback
+      description: Processes the OAuth2 callback from the external provider
+      operationId: handleOAuth2Callback
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          description: Provider ID (e.g., google, microsoft, github)
+          schema:
+            type: string
+            enum: [google, microsoft, github]
+        - name: code
+          in: query
+          required: true
+          description: Authorization code from the provider
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: State parameter for CSRF protection
+          schema:
+            type: string
+        - name: error
+          in: query
+          required: false
+          description: Error code if authorization failed
+          schema:
+            type: string
+        - name: error_description
+          in: query
+          required: false
+          description: Human-readable error description
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect after successful authentication
+          headers:
+            Location:
+              description: Redirect URL with authentication result
+              schema:
+                type: string
+                format: uri
+            Set-Cookie:
+              description: Authentication cookies
+              schema:
+                type: string
+        '400':
+          description: Bad request - invalid parameters or authorization failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    ExternalProvider:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique provider identifier
+          example: "google"
+        name:
+          type: string
+          description: Provider name
+          example: "google"
+        display_name:
+          type: string
+          description: Human-readable provider name
+          example: "Google"
+        enabled:
+          type: boolean
+          description: Whether the provider is enabled
+          example: true
+        icon_url:
+          type: string
+          format: uri
+          description: URL to provider icon
+          example: "https://developers.google.com/identity/images/g-logo.png"
+        description:
+          type: string
+          description: Provider description
+          example: "Sign in with your Google account"
+      required:
+        - id
+        - name
+        - display_name
+        - enabled
+
+    OAuth2State:
+      type: object
+      properties:
+        state:
+          type: string
+          description: Random state value for CSRF protection
+        provider:
+          type: string
+          description: Provider ID
+        redirect_url:
+          type: string
+          format: uri
+          description: URL to redirect to after authentication
+        expires_at:
+          type: integer
+          format: int64
+          description: Unix timestamp when the state expires
+      required:
+        - state
+        - provider
+        - expires_at
+
+    ExternalUserInfo:
+      type: object
+      properties:
+        provider_id:
+          type: string
+          description: Provider identifier
+          example: "google"
+        external_id:
+          type: string
+          description: User ID from the external provider
+          example: "123456789"
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        email_verified:
+          type: boolean
+          description: Whether the email is verified by the provider
+          example: true
+        name:
+          type: string
+          description: Full name
+          example: "John Doe"
+        first_name:
+          type: string
+          description: First name
+          example: "John"
+        last_name:
+          type: string
+          description: Last name
+          example: "Doe"
+        picture:
+          type: string
+          format: uri
+          description: Profile picture URL
+          example: "https://example.com/avatar.jpg"
+        locale:
+          type: string
+          description: User locale
+          example: "en"
+      required:
+        - provider_id
+        - external_id
+        - email
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: "invalid_request"
+        error_description:
+          type: string
+          description: Human-readable error description
+          example: "The request is missing a required parameter"
+        error_uri:
+          type: string
+          format: uri
+          description: URI to error documentation
+      required:
+        - error
+        - error_description
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
