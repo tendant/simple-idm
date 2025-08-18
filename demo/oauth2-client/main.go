@@ -22,8 +22,8 @@ const (
 	redirectURL  = "http://localhost:8182/demo/callback"
 
 	// OIDC Provider URLs (simple-idm server)
-	authURL  = "http://localhost:4000/oauth2/authorize"
-	tokenURL = "http://localhost:4000/oauth2/token"
+	authURL  = "http://localhost:4000/api/idm/oauth2/authorize"
+	tokenURL = "http://localhost:4000/api/idm/oauth2/token"
 
 	// Demo server port
 	serverPort = ":8182"

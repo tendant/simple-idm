@@ -14,6 +14,8 @@ import (
 	"github.com/tendant/chi-demo/app"
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/pkg/client"
+	"github.com/tendant/simple-idm/pkg/externalprovider"
+	externalProviderAPI "github.com/tendant/simple-idm/pkg/externalprovider/api"
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
@@ -118,6 +120,28 @@ type LoginConfig struct {
 	PhoneVerificationSecret  string `env:"PHONE_VERIFICATION_SECRET" env-default:"secret"`
 }
 
+type ExternalProviderConfig struct {
+	// Google OAuth2
+	GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
+	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
+	GoogleEnabled      bool   `env:"GOOGLE_ENABLED" env-default:"false"`
+
+	// Microsoft OAuth2
+	MicrosoftClientID     string `env:"MICROSOFT_CLIENT_ID"`
+	MicrosoftClientSecret string `env:"MICROSOFT_CLIENT_SECRET"`
+	MicrosoftEnabled      bool   `env:"MICROSOFT_ENABLED" env-default:"false"`
+
+	// GitHub OAuth2
+	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
+	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
+	GitHubEnabled      bool   `env:"GITHUB_ENABLED" env-default:"false"`
+
+	// LinkedIn OAuth2
+	LinkedInClientID     string `env:"LINKEDIN_CLIENT_ID"`
+	LinkedInClientSecret string `env:"LINKEDIN_CLIENT_SECRET"`
+	LinkedInEnabled      bool   `env:"LINKEDIN_ENABLED" env-default:"false"`
+}
+
 type Config struct {
 	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:3000"`
 	IdmDbConfig              IdmDbConfig
@@ -127,6 +151,7 @@ type Config struct {
 	PasswordComplexityConfig PasswordComplexityConfig
 	LoginConfig              LoginConfig
 	TwilioConfig             TwilioConfig
+	ExternalProviderConfig   ExternalProviderConfig
 }
 
 func main() {
@@ -327,12 +352,42 @@ func main() {
 
 	oidcHandle := oidcapi.NewHandle(clientService, oidcService)
 
+	// Initialize External Provider repository and service
+	externalProviderRepository := externalprovider.NewInMemoryExternalProviderRepository()
+
+	// Configure external providers based on environment variables
+	setupExternalProviders(externalProviderRepository, &config.ExternalProviderConfig)
+
+	// Create external provider service
+	externalProviderService := externalprovider.NewExternalProviderService(
+		externalProviderRepository,
+		loginService,
+		userMapper,
+		externalprovider.WithBaseURL("http://localhost:4000"),
+		externalprovider.WithStateExpiration(10*time.Minute),
+		externalprovider.WithHTTPClient(&http.Client{}),
+		externalprovider.WithNotificationManager(notificationManager),
+		externalprovider.WithUserCreationEnabled(false), // Security by default
+		externalprovider.WithAutoUserCreation(false),    // Security by default
+	)
+
+	// Create external provider API handler
+	externalProviderHandle := externalProviderAPI.NewHandle(
+		externalProviderService,
+		loginService,
+		tokenService,
+		tokenCookieService,
+	).WithFrontendURL(config.BaseUrl)
+
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 	server.R.Mount("/api/idm/signup", signup.Handler(signupHandle))
 
 	// Mount OIDC endpoints (public, no authentication required)
-	server.R.Mount("/", oidcapi.Handler(oidcHandle))
+	server.R.Mount("/api/idm/oauth2", oidcapi.Handler(oidcHandle))
+
+	// Mount external provider endpoints (public, no authentication required)
+	server.R.Mount("/api/idm/external", externalProviderAPI.Handler(externalProviderHandle))
 
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
@@ -445,4 +500,125 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 		CommonPasswordsPath:  "",
 		MinPasswordAgePeriod: minPasswordAgePeriod.ToTimeDuration(),
 	}
+}
+
+// setupExternalProviders configures external OAuth2 providers based on environment variables
+func setupExternalProviders(repository externalprovider.ExternalProviderRepository, config *ExternalProviderConfig) {
+	// Configure Google OAuth2 provider
+	if config.GoogleEnabled && config.GoogleClientID != "" && config.GoogleClientSecret != "" {
+		googleProvider := &externalprovider.ExternalProvider{
+			ID:           "google",
+			Name:         "google",
+			DisplayName:  "Google",
+			ClientID:     config.GoogleClientID,
+			ClientSecret: config.GoogleClientSecret,
+			AuthURL:      "https://accounts.google.com/o/oauth2/v2/auth",
+			TokenURL:     "https://oauth2.googleapis.com/token",
+			UserInfoURL:  "https://www.googleapis.com/oauth2/v2/userinfo",
+			Scopes:       []string{"openid", "profile", "email"},
+			Enabled:      true,
+			IconURL:      "https://developers.google.com/identity/images/g-logo.png",
+			Description:  "Sign in with your Google account",
+		}
+
+		slog.Info("Creating Google provider",
+			"client_id", config.GoogleClientID,
+			"client_secret_length", len(config.GoogleClientSecret),
+			"enabled", config.GoogleEnabled)
+
+		err := repository.CreateProvider(googleProvider)
+		if err != nil {
+			slog.Error("Failed to create Google provider", "error", err)
+		} else {
+			slog.Info("Google OAuth2 provider configured successfully",
+				"enabled", true,
+				"provider_client_id", googleProvider.ClientID)
+		}
+	} else {
+		slog.Warn("Google OAuth2 provider not configured",
+			"enabled", config.GoogleEnabled,
+			"client_id_empty", config.GoogleClientID == "",
+			"client_secret_empty", config.GoogleClientSecret == "")
+	}
+
+	// Configure Microsoft OAuth2 provider
+	if config.MicrosoftEnabled && config.MicrosoftClientID != "" && config.MicrosoftClientSecret != "" {
+		microsoftProvider := &externalprovider.ExternalProvider{
+			ID:           "microsoft",
+			Name:         "microsoft",
+			DisplayName:  "Microsoft",
+			ClientID:     config.MicrosoftClientID,
+			ClientSecret: config.MicrosoftClientSecret,
+			AuthURL:      "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+			TokenURL:     "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+			UserInfoURL:  "https://graph.microsoft.com/v1.0/me",
+			Scopes:       []string{"openid", "profile", "email", "User.Read"},
+			Enabled:      true,
+			IconURL:      "https://docs.microsoft.com/en-us/azure/active-directory/develop/media/howto-add-branding-in-azure-ad-apps/ms-symbollockup_mssymbol_19.png",
+			Description:  "Sign in with your Microsoft account",
+		}
+
+		err := repository.CreateProvider(microsoftProvider)
+		if err != nil {
+			slog.Error("Failed to create Microsoft provider", "error", err)
+		} else {
+			slog.Info("Microsoft OAuth2 provider configured", "enabled", true)
+		}
+	}
+
+	// Configure GitHub OAuth2 provider
+	if config.GitHubEnabled && config.GitHubClientID != "" && config.GitHubClientSecret != "" {
+		githubProvider := &externalprovider.ExternalProvider{
+			ID:           "github",
+			Name:         "github",
+			DisplayName:  "GitHub",
+			ClientID:     config.GitHubClientID,
+			ClientSecret: config.GitHubClientSecret,
+			AuthURL:      "https://github.com/login/oauth/authorize",
+			TokenURL:     "https://github.com/login/oauth/access_token",
+			UserInfoURL:  "https://api.github.com/user",
+			Scopes:       []string{"user:email"},
+			Enabled:      true,
+			IconURL:      "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+			Description:  "Sign in with your GitHub account",
+		}
+
+		err := repository.CreateProvider(githubProvider)
+		if err != nil {
+			slog.Error("Failed to create GitHub provider", "error", err)
+		} else {
+			slog.Info("GitHub OAuth2 provider configured", "enabled", true)
+		}
+	}
+
+	// Configure LinkedIn OAuth2 provider
+	if config.LinkedInEnabled && config.LinkedInClientID != "" && config.LinkedInClientSecret != "" {
+		linkedinProvider := &externalprovider.ExternalProvider{
+			ID:           "linkedin",
+			Name:         "linkedin",
+			DisplayName:  "LinkedIn",
+			ClientID:     config.LinkedInClientID,
+			ClientSecret: config.LinkedInClientSecret,
+			AuthURL:      "https://www.linkedin.com/oauth/v2/authorization",
+			TokenURL:     "https://www.linkedin.com/oauth/v2/accessToken",
+			UserInfoURL:  "https://api.linkedin.com/v2/people/~",
+			Scopes:       []string{"r_liteprofile", "r_emailaddress"},
+			Enabled:      true,
+			IconURL:      "https://content.linkedin.com/content/dam/me/business/en-us/amp/brand-site/v2/bg/LI-Bug.svg.original.svg",
+			Description:  "Sign in with your LinkedIn account",
+		}
+
+		err := repository.CreateProvider(linkedinProvider)
+		if err != nil {
+			slog.Error("Failed to create LinkedIn provider", "error", err)
+		} else {
+			slog.Info("LinkedIn OAuth2 provider configured", "enabled", true)
+		}
+	}
+
+	slog.Info("External provider setup completed",
+		"google", config.GoogleEnabled,
+		"microsoft", config.MicrosoftEnabled,
+		"github", config.GitHubEnabled,
+		"linkedin", config.LinkedInEnabled)
 }
