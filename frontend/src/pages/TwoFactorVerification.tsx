@@ -172,7 +172,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
       }
       
       // Check if this is an OAuth2 authorization URL (backend API endpoint)
-      if (redirectPath.includes('oauth2/authorize')) {
+      if (redirectPath.includes('api/idm/oauth2/authorize')) {
         // Use full page redirect for backend API endpoints
         window.location.href = redirectPath;
       } else {
@@ -238,7 +238,7 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
       }
       
       // Check if this is an OAuth2 authorization URL (backend API endpoint)
-      if (redirectPath.includes('oauth2/authorize')) {
+      if (redirectPath.includes('api/idm/oauth2/authorize')) {
         // Use full page redirect for backend API endpoints
         window.location.href = redirectPath;
       } else {
