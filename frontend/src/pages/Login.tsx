@@ -1,7 +1,8 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onMount, createResource, For, Show } from 'solid-js';
 import { useNavigate, useSearchParams, A } from '@solidjs/router';
 import { userApi } from '../api/user';
 import { DeliveryOption } from '../api/twoFactor';
+import { getExternalProviders, initiateOAuth2Flow, handleOAuth2Callback, type ExternalProvider } from '../api/externalProviders';
 
 const Login: Component = () => {
   const navigate = useNavigate();
@@ -10,6 +11,34 @@ const Login: Component = () => {
   const [password, setPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [loading, setLoading] = createSignal(false);
+  const [authMessage, setAuthMessage] = createSignal<{ success: boolean; message: string } | null>(null);
+
+  // Load external providers
+  const [externalProviders] = createResource(getExternalProviders);
+
+  // Handle OAuth2 callback on component mount
+  onMount(() => {
+    const callback = handleOAuth2Callback();
+    if (callback.success || callback.message !== 'No authentication callback detected.') {
+      setAuthMessage(callback);
+      
+      // If successful, redirect after a short delay
+      if (callback.success) {
+        setTimeout(() => {
+          const redirectPath = searchParams.redirect || '/users';
+          navigate(Array.isArray(redirectPath) ? redirectPath[0] : redirectPath);
+        }, 2000);
+      }
+    }
+  });
+
+  const handleExternalProviderLogin = (providerId: string) => {
+    const redirectUrl = searchParams.redirect 
+      ? (Array.isArray(searchParams.redirect) ? searchParams.redirect[0] : searchParams.redirect)
+      : '/users';
+    
+    initiateOAuth2Flow(providerId, redirectUrl);
+  };
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault();
@@ -94,7 +123,7 @@ const Login: Component = () => {
       console.log("Redirecting to:", redirectPath);
       
       // Check if this is an OAuth2 authorization URL (backend API endpoint)
-      if (redirectPath.includes('oauth2/authorize')) {
+      if (redirectPath.includes('api/idm/oauth2/authorize')) {
         // Use full page redirect for backend API endpoints
         window.location.href = redirectPath;
       } else {
@@ -213,6 +242,54 @@ const Login: Component = () => {
               </div>
             </div>
           </form>
+
+          {/* OAuth2 Authentication Message */}
+          <Show when={authMessage()}>
+            <div class={`mt-4 rounded-lg p-4 ${authMessage()?.success ? 'bg-green-2' : 'bg-red-2'}`}>
+              <div class="flex">
+                <div class="ml-3">
+                  <h3 class={`text-sm font-medium ${authMessage()?.success ? 'text-green-11' : 'text-red-11'}`}>
+                    {authMessage()?.message}
+                  </h3>
+                </div>
+              </div>
+            </div>
+          </Show>
+
+          {/* External Provider Login Buttons */}
+          <Show when={externalProviders() && externalProviders()!.length > 0}>
+            <div class="mt-6">
+              <div class="relative">
+                <div class="absolute inset-0 flex items-center">
+                  <div class="w-full border-t border-gray-300" />
+                </div>
+                <div class="relative flex justify-center text-sm">
+                  <span class="px-2 bg-white text-gray-500">Or continue with</span>
+                </div>
+              </div>
+
+              <div class="mt-6 space-y-3">
+                <For each={externalProviders()}>
+                  {(provider) => (
+                    <button
+                      type="button"
+                      onClick={() => handleExternalProviderLogin(provider.id)}
+                      class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <Show when={provider.icon_url}>
+                        <img
+                          src={provider.icon_url}
+                          alt={provider.display_name}
+                          class="w-5 h-5 mr-2"
+                        />
+                      </Show>
+                      <span>Continue with {provider.display_name}</span>
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+          </Show>
         </div>
       </div>
     </div>
