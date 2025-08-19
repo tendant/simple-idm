@@ -67,7 +67,8 @@ func (m *DefaultUserMapper) FindUsersByLoginID(ctx context.Context, loginID uuid
 		}
 
 		userInfo := UserInfo{
-			Email: user.Email,
+			Email:       user.Email,
+			PhoneNumber: user.Phone.String,
 		}
 
 		mappedUsers = append(mappedUsers, User{
