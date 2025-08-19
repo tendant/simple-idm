@@ -2379,7 +2379,7 @@ func (h Handle) recordSuccessfulLoginAndUpdateDevice(ctx context.Context, loginI
 	h.loginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, true, "")
 
 	// Update device last login time
-	if fingerprint != "" {
+	if &h.deviceService != nil && fingerprint != "" {
 		_, err := h.deviceService.UpdateDeviceLastLogin(ctx, fingerprint)
 		if err != nil {
 			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprint)
@@ -2527,7 +2527,7 @@ func (h Handle) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, p
 			ID:    mu.UserId,
 			Name:  name,
 			Email: email,
-			Role:  mu.ExtraClaims["role"].(string),
+			Role:  mu.ExtraClaims["roles"].([]string)[0],
 		}
 	}
 
