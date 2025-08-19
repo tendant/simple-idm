@@ -42,7 +42,7 @@ func (q *Queries) FindUsernamesByEmail(ctx context.Context, email string) ([]sql
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT u.id, u.name, u.email, u.created_at, u.last_modified_at,
+SELECT u.id, u.name, u.email,u.phone, u.created_at, u.last_modified_at,
        COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles, u.login_id
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -56,6 +56,7 @@ type GetUserByIdRow struct {
 	ID             uuid.UUID      `json:"id"`
 	Name           sql.NullString `json:"name"`
 	Email          string         `json:"email"`
+	Phone          sql.NullString `json:"phone"`
 	CreatedAt      time.Time      `json:"created_at"`
 	LastModifiedAt time.Time      `json:"last_modified_at"`
 	Roles          interface{}    `json:"roles"`
@@ -69,6 +70,7 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 		&i.ID,
 		&i.Name,
 		&i.Email,
+		&i.Phone,
 		&i.CreatedAt,
 		&i.LastModifiedAt,
 		&i.Roles,
@@ -78,7 +80,7 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 }
 
 const getUsersByLoginId = `-- name: GetUsersByLoginId :many
-SELECT u.id, u.name, u.email, u.created_at, u.last_modified_at,
+SELECT u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at,
        COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -92,6 +94,7 @@ type GetUsersByLoginIdRow struct {
 	ID             uuid.UUID      `json:"id"`
 	Name           sql.NullString `json:"name"`
 	Email          string         `json:"email"`
+	Phone          sql.NullString `json:"phone"`
 	CreatedAt      time.Time      `json:"created_at"`
 	LastModifiedAt time.Time      `json:"last_modified_at"`
 	Roles          interface{}    `json:"roles"`
@@ -110,6 +113,7 @@ func (q *Queries) GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) 
 			&i.ID,
 			&i.Name,
 			&i.Email,
+			&i.Phone,
 			&i.CreatedAt,
 			&i.LastModifiedAt,
 			&i.Roles,
