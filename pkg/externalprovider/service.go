@@ -13,9 +13,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/login"
+	"github.com/tendant/simple-idm/pkg/logins"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/notification"
+	"github.com/tendant/simple-idm/pkg/role"
 )
 
 // ExternalProviderService handles OAuth2 client flows with external identity providers
@@ -24,11 +28,15 @@ type ExternalProviderService struct {
 	loginService        *login.LoginService
 	userMapper          mapper.UserMapper
 	notificationManager *notification.NotificationManager
+	iamService          *iam.IamService
+	roleService         *role.RoleService
+	loginsService       *logins.LoginsService
 	baseURL             string
 	stateExpiration     time.Duration
 	httpClient          *http.Client
 	autoUserCreation    bool
 	userCreationEnabled bool
+	defaultRole         string
 }
 
 // Option is a function that configures an ExternalProviderService
@@ -73,6 +81,34 @@ func WithAutoUserCreation(enabled bool) Option {
 func WithUserCreationEnabled(enabled bool) Option {
 	return func(s *ExternalProviderService) {
 		s.userCreationEnabled = enabled
+	}
+}
+
+// WithIamService sets the IAM service for user creation
+func WithIamService(iamService *iam.IamService) Option {
+	return func(s *ExternalProviderService) {
+		s.iamService = iamService
+	}
+}
+
+// WithRoleService sets the role service for user role assignment
+func WithRoleService(roleService *role.RoleService) Option {
+	return func(s *ExternalProviderService) {
+		s.roleService = roleService
+	}
+}
+
+// WithLoginsService sets the logins service for login account creation
+func WithLoginsService(loginsService *logins.LoginsService) Option {
+	return func(s *ExternalProviderService) {
+		s.loginsService = loginsService
+	}
+}
+
+// WithDefaultRole sets the default role for new users
+func WithDefaultRole(role string) Option {
+	return func(s *ExternalProviderService) {
+		s.defaultRole = role
 	}
 }
 
@@ -385,12 +421,117 @@ func (s *ExternalProviderService) findOrCreateUser(ctx context.Context, userInfo
 		return &loginResult, nil
 	}
 
-	// User not found, create a new account
+	// User not found, check if user creation is enabled
+	if !s.userCreationEnabled {
+		slog.Warn("User creation is disabled", "email", userInfo.Email, "provider", userInfo.ProviderID)
+		return nil, fmt.Errorf("user not found and user creation is disabled. Email: %s", userInfo.Email)
+	}
+
+	if !s.autoUserCreation {
+		slog.Warn("Automatic user creation is disabled", "email", userInfo.Email, "provider", userInfo.ProviderID)
+		return nil, fmt.Errorf("user not found and automatic user creation is disabled. Email: %s", userInfo.Email)
+	}
+
+	// Check if required services are available
+	if s.loginsService == nil {
+		return nil, fmt.Errorf("logins service not configured for user creation")
+	}
+	if s.iamService == nil {
+		return nil, fmt.Errorf("IAM service not configured for user creation")
+	}
+	if s.roleService == nil {
+		return nil, fmt.Errorf("role service not configured for user creation")
+	}
+
+	// Create a new user account
 	slog.Info("Creating new user for external login", "email", userInfo.Email, "provider", userInfo.ProviderID)
 
-	// For now, we'll return an error indicating that user creation is not implemented
-	// In a full implementation, you would create a new user account here
-	return nil, fmt.Errorf("user not found and automatic user creation is not implemented yet. Email: %s", userInfo.Email)
+	// Step 1: Create login account (passwordless for external provider users)
+	username := userInfo.Email // Use email as username
+	loginAccount, err := s.loginsService.CreateLoginWithoutPassword(ctx, username, fmt.Sprintf("external:%s", userInfo.ProviderID))
+	if err != nil {
+		slog.Error("Failed to create login account", "error", err, "email", userInfo.Email)
+		return nil, fmt.Errorf("failed to create login account: %w", err)
+	}
+
+	// Step 2: Set passwordless flag
+	loginID, err := uuid.Parse(loginAccount.ID)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "error", err, "login_id", loginAccount.ID)
+		// Continue anyway, as the user is created
+	} else {
+		err = s.loginService.GetRepository().SetPasswordlessFlag(ctx, loginID, true)
+		if err != nil {
+			slog.Error("Failed to set passwordless flag", "error", err, "login_id", loginID)
+			// Continue anyway, as the user is created
+		}
+	}
+
+	// Step 3: Determine user's display name
+	displayName := userInfo.Name
+	if displayName == "" && userInfo.FirstName != "" {
+		displayName = userInfo.FirstName
+		if userInfo.LastName != "" {
+			displayName = userInfo.FirstName + " " + userInfo.LastName
+		}
+	}
+	if displayName == "" {
+		displayName = userInfo.Email // Fallback to email
+	}
+
+	// Step 4: Create user profile
+	user, err := s.iamService.CreateUser(ctx, userInfo.Email, username, displayName, []uuid.UUID{}, loginAccount.ID)
+	if err != nil {
+		slog.Error("Failed to create user profile", "error", err, "email", userInfo.Email)
+		// TODO: Consider rollback of login account creation
+		return nil, fmt.Errorf("failed to create user profile: %w", err)
+	}
+
+	// Step 5: Assign default role if specified
+	if s.defaultRole != "" {
+		roleID, err := s.roleService.GetRoleIdByName(ctx, s.defaultRole)
+		if err != nil {
+			slog.Error("Failed to get default role ID", "error", err, "role", s.defaultRole)
+			// Continue without role assignment rather than failing the entire process
+		} else {
+			err = s.roleService.AddUserToRole(ctx, roleID, user.User.ID, username)
+			if err != nil {
+				slog.Error("Failed to assign default role", "error", err, "role", s.defaultRole, "user_id", user.User.ID)
+				// Continue without role assignment rather than failing the entire process
+			} else {
+				slog.Info("Assigned default role to new user", "role", s.defaultRole, "user_id", user.User.ID, "email", userInfo.Email)
+			}
+		}
+	}
+
+	// Step 6: Send welcome notification (optional)
+	if s.notificationManager != nil {
+		// TODO: Implement welcome email notification
+		slog.Info("Welcome notification would be sent here", "email", userInfo.Email, "provider", userInfo.ProviderID)
+	}
+
+	// Step 7: Return successful login result
+	// Get users associated with this login ID using the UserMapper
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to get users by login ID after creation", "error", err, "login_id", loginID)
+		return nil, fmt.Errorf("failed to get user information after creation: %w", err)
+	}
+
+	loginResult = login.LoginResult{
+		Users:   users,
+		LoginID: loginID,
+		Success: true,
+	}
+
+	slog.Info("Successfully created new user for external login",
+		"email", userInfo.Email,
+		"provider", userInfo.ProviderID,
+		"login_id", loginID,
+		"user_id", user.User.ID,
+		"display_name", displayName)
+
+	return &loginResult, nil
 }
 
 // Helper functions for parsing user info

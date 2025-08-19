@@ -140,6 +140,9 @@ type ExternalProviderConfig struct {
 	LinkedInClientID     string `env:"LINKEDIN_CLIENT_ID"`
 	LinkedInClientSecret string `env:"LINKEDIN_CLIENT_SECRET"`
 	LinkedInEnabled      bool   `env:"LINKEDIN_ENABLED" env-default:"false"`
+
+	// User Creation Settings
+	DefaultRole string `env:"EXTERNAL_PROVIDER_DEFAULT_ROLE" env-default:"user"`
 }
 
 type Config struct {
@@ -359,6 +362,11 @@ func main() {
 	setupExternalProviders(externalProviderRepository, &config.ExternalProviderConfig)
 
 	// Create external provider service
+	slog.Info("Configuring external provider service",
+		"user_creation_enabled", true,
+		"auto_user_creation", true,
+		"default_role", config.ExternalProviderConfig.DefaultRole)
+
 	externalProviderService := externalprovider.NewExternalProviderService(
 		externalProviderRepository,
 		loginService,
@@ -367,8 +375,12 @@ func main() {
 		externalprovider.WithStateExpiration(10*time.Minute),
 		externalprovider.WithHTTPClient(&http.Client{}),
 		externalprovider.WithNotificationManager(notificationManager),
-		externalprovider.WithUserCreationEnabled(false), // Security by default
-		externalprovider.WithAutoUserCreation(false),    // Security by default
+		externalprovider.WithUserCreationEnabled(true), // Security by default
+		externalprovider.WithAutoUserCreation(true),    // Security by default
+		externalprovider.WithLoginsService(loginsService),
+		externalprovider.WithIamService(iamService),
+		externalprovider.WithRoleService(roleService),
+		externalprovider.WithDefaultRole(config.ExternalProviderConfig.DefaultRole), // Assign default role to new users
 	)
 
 	// Create external provider API handler
