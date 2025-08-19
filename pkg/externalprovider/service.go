@@ -414,11 +414,16 @@ func (s *ExternalProviderService) parseUserInfo(provider *ExternalProvider, data
 // findOrCreateUser finds an existing user by email or creates a new one
 func (s *ExternalProviderService) findOrCreateUser(ctx context.Context, userInfo *ExternalUserInfo) (*login.LoginResult, error) {
 	// Try to find existing user by email
-	loginResult, err := s.loginService.LoginByEmail(ctx, userInfo.Email, "")
+	loginEntity, err := s.loginService.FindLoginByEmail(ctx, userInfo.Email)
 	if err == nil {
 		// User found, return successful login
 		slog.Info("Existing user found for external login", "email", userInfo.Email, "provider", userInfo.ProviderID)
-		return &loginResult, nil
+		users, err := s.userMapper.FindUsersByLoginID(ctx, loginEntity.ID)
+		if err != nil {
+			slog.Error("Failed to find users by login ID", "error", err, "login_id", loginEntity.ID)
+			return nil, fmt.Errorf("failed to find users by login ID: %w", err)
+		}
+		return &login.LoginResult{Success: true, LoginID: loginEntity.ID, Users: users}, nil
 	}
 
 	// User not found, check if user creation is enabled
@@ -518,7 +523,7 @@ func (s *ExternalProviderService) findOrCreateUser(ctx context.Context, userInfo
 		return nil, fmt.Errorf("failed to get user information after creation: %w", err)
 	}
 
-	loginResult = login.LoginResult{
+	loginResult := login.LoginResult{
 		Users:   users,
 		LoginID: loginID,
 		Success: true,
