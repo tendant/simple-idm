@@ -358,9 +358,6 @@ func main() {
 	// Initialize External Provider repository and service
 	externalProviderRepository := externalprovider.NewInMemoryExternalProviderRepository()
 
-	// Configure external providers based on environment variables
-	setupExternalProviders(externalProviderRepository, &config.ExternalProviderConfig)
-
 	// Create external provider service
 	slog.Info("Configuring external provider service",
 		"user_creation_enabled", true,
@@ -382,6 +379,9 @@ func main() {
 		externalprovider.WithRoleService(roleService),
 		externalprovider.WithDefaultRole(config.ExternalProviderConfig.DefaultRole), // Assign default role to new users
 	)
+
+	// Configure external providers based on environment variables
+	setupExternalProviders(externalProviderService, &config.ExternalProviderConfig)
 
 	// Create external provider API handler
 	externalProviderHandle := externalProviderAPI.NewHandle(
@@ -515,7 +515,9 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 }
 
 // setupExternalProviders configures external OAuth2 providers based on environment variables
-func setupExternalProviders(repository externalprovider.ExternalProviderRepository, config *ExternalProviderConfig) {
+func setupExternalProviders(service *externalprovider.ExternalProviderService, config *ExternalProviderConfig) {
+	ctx := context.Background()
+
 	// Configure Google OAuth2 provider
 	if config.GoogleEnabled && config.GoogleClientID != "" && config.GoogleClientSecret != "" {
 		googleProvider := &externalprovider.ExternalProvider{
@@ -538,7 +540,7 @@ func setupExternalProviders(repository externalprovider.ExternalProviderReposito
 			"client_secret_length", len(config.GoogleClientSecret),
 			"enabled", config.GoogleEnabled)
 
-		err := repository.CreateProvider(googleProvider)
+		err := service.CreateProvider(ctx, googleProvider)
 		if err != nil {
 			slog.Error("Failed to create Google provider", "error", err)
 		} else {
@@ -570,7 +572,7 @@ func setupExternalProviders(repository externalprovider.ExternalProviderReposito
 			Description:  "Sign in with your Microsoft account",
 		}
 
-		err := repository.CreateProvider(microsoftProvider)
+		err := service.CreateProvider(ctx, microsoftProvider)
 		if err != nil {
 			slog.Error("Failed to create Microsoft provider", "error", err)
 		} else {
@@ -595,7 +597,7 @@ func setupExternalProviders(repository externalprovider.ExternalProviderReposito
 			Description:  "Sign in with your GitHub account",
 		}
 
-		err := repository.CreateProvider(githubProvider)
+		err := service.CreateProvider(ctx, githubProvider)
 		if err != nil {
 			slog.Error("Failed to create GitHub provider", "error", err)
 		} else {
@@ -620,7 +622,7 @@ func setupExternalProviders(repository externalprovider.ExternalProviderReposito
 			Description:  "Sign in with your LinkedIn account",
 		}
 
-		err := repository.CreateProvider(linkedinProvider)
+		err := service.CreateProvider(ctx, linkedinProvider)
 		if err != nil {
 			slog.Error("Failed to create LinkedIn provider", "error", err)
 		} else {
