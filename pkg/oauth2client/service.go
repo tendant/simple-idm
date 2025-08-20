@@ -74,3 +74,43 @@ func (s *ClientService) ListClients() map[string]*OAuth2Client {
 
 	return clientMap
 }
+
+// CreateClient creates a new OAuth2 client
+func (s *ClientService) CreateClient(ctx context.Context, client *OAuth2Client) error {
+	return s.repository.CreateClient(ctx, client)
+}
+
+// UpdateClient updates an existing OAuth2 client
+func (s *ClientService) UpdateClient(ctx context.Context, client *OAuth2Client) error {
+	return s.repository.UpdateClient(ctx, client)
+}
+
+// DeleteClient removes an OAuth2 client by client ID
+func (s *ClientService) DeleteClient(ctx context.Context, clientID string) error {
+	return s.repository.DeleteClient(ctx, clientID)
+}
+
+// ClientExists checks if a client with the given ID exists
+func (s *ClientService) ClientExists(ctx context.Context, clientID string) (bool, error) {
+	return s.repository.ClientExists(ctx, clientID)
+}
+
+// GetClientCount returns the total number of registered clients
+func (s *ClientService) GetClientCount(ctx context.Context) (int64, error) {
+	return s.repository.GetClientCount(ctx)
+}
+
+// GetClientsByType returns clients filtered by type (public/confidential)
+func (s *ClientService) GetClientsByType(ctx context.Context, clientType string) ([]*OAuth2Client, error) {
+	return s.repository.GetClientsByType(ctx, clientType)
+}
+
+// GetClientsByRedirectURI finds clients that have the specified redirect URI
+func (s *ClientService) GetClientsByRedirectURI(ctx context.Context, redirectURI string) ([]*OAuth2Client, error) {
+	return s.repository.GetClientsByRedirectURI(ctx, redirectURI)
+}
+
+// GetClientsByScope finds clients that support the specified scope
+func (s *ClientService) GetClientsByScope(ctx context.Context, scope string) ([]*OAuth2Client, error) {
+	return s.repository.GetClientsByScope(ctx, scope)
+}
