@@ -246,6 +246,41 @@ func (s *ExternalProviderService) GetEnabledProviders(ctx context.Context) (map[
 	return s.repository.GetEnabledProviders()
 }
 
+// CreateProvider creates a new external provider
+func (s *ExternalProviderService) CreateProvider(ctx context.Context, provider *ExternalProvider) error {
+	return s.repository.CreateProvider(provider)
+}
+
+// UpdateProvider updates an existing external provider
+func (s *ExternalProviderService) UpdateProvider(ctx context.Context, provider *ExternalProvider) error {
+	return s.repository.UpdateProvider(provider)
+}
+
+// DeleteProvider deletes an external provider
+func (s *ExternalProviderService) DeleteProvider(ctx context.Context, providerID string) error {
+	return s.repository.DeleteProvider(providerID)
+}
+
+// EnableProvider enables an external provider
+func (s *ExternalProviderService) EnableProvider(ctx context.Context, providerID string) error {
+	return s.repository.EnableProvider(providerID)
+}
+
+// DisableProvider disables an external provider
+func (s *ExternalProviderService) DisableProvider(ctx context.Context, providerID string) error {
+	return s.repository.DisableProvider(providerID)
+}
+
+// GetProvider retrieves a provider by ID
+func (s *ExternalProviderService) GetProvider(ctx context.Context, providerID string) (*ExternalProvider, error) {
+	return s.repository.GetProvider(providerID)
+}
+
+// GetAllProviders returns all providers
+func (s *ExternalProviderService) GetAllProviders(ctx context.Context) (map[string]*ExternalProvider, error) {
+	return s.repository.GetAllProviders()
+}
+
 // generateSecureState generates a cryptographically secure random state parameter
 func (s *ExternalProviderService) generateSecureState() (string, error) {
 	bytes := make([]byte, 32)
