@@ -77,6 +77,12 @@ type LoginResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// MagicLinkEmailLoginRequest defines model for MagicLinkEmailLoginRequest.
+type MagicLinkEmailLoginRequest struct {
+	// Email address to send magic link to
+	Email openapi_types.Email `json:"email"`
+}
+
 // MagicLinkLoginRequest defines model for MagicLinkLoginRequest.
 type MagicLinkLoginRequest struct {
 	// Username or email to send magic link to
@@ -128,6 +134,12 @@ type PasswordReset struct {
 type PasswordResetInit struct {
 	// Username of the account to reset password for
 	Username string `json:"username"`
+}
+
+// PasswordResetInitByEmail defines model for PasswordResetInitByEmail.
+type PasswordResetInitByEmail struct {
+	// Email address of the account to reset password for
+	Email openapi_types.Email `json:"email"`
 }
 
 // RegisterRequest defines model for RegisterRequest.
@@ -230,8 +242,19 @@ type PostLoginJSONBody struct {
 	Username string `json:"username"`
 }
 
+// LoginByEmailJSONBody defines parameters for LoginByEmail.
+type LoginByEmailJSONBody struct {
+	// 2FA verification code if enabled
+	Code     string              `json:"code,omitempty"`
+	Email    openapi_types.Email `json:"email"`
+	Password string              `json:"password"`
+}
+
 // InitiateMagicLinkLoginJSONBody defines parameters for InitiateMagicLinkLogin.
 type InitiateMagicLinkLoginJSONBody MagicLinkLoginRequest
+
+// InitiateMagicLinkLoginByEmailJSONBody defines parameters for InitiateMagicLinkLoginByEmail.
+type InitiateMagicLinkLoginByEmailJSONBody MagicLinkEmailLoginRequest
 
 // ValidateMagicLinkTokenParams defines parameters for ValidateMagicLinkToken.
 type ValidateMagicLinkTokenParams struct {
@@ -295,6 +318,9 @@ type PostPasswordResetJSONBody PasswordReset
 // PostPasswordResetInitJSONBody defines parameters for PostPasswordResetInit.
 type PostPasswordResetInitJSONBody PasswordResetInit
 
+// InitiatePasswordResetByEmailJSONBody defines parameters for InitiatePasswordResetByEmail.
+type InitiatePasswordResetByEmailJSONBody PasswordResetInitByEmail
+
 // GetPasswordResetPolicyParams defines parameters for GetPasswordResetPolicy.
 type GetPasswordResetPolicyParams struct {
 	// Password reset token
@@ -345,11 +371,27 @@ func (PostLoginJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
+// LoginByEmailJSONRequestBody defines body for LoginByEmail for application/json ContentType.
+type LoginByEmailJSONRequestBody LoginByEmailJSONBody
+
+// Bind implements render.Binder.
+func (LoginByEmailJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
 // InitiateMagicLinkLoginJSONRequestBody defines body for InitiateMagicLinkLogin for application/json ContentType.
 type InitiateMagicLinkLoginJSONRequestBody InitiateMagicLinkLoginJSONBody
 
 // Bind implements render.Binder.
 func (InitiateMagicLinkLoginJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// InitiateMagicLinkLoginByEmailJSONRequestBody defines body for InitiateMagicLinkLoginByEmail for application/json ContentType.
+type InitiateMagicLinkLoginByEmailJSONRequestBody InitiateMagicLinkLoginByEmailJSONBody
+
+// Bind implements render.Binder.
+func (InitiateMagicLinkLoginByEmailJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -406,6 +448,14 @@ type PostPasswordResetInitJSONRequestBody PostPasswordResetInitJSONBody
 
 // Bind implements render.Binder.
 func (PostPasswordResetInitJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// InitiatePasswordResetByEmailJSONRequestBody defines body for InitiatePasswordResetByEmail for application/json ContentType.
+type InitiatePasswordResetByEmailJSONRequestBody InitiatePasswordResetByEmailJSONBody
+
+// Bind implements render.Binder.
+func (InitiatePasswordResetByEmailJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -571,6 +621,48 @@ func PostLoginJSON429Response(body AccountLockedResponse) *Response {
 	}
 }
 
+// LoginByEmailJSON200Response is a constructor method for a LoginByEmail response.
+// A *Response is returned with the configured status code and content type from the spec.
+func LoginByEmailJSON200Response(body Login) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// LoginByEmailJSON202Response is a constructor method for a LoginByEmail response.
+// A *Response is returned with the configured status code and content type from the spec.
+func LoginByEmailJSON202Response(body interface{}) *Response {
+	return &Response{
+		body:        body,
+		Code:        202,
+		contentType: "application/json",
+	}
+}
+
+// LoginByEmailJSON400Response is a constructor method for a LoginByEmail response.
+// A *Response is returned with the configured status code and content type from the spec.
+func LoginByEmailJSON400Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        400,
+		contentType: "application/json",
+	}
+}
+
+// LoginByEmailJSON429Response is a constructor method for a LoginByEmail response.
+// A *Response is returned with the configured status code and content type from the spec.
+func LoginByEmailJSON429Response(body AccountLockedResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        429,
+		contentType: "application/json",
+	}
+}
+
 // InitiateMagicLinkLoginJSON200Response is a constructor method for a InitiateMagicLinkLogin response.
 // A *Response is returned with the configured status code and content type from the spec.
 func InitiateMagicLinkLoginJSON200Response(body struct {
@@ -586,6 +678,30 @@ func InitiateMagicLinkLoginJSON200Response(body struct {
 // InitiateMagicLinkLoginJSON400Response is a constructor method for a InitiateMagicLinkLogin response.
 // A *Response is returned with the configured status code and content type from the spec.
 func InitiateMagicLinkLoginJSON400Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        400,
+		contentType: "application/json",
+	}
+}
+
+// InitiateMagicLinkLoginByEmailJSON200Response is a constructor method for a InitiateMagicLinkLoginByEmail response.
+// A *Response is returned with the configured status code and content type from the spec.
+func InitiateMagicLinkLoginByEmailJSON200Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// InitiateMagicLinkLoginByEmailJSON400Response is a constructor method for a InitiateMagicLinkLoginByEmail response.
+// A *Response is returned with the configured status code and content type from the spec.
+func InitiateMagicLinkLoginByEmailJSON400Response(body struct {
 	Message *string `json:"message,omitempty"`
 }) *Response {
 	return &Response{
@@ -763,6 +879,18 @@ func PostPasswordResetInitJSON200Response(body struct {
 	}
 }
 
+// InitiatePasswordResetByEmailJSON200Response is a constructor method for a InitiatePasswordResetByEmail response.
+// A *Response is returned with the configured status code and content type from the spec.
+func InitiatePasswordResetByEmailJSON200Response(body struct {
+	Message *string `json:"message,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // GetPasswordResetPolicyJSON200Response is a constructor method for a GetPasswordResetPolicy response.
 // A *Response is returned with the configured status code and content type from the spec.
 func GetPasswordResetPolicyJSON200Response(body PasswordPolicyResponse) *Response {
@@ -869,9 +997,15 @@ type ServerInterface interface {
 	// Login a user
 	// (POST /login)
 	PostLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Login using email address
+	// (POST /login/email)
+	LoginByEmail(w http.ResponseWriter, r *http.Request) *Response
 	// Initiate magic link login
 	// (POST /login/magic-link)
 	InitiateMagicLinkLogin(w http.ResponseWriter, r *http.Request) *Response
+	// Initiate magic link login using email
+	// (POST /login/magic-link/email)
+	InitiateMagicLinkLoginByEmail(w http.ResponseWriter, r *http.Request) *Response
 	// Validate magic link token
 	// (GET /login/magic-link/validate)
 	ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, params ValidateMagicLinkTokenParams) *Response
@@ -902,6 +1036,9 @@ type ServerInterface interface {
 	// Initiate password reset using username
 	// (POST /password/reset/init)
 	PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response
+	// Initiate password reset using email address
+	// (POST /password/reset/init/email)
+	InitiatePasswordResetByEmail(w http.ResponseWriter, r *http.Request) *Response
 	// Get password reset policy
 	// (GET /password/reset/policy)
 	GetPasswordResetPolicy(w http.ResponseWriter, r *http.Request, params GetPasswordResetPolicyParams) *Response
@@ -1018,12 +1155,48 @@ func (siw *ServerInterfaceWrapper) PostLogin(w http.ResponseWriter, r *http.Requ
 	handler(w, r.WithContext(ctx))
 }
 
+// LoginByEmail operation middleware
+func (siw *ServerInterfaceWrapper) LoginByEmail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.LoginByEmail(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
 // InitiateMagicLinkLogin operation middleware
 func (siw *ServerInterfaceWrapper) InitiateMagicLinkLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.InitiateMagicLinkLogin(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// InitiateMagicLinkLoginByEmail operation middleware
+func (siw *ServerInterfaceWrapper) InitiateMagicLinkLoginByEmail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.InitiateMagicLinkLoginByEmail(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -1234,6 +1407,24 @@ func (siw *ServerInterfaceWrapper) PostPasswordResetInit(w http.ResponseWriter, 
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.PostPasswordResetInit(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// InitiatePasswordResetByEmail operation middleware
+func (siw *ServerInterfaceWrapper) InitiatePasswordResetByEmail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.InitiatePasswordResetByEmail(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -1485,7 +1676,9 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Get("/device/expiration", wrapper.GetDeviceExpiration)
 		r.Post("/email/verify", wrapper.PostEmailVerify)
 		r.Post("/login", wrapper.PostLogin)
+		r.Post("/login/email", wrapper.LoginByEmail)
 		r.Post("/login/magic-link", wrapper.InitiateMagicLinkLogin)
+		r.Post("/login/magic-link/email", wrapper.InitiateMagicLinkLoginByEmail)
 		r.Get("/login/magic-link/validate", wrapper.ValidateMagicLinkToken)
 		r.Post("/logout", wrapper.PostLogout)
 		r.Post("/mobile/2fa/send", wrapper.PostMobile2faSend)
@@ -1496,6 +1689,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 		r.Get("/mobile/users", wrapper.MobileFindUsersWithLogin)
 		r.Post("/password/reset", wrapper.PostPasswordReset)
 		r.Post("/password/reset/init", wrapper.PostPasswordResetInit)
+		r.Post("/password/reset/init/email", wrapper.InitiatePasswordResetByEmail)
 		r.Get("/password/reset/policy", wrapper.GetPasswordResetPolicy)
 		r.Post("/register", wrapper.PostRegister)
 		r.Post("/token/refresh", wrapper.PostTokenRefresh)
@@ -1527,56 +1721,58 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"AwAA///hhghI3koAAA==",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

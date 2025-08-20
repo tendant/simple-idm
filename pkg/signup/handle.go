@@ -72,7 +72,6 @@ func WithDefaultRole(role string) Option {
 }
 
 // RegisterUser handles user registration with optional invitation code
-// 2025-06-10: Designed for sales demo instance to allow user to register with optional invitation code
 func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 	if !h.registrationEnabled {
 		return &Response{
@@ -224,12 +223,18 @@ func (h Handle) RegisterUserPasswordless(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Validate required fields
-	if request.Username == "" || request.Fullname == "" || request.Email == "" {
-		slog.Error("Full name, username, and email are required")
+	if request.Email == "" {
+		slog.Error("Email is required")
 		return &Response{
 			Code: http.StatusBadRequest,
-			body: "Full name, username, and email are required",
+			body: "Email is required",
 		}
+	}
+
+	// If username is empty, use email
+	if request.Username == "" {
+		request.Username = request.Email
+		slog.Info("Username is empty, using email as username", "email", request.Email)
 	}
 
 	// Determine role based on invitation code

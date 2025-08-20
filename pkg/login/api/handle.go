@@ -167,21 +167,16 @@ func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.
 func (h *DefaultResponseHandler) PrepareUserListResponse(users []mapper.User) *Response {
 	var apiUsers []User
 	for _, user := range users {
-		email, _ := user.ExtraClaims["email"].(string)
+		email := user.UserInfo.Email
 		// Check if email is available in UserInfo
 		if user.UserInfo.Email != "" {
 			email = user.UserInfo.Email
 		}
 
-		role := ""
-		if len(user.Roles) > 0 {
-			role = user.Roles[0]
-		}
-
 		apiUsers = append(apiUsers, User{
 			ID:    user.UserId,
 			Name:  user.DisplayName,
-			Role:  role,
+			Role:  user.ExtraClaims["roles"].([]string)[0],
 			Email: email,
 		})
 	}
@@ -192,21 +187,16 @@ func (h *DefaultResponseHandler) PrepareUserListResponse(users []mapper.User) *R
 func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) *Response {
 	var apiUsers []User
 	for _, user := range users {
-		email, _ := user.ExtraClaims["email"].(string)
+		email := user.UserInfo.Email
 		// Check if email is available in UserInfo
 		if user.UserInfo.Email != "" {
 			email = user.UserInfo.Email
 		}
 
-		role := ""
-		if len(user.Roles) > 0 {
-			role = user.Roles[0]
-		}
-
 		apiUsers = append(apiUsers, User{
 			ID:    user.UserId,
 			Name:  user.DisplayName,
-			Role:  role,
+			Role:  user.ExtraClaims["roles"].([]string)[0],
 			Email: email,
 		})
 	}
@@ -477,10 +467,207 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 	apiUsers := make([]User, len(idmUsers))
 	for i, mu := range idmUsers {
 		// Extract email and name from claims
-		email, _ := mu.ExtraClaims["email"].(string)
+		email := mu.UserInfo.Email
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
+			ID:    mu.UserId,
+			Name:  name,
+			Email: email,
+			Role:  mu.ExtraClaims["roles"].([]string)[0],
+		}
+	}
+
+	// Check if 2FA is enabled for current login
+	loginID, err := uuid.Parse(idmUsers[0].LoginID)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "loginID", idmUsers[0].LoginID, "error", err)
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		return &Response{
+			body: "Invalid login ID",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	// Check if the device is recognized for this login
+	deviceRecognized := false
+
+	if fingerprintStr != "" {
+		// Check if this device is linked to the login
+		loginDevice, err := h.deviceService.FindLoginDeviceByFingerprintAndLoginID(r.Context(), fingerprintStr, loginID)
+		if err == nil && !loginDevice.IsExpired() {
+			// Device is recognized and not expired, skip 2FA
+			slog.Info("Device recognized, skipping 2FA", "fingerprint", fingerprintStr, "loginID", loginID)
+			deviceRecognized = true
+		}
+	}
+
+	if !deviceRecognized {
+		// Check if 2FA is enabled
+		enabled, commonMethods, tempToken, err := common.Check2FAEnabled(
+			r.Context(),
+			w,
+			loginID,
+			idmUsers,
+			h.twoFactorService,
+			h.tokenService,
+			h.tokenCookieService,
+			false, // Not associate user in this API
+		)
+		if err != nil {
+			slog.Error("Failed to check 2FA", "err", err)
+			// Record failed login attempt
+			h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+			return &Response{
+				body: err.Error(),
+				Code: http.StatusInternalServerError,
+			}
+		}
+
+		if enabled {
+			// Return 2FA required response
+			return h.prepare2FARequiredResponse(commonMethods, tempToken)
+		}
+	}
+
+	// Check if there are multiple users
+	isMultipleUsers, tempToken, err := h.checkMultipleUsers(r.Context(), w, loginID, idmUsers)
+	if err != nil {
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		return &Response{
+			body: err.Error(),
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	if isMultipleUsers {
+		// Prepare user selection response
+		respBody := h.responseHandler.PrepareUserSelectionResponse(idmUsers, loginID, tempToken.Token)
+		return respBody
+	}
+
+	// Create JWT tokens using the JwtService
+	rootModifications, extraClaims := h.loginService.ToTokenClaims(tokenUser)
+
+	tokens, err := h.tokenService.GenerateTokens(tokenUser.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to set access token cookie", "err", err)
+		return &Response{
+			body: "Failed to set access token cookie",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	// Set tokens in cookies
+	err = h.tokenCookieService.SetTokensCookie(w, tokens)
+	if err != nil {
+		slog.Error("Failed to set access token cookie", "err", err)
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		return &Response{
+			body: "Failed to set access token cookie",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	// Record successful login attempt
+	h.recordSuccessfulLoginAndUpdateDevice(r.Context(), loginID, ipAddress, userAgent, fingerprintStr)
+
+	// Create response with user information
+	response := Login{
+		Status:  STATUS_SUCCESS,
+		Message: "Login successful",
+		User:    apiUsers[0],
+		Users:   apiUsers,
+	}
+
+	return PostLoginJSON200Response(response)
+}
+
+// 2025-08-11: Added a set of functions to handle login by email
+// LoginByEmail handles email-based login
+// (POST /login/email)
+func (h Handle) LoginByEmail(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
+	data := LoginByEmailJSONRequestBody{}
+	if err := render.DecodeJSON(r.Body, &data); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+
+	// Log email and hashed password
+	passwordHash := fmt.Sprintf("%x", sha256.Sum256([]byte(data.Password)))
+	slog.Info("Email login request", "email", data.Email, "password_hash", passwordHash)
+
+	// Get IP address and user agent for login attempt recording
+	ipAddress := getIPAddressFromRequest(r)
+	userAgent := getUserAgentFromRequest(r)
+	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+	fingerprintStr := device.GenerateFingerprint(fingerprintData)
+
+	// Call login service with email
+	loginResult, err := h.loginService.LoginByEmail(r.Context(), string(data.Email), data.Password)
+
+	if err != nil {
+		slog.Error("Email login failed", "err", err)
+
+		// Record the login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, loginResult.FailureReason)
+
+		// Check if this is an account lockout error
+		if login.IsAccountLockedError(err) {
+			// Return a standardized response for account lockout
+			lockoutDuration := h.loginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
+			return &Response{
+				Code:        http.StatusTooManyRequests, // 429 is appropriate for rate limiting/lockout
+				body:        "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
+				contentType: "application/json",
+			}
+		}
+
+		// Check if this is a password expiration error
+		if strings.Contains(err.Error(), "password has expired") {
+			return &Response{
+				Code:        http.StatusForbidden,
+				body:        "Your password has expired and must be changed before you can log in.",
+				contentType: "application/json",
+			}
+		}
+
+		return &Response{
+			body: "Email/Password is wrong",
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	idmUsers := loginResult.Users
+	if len(idmUsers) == 0 {
+		slog.Error("No user found after email login")
+		// Record failed login attempt
+		h.loginService.RecordLoginAttempt(r.Context(), loginResult.LoginID, ipAddress, userAgent, fingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
+		return &Response{
+			body: "Account not active",
+			Code: http.StatusForbidden,
+		}
+	}
+
+	// Get the first user
+	tokenUser := idmUsers[0]
+	// Convert mapped users to API users
+	apiUsers := make([]User, len(idmUsers))
+	for i, mu := range idmUsers {
+		// Extract email and name from claims
+		email := mu.UserInfo.Email
+		name := mu.DisplayName
+
+		apiUsers[i] = User{
+			Role:  mu.ExtraClaims["roles"].([]string)[0], // Assuming roles is a slice of strings
 			ID:    mu.UserId,
 			Name:  name,
 			Email: email,
@@ -592,7 +779,93 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		Users:   apiUsers,
 	}
 
-	return PostLoginJSON200Response(response)
+	return LoginByEmailJSON200Response(response)
+}
+
+// 2025-08-11: Added a set of functions to handle login by email
+// InitiateMagicLinkLoginByEmail handles requests for magic link login using email
+// (POST /login/magic-link/email)
+func (h Handle) InitiateMagicLinkLoginByEmail(w http.ResponseWriter, r *http.Request) *Response {
+	// Parse request body
+	var request MagicLinkEmailLoginRequest
+	if err := render.DecodeJSON(r.Body, &request); err != nil {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Unable to parse request body",
+		}
+	}
+
+	// Generate magic link token using email
+	token, email, err := h.loginService.GenerateMagicLinkTokenByEmail(r.Context(), string(request.Email))
+	if err != nil {
+		// Return success even if user not found to prevent email enumeration
+		return &Response{
+			Code: http.StatusOK,
+			body: map[string]string{
+				"message": "If an account exists with that email, we will send a login link to it.",
+			},
+			contentType: "application/json",
+		}
+	}
+
+	// Send magic link email
+	err = h.loginService.SendMagicLinkEmail(r.Context(), login.SendMagicLinkEmailParams{
+		Email:    email,
+		Token:    token,
+		Username: string(request.Email), // Use email as username for the email template
+	})
+	if err != nil {
+		slog.Error("Failed to send magic link email", "error", err)
+		// Return success anyway to prevent email enumeration
+	}
+
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"message": "If an account exists with that email, we will send a login link to it.",
+		},
+		contentType: "application/json",
+	}
+}
+
+// 2025-08-11: Added a set of functions to handle login by email
+// InitiatePasswordResetByEmail handles password reset requests using email
+// (POST /password/reset/init/email)
+func (h Handle) InitiatePasswordResetByEmail(w http.ResponseWriter, r *http.Request) *Response {
+	var body InitiatePasswordResetByEmailJSONRequestBody
+
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		slog.Error("Failed extracting email", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Failed extracting email",
+		}
+	}
+
+	if body.Email == "" {
+		return &Response{
+			body: map[string]string{
+				"message": "Email is required",
+			},
+			Code:        400,
+			contentType: "application/json",
+		}
+	}
+
+	err = h.loginService.InitPasswordResetByEmail(r.Context(), string(body.Email))
+	if err != nil {
+		// Log the error but return 200 to prevent email enumeration
+		slog.Error("Failed to init password reset for email", "err", err, "email", body.Email)
+	}
+
+	return &Response{
+		body: map[string]string{
+			"message": "If an account exists with that email, we will send password reset instructions to it.",
+		},
+		Code:        http.StatusOK,
+		contentType: "application/json",
+	}
 }
 
 func (h Handle) PostPasswordResetInit(w http.ResponseWriter, r *http.Request) *Response {
@@ -2247,13 +2520,14 @@ func (h Handle) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, p
 	// Create response with user information
 	apiUsers := make([]User, len(loginResult.Users))
 	for i, mu := range loginResult.Users {
-		email, _ := mu.ExtraClaims["email"].(string)
+		email := mu.UserInfo.Email
 		name := mu.DisplayName
 
 		apiUsers[i] = User{
 			ID:    mu.UserId,
 			Name:  name,
 			Email: email,
+			Role:  mu.ExtraClaims["role"].(string),
 		}
 	}
 

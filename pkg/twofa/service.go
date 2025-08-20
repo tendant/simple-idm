@@ -164,7 +164,9 @@ func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId, userId
 		// send the passcode by sms
 		err = s.SendTwofaPasscodeSms(ctx, phone, passcode, userId)
 		if err != nil {
-			return fmt.Errorf("failed to send 2FA passcode: %w", err)
+			// do not block the login flow if sms sending fails
+			slog.Warn("Failed to send 2FA passcode via SMS", "error", err, "phone", phone)
+			return nil
 		}
 	}
 

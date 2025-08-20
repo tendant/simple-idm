@@ -257,6 +257,30 @@ func (s *LoginService) FindLoginByUsername(ctx context.Context, username string)
 	return login, nil
 }
 
+// FindLoginByEmail finds a login by email address (returns the primary login)
+func (s *LoginService) FindLoginByEmail(ctx context.Context, email string) (LoginEntity, error) {
+	login, err := s.repository.FindPrimaryLoginByEmail(ctx, email)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			slog.Error("no login found with email", "err", err, "email", email)
+			return LoginEntity{}, fmt.Errorf("invalid email or password")
+		}
+		slog.Error("error finding login with email", "err", err, "email", email)
+		return LoginEntity{}, fmt.Errorf("error finding user: %w", err)
+	}
+	return login, nil
+}
+
+// FindLoginsByEmail finds all logins associated with an email address
+func (s *LoginService) FindLoginsByEmail(ctx context.Context, email string) ([]LoginEntity, error) {
+	logins, err := s.repository.FindLoginsByEmail(ctx, email)
+	if err != nil {
+		slog.Error("error finding logins with email", "err", err, "email", email)
+		return nil, fmt.Errorf("error finding logins: %w", err)
+	}
+	return logins, nil
+}
+
 func (s *LoginService) Login(ctx context.Context, username, password string) (LoginResult, error) {
 	result := LoginResult{
 		Success: false,
@@ -367,6 +391,224 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 	result.Users = users
 
 	return result, nil
+}
+
+// 2025-08-11: Added a set of functions to handle login by email
+// LoginByEmail performs login using email address instead of username
+func (s *LoginService) LoginByEmail(ctx context.Context, email, password string) (LoginResult, error) {
+	result := LoginResult{
+		Success: false,
+	}
+
+	// Find login by email
+	// 2025-08-11: For now we only support one login per email if using login by email
+	login, err := s.FindLoginByEmail(ctx, email)
+	if err != nil {
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		return result, fmt.Errorf("error finding login: %w", err)
+	}
+
+	// Set the login ID in the result
+	result.LoginID = login.ID
+
+	// Check if account is locked
+	isLocked, err := s.repository.IsAccountLocked(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to check if account is locked", "err", err)
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		return result, err
+	}
+
+	if isLocked {
+		// Get the locked until time
+		_, _, lockedUntil, err := s.repository.GetFailedLoginAttempts(ctx, login.ID)
+		if err != nil {
+			slog.Error("Failed to get account lock details", "err", err)
+			// If we can't get the lock details, use a default duration
+			lockedUntil = time.Now().Add(s.lockoutDuration)
+		}
+
+		// Set failure information
+		result.FailureReason = FAILURE_REASON_ACCOUNT_LOCKED
+		result.LockedUntil = lockedUntil
+		slog.Info("account locked", "login id", login.ID, "locked until", lockedUntil)
+
+		return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
+	}
+
+	// Reset failed login attempts and locked until time if locked until time is not zero
+	_, _, lockedUntil, err := s.repository.GetFailedLoginAttempts(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to get failed login attempts", "err", err)
+	}
+	if !lockedUntil.IsZero() {
+		err := s.repository.ResetFailedLoginAttempts(ctx, login.ID)
+		if err != nil {
+			slog.Error("Failed to reset failed login attempts", "err", err)
+		}
+	}
+
+	// Verify password
+	valid, err := s.CheckPasswordByLoginId(ctx, login.ID, password, string(login.Password))
+	if err != nil {
+		slog.Error("Failed to check password", "err", err)
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		return result, err
+	}
+	if !valid {
+		slog.Error("invalid email or password from check password by login id")
+
+		// Set failure information
+		result.FailureReason = FAILURE_REASON_INVALID_CREDENTIALS
+
+		// Increment failed login attempts counter
+		locked, _, err := s.IncrementFailedAttemptsAndCheckLock(ctx, login.ID)
+		if err != nil {
+			slog.Error("Failed to increment failed login attempts", "err", err)
+		}
+		if locked {
+			_, _, lockedUntil, _ := s.repository.GetFailedLoginAttempts(ctx, login.ID)
+			return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
+		}
+
+		return result, fmt.Errorf("invalid email or password")
+	}
+	slog.Info("password valid", "login id", login.ID)
+
+	// Check if password is expired
+	isExpired, err := s.passwordManager.IsPasswordExpired(ctx, login.ID.String())
+	if err != nil {
+		slog.Error("Failed to check password expiration", "err", err)
+		// Don't block login if we can't check expiration
+	} else if isExpired {
+		slog.Info("password expired", "login id", login.ID)
+		result.FailureReason = FAILURE_REASON_PASSWORD_EXPIRED
+		return result, fmt.Errorf("password has expired and must be changed")
+	}
+	slog.Info("password not expired", "login id", login.ID)
+
+	// Get users associated with this login ID using the UserRepository
+	users, err := s.userMapper.FindUsersByLoginID(ctx, login.ID)
+	if err != nil {
+		slog.Error("error getting users by login ID", "err", err)
+		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		return result, fmt.Errorf("error getting user information: %w", err)
+	}
+
+	// If login is successful, reset failed login attempts
+	err = s.repository.ResetFailedLoginAttempts(ctx, login.ID)
+	if err != nil {
+		slog.Error("Failed to reset failed login attempts", "err", err)
+	}
+
+	// Set success information
+	result.Success = true
+	result.Users = users
+
+	return result, nil
+}
+
+// 2025-08-11: Added a set of functions to handle login by email
+// InitPasswordResetByEmail generates a reset token and sends a reset email using email address
+func (s *LoginService) InitPasswordResetByEmail(ctx context.Context, email string) error {
+	// Find logins by email (there might be multiple)
+	logins, err := s.FindLoginsByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+
+	if len(logins) == 0 {
+		// Return success even if no logins found to prevent email enumeration
+		slog.Info("No logins found for email", "email", email)
+		return nil
+	}
+
+	// Track emails that have already been sent to
+	sentEmails := make(map[string]bool)
+
+	// Process each login associated with the email
+	for _, loginEntity := range logins {
+		// Get user info with roles
+		users, err := s.userMapper.FindUsersByLoginID(ctx, loginEntity.ID)
+		if err != nil || len(users) == 0 {
+			slog.Error("Error finding user info for login", "loginID", loginEntity.ID, "err", err)
+			continue
+		}
+
+		// Generate reset token using password manager
+		resetToken, err := s.passwordManager.InitPasswordReset(ctx, loginEntity.ID)
+		if err != nil {
+			slog.Error("Error generating reset token for login", "loginID", loginEntity.ID, "err", err)
+			continue
+		}
+
+		// Send password reset email to each user
+		for _, user := range users {
+			if user.UserInfo.Email == "" {
+				continue
+			}
+
+			// Skip if we've already sent to this email
+			if sentEmails[user.UserInfo.Email] {
+				continue
+			}
+
+			err = s.SendPasswordResetEmail(ctx, SendPasswordResetEmailParams{
+				Email:      user.UserInfo.Email,
+				UserId:     user.UserId,
+				ResetToken: resetToken,
+				Username:   loginEntity.Username, // Use the username from the login entity
+			})
+			if err != nil {
+				slog.Error("Error sending password reset email", "err", err, "user", user.UserId)
+			}
+
+			// Mark this email as sent
+			sentEmails[user.UserInfo.Email] = true
+		}
+	}
+
+	return nil
+}
+
+// 2025-08-11: Added a set of functions to handle login by email
+// GenerateMagicLinkTokenByEmail generates a token for magic link login using email address
+func (s *LoginService) GenerateMagicLinkTokenByEmail(ctx context.Context, email string) (string, string, error) {
+	// Find login by email (use primary login)
+	// 2025-08-11: For now we only support one login per email if using email to generate magic link login
+	login, err := s.FindLoginByEmail(ctx, email)
+	if err != nil {
+		return "", "", fmt.Errorf("user not found: %w", err)
+	}
+
+	// Check if this is a passwordless account
+	_, err = s.repository.IsPasswordlessLogin(ctx, login.ID)
+	if err != nil {
+		slog.Warn("Failed to check if account is passwordless", "error", err)
+		// Continue anyway, as we'll allow magic link login for all accounts
+	}
+
+	// Generate a secure random token
+	token := utils.GenerateRandomString(32)
+
+	// Set expiration time using the configurable duration
+	expiresAt := time.Now().UTC().Add(s.magicLinkTokenExpiration)
+
+	// Store the token in the database
+	err = s.repository.GenerateMagicLinkToken(ctx, login.ID, token, expiresAt)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate magic link token: %w", err)
+	}
+
+	// Get user's email
+	users, err := s.userMapper.FindUsersByLoginID(ctx, login.ID)
+	if err != nil || len(users) == 0 {
+		return "", "", fmt.Errorf("failed to find user info: %w", err)
+	}
+
+	userEmail := users[0].UserInfo.Email
+
+	return token, userEmail, nil
 }
 
 type RegisterParam struct {

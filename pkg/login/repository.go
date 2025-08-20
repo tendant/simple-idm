@@ -126,6 +126,11 @@ type LoginAttempt struct {
 type LoginRepository interface {
 	// Login operations
 	FindLoginByUsername(ctx context.Context, username string, usernameValid bool) (LoginEntity, error)
+
+	// 2025-08-11: Added a set of functions to handle login by email
+	FindLoginsByEmail(ctx context.Context, email string) ([]LoginEntity, error)
+	FindPrimaryLoginByEmail(ctx context.Context, email string) (LoginEntity, error)
+
 	GetLoginById(ctx context.Context, id uuid.UUID) (LoginEntity, error)
 
 	// Password operations
@@ -213,6 +218,57 @@ func NewPostgresLoginRepository(queries *logindb.Queries) *PostgresLoginReposito
 func (r *PostgresLoginRepository) FindLoginByUsername(ctx context.Context, username string, usernameValid bool) (LoginEntity, error) {
 	sqlUsername := sql.NullString{String: username, Valid: usernameValid}
 	dbLogin, err := r.queries.FindLoginByUsername(ctx, sqlUsername)
+	if err != nil {
+		return LoginEntity{}, err
+	}
+	return LoginEntity{
+		ID:                  dbLogin.ID,
+		Username:            dbLogin.Username.String,
+		UsernameValid:       dbLogin.Username.Valid,
+		Password:            dbLogin.Password,
+		PasswordVersion:     dbLogin.PasswordVersion.Int32,
+		CreatedAt:           dbLogin.CreatedAt,
+		UpdatedAt:           dbLogin.UpdatedAt,
+		FailedLoginAttempts: dbLogin.FailedLoginAttempts.Int32,
+		LastFailedAttemptAt: dbLogin.LastFailedAttemptAt.Time,
+		LockedUntil:         dbLogin.LockedUntil.Time,
+		PasswordUpdatedAt:   dbLogin.PasswordUpdatedAt.Time,
+		PasswordExpiresAt:   dbLogin.PasswordExpiresAt.Time,
+	}, nil
+}
+
+// 2025-08-11: Added a set of functions to handle login by email
+// FindLoginsByEmail finds all logins associated with an email address
+func (r *PostgresLoginRepository) FindLoginsByEmail(ctx context.Context, email string) ([]LoginEntity, error) {
+	dbLogins, err := r.queries.FindLoginsByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+
+	logins := make([]LoginEntity, len(dbLogins))
+	for i, dbLogin := range dbLogins {
+		logins[i] = LoginEntity{
+			ID:                  dbLogin.ID,
+			Username:            dbLogin.Username.String,
+			UsernameValid:       dbLogin.Username.Valid,
+			Password:            dbLogin.Password,
+			PasswordVersion:     dbLogin.PasswordVersion.Int32,
+			CreatedAt:           dbLogin.CreatedAt,
+			UpdatedAt:           dbLogin.UpdatedAt,
+			FailedLoginAttempts: dbLogin.FailedLoginAttempts.Int32,
+			LastFailedAttemptAt: dbLogin.LastFailedAttemptAt.Time,
+			LockedUntil:         dbLogin.LockedUntil.Time,
+			PasswordUpdatedAt:   dbLogin.PasswordUpdatedAt.Time,
+			PasswordExpiresAt:   dbLogin.PasswordExpiresAt.Time,
+		}
+	}
+	return logins, nil
+}
+
+// 2025-08-11: Added a set of functions to handle login by email
+// FindPrimaryLoginByEmail finds the primary login associated with an email address
+func (r *PostgresLoginRepository) FindPrimaryLoginByEmail(ctx context.Context, email string) (LoginEntity, error) {
+	dbLogin, err := r.queries.FindPrimaryLoginByEmail(ctx, email)
 	if err != nil {
 		return LoginEntity{}, err
 	}
