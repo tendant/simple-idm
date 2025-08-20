@@ -113,40 +113,10 @@ type InMemoryOAuth2ClientRepository struct {
 }
 
 // NewInMemoryOAuth2ClientRepository creates a new in-memory OAuth2 client repository
-// Pre-populated with the existing default clients
+// Starts empty - clients should be added through the service layer
 func NewInMemoryOAuth2ClientRepository() *InMemoryOAuth2ClientRepository {
 	repo := &InMemoryOAuth2ClientRepository{
 		clients: make(map[string]*OAuth2ClientEntity),
-	}
-
-	// Pre-populate with existing default clients
-	now := time.Now()
-	for clientID, client := range DefaultClients {
-		entity := &OAuth2ClientEntity{
-			OAuth2Client: &OAuth2Client{
-				ClientID:      client.ClientID,
-				ClientSecret:  client.ClientSecret,
-				ClientName:    client.ClientName,
-				RedirectURIs:  make([]string, len(client.RedirectURIs)),
-				ResponseTypes: make([]string, len(client.ResponseTypes)),
-				GrantTypes:    make([]string, len(client.GrantTypes)),
-				Scopes:        make([]string, len(client.Scopes)),
-				ClientType:    client.ClientType,
-			},
-			CreatedAt:   now,
-			UpdatedAt:   now,
-			CreatedBy:   "system",
-			IsActive:    true,
-			Description: "Default client",
-		}
-
-		// Deep copy slices to avoid shared references
-		copy(entity.RedirectURIs, client.RedirectURIs)
-		copy(entity.ResponseTypes, client.ResponseTypes)
-		copy(entity.GrantTypes, client.GrantTypes)
-		copy(entity.Scopes, client.Scopes)
-
-		repo.clients[clientID] = entity
 	}
 
 	return repo
