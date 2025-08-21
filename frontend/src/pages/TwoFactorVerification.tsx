@@ -315,7 +315,9 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
                               for={`method-${method.type}`}
                               class="ml-3 block text-sm font-medium text-gray-11"
                             >
-                              {method.display_name || method.type}
+                              {(method.display_name && method.display_name !== 'totp') 
+                                ? method.display_name 
+                                : (method.type === 'totp' ? 'Authenticator App' : method.type)}
                             </label>
                           </div>
                         )}
