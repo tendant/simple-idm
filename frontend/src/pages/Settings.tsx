@@ -44,6 +44,11 @@ const Settings: Component = () => {
   const [phoneSuccess, setPhoneSuccess] = createSignal<string | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = createSignal(false);
   const [userProfile, setUserProfile] = createSignal<any>(null);
+  
+  // TOTP setup state
+  const [totpSetupData, setTotpSetupData] = createSignal<any>(null);
+  const [totpVerificationCode, setTotpVerificationCode] = createSignal('');
+  const [isSettingUpTotp, setIsSettingUpTotp] = createSignal(false);
 
   const { request } = useApi();
 
@@ -533,6 +538,7 @@ const Settings: Component = () => {
                           >
                             <option value="email">Email</option>
                             <option value="sms">SMS</option>
+                            <option value="totp">Authenticator App (TOTP)</option>
                           </select>
                         </div>
                       </div>
@@ -544,11 +550,20 @@ const Settings: Component = () => {
                             setSuccess(null);
                             setIsLoading(true);
                             try {
-                              await twoFactorApi.setup2FAMethod(twoFactorType());
-                              setSuccess(`${twoFactorType().toUpperCase()} 2FA method added successfully`);
-                              setTwoFactorEnabled(true);
-                              setIsAddingMethod(false);
-                              fetch2FAMethods();
+                              const response = await twoFactorApi.setup2FAMethod(twoFactorType());
+                              
+                              // Check if this is a TOTP setup response
+                              if (response.result === 'totp_setup_required') {
+                                // TOTP setup flow - show QR code
+                                setTotpSetupData(response);
+                                setIsSettingUpTotp(true);
+                              } else {
+                                // Regular setup for email/SMS
+                                setSuccess(`${twoFactorType().toUpperCase()} 2FA method added successfully`);
+                                setTwoFactorEnabled(true);
+                                setIsAddingMethod(false);
+                                fetch2FAMethods();
+                              }
                             } catch (err) {
                               const errorDetails = extractErrorDetails(err);
                               setError(errorDetails.message || `Failed to setup ${twoFactorType()} 2FA method`);
@@ -566,6 +581,108 @@ const Settings: Component = () => {
                         >
                           Cancel
                         </Button>
+                      </div>
+                    </div>
+                  </Show>
+
+                  <Show when={isSettingUpTotp() && totpSetupData()}>
+                    <div class="space-y-4 p-4 border rounded-md">
+                      <h3 class="font-medium">Setup Authenticator App (TOTP)</h3>
+                      
+                      <div class="space-y-4">
+                        <div>
+                          <h4 class="text-sm font-medium mb-2">Step 1: Scan QR Code</h4>
+                          <p class="text-sm text-gray-600 mb-3">
+                            Scan this QR code with your authenticator app (Google Authenticator, Authy, Microsoft Authenticator, etc.)
+                          </p>
+                          <div class="flex justify-center p-4 bg-white border rounded-lg">
+                            <img 
+                              src={totpSetupData().qr_code} 
+                              alt="TOTP QR Code" 
+                              class="max-w-xs"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <h4 class="text-sm font-medium mb-2">Step 2: Enter Verification Code</h4>
+                          <p class="text-sm text-gray-600 mb-3">
+                            Enter the 6-digit code from your authenticator app to verify the setup
+                          </p>
+                          <div class="space-y-2">
+                            <Label for="totp-verification-code">Verification Code</Label>
+                            <Input
+                              id="totp-verification-code"
+                              type="text"
+                              placeholder="Enter 6-digit code"
+                              value={totpVerificationCode()}
+                              onInput={(e) => setTotpVerificationCode(e.currentTarget.value)}
+                              maxlength="6"
+                              class="text-center text-lg tracking-wider"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div class="flex space-x-2">
+                          <Button
+                            onClick={async () => {
+                              if (!totpVerificationCode()) {
+                                setError('Verification code is required');
+                                return;
+                              }
+                              
+                              setError(null);
+                              setSuccess(null);
+                              setIsLoading(true);
+                              
+                              try {
+                                await twoFactorApi.verifyTOTP(totpVerificationCode());
+                                setSuccess('TOTP 2FA method added and enabled successfully');
+                                setTwoFactorEnabled(true);
+                                setIsAddingMethod(false);
+                                setIsSettingUpTotp(false);
+                                setTotpSetupData(null);
+                                setTotpVerificationCode('');
+                                fetch2FAMethods();
+                              } catch (err) {
+                                const errorDetails = extractErrorDetails(err);
+                                setError(errorDetails.message || 'Failed to verify TOTP code');
+                              } finally {
+                                setIsLoading(false);
+                              }
+                            }}
+                            disabled={isLoading() || !totpVerificationCode()}
+                          >
+                            {isLoading() ? 'Verifying...' : 'Verify & Enable TOTP'}
+                          </Button>
+                          
+                          <Button 
+                            variant="outline"
+                            onClick={() => {
+                              setIsSettingUpTotp(false);
+                              setTotpSetupData(null);
+                              setTotpVerificationCode('');
+                              setIsAddingMethod(false);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                        
+                        <div class="mt-4 p-3 bg-blue-50 rounded-md">
+                          <div class="flex">
+                            <div class="flex-shrink-0">
+                              <svg class="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                              </svg>
+                            </div>
+                            <div class="ml-3">
+                              <p class="text-sm text-blue-700">
+                                <strong>Manual Setup:</strong> If you can't scan the QR code, you can manually enter this secret key in your authenticator app: <code class="bg-blue-100 px-1 rounded">{totpSetupData().secret}</code>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </Show>
