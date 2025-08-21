@@ -16,13 +16,14 @@ import (
 
 const create2FAInit = `-- name: Create2FAInit :one
 INSERT INTO login_2fa (login_id, two_factor_secret, two_factor_enabled, two_factor_type, two_factor_backup_codes)
-VALUES ($1, $2, TRUE, $3, $4::TEXT[])
+VALUES ($1, $2, $3, $4, $5::TEXT[])
 RETURNING id
 `
 
 type Create2FAInitParams struct {
 	LoginID              uuid.UUID      `json:"login_id"`
 	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
+	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
 	TwoFactorType        sql.NullString `json:"two_factor_type"`
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
 }
@@ -32,6 +33,7 @@ func (q *Queries) Create2FAInit(ctx context.Context, arg Create2FAInitParams) (u
 	row := q.db.QueryRow(ctx, create2FAInit,
 		arg.LoginID,
 		arg.TwoFactorSecret,
+		arg.TwoFactorEnabled,
 		arg.TwoFactorType,
 		arg.TwoFactorBackupCodes,
 	)
