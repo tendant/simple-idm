@@ -22,21 +22,26 @@ import (
 	"github.com/tendant/simple-idm/pkg/role"
 )
 
+// PostUserCreationHookFunc defines a function that will be called instead of findOrCreateUser
+// when provided. It should handle finding or creating users based on external user info.
+type PostUserCreationHookFunc func(ctx context.Context, userInfo *ExternalUserInfo) (*login.LoginResult, error)
+
 // ExternalProviderService handles OAuth2 client flows with external identity providers
 type ExternalProviderService struct {
-	repository          ExternalProviderRepository
-	loginService        *login.LoginService
-	userMapper          mapper.UserMapper
-	notificationManager *notification.NotificationManager
-	iamService          *iam.IamService
-	roleService         *role.RoleService
-	loginsService       *logins.LoginsService
-	baseURL             string
-	stateExpiration     time.Duration
-	httpClient          *http.Client
-	autoUserCreation    bool
-	userCreationEnabled bool
-	defaultRole         string
+	repository           ExternalProviderRepository
+	loginService         *login.LoginService
+	userMapper           mapper.UserMapper
+	notificationManager  *notification.NotificationManager
+	iamService           *iam.IamService
+	roleService          *role.RoleService
+	loginsService        *logins.LoginsService
+	postUserCreationHook *PostUserCreationHookFunc
+	baseURL              string
+	stateExpiration      time.Duration
+	httpClient           *http.Client
+	autoUserCreation     bool
+	userCreationEnabled  bool
+	defaultRole          string
 }
 
 // Option is a function that configures an ExternalProviderService
@@ -109,6 +114,13 @@ func WithLoginsService(loginsService *logins.LoginsService) Option {
 func WithDefaultRole(role string) Option {
 	return func(s *ExternalProviderService) {
 		s.defaultRole = role
+	}
+}
+
+// WithPostUserCreationHook sets the post user creation hook function
+func WithPostUserCreationHook(postUserCreationHook *PostUserCreationHookFunc) Option {
+	return func(s *ExternalProviderService) {
+		s.postUserCreationHook = postUserCreationHook
 	}
 }
 
@@ -226,8 +238,17 @@ func (s *ExternalProviderService) HandleOAuth2Callback(ctx context.Context, prov
 		return nil, fmt.Errorf("failed to get user info: %w", err)
 	}
 
-	// Find or create user account
-	loginResult, err := s.findOrCreateUser(ctx, userInfo)
+	// Find or create user account using post-hook if provided, otherwise use default
+	var loginResult *login.LoginResult
+
+	if s.postUserCreationHook != nil {
+		// Use the provided post-hook function
+		loginResult, err = (*s.postUserCreationHook)(ctx, userInfo)
+	} else {
+		// Use the default findOrCreateUser function
+		loginResult, err = s.findOrCreateUser(ctx, userInfo)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to find or create user: %w", err)
 	}
