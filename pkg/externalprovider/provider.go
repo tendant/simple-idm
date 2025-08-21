@@ -6,12 +6,6 @@ import (
 	"strings"
 )
 
-// import (
-// 	"fmt"
-// 	"net/url"
-// 	"strings"
-// )
-
 // // ExternalProvider represents an external OAuth2/OIDC identity provider configuration
 type ExternalProvider struct {
 	ID           string   `json:"id"`
@@ -126,69 +120,3 @@ func (p *ExternalProvider) GetDefaultScopes() []string {
 	// Default scopes for most providers
 	return []string{"openid", "profile", "email"}
 }
-
-// DefaultProviders contains hardcoded external provider configurations for common providers
-// var DefaultProviders = map[string]*ExternalProvider{
-// 	"google": {
-// 		ID:          "google",
-// 		Name:        "google",
-// 		DisplayName: "Google",
-// 		AuthURL:     "https://accounts.google.com/o/oauth2/v2/auth",
-// 		TokenURL:    "https://oauth2.googleapis.com/token",
-// 		UserInfoURL: "https://www.googleapis.com/oauth2/v2/userinfo",
-// 		Scopes:      []string{"openid", "profile", "email"},
-// 		Enabled:     true,
-// 		IconURL:     "https://developers.google.com/identity/images/g-logo.png",
-// 		Description: "Sign in with your Google account",
-// 	},
-// 	"microsoft": {
-// 		ID:          "microsoft",
-// 		Name:        "microsoft",
-// 		DisplayName: "Microsoft",
-// 		AuthURL:     "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-// 		TokenURL:    "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-// 		UserInfoURL: "https://graph.microsoft.com/v1.0/me",
-// 		Scopes:      []string{"openid", "profile", "email", "User.Read"},
-// 		Enabled:     true,
-// 		IconURL:     "https://docs.microsoft.com/en-us/azure/active-directory/develop/media/howto-add-branding-in-azure-ad-apps/ms-symbollockup_mssymbol_19.png",
-// 		Description: "Sign in with your Microsoft account",
-// 	},
-// 	"github": {
-// 		ID:          "github",
-// 		Name:        "github",
-// 		DisplayName: "GitHub",
-// 		AuthURL:     "https://github.com/login/oauth/authorize",
-// 		TokenURL:    "https://github.com/login/oauth/access_token",
-// 		UserInfoURL: "https://api.github.com/user",
-// 		Scopes:      []string{"user:email"},
-// 		Enabled:     true,
-// 		IconURL:     "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
-// 		Description: "Sign in with your GitHub account",
-// 	},
-// }
-
-// // GetProvider retrieves a provider by ID
-// func GetProvider(providerID string) (*ExternalProvider, error) {
-// 	provider, exists := DefaultProviders[providerID]
-// 	if !exists {
-// 		return nil, fmt.Errorf("provider not found: %s", providerID)
-// 	}
-// 	return provider, nil
-// }
-
-// // GetEnabledProviders returns all enabled providers
-// func GetEnabledProviders() map[string]*ExternalProvider {
-// 	enabled := make(map[string]*ExternalProvider)
-// 	for id, provider := range DefaultProviders {
-// 		if provider.Enabled {
-// 			enabled[id] = provider
-// 		}
-// 	}
-// 	return enabled
-// }
-
-// // ValidateProviderID checks if a provider ID is valid
-// func ValidateProviderID(providerID string) bool {
-// 	_, exists := DefaultProviders[providerID]
-// 	return exists
-// }
