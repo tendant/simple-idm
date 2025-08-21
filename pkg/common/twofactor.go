@@ -78,6 +78,9 @@ func Check2FAEnabled(
 		case twofa.TWO_FACTOR_TYPE_SMS:
 			options := getUniquePhonesFromUsers(idmUsers)
 			curMethod.DeliveryOptions = options
+		case twofa.TWO_FACTOR_TYPE_TOTP:
+			// TOTP doesn't need delivery options - user enters code from their authenticator app
+			curMethod.DeliveryOptions = []DeliveryOption{}
 		default:
 			curMethod.DeliveryOptions = []DeliveryOption{}
 		}
