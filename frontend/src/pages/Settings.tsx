@@ -49,6 +49,10 @@ const Settings: Component = () => {
   const [totpSetupData, setTotpSetupData] = createSignal<any>(null);
   const [totpVerificationCode, setTotpVerificationCode] = createSignal('');
   const [isSettingUpTotp, setIsSettingUpTotp] = createSignal(false);
+  
+  // TOTP enable verification state
+  const [isVerifyingTotpEnable, setIsVerifyingTotpEnable] = createSignal(false);
+  const [totpEnableCode, setTotpEnableCode] = createSignal('');
 
   const { request } = useApi();
 
@@ -538,7 +542,7 @@ const Settings: Component = () => {
                           >
                             <option value="email">Email</option>
                             <option value="sms">SMS</option>
-                            <option value="totp">Authenticator App (TOTP)</option>
+                            <option value="totp">Authenticator App</option>
                           </select>
                         </div>
                       </div>
@@ -686,6 +690,75 @@ const Settings: Component = () => {
                       </div>
                     </div>
                   </Show>
+
+                  <Show when={isVerifyingTotpEnable()}>
+                    <div class="space-y-4 p-4 border rounded-md">
+                      <h3 class="font-medium">Enable Authenticator App</h3>
+                      
+                      <div class="space-y-4">
+                        <div>
+                          <p class="text-sm text-gray-600 mb-3">
+                            Enter the 6-digit code from your authenticator app to enable TOTP authentication.
+                          </p>
+                          <div class="space-y-2">
+                            <Label for="totp-enable-code">Verification Code</Label>
+                            <Input
+                              id="totp-enable-code"
+                              type="text"
+                              placeholder="Enter 6-digit code"
+                              value={totpEnableCode()}
+                              onInput={(e) => setTotpEnableCode(e.currentTarget.value)}
+                              maxlength="6"
+                              class="text-center text-lg tracking-wider"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div class="flex space-x-2">
+                          <Button
+                            onClick={async () => {
+                              if (!totpEnableCode()) {
+                                setError('Verification code is required');
+                                return;
+                              }
+                              
+                              setError(null);
+                              setSuccess(null);
+                              setIsLoading(true);
+                              
+                              try {
+                                // verifyTOTP already handles both verification and enabling
+                                await twoFactorApi.verifyTOTP(totpEnableCode());
+                                
+                                setSuccess('Authenticator App 2FA method enabled successfully');
+                                setIsVerifyingTotpEnable(false);
+                                setTotpEnableCode('');
+                                fetch2FAMethods();
+                              } catch (err) {
+                                const errorDetails = extractErrorDetails(err);
+                                setError(errorDetails.message || 'Failed to verify TOTP code or enable method');
+                              } finally {
+                                setIsLoading(false);
+                              }
+                            }}
+                            disabled={isLoading() || !totpEnableCode()}
+                          >
+                            {isLoading() ? 'Verifying...' : 'Verify & Enable'}
+                          </Button>
+                          
+                          <Button 
+                            variant="outline"
+                            onClick={() => {
+                              setIsVerifyingTotpEnable(false);
+                              setTotpEnableCode('');
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Show>
                   
                   <Show when={isLoadingMethods()}>
                     <div class="py-4 text-center">
@@ -701,7 +774,9 @@ const Settings: Component = () => {
                           {(method) => (
                             <div class="p-4 flex justify-between items-center">
                               <div>
-                                <div class="font-medium capitalize">{method.type}</div>
+                                <div class="font-medium">
+                                  {method.type === 'totp' ? 'Authenticator App' : method.type.charAt(0).toUpperCase() + method.type.slice(1)}
+                                </div>
                                 <div class="text-sm text-gray-500">
                                   Status: {method.enabled ? (
                                     <span class="text-green-600 font-medium">Enabled</span>
@@ -715,6 +790,14 @@ const Settings: Component = () => {
                                   onClick={async () => {
                                     setError(null);
                                     setSuccess(null);
+                                    
+                                    // For TOTP enable, show verification UI
+                                    if (method.type === 'totp' && !method.enabled) {
+                                      setIsVerifyingTotpEnable(true);
+                                      return;
+                                    }
+                                    
+                                    // Regular enable/disable for other methods
                                     setIsLoading(true);
                                     try {
                                       await request(`/api/idm/profile/2fa/${method.enabled ? 'disable' : 'enable'}`, {
@@ -726,11 +809,11 @@ const Settings: Component = () => {
                                           twofa_type: method.type
                                         })
                                       });
-                                      setSuccess(`${method.type} 2FA method ${method.enabled ? 'disabled' : 'enabled'} successfully`);
+                                      setSuccess(`${method.type === 'totp' ? 'Authenticator App' : method.type} 2FA method ${method.enabled ? 'disabled' : 'enabled'} successfully`);
                                       fetch2FAMethods();
                                     } catch (err) {
                                       const errorDetails = extractErrorDetails(err);
-                                      setError(errorDetails.message || `Failed to ${method.enabled ? 'disable' : 'enable'} ${method.type} 2FA method`);
+                                      setError(errorDetails.message || `Failed to ${method.enabled ? 'disable' : 'enable'} ${method.type === 'totp' ? 'Authenticator App' : method.type} 2FA method`);
                                     } finally {
                                       setIsLoading(false);
                                     }
