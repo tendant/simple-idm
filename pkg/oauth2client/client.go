@@ -1,9 +1,5 @@
 package oauth2client
 
-import (
-	"fmt"
-)
-
 // OAuth2Client represents an OAuth2 client configuration
 type OAuth2Client struct {
 	ClientID      string
@@ -51,41 +47,4 @@ func (c *OAuth2Client) ValidateScope(requestedScopes []string) bool {
 		}
 	}
 	return true
-}
-
-// DefaultClients contains hardcoded OAuth2 clients for testing
-var DefaultClients = map[string]*OAuth2Client{
-	"golang_app": {
-		ClientID:      "golang_app",
-		ClientSecret:  "BfCGGjEvIgD5EnnF3Q5EobrW95wK0tOK",
-		ClientName:    "Golang Demo App",
-		RedirectURIs:  []string{"http://localhost:8182/demo/callback"},
-		ResponseTypes: []string{"code"},
-		GrantTypes:    []string{"authorization_code"},
-		Scopes:        []string{"openid", "profile", "email"},
-		ClientType:    "confidential",
-	},
-}
-
-// GetClient retrieves a client by client ID
-func GetClient(clientID string) (*OAuth2Client, error) {
-	client, exists := DefaultClients[clientID]
-	if !exists {
-		return nil, fmt.Errorf("client not found: %s", clientID)
-	}
-	return client, nil
-}
-
-// ValidateClientCredentials validates client ID and secret
-func ValidateClientCredentials(clientID, clientSecret string) (*OAuth2Client, error) {
-	client, err := GetClient(clientID)
-	if err != nil {
-		return nil, err
-	}
-
-	if client.ClientSecret != clientSecret {
-		return nil, fmt.Errorf("invalid client credentials")
-	}
-
-	return client, nil
 }
