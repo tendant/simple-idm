@@ -372,6 +372,65 @@ paths:
           description: 2FA method not found
         "500":
           description: Internal server error
+  /2fa/totp/verify:
+    post:
+      summary: Verify TOTP code during setup
+      operationId: VerifyTotpSetup
+      description: Verify a TOTP code during the setup process before enabling the method
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: TOTP verification code from authenticator app
+              required:
+                - code
+      responses:
+        "200":
+          description: TOTP code verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "TOTP code verified successfully"
+        "400":
+          description: Invalid request parameters or invalid code
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: "invalid_code"
+                  message:
+                    type: string
+                    example: "Invalid verification code"
+        "401":
+          description: Unauthorized (not logged in)
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: "internal_error"
+                  message:
+                    type: string
+                    example: "Failed to validate TOTP code"
   /user/switch:
     post:
       summary: Switch to a different user when multiple users are available for the same login
