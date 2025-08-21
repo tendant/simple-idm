@@ -221,6 +221,31 @@ func main() {
 	)
 	slog.Info("Login service created", "maxFailedAttempts", config.LoginConfig.MaxFailedAttempts, "lockoutDuration", lockoutDuration.ToTimeDuration())
 
+	// Parse token expiry durations
+	accessTokenExpiry, err := time.ParseDuration(config.JwtConfig.AccessTokenExpiry)
+	if err != nil {
+		slog.Error("Failed to parse access token expiry", "err", err, "value", config.JwtConfig.AccessTokenExpiry)
+		accessTokenExpiry = tokengenerator.DefaultAccessTokenExpiry
+	}
+
+	refreshTokenExpiry, err := time.ParseDuration(config.JwtConfig.RefreshTokenExpiry)
+	if err != nil {
+		slog.Error("Failed to parse refresh token expiry", "err", err, "value", config.JwtConfig.RefreshTokenExpiry)
+		refreshTokenExpiry = tokengenerator.DefaultRefreshTokenExpiry
+	}
+
+	tempTokenExpiry, err := time.ParseDuration(config.JwtConfig.TempTokenExpiry)
+	if err != nil {
+		slog.Error("Failed to parse temp token expiry", "err", err, "value", config.JwtConfig.TempTokenExpiry)
+		tempTokenExpiry = tokengenerator.DefaultTempTokenExpiry
+	}
+
+	logoutTokenExpiry, err := time.ParseDuration(config.JwtConfig.LogoutTokenExpiry)
+	if err != nil {
+		slog.Error("Failed to parse logout token expiry", "err", err, "value", config.JwtConfig.LogoutTokenExpiry)
+		logoutTokenExpiry = tokengenerator.DefaultLogoutTokenExpiry
+	}
+
 	// Create JWT token generator
 	tokenGenerator := tokengenerator.NewJwtTokenGenerator(
 		config.JwtConfig.JwtSecret,
@@ -234,7 +259,29 @@ func main() {
 		"simple-idm", // Audience
 	)
 
-	tokenService := tokengenerator.NewDefaultTokenService(tokenGenerator, tokenGenerator, tempTokenGenerator, tokenGenerator, config.JwtConfig.Secret)
+	// Create token service with custom expiry configuration
+	tokenServiceConfig := &tokengenerator.TokenServiceConfig{
+		AccessTokenExpiry:        accessTokenExpiry,
+		RefreshTokenExpiry:       refreshTokenExpiry,
+		MobileRefreshTokenExpiry: 90 * 24 * time.Hour, // Keep default for mobile
+		TempTokenExpiry:          tempTokenExpiry,
+		LogoutTokenExpiry:        logoutTokenExpiry,
+	}
+	
+	slog.Info("Token expiry configuration",
+		"accessTokenExpiry", accessTokenExpiry,
+		"refreshTokenExpiry", refreshTokenExpiry,
+		"tempTokenExpiry", tempTokenExpiry,
+		"logoutTokenExpiry", logoutTokenExpiry)
+	
+	tokenService := tokengenerator.NewDefaultTokenServiceWithConfig(
+		tokenGenerator, 
+		tokenGenerator, 
+		tempTokenGenerator, 
+		tokenGenerator, 
+		config.JwtConfig.Secret,
+		tokenServiceConfig,
+	)
 	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
 		"/",
 		config.JwtConfig.CookieHttpOnly,
