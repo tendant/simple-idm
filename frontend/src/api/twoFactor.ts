@@ -170,5 +170,29 @@ export const twoFactorApi = {
     }
     
     return await response.json();
+  },
+
+  verifyTOTP: async (code: string): Promise<any> => {
+    // First, verify the TOTP code
+    const verifyResponse = await apiClient.post('/api/idm/profile/2fa/totp/verify', {
+      code: code
+    });
+    
+    if (!verifyResponse.ok) {
+      const error = await verifyResponse.json().catch(() => ({}));
+      throw new Error(error.message || 'Failed to verify TOTP code');
+    }
+    
+    // If verification succeeds, enable the TOTP method
+    const enableResponse = await apiClient.post('/api/idm/profile/2fa/enable', {
+      twofa_type: 'totp'
+    });
+    
+    if (!enableResponse.ok) {
+      const error = await enableResponse.json().catch(() => ({}));
+      throw new Error(error.message || 'Failed to enable TOTP method');
+    }
+    
+    return await enableResponse.json().catch(() => ({ success: true }));
   }
 };

@@ -1,7 +1,7 @@
 -- name: Create2FAInit :one
 -- @two_factor_backup_codes TEXT[]
 INSERT INTO login_2fa (login_id, two_factor_secret, two_factor_enabled, two_factor_type, two_factor_backup_codes)
-VALUES ($1, $2, TRUE, $3, @two_factor_backup_codes::TEXT[])
+VALUES ($1, $2, $3, $4, @two_factor_backup_codes::TEXT[])
 RETURNING id;
 
 -- name: Enable2FA :exec

@@ -352,7 +352,6 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 // Create a new 2FA method
 // (POST /2fa/setup)
 func (h Handle) Post2faSetup(w http.ResponseWriter, r *http.Request) *Response {
-	var resp SuccessResponse
 	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
 	if !ok {
 		slog.Error("Failed getting AuthUser", "ok", ok)
@@ -383,7 +382,50 @@ func (h Handle) Post2faSetup(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Create new 2FA method
+	// Handle TOTP setup differently - return QR code
+	if string(data.TwofaType) == twofa.TWO_FACTOR_TYPE_TOTP {
+		// Create new TOTP 2FA method
+		err = h.twoFaService.CreateTwoFactor(r.Context(), loginId, string(data.TwofaType))
+		if err != nil {
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "failed to create TOTP 2fa: " + err.Error(),
+			}
+		}
+
+		// Generate QR code for TOTP setup
+		// Use user's email as account name, fallback to user ID
+		accountName := authUser.DisplayName
+		if accountName == "" {
+			accountName = authUser.UserId
+		}
+
+		qrCodeBase64, secret, err := h.twoFaService.GenerateTotpQRCode(r.Context(), loginId, "Simple IDM", accountName)
+		if err != nil {
+			slog.Error("Failed to generate TOTP QR code", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to generate TOTP QR code: " + err.Error(),
+			}
+		}
+
+		// Return QR code and secret for TOTP
+		response := map[string]interface{}{
+			"result":  "totp_setup_required",
+			"qr_code": "data:image/png;base64," + qrCodeBase64,
+			"secret":  secret,
+			"issuer":  "Simple IDM",
+			"account": accountName,
+		}
+
+		return &Response{
+			Code:        http.StatusOK,
+			body:        response,
+			contentType: "application/json",
+		}
+	}
+
+	// Create new 2FA method for email/SMS
 	err = h.twoFaService.CreateTwoFactor(r.Context(), loginId, string(data.TwofaType))
 	if err != nil {
 		return &Response{
@@ -392,7 +434,8 @@ func (h Handle) Post2faSetup(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Return success response
+	// Return success response for email/SMS
+	var resp SuccessResponse
 	resp.Result = "success"
 	return Post2faSetupJSON201Response(resp)
 }
@@ -1561,6 +1604,91 @@ func (h Handle) VerifyPhone(w http.ResponseWriter, r *http.Request) *Response {
 		body: map[string]string{
 			"status":  "success",
 			"message": "Phone number verified successfully",
+		},
+	}
+}
+
+// Verify TOTP code during setup
+// (POST /2fa/totp/verify)
+func (h Handle) VerifyTotpSetup(w http.ResponseWriter, r *http.Request) *Response {
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed getting AuthUser", "ok", ok)
+		return &Response{
+			body: http.StatusText(http.StatusUnauthorized),
+			Code: http.StatusUnauthorized,
+		}
+	}
+
+	// Get user UUID from context
+	loginIdStr := authUser.LoginId
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		return &Response{
+			body: "Failed to parse login ID: " + err.Error(),
+			Code: http.StatusBadRequest,
+		}
+	}
+
+	// Parse request body
+	var requestBody map[string]interface{}
+	err = json.NewDecoder(r.Body).Decode(&requestBody)
+	if err != nil {
+		slog.Error("Failed to decode request body", "err", err)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Invalid request body",
+			},
+		}
+	}
+
+	verificationCode, hasCode := requestBody["code"].(string)
+	if !hasCode || verificationCode == "" {
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_request",
+				"message": "Verification code is required",
+			},
+		}
+	}
+
+	slog.Info("Verifying TOTP code for setup", "loginId", loginId)
+
+	// Validate the TOTP code
+	valid, err := h.twoFaService.Validate2faPasscode(r.Context(), loginId, twofa.TWO_FACTOR_TYPE_TOTP, verificationCode)
+	if err != nil {
+		slog.Error("Failed to validate TOTP code", "err", err, "loginId", loginId)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"code":    "internal_error",
+				"message": "Failed to validate TOTP code: " + err.Error(),
+			},
+		}
+	}
+
+	if !valid {
+		slog.Warn("Invalid TOTP verification code", "loginId", loginId)
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: map[string]string{
+				"code":    "invalid_code",
+				"message": "Invalid verification code",
+			},
+		}
+	}
+
+	slog.Info("TOTP verification code validated successfully", "loginId", loginId)
+
+	return &Response{
+		Code: http.StatusOK,
+		body: map[string]string{
+			"status":  "success",
+			"message": "TOTP code verified successfully",
 		},
 	}
 }
