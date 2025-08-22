@@ -10,6 +10,7 @@ type OAuth2Client struct {
 	GrantTypes    []string
 	Scopes        []string
 	ClientType    string // "public" or "confidential"
+	RequirePKCE   bool   // Whether this client requires PKCE
 }
 
 // ValidateRedirectURI checks if the provided redirect URI is allowed for this client
