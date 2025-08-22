@@ -234,22 +234,17 @@ func main() {
 		"simple-idm", // Audience
 	)
 
-	// Create token service with string-based expiry configuration
-	tokenServiceStringConfig := &tokengenerator.TokenServiceStringConfig{
-		AccessTokenExpiry:  config.JwtConfig.AccessTokenExpiry,
-		RefreshTokenExpiry: config.JwtConfig.RefreshTokenExpiry,
-		TempTokenExpiry:    config.JwtConfig.TempTokenExpiry,
-		LogoutTokenExpiry:  config.JwtConfig.LogoutTokenExpiry,
-		// MobileRefreshTokenExpiry will use default
-	}
-	
-	tokenService := tokengenerator.NewDefaultTokenServiceWithStringConfig(
+	// Create token service with options
+	tokenService := tokengenerator.NewDefaultTokenServiceWithOptions(
 		tokenGenerator, 
 		tokenGenerator, 
 		tempTokenGenerator, 
 		tokenGenerator, 
 		config.JwtConfig.Secret,
-		tokenServiceStringConfig,
+		tokengenerator.WithAccessTokenExpiry(config.JwtConfig.AccessTokenExpiry),
+		tokengenerator.WithRefreshTokenExpiry(config.JwtConfig.RefreshTokenExpiry),
+		tokengenerator.WithTempTokenExpiry(config.JwtConfig.TempTokenExpiry),
+		tokengenerator.WithLogoutTokenExpiry(config.JwtConfig.LogoutTokenExpiry),
 	)
 	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
 		"/",

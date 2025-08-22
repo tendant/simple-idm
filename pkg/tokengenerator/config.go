@@ -1,30 +1,91 @@
 package tokengenerator
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 )
 
-// TokenServiceConfig holds configuration for token expiry durations
-type TokenServiceConfig struct {
-	AccessTokenExpiry        time.Duration
-	RefreshTokenExpiry       time.Duration
-	MobileRefreshTokenExpiry time.Duration
-	TempTokenExpiry          time.Duration
-	LogoutTokenExpiry        time.Duration
+// Option configures a DefaultTokenService
+type Option func(*DefaultTokenService)
+
+// parseDurationValue parses either a string or time.Duration into time.Duration
+func parseDurationValue(v interface{}) (time.Duration, error) {
+	switch val := v.(type) {
+	case time.Duration:
+		return val, nil
+	case string:
+		if val == "" {
+			return 0, nil
+		}
+		return time.ParseDuration(val)
+	default:
+		return 0, fmt.Errorf("invalid duration type: %T", v)
+	}
 }
 
-// TokenServiceStringConfig holds string-based configuration for token expiry durations
-type TokenServiceStringConfig struct {
-	AccessTokenExpiry        string
-	RefreshTokenExpiry       string
-	MobileRefreshTokenExpiry string
-	TempTokenExpiry          string
-	LogoutTokenExpiry        string
+// WithAccessTokenExpiry sets the access token expiry duration
+// Accepts either time.Duration or string (e.g., "1h", "30m")
+func WithAccessTokenExpiry(expiry interface{}) Option {
+	return func(s *DefaultTokenService) {
+		if d, err := parseDurationValue(expiry); err == nil && d > 0 {
+			s.accessTokenExpiry = d
+		} else if err != nil {
+			slog.Error("Failed to parse access token expiry", "err", err, "value", expiry)
+		}
+	}
 }
 
-// NewDefaultTokenServiceWithConfig creates a new token service with custom expiry configuration
-func NewDefaultTokenServiceWithConfig(accessTokenGenerator, refreshTokenGenerator, tempTokenGenerator, logoutTokenGenerator TokenGenerator, secret string, config *TokenServiceConfig) TokenService {
+// WithRefreshTokenExpiry sets the refresh token expiry duration
+// Accepts either time.Duration or string (e.g., "24h", "7d")
+func WithRefreshTokenExpiry(expiry interface{}) Option {
+	return func(s *DefaultTokenService) {
+		if d, err := parseDurationValue(expiry); err == nil && d > 0 {
+			s.refreshTokenExpiry = d
+		} else if err != nil {
+			slog.Error("Failed to parse refresh token expiry", "err", err, "value", expiry)
+		}
+	}
+}
+
+// WithMobileRefreshTokenExpiry sets the mobile refresh token expiry duration
+// Accepts either time.Duration or string (e.g., "90d", "2160h")
+func WithMobileRefreshTokenExpiry(expiry interface{}) Option {
+	return func(s *DefaultTokenService) {
+		if d, err := parseDurationValue(expiry); err == nil && d > 0 {
+			s.mobileRefreshTokenExpiry = d
+		} else if err != nil {
+			slog.Error("Failed to parse mobile refresh token expiry", "err", err, "value", expiry)
+		}
+	}
+}
+
+// WithTempTokenExpiry sets the temporary token expiry duration
+// Accepts either time.Duration or string (e.g., "10m", "600s")
+func WithTempTokenExpiry(expiry interface{}) Option {
+	return func(s *DefaultTokenService) {
+		if d, err := parseDurationValue(expiry); err == nil && d > 0 {
+			s.tempTokenExpiry = d
+		} else if err != nil {
+			slog.Error("Failed to parse temp token expiry", "err", err, "value", expiry)
+		}
+	}
+}
+
+// WithLogoutTokenExpiry sets the logout token expiry duration
+// Accepts either time.Duration or string (e.g., "-1s", "0s")
+func WithLogoutTokenExpiry(expiry interface{}) Option {
+	return func(s *DefaultTokenService) {
+		if d, err := parseDurationValue(expiry); err == nil {
+			s.logoutTokenExpiry = d // Allow zero or negative values for logout token
+		} else if err != nil {
+			slog.Error("Failed to parse logout token expiry", "err", err, "value", expiry)
+		}
+	}
+}
+
+// NewDefaultTokenServiceWithOptions creates a new token service with options
+func NewDefaultTokenServiceWithOptions(accessTokenGenerator, refreshTokenGenerator, tempTokenGenerator, logoutTokenGenerator TokenGenerator, secret string, opts ...Option) TokenService {
 	service := &DefaultTokenService{
 		accessTokenGenerator:     accessTokenGenerator,
 		refreshTokenGenerator:    refreshTokenGenerator,
@@ -38,77 +99,18 @@ func NewDefaultTokenServiceWithConfig(accessTokenGenerator, refreshTokenGenerato
 		logoutTokenExpiry:        DefaultLogoutTokenExpiry,
 	}
 	
-	// Apply custom configuration if provided
-	if config != nil {
-		if config.AccessTokenExpiry > 0 {
-			service.accessTokenExpiry = config.AccessTokenExpiry
-		}
-		if config.RefreshTokenExpiry > 0 {
-			service.refreshTokenExpiry = config.RefreshTokenExpiry
-		}
-		if config.MobileRefreshTokenExpiry > 0 {
-			service.mobileRefreshTokenExpiry = config.MobileRefreshTokenExpiry
-		}
-		if config.TempTokenExpiry > 0 {
-			service.tempTokenExpiry = config.TempTokenExpiry
-		}
-		if config.LogoutTokenExpiry != 0 { // Allow negative values
-			service.logoutTokenExpiry = config.LogoutTokenExpiry
-		}
+	// Apply options
+	for _, opt := range opts {
+		opt(service)
 	}
+	
+	slog.Info("Token service configured",
+		"accessTokenExpiry", service.accessTokenExpiry,
+		"refreshTokenExpiry", service.refreshTokenExpiry,
+		"mobileRefreshTokenExpiry", service.mobileRefreshTokenExpiry,
+		"tempTokenExpiry", service.tempTokenExpiry,
+		"logoutTokenExpiry", service.logoutTokenExpiry)
 	
 	return service
 }
 
-// NewDefaultTokenServiceWithStringConfig creates a new token service with string-based expiry configuration
-func NewDefaultTokenServiceWithStringConfig(accessTokenGenerator, refreshTokenGenerator, tempTokenGenerator, logoutTokenGenerator TokenGenerator, secret string, stringConfig *TokenServiceStringConfig) TokenService {
-	config := &TokenServiceConfig{
-		AccessTokenExpiry:        DefaultAccessTokenExpiry,
-		RefreshTokenExpiry:       DefaultRefreshTokenExpiry,
-		MobileRefreshTokenExpiry: DefaultMobileRefreshTokenExpiry,
-		TempTokenExpiry:          DefaultTempTokenExpiry,
-		LogoutTokenExpiry:        DefaultLogoutTokenExpiry,
-	}
-	
-	// Parse string durations if provided
-	if stringConfig != nil {
-		if d, err := time.ParseDuration(stringConfig.AccessTokenExpiry); err == nil {
-			config.AccessTokenExpiry = d
-		} else if stringConfig.AccessTokenExpiry != "" {
-			slog.Error("Failed to parse access token expiry", "err", err, "value", stringConfig.AccessTokenExpiry)
-		}
-		
-		if d, err := time.ParseDuration(stringConfig.RefreshTokenExpiry); err == nil {
-			config.RefreshTokenExpiry = d
-		} else if stringConfig.RefreshTokenExpiry != "" {
-			slog.Error("Failed to parse refresh token expiry", "err", err, "value", stringConfig.RefreshTokenExpiry)
-		}
-		
-		if d, err := time.ParseDuration(stringConfig.MobileRefreshTokenExpiry); err == nil {
-			config.MobileRefreshTokenExpiry = d
-		} else if stringConfig.MobileRefreshTokenExpiry != "" {
-			slog.Error("Failed to parse mobile refresh token expiry", "err", err, "value", stringConfig.MobileRefreshTokenExpiry)
-		}
-		
-		if d, err := time.ParseDuration(stringConfig.TempTokenExpiry); err == nil {
-			config.TempTokenExpiry = d
-		} else if stringConfig.TempTokenExpiry != "" {
-			slog.Error("Failed to parse temp token expiry", "err", err, "value", stringConfig.TempTokenExpiry)
-		}
-		
-		if d, err := time.ParseDuration(stringConfig.LogoutTokenExpiry); err == nil {
-			config.LogoutTokenExpiry = d
-		} else if stringConfig.LogoutTokenExpiry != "" {
-			slog.Error("Failed to parse logout token expiry", "err", err, "value", stringConfig.LogoutTokenExpiry)
-		}
-		
-		slog.Info("Token expiry configuration",
-			"accessTokenExpiry", config.AccessTokenExpiry,
-			"refreshTokenExpiry", config.RefreshTokenExpiry,
-			"mobileRefreshTokenExpiry", config.MobileRefreshTokenExpiry,
-			"tempTokenExpiry", config.TempTokenExpiry,
-			"logoutTokenExpiry", config.LogoutTokenExpiry)
-	}
-	
-	return NewDefaultTokenServiceWithConfig(accessTokenGenerator, refreshTokenGenerator, tempTokenGenerator, logoutTokenGenerator, secret, config)
-}
