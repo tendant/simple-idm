@@ -67,10 +67,19 @@ type AuthorizeParams struct {
 
 	// An opaque value used to maintain state between request and callback
 	State *string `json:"state,omitempty"`
+
+	// PKCE code challenge (RFC 7636)
+	CodeChallenge *string `json:"code_challenge,omitempty"`
+
+	// PKCE code challenge method (RFC 7636)
+	CodeChallengeMethod *AuthorizeParamsCodeChallengeMethod `json:"code_challenge_method,omitempty"`
 }
 
 // AuthorizeParamsResponseType defines parameters for Authorize.
 type AuthorizeParamsResponseType string
+
+// AuthorizeParamsCodeChallengeMethod defines parameters for Authorize.
+type AuthorizeParamsCodeChallengeMethod string
 
 // Response is a common response struct for all the API calls.
 // A Response object may be instantiated via functions for specific operation responses.
@@ -229,6 +238,22 @@ func (siw *ServerInterfaceWrapper) Authorize(w http.ResponseWriter, r *http.Requ
 	if err := runtime.BindQueryParameter("form", true, false, "state", r.URL.Query(), &params.State); err != nil {
 		err = fmt.Errorf("invalid format for parameter state: %w", err)
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "state"})
+		return
+	}
+
+	// ------------- Optional query parameter "code_challenge" -------------
+
+	if err := runtime.BindQueryParameter("form", true, false, "code_challenge", r.URL.Query(), &params.CodeChallenge); err != nil {
+		err = fmt.Errorf("invalid format for parameter code_challenge: %w", err)
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "code_challenge"})
+		return
+	}
+
+	// ------------- Optional query parameter "code_challenge_method" -------------
+
+	if err := runtime.BindQueryParameter("form", true, false, "code_challenge_method", r.URL.Query(), &params.CodeChallengeMethod); err != nil {
+		err = fmt.Errorf("invalid format for parameter code_challenge_method: %w", err)
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "code_challenge_method"})
 		return
 	}
 
@@ -406,27 +431,30 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
