@@ -101,8 +101,29 @@ func (h *Handle) Authorize(w http.ResponseWriter, r *http.Request, params Author
 
 	slog.Info("User authenticated successfully", "user_id", userID, "client_id", client.ClientID)
 
-	// 4. Generate authorization code
-	authCode, err := h.oidcService.GenerateAuthorizationCode(r.Context(), client.ClientID, params.RedirectURI, scope, params.State, userID)
+	// 4. Generate authorization code (with PKCE support if provided)
+	var authCode string
+	if params.CodeChallenge != nil && *params.CodeChallenge != "" {
+		// PKCE flow
+		codeChallenge := *params.CodeChallenge
+		codeChallengeMethod := "S256" // Default to S256
+		if params.CodeChallengeMethod != nil {
+			codeChallengeMethod = string(*params.CodeChallengeMethod)
+		}
+
+		slog.Info("Using PKCE flow",
+			"code_challenge", codeChallenge,
+			"code_challenge_method", codeChallengeMethod)
+
+		authCode, err = h.oidcService.GenerateAuthorizationCodeWithPKCE(
+			r.Context(), client.ClientID, params.RedirectURI, scope, params.State, userID,
+			codeChallenge, codeChallengeMethod)
+	} else {
+		// Standard flow (backward compatibility)
+		authCode, err = h.oidcService.GenerateAuthorizationCode(
+			r.Context(), client.ClientID, params.RedirectURI, scope, params.State, userID)
+	}
+
 	if err != nil {
 		slog.Error("Failed to generate authorization code", "error", err)
 		return AuthorizeJSON400Response(struct {
@@ -209,12 +230,14 @@ func (h *Handle) Token(w http.ResponseWriter, r *http.Request) *Response {
 	clientID := r.FormValue("client_id")
 	clientSecret := r.FormValue("client_secret")
 	redirectURI := r.FormValue("redirect_uri")
+	codeVerifier := r.FormValue("code_verifier")
 
 	slog.Info("Token request parameters",
 		"grant_type", grantType,
 		"client_id", clientID,
 		"code", code,
-		"redirect_uri", redirectURI)
+		"redirect_uri", redirectURI,
+		"has_code_verifier", codeVerifier != "")
 
 	// Validate grant type
 	if grantType != "authorization_code" {
@@ -238,8 +261,17 @@ func (h *Handle) Token(w http.ResponseWriter, r *http.Request) *Response {
 		return nil
 	}
 
-	// Get and validate authorization code
-	authCode, err := h.oidcService.ValidateAndConsumeAuthorizationCode(r.Context(), code, clientID, redirectURI)
+	// Get and validate authorization code (with PKCE support if provided)
+	var authCode *oidc.AuthorizationCode
+	if codeVerifier != "" {
+		// PKCE flow - validate code verifier
+		slog.Info("Using PKCE validation", "code_verifier_length", len(codeVerifier))
+		authCode, err = h.oidcService.ValidateAndConsumeAuthorizationCodeWithPKCE(r.Context(), code, clientID, redirectURI, codeVerifier)
+	} else {
+		// Standard flow (backward compatibility)
+		authCode, err = h.oidcService.ValidateAndConsumeAuthorizationCode(r.Context(), code, clientID, redirectURI)
+	}
+
 	if err != nil {
 		slog.Error("Invalid authorization code", "error", err, "code", code)
 		h.writeErrorResponse(w, "invalid_grant", "Invalid or expired authorization code", http.StatusBadRequest)

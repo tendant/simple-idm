@@ -48,6 +48,20 @@ paths:
           schema:
             type: string
             example: "somestate"
+        - name: code_challenge
+          in: query
+          description: PKCE code challenge (RFC 7636)
+          schema:
+            type: string
+            example: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+        - name: code_challenge_method
+          in: query
+          description: PKCE code challenge method (RFC 7636)
+          schema:
+            type: string
+            enum: ["plain", "S256"]
+            default: "S256"
+            example: "S256"
       responses:
         '302':
           description: Redirect to login page or back to client with authorization code
@@ -116,6 +130,10 @@ paths:
                   format: uri
                   description: The redirect URI used in the authorization request
                   example: "http://localhost:8181/demo/callback"
+                code_verifier:
+                  type: string
+                  description: PKCE code verifier (RFC 7636)
+                  example: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
               required:
                 - grant_type
                 - code
