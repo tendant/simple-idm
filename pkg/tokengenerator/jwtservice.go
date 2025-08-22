@@ -41,17 +41,29 @@ type DefaultTokenService struct {
 	tempTokenGenerator    TokenGenerator
 	logoutTokenGenerator  TokenGenerator
 	Secret                string
+	// Configurable token expiry durations
+	accessTokenExpiry        time.Duration
+	refreshTokenExpiry       time.Duration
+	mobileRefreshTokenExpiry time.Duration
+	tempTokenExpiry          time.Duration
+	logoutTokenExpiry        time.Duration
 }
 
 func NewDefaultTokenService(accessTokenGenerator, refreshTokenGenerator, tempTokenGenerator, logoutTokenGenerator TokenGenerator, secret string) TokenService {
 	return &DefaultTokenService{
-		accessTokenGenerator:  accessTokenGenerator,
-		refreshTokenGenerator: refreshTokenGenerator,
-		tempTokenGenerator:    tempTokenGenerator,
-		logoutTokenGenerator:  logoutTokenGenerator,
-		Secret:                secret,
+		accessTokenGenerator:     accessTokenGenerator,
+		refreshTokenGenerator:    refreshTokenGenerator,
+		tempTokenGenerator:       tempTokenGenerator,
+		logoutTokenGenerator:     logoutTokenGenerator,
+		Secret:                   secret,
+		accessTokenExpiry:        DefaultAccessTokenExpiry,
+		refreshTokenExpiry:       DefaultRefreshTokenExpiry,
+		mobileRefreshTokenExpiry: DefaultMobileRefreshTokenExpiry,
+		tempTokenExpiry:          DefaultTempTokenExpiry,
+		logoutTokenExpiry:        DefaultLogoutTokenExpiry,
 	}
 }
+
 
 type TokenValue struct {
 	Name   string
@@ -61,13 +73,13 @@ type TokenValue struct {
 
 func (d *DefaultTokenService) GenerateTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error) {
 	tokenName := ACCESS_TOKEN_NAME
-	accessToken, accessTokenExpiry, err := d.accessTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
+	accessToken, accessTokenExpiry, err := d.accessTokenGenerator.GenerateToken(subject, d.accessTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
 
 	tokenName = REFRESH_TOKEN_NAME
-	refreshToken, refreshTokenExpiry, err := d.refreshTokenGenerator.GenerateToken(subject, DefaultRefreshTokenExpiry, rootModifications, extraClaims)
+	refreshToken, refreshTokenExpiry, err := d.refreshTokenGenerator.GenerateToken(subject, d.refreshTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
@@ -90,14 +102,14 @@ func (d *DefaultTokenService) GenerateTokens(subject string, rootModifications m
 
 func (d *DefaultTokenService) GenerateMobileTokens(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error) {
 	tokenName := ACCESS_TOKEN_NAME
-	accessToken, accessTokenExpiry, err := d.accessTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
+	accessToken, accessTokenExpiry, err := d.accessTokenGenerator.GenerateToken(subject, d.accessTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
 
 	// mobile has different refresh token expiry
 	tokenName = REFRESH_TOKEN_NAME
-	refreshToken, refreshTokenExpiry, err := d.refreshTokenGenerator.GenerateToken(subject, DefaultMobileRefreshTokenExpiry, rootModifications, extraClaims)
+	refreshToken, refreshTokenExpiry, err := d.refreshTokenGenerator.GenerateToken(subject, d.mobileRefreshTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
@@ -120,7 +132,7 @@ func (d *DefaultTokenService) GenerateMobileTokens(subject string, rootModificat
 
 func (d *DefaultTokenService) GenerateTempToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error) {
 	tokenName := TEMP_TOKEN_NAME
-	tempToken, tempTokenExpiry, err := d.tempTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
+	tempToken, tempTokenExpiry, err := d.tempTokenGenerator.GenerateToken(subject, d.tempTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}
@@ -136,7 +148,7 @@ func (d *DefaultTokenService) GenerateTempToken(subject string, rootModification
 
 func (d *DefaultTokenService) GenerateLogoutToken(subject string, rootModifications map[string]interface{}, extraClaims map[string]interface{}) (map[string]TokenValue, error) {
 	tokenName := LOGOUT_TOKEN_NAME
-	logoutToken, logoutTokenExpiry, err := d.logoutTokenGenerator.GenerateToken(subject, DefaultAccessTokenExpiry, rootModifications, extraClaims)
+	logoutToken, logoutTokenExpiry, err := d.logoutTokenGenerator.GenerateToken(subject, d.logoutTokenExpiry, rootModifications, extraClaims)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate %s token: %w", tokenName, err)
 	}

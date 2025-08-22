@@ -265,7 +265,18 @@ func main() {
 		"simple-idm", // Audience
 	)
 
-	tokenService := tokengenerator.NewDefaultTokenService(tokenGenerator, tokenGenerator, tempTokenGenerator, tokenGenerator, config.JwtConfig.Secret)
+	// Create token service with options
+	tokenService := tokengenerator.NewDefaultTokenServiceWithOptions(
+		tokenGenerator, 
+		tokenGenerator, 
+		tempTokenGenerator, 
+		tokenGenerator, 
+		config.JwtConfig.Secret,
+		tokengenerator.WithAccessTokenExpiry(config.JwtConfig.AccessTokenExpiry),
+		tokengenerator.WithRefreshTokenExpiry(config.JwtConfig.RefreshTokenExpiry),
+		tokengenerator.WithTempTokenExpiry(config.JwtConfig.TempTokenExpiry),
+		tokengenerator.WithLogoutTokenExpiry(config.JwtConfig.LogoutTokenExpiry),
+	)
 	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
 		"/",
 		config.JwtConfig.CookieHttpOnly,
