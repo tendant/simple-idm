@@ -21,6 +21,9 @@ type AuthorizationCode struct {
 	ExpiresAt   time.Time
 	Used        bool
 	CreatedAt   time.Time
+	// PKCE fields
+	CodeChallenge       string // PKCE code challenge
+	CodeChallengeMethod string // PKCE code challenge method ("S256" or "plain")
 }
 
 // OIDCSession represents an OIDC session (for future use)
@@ -87,15 +90,17 @@ func (r *InMemoryOIDCRepository) StoreAuthorizationCode(ctx context.Context, cod
 
 	// Store the code
 	r.authCodes[code.Code] = &AuthorizationCode{
-		Code:        code.Code,
-		ClientID:    code.ClientID,
-		RedirectURI: code.RedirectURI,
-		Scope:       code.Scope,
-		State:       code.State,
-		UserID:      code.UserID,
-		ExpiresAt:   code.ExpiresAt,
-		Used:        code.Used,
-		CreatedAt:   code.CreatedAt,
+		Code:                code.Code,
+		ClientID:            code.ClientID,
+		RedirectURI:         code.RedirectURI,
+		Scope:               code.Scope,
+		State:               code.State,
+		UserID:              code.UserID,
+		ExpiresAt:           code.ExpiresAt,
+		Used:                code.Used,
+		CreatedAt:           code.CreatedAt,
+		CodeChallenge:       code.CodeChallenge,
+		CodeChallengeMethod: code.CodeChallengeMethod,
 	}
 
 	return nil
@@ -127,15 +132,17 @@ func (r *InMemoryOIDCRepository) GetAuthorizationCode(ctx context.Context, code 
 
 	// Return a copy to prevent external modification
 	return &AuthorizationCode{
-		Code:        authCode.Code,
-		ClientID:    authCode.ClientID,
-		RedirectURI: authCode.RedirectURI,
-		Scope:       authCode.Scope,
-		State:       authCode.State,
-		UserID:      authCode.UserID,
-		ExpiresAt:   authCode.ExpiresAt,
-		Used:        authCode.Used,
-		CreatedAt:   authCode.CreatedAt,
+		Code:                authCode.Code,
+		ClientID:            authCode.ClientID,
+		RedirectURI:         authCode.RedirectURI,
+		Scope:               authCode.Scope,
+		State:               authCode.State,
+		UserID:              authCode.UserID,
+		ExpiresAt:           authCode.ExpiresAt,
+		Used:                authCode.Used,
+		CreatedAt:           authCode.CreatedAt,
+		CodeChallenge:       authCode.CodeChallenge,
+		CodeChallengeMethod: authCode.CodeChallengeMethod,
 	}, nil
 }
 

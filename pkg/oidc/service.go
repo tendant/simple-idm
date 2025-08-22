@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
+	"github.com/tendant/simple-idm/pkg/pkce"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
 )
 
@@ -117,6 +118,11 @@ func NewOIDCServiceWithOptions(repository OIDCRepository, clientService *oauth2c
 
 // GenerateAuthorizationCode creates a new authorization code
 func (s *OIDCService) GenerateAuthorizationCode(ctx context.Context, clientID, redirectURI, scope string, state *string, userID string) (string, error) {
+	return s.GenerateAuthorizationCodeWithPKCE(ctx, clientID, redirectURI, scope, state, userID, "", "")
+}
+
+// GenerateAuthorizationCodeWithPKCE creates a new authorization code with PKCE support
+func (s *OIDCService) GenerateAuthorizationCodeWithPKCE(ctx context.Context, clientID, redirectURI, scope string, state *string, userID, codeChallenge, codeChallengeMethod string) (string, error) {
 	// Generate a random code
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
@@ -131,15 +137,17 @@ func (s *OIDCService) GenerateAuthorizationCode(ctx context.Context, clientID, r
 
 	// Create the authorization code
 	authCode := &AuthorizationCode{
-		Code:        code,
-		ClientID:    clientID,
-		RedirectURI: redirectURI,
-		Scope:       scope,
-		State:       stateStr,
-		UserID:      userID,
-		ExpiresAt:   time.Now().UTC().Add(s.codeExpiration),
-		Used:        false,
-		CreatedAt:   time.Now().UTC(),
+		Code:                code,
+		ClientID:            clientID,
+		RedirectURI:         redirectURI,
+		Scope:               scope,
+		State:               stateStr,
+		UserID:              userID,
+		ExpiresAt:           time.Now().UTC().Add(s.codeExpiration),
+		Used:                false,
+		CreatedAt:           time.Now().UTC(),
+		CodeChallenge:       codeChallenge,
+		CodeChallengeMethod: codeChallengeMethod,
 	}
 
 	// Store the authorization code
@@ -168,6 +176,11 @@ func (s *OIDCService) GetAuthorizationCode(ctx context.Context, code string) (*A
 
 // ValidateAndConsumeAuthorizationCode validates an authorization code and marks it as used
 func (s *OIDCService) ValidateAndConsumeAuthorizationCode(ctx context.Context, code, clientID, redirectURI string) (*AuthorizationCode, error) {
+	return s.ValidateAndConsumeAuthorizationCodeWithPKCE(ctx, code, clientID, redirectURI, "")
+}
+
+// ValidateAndConsumeAuthorizationCodeWithPKCE validates an authorization code with PKCE support and marks it as used
+func (s *OIDCService) ValidateAndConsumeAuthorizationCodeWithPKCE(ctx context.Context, code, clientID, redirectURI, codeVerifier string) (*AuthorizationCode, error) {
 	// Get the authorization code
 	authCode, err := s.repository.GetAuthorizationCode(ctx, code)
 	if err != nil {
@@ -183,6 +196,19 @@ func (s *OIDCService) ValidateAndConsumeAuthorizationCode(ctx context.Context, c
 		return nil, fmt.Errorf("redirect URI mismatch")
 	}
 
+	// Validate PKCE if code challenge is present
+	if authCode.CodeChallenge != "" {
+		if codeVerifier == "" {
+			return nil, fmt.Errorf("code verifier is required for PKCE")
+		}
+
+		// Import pkce package for validation
+		err = s.validatePKCE(codeVerifier, authCode.CodeChallenge, authCode.CodeChallengeMethod)
+		if err != nil {
+			return nil, fmt.Errorf("PKCE validation failed: %w", err)
+		}
+	}
+
 	// Mark the authorization code as used
 	err = s.repository.MarkAuthorizationCodeUsed(ctx, code)
 	if err != nil {
@@ -190,6 +216,22 @@ func (s *OIDCService) ValidateAndConsumeAuthorizationCode(ctx context.Context, c
 	}
 
 	return authCode, nil
+}
+
+// validatePKCE validates the PKCE code verifier against the stored challenge
+func (s *OIDCService) validatePKCE(codeVerifier, codeChallenge, codeChallengeMethod string) error {
+	if codeVerifier == "" {
+		return fmt.Errorf("code verifier cannot be empty")
+	}
+	if codeChallenge == "" {
+		return fmt.Errorf("code challenge cannot be empty")
+	}
+	if codeChallengeMethod == "" {
+		codeChallengeMethod = "S256" // Default to S256
+	}
+
+	// Use the PKCE package to validate the code verifier
+	return pkce.ValidateCodeVerifier(codeVerifier, codeChallenge, pkce.ChallengeMethod(codeChallengeMethod))
 }
 
 // GenerateAccessToken creates a JWT access token for the user
