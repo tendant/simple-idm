@@ -64,51 +64,6 @@ func NewDefaultTokenService(accessTokenGenerator, refreshTokenGenerator, tempTok
 	}
 }
 
-// TokenServiceConfig holds configuration for token expiry durations
-type TokenServiceConfig struct {
-	AccessTokenExpiry        time.Duration
-	RefreshTokenExpiry       time.Duration
-	MobileRefreshTokenExpiry time.Duration
-	TempTokenExpiry          time.Duration
-	LogoutTokenExpiry        time.Duration
-}
-
-// NewDefaultTokenServiceWithConfig creates a new token service with custom expiry configuration
-func NewDefaultTokenServiceWithConfig(accessTokenGenerator, refreshTokenGenerator, tempTokenGenerator, logoutTokenGenerator TokenGenerator, secret string, config *TokenServiceConfig) TokenService {
-	service := &DefaultTokenService{
-		accessTokenGenerator:     accessTokenGenerator,
-		refreshTokenGenerator:    refreshTokenGenerator,
-		tempTokenGenerator:       tempTokenGenerator,
-		logoutTokenGenerator:     logoutTokenGenerator,
-		Secret:                   secret,
-		accessTokenExpiry:        DefaultAccessTokenExpiry,
-		refreshTokenExpiry:       DefaultRefreshTokenExpiry,
-		mobileRefreshTokenExpiry: DefaultMobileRefreshTokenExpiry,
-		tempTokenExpiry:          DefaultTempTokenExpiry,
-		logoutTokenExpiry:        DefaultLogoutTokenExpiry,
-	}
-	
-	// Apply custom configuration if provided
-	if config != nil {
-		if config.AccessTokenExpiry > 0 {
-			service.accessTokenExpiry = config.AccessTokenExpiry
-		}
-		if config.RefreshTokenExpiry > 0 {
-			service.refreshTokenExpiry = config.RefreshTokenExpiry
-		}
-		if config.MobileRefreshTokenExpiry > 0 {
-			service.mobileRefreshTokenExpiry = config.MobileRefreshTokenExpiry
-		}
-		if config.TempTokenExpiry > 0 {
-			service.tempTokenExpiry = config.TempTokenExpiry
-		}
-		if config.LogoutTokenExpiry != 0 { // Allow negative values
-			service.logoutTokenExpiry = config.LogoutTokenExpiry
-		}
-	}
-	
-	return service
-}
 
 type TokenValue struct {
 	Name   string
