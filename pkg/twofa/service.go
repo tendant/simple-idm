@@ -39,6 +39,9 @@ type TwoFaService struct {
 	queries             *twofadb.Queries
 	notificationManager *notification.NotificationManager
 	userMapper          mapper.UserMapper
+	totpPeriod          uint
+	smsPeriod           uint
+	emailPeriod         uint
 }
 
 // TwoFaServiceOption defines a function type for configuring the TwoFaService
@@ -58,10 +61,34 @@ func WithUserMapper(userMapper mapper.UserMapper) TwoFaServiceOption {
 	}
 }
 
+// WithTotpPeriod sets the TOTP period in seconds (default: 30)
+func WithTotpPeriod(period uint) TwoFaServiceOption {
+	return func(s *TwoFaService) {
+		s.totpPeriod = period
+	}
+}
+
+// WithSmsPeriod sets the SMS 2FA period in seconds (default: 300)
+func WithSmsPeriod(period uint) TwoFaServiceOption {
+	return func(s *TwoFaService) {
+		s.smsPeriod = period
+	}
+}
+
+// WithEmailPeriod sets the Email 2FA period in seconds (default: 300)
+func WithEmailPeriod(period uint) TwoFaServiceOption {
+	return func(s *TwoFaService) {
+		s.emailPeriod = period
+	}
+}
+
 // NewTwoFaService creates a new TwoFaService with the given queries and options
 func NewTwoFaService(queries *twofadb.Queries, opts ...TwoFaServiceOption) *TwoFaService {
 	service := &TwoFaService{
-		queries: queries,
+		queries:     queries,
+		totpPeriod:  30,  // Default TOTP period: 30 seconds
+		smsPeriod:   300, // Default SMS period: 300 seconds (5 minutes)
+		emailPeriod: 300, // Default Email period: 300 seconds (5 minutes)
 	}
 
 	// Apply all options
@@ -92,7 +119,7 @@ type (
 const (
 	TOTP_ISSUER = "simple-idm"
 	SKEW        = 1
-	PERIOD      = 30 // Standard TOTP period is 30 seconds
+	PERIOD      = 300
 )
 
 const (
@@ -133,8 +160,20 @@ func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId, userId
 		return err
 	}
 
-	// generate and send the passcode
-	passcode, err := Generate2faPasscode(secret)
+	// generate and send the passcode using appropriate period for the 2FA type
+	var period uint
+	switch twoFactorType {
+	case TWO_FACTOR_TYPE_TOTP:
+		period = s.totpPeriod
+	case TWO_FACTOR_TYPE_SMS:
+		period = s.smsPeriod
+	case TWO_FACTOR_TYPE_EMAIL:
+		period = s.emailPeriod
+	default:
+		period = PERIOD // fallback to default
+	}
+
+	passcode, err := s.Generate2faPasscodeWithPeriod(secret, period)
 	if err != nil {
 		return fmt.Errorf("failed to generate and send 2FA passcode: %w", err)
 	}
@@ -424,7 +463,20 @@ func (s TwoFaService) Validate2faPasscode(ctx context.Context, loginId uuid.UUID
 		return false, fmt.Errorf("failed to get 2FA record: %w", err)
 	}
 
-	res, err := ValidateTotpPasscode(secret.TwoFactorSecret.String, passcode)
+	// Use appropriate period for the 2FA type
+	var period uint
+	switch twoFactorType {
+	case TWO_FACTOR_TYPE_TOTP:
+		period = s.totpPeriod
+	case TWO_FACTOR_TYPE_SMS:
+		period = s.smsPeriod
+	case TWO_FACTOR_TYPE_EMAIL:
+		period = s.emailPeriod
+	default:
+		period = PERIOD // fallback to default
+	}
+
+	res, err := s.ValidateTotpPasscodeWithPeriod(secret.TwoFactorSecret.String, passcode, period)
 	if err != nil {
 		return false, fmt.Errorf("failed to validate 2FA passcode: %w", err)
 	}
@@ -492,6 +544,21 @@ func Generate2faPasscode(totpSecret string) (string, error) {
 	return code, nil
 }
 
+// Generate2faPasscodeWithPeriod generates a 2FA passcode with a configurable period
+func (s TwoFaService) Generate2faPasscodeWithPeriod(totpSecret string, period uint) (string, error) {
+	code, err := totp.GenerateCodeCustom(totpSecret, time.Now().UTC(), totp.ValidateOpts{
+		Period:    period,
+		Skew:      SKEW,
+		Digits:    otp.DigitsSix,
+		Algorithm: otp.AlgorithmSHA1,
+	})
+	if err != nil {
+		slog.Error("Failed to generate 2fa passcode with period", "period", period, "error", err)
+		return "", err
+	}
+	return code, nil
+}
+
 func ValidateTotpPasscode(totpSecret, passcode string) (bool, error) {
 	valid, err := totp.ValidateCustom(passcode, totpSecret, time.Now().UTC(), totp.ValidateOpts{
 		Period:    PERIOD,
@@ -501,6 +568,21 @@ func ValidateTotpPasscode(totpSecret, passcode string) (bool, error) {
 	})
 	if err != nil {
 		slog.Error("Failed to validate totp passcode", "error", err)
+		return false, err
+	}
+	return valid, nil
+}
+
+// ValidateTotpPasscodeWithPeriod validates a TOTP passcode with a configurable period
+func (s TwoFaService) ValidateTotpPasscodeWithPeriod(totpSecret, passcode string, period uint) (bool, error) {
+	valid, err := totp.ValidateCustom(passcode, totpSecret, time.Now().UTC(), totp.ValidateOpts{
+		Period:    period,
+		Skew:      SKEW,
+		Digits:    otp.DigitsSix,
+		Algorithm: otp.AlgorithmSHA1,
+	})
+	if err != nil {
+		slog.Error("Failed to validate totp passcode with period", "period", period, "error", err)
 		return false, err
 	}
 	return valid, nil
@@ -530,9 +612,9 @@ func (s TwoFaService) GenerateTotpQRCode(ctx context.Context, loginId uuid.UUID,
 
 	slog.Info("Generating QR code for TOTP", "loginId", loginId, "issuer", issuer, "accountName", accountName)
 
-	// Generate provisioning URI with standard TOTP parameters
-	provisioningURI := fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s&period=%d&digits=6&algorithm=SHA1", issuer, accountName, secret, issuer, PERIOD)
-	slog.Info("Generated provisioning URI", "uri", provisioningURI)
+	// Generate provisioning URI with configurable TOTP period
+	provisioningURI := fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s&period=%d&digits=6&algorithm=SHA1", issuer, accountName, secret, issuer, s.totpPeriod)
+	slog.Info("Generated provisioning URI", "uri", provisioningURI, "period", s.totpPeriod)
 
 	// Generate QR code
 	qrCode, err := qrcode.Encode(provisioningURI, qrcode.Medium, 256)
