@@ -236,6 +236,9 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 		}
 	}
 
+	// Step 9: Record successful login automatically
+	s.RecordSuccessfulLogin(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint)
+
 	result.Success = true
 	result.Tokens = tokens
 	return result
@@ -492,6 +495,9 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 			return result
 		}
 	}
+
+	// Record successful login automatically
+	s.RecordSuccessfulLogin(ctx, loginID, ipAddress, userAgent, fingerprint)
 
 	result.Success = true
 	result.Tokens = tokens
