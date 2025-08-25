@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/device"
 	"github.com/tendant/simple-idm/pkg/login"
@@ -19,11 +20,12 @@ import (
 
 // Service orchestrates the complete login flow business logic
 type Service struct {
-	loginService     *login.LoginService
-	twoFactorService twofa.TwoFactorService
-	deviceService    device.DeviceService
-	tokenService     tg.TokenService
-	userMapper       mapper.UserMapper
+	loginService       *login.LoginService
+	twoFactorService   twofa.TwoFactorService
+	deviceService      device.DeviceService
+	tokenService       tg.TokenService
+	tokenCookieService tg.TokenCookieService
+	userMapper         mapper.UserMapper
 }
 
 // Request contains all the data needed for a login flow
@@ -43,11 +45,24 @@ type Result struct {
 	Users                 []mapper.User
 	LoginID               uuid.UUID
 	TwoFactorMethods      []TwoFactorMethod
+	TempToken             *tg.TokenValue
 	Tokens                map[string]tg.TokenValue
 	DeviceRecognized      bool
 	ErrorResponse         *Error
 }
 
+// Error represents structured errors from the login flow
+type Error struct {
+	Type    string
+	Message string
+	Data    map[string]interface{}
+}
+
+func (e *Error) Error() string {
+	return e.Message
+}
+
+// DeliveryOption defines a model for 2FA delivery options
 type DeliveryOption struct {
 	Type         string `json:"type,omitempty"`
 	Value        string `json:"value,omitempty"`
@@ -62,17 +77,6 @@ type TwoFactorMethod struct {
 	DeliveryOptions []DeliveryOption `json:"delivery_options,omitempty"`
 }
 
-// Error represents structured errors from the login flow
-type Error struct {
-	Type    string
-	Message string
-	Data    map[string]interface{}
-}
-
-func (e *Error) Error() string {
-	return e.Message
-}
-
 // NewService creates a new login flow service
 func NewService(
 	loginService *login.LoginService,
@@ -83,11 +87,12 @@ func NewService(
 	userMapper mapper.UserMapper,
 ) *Service {
 	return &Service{
-		loginService:     loginService,
-		twoFactorService: twoFactorService,
-		deviceService:    deviceService,
-		tokenService:     tokenService,
-		userMapper:       userMapper,
+		loginService:       loginService,
+		twoFactorService:   twoFactorService,
+		deviceService:      deviceService,
+		tokenService:       tokenService,
+		tokenCookieService: tokenCookieService,
+		userMapper:         userMapper,
 	}
 }
 
@@ -186,7 +191,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 		if requires2FA {
 			result.RequiresTwoFA = true
 			result.TwoFactorMethods = methods
-			result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
+			result.TempToken = tempToken
 			return result
 		}
 	}
@@ -205,7 +210,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
+		result.TempToken = tempToken
 		return result
 	}
 
@@ -221,7 +226,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 		return result
 	}
 
-	// Step 8: Record successful login automatically
+	// Step 9: Record successful login automatically
 	s.RecordSuccessfulLogin(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint)
 
 	result.Success = true
@@ -444,7 +449,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 		if requires2FA {
 			result.RequiresTwoFA = true
 			result.TwoFactorMethods = methods
-			result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
+			result.TempToken = tempToken
 			return result
 		}
 	}
@@ -463,7 +468,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
+		result.TempToken = tempToken
 		return result
 	}
 
@@ -597,7 +602,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 		if requires2FA {
 			result.RequiresTwoFA = true
 			result.TwoFactorMethods = methods
-			result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
+			result.TempToken = tempToken
 			return result
 		}
 	}
@@ -615,7 +620,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
+		result.TempToken = tempToken
 		return result
 	}
 
@@ -632,6 +637,64 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 
 	// Record successful login automatically
 	s.RecordSuccessfulLogin(ctx, loginID, ipAddress, userAgent, fingerprint)
+
+	result.Success = true
+	result.Tokens = tokens
+	return result
+}
+
+// ProcessMagicLinkValidation orchestrates the magic link token validation flow
+func (s *Service) ProcessMagicLinkValidation(ctx context.Context, token, ipAddress, userAgent, fingerprint string) Result {
+	result := Result{}
+
+	// Step 1: Validate the magic link token
+	loginResult, err := s.loginService.ValidateMagicLinkToken(ctx, token)
+	if err != nil {
+		slog.Error("Magic link validation failed", "err", err)
+
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid or expired token",
+		}
+		return result
+	}
+
+	result.LoginID = loginResult.LoginID
+	result.Users = loginResult.Users
+
+	// Step 2: Check for multiple users requiring selection
+	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginResult.LoginID, loginResult.Users)
+	if err != nil {
+		// Record failed login attempt
+		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: err.Error(),
+		}
+		return result
+	}
+
+	if requiresUserSelection {
+		result.RequiresUserSelection = true
+		result.TempToken = tempToken
+		return result
+	}
+
+	// Step 3: Generate tokens for successful login (single user case)
+	tokens, err := s.GenerateLoginTokens(ctx, loginResult.Users[0])
+	if err != nil {
+		slog.Error("Failed to generate tokens", "err", err)
+
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to create tokens",
+		}
+		return result
+	}
+
+	// Step 4: Record successful login automatically
+	s.RecordSuccessfulLogin(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint)
 
 	result.Success = true
 	result.Tokens = tokens
@@ -686,4 +749,450 @@ func getUniquePhonesFromUsers(users []mapper.User) []DeliveryOption {
 	}
 
 	return deliveryOptions
+}
+
+// UserSwitchRequest contains the data needed for user switching
+type UserSwitchRequest struct {
+	TokenString       string
+	TokenType         string
+	TargetUserID      string
+	IPAddress         string
+	UserAgent         string
+	DeviceFingerprint string
+}
+
+// TwoFAValidationRequest contains the data needed for 2FA validation
+type TwoFAValidationRequest struct {
+	TokenString       string
+	TwoFAType         string
+	Passcode          string
+	RememberDevice    bool
+	IPAddress         string
+	UserAgent         string
+	DeviceFingerprint string
+}
+
+// Process2FAValidation orchestrates the 2FA validation flow
+func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidationRequest) Result {
+	result := Result{}
+
+	// Step 1: Parse and validate temp token
+	token, err := s.tokenService.ParseToken(request.TokenString)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid temp token",
+		}
+		return result
+	}
+
+	// Step 2: Extract login ID from token
+	mapClaims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid token claims",
+		}
+		return result
+	}
+
+	loginIDStr, exists := mapClaims["login_id"].(string)
+	if !exists {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Missing login_id in token",
+		}
+		return result
+	}
+
+	loginID, err := uuid.Parse(loginIDStr)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid login_id format in token",
+		}
+		return result
+	}
+
+	result.LoginID = loginID
+
+	// Step 3: Validate 2FA passcode
+	valid, err := s.twoFactorService.Validate2faPasscode(ctx, loginID, request.TwoFAType, request.Passcode)
+	if err != nil {
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "failed to validate 2fa: " + err.Error(),
+		}
+		return result
+	}
+
+	if !valid {
+		// Record failed 2FA validation attempt
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+
+		// Check if account should be locked
+		locked, _, err := s.loginService.IncrementFailedAttemptsAndCheckLock(ctx, loginID)
+		if err != nil {
+			slog.Error("Failed to increment failed attempts", "err", err)
+		}
+		if locked {
+			lockoutDuration := s.loginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
+			result.ErrorResponse = &Error{
+				Type:    "account_locked",
+				Message: "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
+			}
+			return result
+		}
+		result.ErrorResponse = &Error{
+			Type:    "invalid_2fa",
+			Message: "2fa validation failed",
+		}
+		return result
+	}
+
+	// Step 4: Handle device remembering if requested
+	if request.RememberDevice && request.DeviceFingerprint != "" {
+		err := s.deviceService.LinkDeviceToLogin(ctx, loginID, request.DeviceFingerprint)
+		if err != nil {
+			slog.Error("Failed to remember device", "err", err)
+			// Don't fail the login if we can't remember the device
+		}
+	}
+
+	// Step 5: Get users for the login ID
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
+	if err != nil {
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "failed to get user roles: " + err.Error(),
+		}
+		return result
+	}
+
+	if len(users) == 0 {
+		slog.Error("No user found after 2fa")
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
+		result.ErrorResponse = &Error{
+			Type:    "no_user_found",
+			Message: "2fa validation failed",
+		}
+		return result
+	}
+
+	result.Users = users
+
+	// Step 6: Check for user association flow
+	if extraClaims, exists := mapClaims["extra_claims"].(map[string]interface{}); exists {
+		if associateUser, exists := extraClaims["associate_users"]; exists && associateUser.(bool) {
+			// This is a user association flow - return special response
+			result.RequiresUserSelection = true
+			return result
+		}
+	}
+
+	// Step 7: Check for multiple users
+	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, users)
+	if err != nil {
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: err.Error(),
+		}
+		return result
+	}
+
+	if requiresUserSelection {
+		result.RequiresUserSelection = true
+		result.TempToken = tempToken
+		return result
+	}
+
+	// Step 8: Generate tokens for single user
+	tokens, err := s.GenerateLoginTokens(ctx, users[0])
+	if err != nil {
+		slog.Error("Failed to create access token", "err", err)
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to create access token",
+		}
+		return result
+	}
+
+	// Step 9: Record successful login
+	s.RecordSuccessfulLogin(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint)
+
+	result.Success = true
+	result.Tokens = tokens
+	return result
+}
+
+// ProcessMobile2FAValidation orchestrates the mobile 2FA validation flow
+func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAValidationRequest) Result {
+	result := Result{}
+
+	// Step 1: Parse and validate temp token
+	token, err := s.tokenService.ParseToken(request.TokenString)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid temp token",
+		}
+		return result
+	}
+
+	// Step 2: Extract login ID from token
+	mapClaims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid token claims",
+		}
+		return result
+	}
+
+	loginIDStr, exists := mapClaims["login_id"].(string)
+	if !exists {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Missing login_id in token",
+		}
+		return result
+	}
+
+	loginID, err := uuid.Parse(loginIDStr)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid login_id format in token",
+		}
+		return result
+	}
+
+	result.LoginID = loginID
+
+	// Step 3: Validate 2FA passcode
+	valid, err := s.twoFactorService.Validate2faPasscode(ctx, loginID, request.TwoFAType, request.Passcode)
+	if err != nil {
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "failed to validate 2fa: " + err.Error(),
+		}
+		return result
+	}
+
+	if !valid {
+		// Record failed 2FA validation attempt
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+
+		// Check if account should be locked
+		locked, _, err := s.loginService.IncrementFailedAttemptsAndCheckLock(ctx, loginID)
+		if err != nil {
+			slog.Error("Failed to increment failed attempts", "err", err)
+		}
+		if locked {
+			lockoutDuration := s.loginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
+			result.ErrorResponse = &Error{
+				Type:    "account_locked",
+				Message: "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
+			}
+			return result
+		}
+		result.ErrorResponse = &Error{
+			Type:    "invalid_2fa",
+			Message: "2fa validation failed",
+		}
+		return result
+	}
+
+	// Step 4: Handle device remembering if requested
+	if request.RememberDevice && request.DeviceFingerprint != "" {
+		err := s.deviceService.LinkDeviceToLogin(ctx, loginID, request.DeviceFingerprint)
+		if err != nil {
+			slog.Error("Failed to remember device", "err", err)
+			// Don't fail the login if we can't remember the device
+		}
+	}
+
+	// Step 5: Get users for the login ID
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
+	if err != nil {
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "failed to get user roles: " + err.Error(),
+		}
+		return result
+	}
+
+	if len(users) == 0 {
+		slog.Error("No user found after 2fa")
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
+		result.ErrorResponse = &Error{
+			Type:    "no_user_found",
+			Message: "2fa validation failed",
+		}
+		return result
+	}
+
+	result.Users = users
+
+	// Step 6: Check for multiple users
+	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, users)
+	if err != nil {
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: err.Error(),
+		}
+		return result
+	}
+
+	if requiresUserSelection {
+		result.RequiresUserSelection = true
+		result.TempToken = tempToken
+		return result
+	}
+
+	// Step 7: Generate mobile tokens for single user
+	tokens, err := s.GenerateMobileLoginTokens(ctx, users[0])
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to create tokens",
+		}
+		return result
+	}
+
+	// Step 8: Record successful login
+	s.RecordSuccessfulLogin(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint)
+
+	result.Success = true
+	result.Tokens = tokens
+	return result
+}
+
+// ProcessUserSwitch orchestrates the user switching flow
+func (s *Service) ProcessUserSwitch(ctx context.Context, request UserSwitchRequest) Result {
+	result := Result{}
+
+	// Step 1: Parse and validate token
+	token, err := s.tokenService.ParseToken(request.TokenString)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid token",
+		}
+		return result
+	}
+
+	// Step 2: Validate 2FA if using temp token
+	if request.TokenType == "temp_token" {
+		// Extract claims and check 2FA verification
+		mapClaims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			result.ErrorResponse = &Error{
+				Type:    "invalid_token",
+				Message: "Invalid token claims",
+			}
+			return result
+		}
+
+		twofaVerified, exists := mapClaims["2fa_verified"].(bool)
+		if !exists || !twofaVerified {
+			result.ErrorResponse = &Error{
+				Type:    "unauthorized",
+				Message: "2FA not verified",
+			}
+			return result
+		}
+	}
+
+	// Step 3: Extract login ID from token
+	mapClaims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid token claims",
+		}
+		return result
+	}
+
+	loginIDStr, exists := mapClaims["login_id"].(string)
+	if !exists {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Missing login_id in token",
+		}
+		return result
+	}
+
+	loginID, err := uuid.Parse(loginIDStr)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid login_id format in token",
+		}
+		return result
+	}
+
+	result.LoginID = loginID
+
+	// Step 4: Get all users for the current login
+	users, err := s.loginService.GetUsersByLoginId(ctx, loginID)
+	if err != nil {
+		slog.Error("Failed to get users", "err", err)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to get users",
+		}
+		return result
+	}
+
+	// Step 5: Check if the requested user is in the list
+	var targetUser mapper.User
+	found := false
+	for _, user := range users {
+		if user.UserId == request.TargetUserID {
+			targetUser = user
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		result.ErrorResponse = &Error{
+			Type:    "forbidden",
+			Message: "Not authorized to switch to this user",
+		}
+		return result
+	}
+
+	// Step 6: Generate mobile tokens for the target user
+	tokens, err := s.GenerateMobileLoginTokens(ctx, targetUser)
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to create tokens",
+		}
+		return result
+	}
+
+	// Step 7: Record successful login
+	s.RecordSuccessfulLogin(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint)
+
+	result.Success = true
+	result.Tokens = tokens
+	result.Users = []mapper.User{targetUser}
+	return result
 }
