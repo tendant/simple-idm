@@ -4,28 +4,26 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/pkg/common"
 	"github.com/tendant/simple-idm/pkg/device"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
+	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 // Service orchestrates the complete login flow business logic
 type Service struct {
-	loginService       *login.LoginService
-	twoFactorService   twofa.TwoFactorService
-	deviceService      device.DeviceService
-	tokenService       tg.TokenService
-	tokenCookieService tg.TokenCookieService
-	userMapper         mapper.UserMapper
+	loginService     *login.LoginService
+	twoFactorService twofa.TwoFactorService
+	deviceService    device.DeviceService
+	tokenService     tg.TokenService
+	userMapper       mapper.UserMapper
 }
 
 // Request contains all the data needed for a login flow
@@ -44,18 +42,30 @@ type Result struct {
 	RequiresUserSelection bool
 	Users                 []mapper.User
 	LoginID               uuid.UUID
-	TwoFactorMethods      []common.TwoFactorMethod
-	TempToken             *tg.TokenValue
+	TwoFactorMethods      []TwoFactorMethod
 	Tokens                map[string]tg.TokenValue
 	DeviceRecognized      bool
 	ErrorResponse         *Error
+}
+
+type DeliveryOption struct {
+	Type         string `json:"type,omitempty"`
+	Value        string `json:"value,omitempty"`
+	UserID       string `json:"user_id,omitempty"`
+	DisplayValue string `json:"display_value,omitempty"`
+	HashedValue  string `json:"hashed_value,omitempty"`
+}
+
+// TwoFactorMethod defines a model for 2FA method
+type TwoFactorMethod struct {
+	Type            string           `json:"type,omitempty"`
+	DeliveryOptions []DeliveryOption `json:"delivery_options,omitempty"`
 }
 
 // Error represents structured errors from the login flow
 type Error struct {
 	Type    string
 	Message string
-	Code    int
 	Data    map[string]interface{}
 }
 
@@ -73,17 +83,16 @@ func NewService(
 	userMapper mapper.UserMapper,
 ) *Service {
 	return &Service{
-		loginService:       loginService,
-		twoFactorService:   twoFactorService,
-		deviceService:      deviceService,
-		tokenService:       tokenService,
-		tokenCookieService: tokenCookieService,
-		userMapper:         userMapper,
+		loginService:     loginService,
+		twoFactorService: twoFactorService,
+		deviceService:    deviceService,
+		tokenService:     tokenService,
+		userMapper:       userMapper,
 	}
 }
 
 // ProcessLogin orchestrates the complete login flow
-func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, request Request) Result {
+func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 	result := Result{}
 
 	// Step 1: Authenticate user credentials
@@ -103,7 +112,6 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 			result.ErrorResponse = &Error{
 				Type:    "account_locked",
 				Message: "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
-				Code:    http.StatusTooManyRequests,
 			}
 			return result
 		}
@@ -112,7 +120,6 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 			result.ErrorResponse = &Error{
 				Type:    "password_expired",
 				Message: "Your password has expired and must be changed before you can log in.",
-				Code:    http.StatusForbidden,
 			}
 			return result
 		}
@@ -120,7 +127,6 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 		result.ErrorResponse = &Error{
 			Type:    "invalid_credentials",
 			Message: "Username/Password is wrong",
-			Code:    http.StatusBadRequest,
 		}
 		return result
 	}
@@ -136,7 +142,6 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 		result.ErrorResponse = &Error{
 			Type:    "no_user_found",
 			Message: "Account not active",
-			Code:    http.StatusForbidden,
 		}
 		return result
 	}
@@ -150,7 +155,6 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "Invalid login ID",
-			Code:    http.StatusInternalServerError,
 		}
 		return result
 	}
@@ -167,7 +171,7 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 
 	// Step 5: Check 2FA requirement
 	if !deviceRecognized {
-		requires2FA, methods, tempToken, err := s.Check2FARequirement(ctx, w, loginID, loginResult.Users)
+		requires2FA, methods, tempToken, err := s.Check2FARequirement(ctx, loginID, loginResult.Users)
 		if err != nil {
 			slog.Error("Failed to check 2FA", "err", err)
 			s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
@@ -175,7 +179,6 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 			result.ErrorResponse = &Error{
 				Type:    "internal_error",
 				Message: err.Error(),
-				Code:    http.StatusInternalServerError,
 			}
 			return result
 		}
@@ -183,27 +186,26 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 		if requires2FA {
 			result.RequiresTwoFA = true
 			result.TwoFactorMethods = methods
-			result.TempToken = tempToken
+			result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
 			return result
 		}
 	}
 
 	// Step 6: Check for multiple users
-	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, w, loginID, loginResult.Users)
+	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, loginResult.Users)
 	if err != nil {
 		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: err.Error(),
-			Code:    http.StatusInternalServerError,
 		}
 		return result
 	}
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.TempToken = tempToken
+		result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
 		return result
 	}
 
@@ -215,28 +217,11 @@ func (s *Service) ProcessLogin(ctx context.Context, w http.ResponseWriter, reque
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "Failed to generate tokens",
-			Code:    http.StatusInternalServerError,
 		}
 		return result
 	}
 
-	// Step 8: Set tokens in cookies
-	if w != nil {
-		err = s.tokenCookieService.SetTokensCookie(w, tokens)
-		if err != nil {
-			slog.Error("Failed to set access token cookie", "err", err)
-			s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
-
-			result.ErrorResponse = &Error{
-				Type:    "internal_error",
-				Message: "Failed to set access token cookie",
-				Code:    http.StatusInternalServerError,
-			}
-			return result
-		}
-	}
-
-	// Step 9: Record successful login automatically
+	// Step 8: Record successful login automatically
 	s.RecordSuccessfulLogin(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint)
 
 	result.Success = true
@@ -268,26 +253,57 @@ func (s *Service) CheckDeviceRecognition(ctx context.Context, loginID uuid.UUID,
 }
 
 // Check2FARequirement checks if 2FA is required for the login
-func (s *Service) Check2FARequirement(ctx context.Context, w http.ResponseWriter, loginID uuid.UUID, users []mapper.User) (bool, []common.TwoFactorMethod, *tg.TokenValue, error) {
-	enabled, commonMethods, tempToken, err := common.Check2FAEnabled(
-		ctx,
-		w,
-		loginID,
-		users,
-		s.twoFactorService,
-		s.tokenService,
-		s.tokenCookieService,
-		false, // Not associate user in this API
-	)
+func (s *Service) Check2FARequirement(ctx context.Context, loginID uuid.UUID, users []mapper.User) (bool, []TwoFactorMethod, *tg.TokenValue, error) {
+	enabledTwoFAs, err := s.twoFactorService.FindEnabledTwoFAs(ctx, loginID)
 	if err != nil {
-		return false, nil, nil, fmt.Errorf("failed to check 2FA: %w", err)
+		slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
+		return false, nil, nil, fmt.Errorf("failed to find enabled 2FA: %w", err)
 	}
 
-	return enabled, commonMethods, tempToken, nil
+	if len(enabledTwoFAs) == 0 {
+		slog.Info("2FA is not enabled for login, skip 2FA verification", "loginUuid", loginID)
+		return false, nil, nil, nil
+	}
+
+	slog.Info("2FA is enabled for login, proceed to 2FA verification", "loginUuid", loginID)
+
+	// If email 2FA is enabled, get unique emails from users
+	var twoFactorMethods []TwoFactorMethod
+	for _, method := range enabledTwoFAs {
+		curMethod := TwoFactorMethod{
+			Type: method,
+		}
+		switch method {
+		case twofa.TWO_FACTOR_TYPE_EMAIL:
+			options := getUniqueEmailsFromUsers(users)
+			curMethod.DeliveryOptions = options
+		case twofa.TWO_FACTOR_TYPE_SMS:
+			options := getUniquePhonesFromUsers(users)
+			curMethod.DeliveryOptions = options
+		default:
+			curMethod.DeliveryOptions = []DeliveryOption{}
+		}
+		twoFactorMethods = append(twoFactorMethods, curMethod)
+	}
+
+	extraClaims := map[string]interface{}{
+		"login_id": loginID.String(),
+	}
+
+	// Updated to use the new TokenService interface
+	tempTokenMap, err := s.tokenService.GenerateTempToken(users[0].UserId, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return false, nil, nil, fmt.Errorf("failed to generate temp token: %w", err)
+	}
+
+	tempToken := tempTokenMap[tg.TEMP_TOKEN_NAME]
+
+	return true, twoFactorMethods, &tempToken, nil
 }
 
 // CheckMultipleUsers checks if there are multiple users and handles temp token generation
-func (s *Service) CheckMultipleUsers(ctx context.Context, w http.ResponseWriter, loginID uuid.UUID, users []mapper.User) (bool, *tg.TokenValue, error) {
+func (s *Service) CheckMultipleUsers(ctx context.Context, loginID uuid.UUID, users []mapper.User) (bool, *tg.TokenValue, error) {
 	if len(users) <= 1 {
 		return false, nil, nil
 	}
@@ -301,15 +317,6 @@ func (s *Service) CheckMultipleUsers(ctx context.Context, w http.ResponseWriter,
 	if err != nil {
 		slog.Error("Failed to generate temp token", "err", err)
 		return true, nil, fmt.Errorf("failed to generate temp token: %w", err)
-	}
-
-	// Only set cookie if a writer is provided (web flow)
-	if w != nil {
-		err = s.tokenCookieService.SetTokensCookie(w, tempTokenMap)
-		if err != nil {
-			slog.Error("Failed to set temp token cookie", "err", err)
-			return true, nil, fmt.Errorf("failed to set temp token cookie: %w", err)
-		}
 	}
 
 	tempToken := tempTokenMap[tg.TEMP_TOKEN_NAME]
@@ -345,8 +352,158 @@ func (s *Service) RecordSuccessfulLogin(ctx context.Context, loginID uuid.UUID, 
 	}
 }
 
+// ProcessMobileLogin orchestrates the complete mobile login flow
+// This is similar to ProcessLogin but generates mobile tokens and doesn't set cookies
+func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Result {
+	result := Result{}
+
+	// Step 1: Authenticate user credentials
+	loginResult, err := s.loginService.Login(ctx, request.Username, request.Password)
+	if err != nil {
+		slog.Error("Mobile login failed", "err", err)
+
+		// Record the login attempt
+		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, loginResult.FailureReason)
+
+		// Handle specific error types
+		if login.IsAccountLockedError(err) {
+			result.ErrorResponse = &Error{
+				Type:    "account_locked",
+				Message: "Your account has been temporarily locked. Please try again in 15 minutes.", // Hard-coded for mobile
+			}
+			return result
+		}
+
+		if strings.Contains(err.Error(), "password has expired") {
+			result.ErrorResponse = &Error{
+				Type:    "password_expired",
+				Message: "Your password has expired and must be changed before you can log in.",
+			}
+			return result
+		}
+
+		result.ErrorResponse = &Error{
+			Type:    "invalid_credentials",
+			Message: "Username/Password is wrong",
+		}
+		return result
+	}
+
+	result.LoginID = loginResult.LoginID
+	result.Users = loginResult.Users
+
+	// Step 2: Validate users exist
+	if len(loginResult.Users) == 0 {
+		slog.Error("No user found after mobile login")
+		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
+
+		result.ErrorResponse = &Error{
+			Type:    "no_user_found",
+			Message: "Username/Password is wrong",
+		}
+		return result
+	}
+
+	// Step 3: Parse login ID
+	loginID, err := uuid.Parse(loginResult.Users[0].LoginID)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "loginID", loginResult.Users[0].LoginID, "error", err)
+		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Invalid login ID",
+		}
+		return result
+	}
+
+	result.LoginID = loginID
+
+	// Step 4: Check device recognition
+	deviceRecognized, err := s.CheckDeviceRecognition(ctx, loginID, request.DeviceFingerprint)
+	if err != nil {
+		slog.Error("Failed to check device recognition", "err", err)
+		// Continue with flow, don't fail on device recognition error
+	}
+	result.DeviceRecognized = deviceRecognized
+
+	// Step 5: Check 2FA requirement (pass nil for ResponseWriter to skip cookie setting)
+	if !deviceRecognized {
+		requires2FA, methods, tempToken, err := s.Check2FARequirement(ctx, loginID, loginResult.Users)
+		if err != nil {
+			slog.Error("Failed to check 2FA", "err", err)
+			s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+
+			result.ErrorResponse = &Error{
+				Type:    "internal_error",
+				Message: err.Error(),
+			}
+			return result
+		}
+
+		if requires2FA {
+			result.RequiresTwoFA = true
+			result.TwoFactorMethods = methods
+			result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
+			return result
+		}
+	}
+
+	// Step 6: Check for multiple users (pass nil for ResponseWriter to skip cookie setting)
+	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, loginResult.Users)
+	if err != nil {
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: err.Error(),
+		}
+		return result
+	}
+
+	if requiresUserSelection {
+		result.RequiresUserSelection = true
+		result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
+		return result
+	}
+
+	// Step 7: Generate mobile tokens for successful login
+	tokens, err := s.GenerateMobileLoginTokens(ctx, loginResult.Users[0])
+	if err != nil {
+		slog.Error("Failed to generate mobile tokens", "err", err)
+		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to create tokens",
+		}
+		return result
+	}
+
+	// Step 8: Record successful login automatically
+	s.RecordSuccessfulLogin(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint)
+
+	result.Success = true
+	result.Tokens = tokens
+	return result
+}
+
+// GenerateMobileLoginTokens generates mobile JWT tokens for a successful login
+func (s *Service) GenerateMobileLoginTokens(ctx context.Context, user mapper.User) (map[string]tg.TokenValue, error) {
+	// Create mobile JWT tokens using the JwtService
+	rootModifications, extraClaims := s.loginService.ToTokenClaims(user)
+
+	tokens, err := s.tokenService.GenerateMobileTokens(user.UserId, rootModifications, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate mobile tokens", "err", err)
+		return nil, fmt.Errorf("failed to generate mobile tokens: %w", err)
+	}
+
+	return tokens, nil
+}
+
 // ProcessLoginByEmail orchestrates the complete login flow using email
-func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter, email, password, ipAddress, userAgent, fingerprint string) Result {
+func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAddress, userAgent, fingerprint string) Result {
 	result := Result{}
 
 	// Step 1: Authenticate user credentials using email
@@ -366,7 +523,6 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 			result.ErrorResponse = &Error{
 				Type:    "account_locked",
 				Message: "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
-				Code:    http.StatusTooManyRequests,
 			}
 			return result
 		}
@@ -375,7 +531,6 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 			result.ErrorResponse = &Error{
 				Type:    "password_expired",
 				Message: "Your password has expired and must be changed before you can log in.",
-				Code:    http.StatusForbidden,
 			}
 			return result
 		}
@@ -383,7 +538,6 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 		result.ErrorResponse = &Error{
 			Type:    "invalid_credentials",
 			Message: "Email/Password is wrong",
-			Code:    http.StatusBadRequest,
 		}
 		return result
 	}
@@ -400,7 +554,6 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 		result.ErrorResponse = &Error{
 			Type:    "no_user_found",
 			Message: "Account not active",
-			Code:    http.StatusForbidden,
 		}
 		return result
 	}
@@ -414,7 +567,6 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "Invalid login ID",
-			Code:    http.StatusInternalServerError,
 		}
 		return result
 	}
@@ -430,7 +582,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 	result.DeviceRecognized = deviceRecognized
 
 	if !deviceRecognized {
-		requires2FA, methods, tempToken, err := s.Check2FARequirement(ctx, w, loginID, loginResult.Users)
+		requires2FA, methods, tempToken, err := s.Check2FARequirement(ctx, loginID, loginResult.Users)
 		if err != nil {
 			slog.Error("Failed to check 2FA", "err", err)
 			s.loginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
@@ -438,7 +590,6 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 			result.ErrorResponse = &Error{
 				Type:    "internal_error",
 				Message: err.Error(),
-				Code:    http.StatusInternalServerError,
 			}
 			return result
 		}
@@ -446,26 +597,25 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 		if requires2FA {
 			result.RequiresTwoFA = true
 			result.TwoFactorMethods = methods
-			result.TempToken = tempToken
+			result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
 			return result
 		}
 	}
 
-	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, w, loginID, loginResult.Users)
+	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, loginResult.Users)
 	if err != nil {
 		s.loginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: err.Error(),
-			Code:    http.StatusInternalServerError,
 		}
 		return result
 	}
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.TempToken = tempToken
+		result.Tokens[tg.TEMP_TOKEN_NAME] = *tempToken
 		return result
 	}
 
@@ -476,24 +626,8 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "Failed to generate tokens",
-			Code:    http.StatusInternalServerError,
 		}
 		return result
-	}
-
-	if w != nil {
-		err = s.tokenCookieService.SetTokensCookie(w, tokens)
-		if err != nil {
-			slog.Error("Failed to set access token cookie", "err", err)
-			s.loginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
-
-			result.ErrorResponse = &Error{
-				Type:    "internal_error",
-				Message: "Failed to set access token cookie",
-				Code:    http.StatusInternalServerError,
-			}
-			return result
-		}
 	}
 
 	// Record successful login automatically
@@ -502,4 +636,54 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, w http.ResponseWriter
 	result.Success = true
 	result.Tokens = tokens
 	return result
+}
+
+// GetUniqueEmailsFromUsers extracts unique emails from a list of users
+func getUniqueEmailsFromUsers(users []mapper.User) []DeliveryOption {
+	emailMap := make(map[string]bool)
+	var deliveryOptions []DeliveryOption
+
+	for _, user := range users {
+		// Get email from UserInfo
+		email := user.UserInfo.Email
+		if emailMap[email] || email == "" {
+			continue
+		}
+
+		deliveryOptions = append(deliveryOptions, DeliveryOption{
+			Type:         "email",
+			Value:        email,
+			UserID:       user.UserId,
+			DisplayValue: utils.MaskEmail(email),
+			HashedValue:  utils.HashEmail(email),
+		})
+		emailMap[email] = true
+	}
+
+	return deliveryOptions
+}
+
+// getUniquePhonesFromUsers extracts unique phones from a list of users
+func getUniquePhonesFromUsers(users []mapper.User) []DeliveryOption {
+	phoneMap := make(map[string]bool)
+	var deliveryOptions []DeliveryOption
+
+	for _, user := range users {
+		// Get phone from UserInfo
+		phone := user.UserInfo.PhoneNumber
+		if phoneMap[phone] || phone == "" {
+			continue
+		}
+
+		deliveryOptions = append(deliveryOptions, DeliveryOption{
+			Type:         "sms",
+			Value:        phone,
+			UserID:       user.UserId,
+			DisplayValue: utils.MaskPhone(phone),
+			HashedValue:  utils.HashPhone(phone),
+		})
+		phoneMap[phone] = true
+	}
+
+	return deliveryOptions
 }
