@@ -1,4 +1,4 @@
-package apiv2
+package loginapiv2
 
 import (
 	"context"
