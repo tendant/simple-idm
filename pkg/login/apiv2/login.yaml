@@ -1,0 +1,1042 @@
+openapi: 3.0.0
+info:
+  title: User Management API
+  version: 1.0.0
+paths:
+  /login:
+    post:
+      summary: Login a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                code:
+                  x-go-optional-value: true
+                  type: string
+                  description: 2FA verification code if enabled
+              required:
+                - username
+                - password
+      responses:
+        "200":
+          description: User login successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Login"
+        "202":
+          description: Login successful but further action required (2FA or user selection)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/TwoFactorRequiredResponse"
+                  - $ref: "#/components/schemas/SelectUserRequiredResponse"
+
+        "400":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Username/Password is wrong"
+        "429":
+          description: Account locked due to too many failed login attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountLockedResponse"
+  /login/magic-link:
+    post:
+      summary: Initiate magic link login
+      operationId: initiate_magic_link_login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MagicLinkLoginRequest'
+      responses:
+        '200':
+          description: Magic link sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Magic link sent to your email"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Username not found"
+
+  /login/magic-link/validate:
+    get:
+      summary: Validate magic link token
+      operationId: validate_magic_link_token
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Magic link token
+      responses:
+        '200':
+          description: Token validated successfully, user logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid or expired token"
+        '202':
+          description: Token validated but further action required (user selection)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelectUserRequiredResponse"
+  /login/email:
+    post:
+      summary: Login using email address
+      operationId: login_by_email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                code:
+                  x-go-optional-value: true
+                  type: string
+                  description: 2FA verification code if enabled
+              required:
+                - email
+                - password
+      responses:
+        "200":
+          description: User login successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Login"
+        "202":
+          description: Login successful but further action required (2FA or user selection)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/TwoFactorRequiredResponse"
+                  - $ref: "#/components/schemas/SelectUserRequiredResponse"
+        "400":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email/Password is wrong"
+        "429":
+          description: Account locked due to too many failed login attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountLockedResponse"
+  /login/magic-link/email:
+    post:
+      summary: Initiate magic link login using email
+      operationId: initiate_magic_link_login_by_email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MagicLinkEmailLoginRequest'
+      responses:
+        '200':
+          description: Magic link sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Magic link sent to your email"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email not found"
+  /password/reset/init:
+    post:
+      summary: Initiate password reset using username
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetInit"
+      responses:
+        "200":
+          description: Password reset initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+  /password/reset/init/email:
+    post:
+      summary: Initiate password reset using email address
+      operationId: initiate_password_reset_by_email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetInitByEmail"
+      responses:
+        "200":
+          description: Password reset initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "If an account exists with that email, we will send password reset instructions to it."
+  /password/reset:
+    post:
+      summary: Reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordReset"
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /password/reset/policy:
+    get:
+      summary: Get password reset policy
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Password reset token
+      responses:
+        "200":
+          description: Successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordPolicyResponse"
+  /logout:
+    post:
+      summary: Logout user
+      responses:
+        "200":
+          description: Logout successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /register:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  email:
+                    type: string
+                    format: email
+  /email/verify:
+    post:
+      summary: Verify email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailVerifyRequest'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+  /token/refresh:
+    post:
+      summary: Refresh JWT tokens
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+  /mobile/token/refresh:
+    post:
+      summary: Refresh JWT tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              x-go-optional-value: true
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+  /mobile/login:
+    post:
+      summary: Mobile login endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+              required:
+                - username
+                - password
+      responses:
+        "200":
+          description: Mobile login successful
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/LoginResponse"
+  /mobile/2fa/send:
+    post:
+      summary: Initiate sending 2fa code
+      operationId: post_mobile_2fa_send
+      requestBody:
+        x-go-optional-value: true
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                delivery_option:
+                  type: string
+                user_id:
+                  type: string
+                  format: uuid
+                temp_token:
+                  type: string
+              required:
+                - twofa_type
+                - delivery_option
+                - user_id
+                - temp_token
+      responses:
+        "200":
+          description: 2fa initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+  /mobile/2fa/validate:
+    post:
+      summary: Authenticate 2fa passcode
+      operationId: post_mobile_2fa_validate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                passcode:
+                  type: string
+                temp_token:
+                  type: string
+                remember_device_2fa:
+                  x-go-optional-value: true
+                  type: boolean
+                  description: Whether to remember this device for 90 days (skips 2FA)
+              required:
+                - passcode
+                - twofa_type
+                - temp_token
+                - remember_device_2fa
+      responses:
+        "200":
+          description: 2fa validated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: JWT access token
+                  refresh_token:
+                    type: string
+                    description: JWT refresh token
+                required:
+                  - access_token
+                  - refresh_token
+        "202":
+          description: 2FA successful but select user required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SelectUserRequiredResponse"
+  /mobile/user/switch:
+    post:
+      operationId: post_mobile_user_switch
+      summary: Switch to a different user when multiple users are available for the same login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  description: ID of the user to switch to
+                temp_token:
+                  type: string
+                  description: Temp token
+                access_token:
+                  type: string
+                  description: JWT access token
+              required:
+                - user_id
+      responses:
+        "200":
+          description: Successfully switched to the specified user
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Login"
+                  - $ref: "#/components/schemas/SingleUserResponse"
+        "400":
+          description: Invalid request or user not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid user UUID or user not found"
+        "403":
+          description: Not authorized to switch to this user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Not authorized to switch to this user"
+  /mobile/users:
+    get:
+      summary: Get a list of users associated with the current login
+      operationId: mobile_find_users_with_login
+      parameters:
+        - name: temp_token
+          in: query
+          required: false
+          description: Temp token
+          schema:
+            type: string
+        - name: access_token
+          in: query
+          required: false
+          description: JWT access token
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successfully retrieved users
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MultiUsersResponse"
+                  - $ref: "#/components/schemas/SingleUserResponse"
+
+  /username/find:
+    post:
+      summary: Send username to user's email address
+      description: If an account exists with the provided email, the username will be sent to that email address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FindUsernameRequest"
+      responses:
+        "200":
+          description: Request processed successfully. If an account exists, an email with the username will be sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: A message indicating the request was processed
+                    example: "If an account exists with that email, we will send the username to it."
+  /user/switch:
+    post:
+      summary: Switch to a different user when multiple users are available for the same login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  description: ID of the user to switch to
+              required:
+                - user_id
+      responses:
+        "200":
+          description: Successfully switched to the specified user
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/Login"
+                  - $ref: "#/components/schemas/SingleUserResponse"
+        "400":
+          description: Invalid request or user not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid user UUID or user not found"
+        "403":
+          description: Not authorized to switch to this user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Not authorized to switch to this user"
+  /users:
+    get:
+      summary: Get a list of users associated with the current login
+      operationId: find_users_with_login
+      responses:
+        "200":
+          description: Successfully retrieved users
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MultiUsersResponse"
+                  - $ref: "#/components/schemas/SingleUserResponse"
+
+  /2fa/send:
+    post:
+      summary: Initiate sending 2fa code
+      operationId: post_2fa_send
+      requestBody:
+        x-go-optional-value: true
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                delivery_option:
+                  type: string
+                user_id:
+                  type: string
+                  format: uuid
+              required:
+                - twofa_type
+                - delivery_option
+                - user_id
+      responses:
+        "200":
+          description: 2fa initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /2fa/validate:
+    post:
+      summary: Authenticate 2fa passcode
+      operationId: post_2fa_validate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                twofa_type:
+                  type: string
+                passcode:
+                  type: string
+                remember_device_2fa:
+                  x-go-optional-value: true
+                  type: boolean
+                  description: Whether to remember this device for 90 days (skips 2FA)
+              required:
+                - passcode
+                - twofa_type
+                - remember_device_2fa
+      responses:
+        "200":
+          description: 2fa validated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        "202":
+          description: 2FA successful but further action required
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SelectUserRequiredResponse"
+                  - $ref: "#/components/schemas/SelectUsersToAssociateRequiredResponse"
+                  - $ref: "#/components/schemas/AssociateUserResponse"
+  /device/expiration:
+    get:
+      summary: Get device expiration days
+      operationId: get_device_expiration
+      responses:
+        "200":
+          description: Successfully retrieved device expiration days
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expiration_days:
+                    type: integer
+                    description: Number of days a device is remembered for 2FA
+components:
+  schemas:
+    MagicLinkLoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Username or email to send magic link to
+      required:
+        - username
+    MagicLinkEmailLoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address to send magic link to
+      required:
+        - email
+    MultiUsersResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+    SingleUserResponse:
+      description: Structure added for integration compatibility purposes
+      x-go-optional-value: true
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+    TwoFactorRequiredResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "2fa_required"
+        message:
+          type: string
+          example: "2FA verification required"
+        temp_token:
+          type: string
+          description: Temporary token to use for 2FA verification
+        two_factor_methods:
+          type: array
+          items:
+            $ref: "#/components/schemas/TwoFactorMethod"
+    TwoFactorMethod:
+      x-go-optional-value: true
+      type: object
+      properties:
+        type:
+          type: string
+        delivery_options:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeliveryOption"
+    DeliveryOption:
+      x-go-optional-value: true
+      type: object
+      properties:
+        hashed_value:
+          type: string
+        display_value:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+    SelectUserRequiredResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "select_user_required"
+        message:
+          type: string
+          example: "Select user required"
+        temp_token:
+          type: string
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+    Login:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "success"
+        message:
+          type: string
+          example: "Login successful"
+        users:
+          type: array
+          description: List of users associated with the login. Usually contains one user, but may contain multiple if same username is shared.
+          items:
+            $ref: "#/components/schemas/User"
+        user:
+          $ref: "#/components/schemas/User"
+        requires2FA:
+          type: boolean
+          description: Whether 2FA verification is required
+        loginToken:
+          type: string
+          description: Token for 2FA verification if required
+      required:
+        - status
+        - message
+        - user
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+      required:
+        - id
+        - name
+        - email
+        - role
+    PasswordReset:
+      type: object
+      x-go-optional-value: true
+      properties:
+        token:
+          type: string
+        new_password:
+          type: string
+      required:
+        - token
+        - new_password
+    PasswordPolicyResponse:
+      type: object
+      properties:
+        min_length:
+          type: integer
+          description: Minimum length of the password
+        require_uppercase:
+          type: boolean
+          description: Whether the password requires an uppercase letter
+        require_lowercase:
+          type: boolean
+          description: Whether the password requires a lowercase letter
+        require_digit:
+          type: boolean
+          description: Whether the password requires a digit
+        require_special_char:
+          type: boolean
+          description: Whether the password requires a special character
+        disallow_common_pwds:
+          type: boolean
+          description: Whether common passwords are disallowed
+        max_repeated_chars:
+          type: integer
+          description: Maximum number of repeated characters allowed
+        history_check_count:
+          type: integer
+          description: Number of previous passwords to check against
+        expiration_days:
+          type: integer
+          description: Number of days until password expires
+    RegisterRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          example: john.doe@example.com
+        password:
+          type: string
+      required:
+        - name
+        - email
+        - password
+    EmailVerifyRequest:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+        - email
+    PasswordResetInit:
+      type: object
+      required:
+        - username
+      properties:
+        username:
+          type: string
+          description: Username of the account to reset password for
+    PasswordResetInitByEmail:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address of the account to reset password for
+    Tokens:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+      required:
+        - access_token
+        - refresh_token
+    FindUsernameRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address to find username for
+    TwoFactorVerify:
+      type: object
+      required:
+        - code
+        - loginToken
+      properties:
+        code:
+          type: string
+          description: TOTP code
+        loginToken:
+          type: string
+          description: Token from initial login response
+    SuccessResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        result:
+          type: string
+    LoginResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+      required:
+        - access_token
+        - refresh_token
+    SelectUsersToAssociateRequiredResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "select_user_to_associate_required"
+        message:
+          type: string
+          example: "Please select users to associate"
+        login_id:
+          type: string
+          format: uuid
+        user_options:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserOption"
+    UserOption:
+      x-go-optional-value: true
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: ID of the user
+        display_name:
+          type: string
+          description: fullname of the user
+        email:
+          type: string
+    AssociateUserResponse:
+      x-go-optional-value: true
+      type: object
+      properties:
+        status:
+          type: string
+          example: "select_user_to_associate_required"
+        message:
+          type: string
+          example: "Please select users to associate"
+        login_id:
+          type: string
+          format: uuid
+        user_option:
+          type: object
+          $ref: "#/components/schemas/UserOption"
+    AccountLockedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "account_locked"
+        message:
+          type: string
+          example: "Your account has been locked due to too many failed login attempts. Please try again in 30 minutes."
+        locked_until:
+          type: string
+          format: date-time
+          example: "2023-06-01T12:00:00Z"
+      required:
+        - status
+        - message
+        - locked_until
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
