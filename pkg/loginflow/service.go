@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/common"
 	"github.com/tendant/simple-idm/pkg/device"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
@@ -20,12 +21,11 @@ import (
 
 // Service orchestrates the complete login flow business logic
 type Service struct {
-	loginService       *login.LoginService
-	twoFactorService   twofa.TwoFactorService
-	deviceService      device.DeviceService
-	tokenService       tg.TokenService
-	tokenCookieService tg.TokenCookieService
-	userMapper         mapper.UserMapper
+	loginService     *login.LoginService
+	twoFactorService twofa.TwoFactorService
+	deviceService    device.DeviceService
+	tokenService     tg.TokenService
+	userMapper       mapper.UserMapper
 }
 
 // Request contains all the data needed for a login flow
@@ -39,16 +39,17 @@ type Request struct {
 
 // Result contains the result of a login flow operation
 type Result struct {
-	Success               bool
-	RequiresTwoFA         bool
-	RequiresUserSelection bool
-	Users                 []mapper.User
-	LoginID               uuid.UUID
-	TwoFactorMethods      []TwoFactorMethod
-	TempToken             *tg.TokenValue
-	Tokens                map[string]tg.TokenValue
-	DeviceRecognized      bool
-	ErrorResponse         *Error
+	Success                 bool
+	RequiresTwoFA           bool
+	RequiresUserSelection   bool
+	RequiresUserAssociation bool
+	Users                   []mapper.User
+	LoginID                 uuid.UUID
+	TwoFactorMethods        []TwoFactorMethod
+	Tokens                  map[string]tg.TokenValue
+	DeviceRecognized        bool
+	ErrorResponse           *Error
+	UserAssociationUserID   string
 }
 
 // Error represents structured errors from the login flow
@@ -87,12 +88,11 @@ func NewService(
 	userMapper mapper.UserMapper,
 ) *Service {
 	return &Service{
-		loginService:       loginService,
-		twoFactorService:   twoFactorService,
-		deviceService:      deviceService,
-		tokenService:       tokenService,
-		tokenCookieService: tokenCookieService,
-		userMapper:         userMapper,
+		loginService:     loginService,
+		twoFactorService: twoFactorService,
+		deviceService:    deviceService,
+		tokenService:     tokenService,
+		userMapper:       userMapper,
 	}
 }
 
@@ -191,7 +191,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 		if requires2FA {
 			result.RequiresTwoFA = true
 			result.TwoFactorMethods = methods
-			result.TempToken = tempToken
+			result.Tokens = tempToken
 			return result
 		}
 	}
@@ -210,7 +210,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.TempToken = tempToken
+		result.Tokens = tempToken
 		return result
 	}
 
@@ -258,7 +258,7 @@ func (s *Service) CheckDeviceRecognition(ctx context.Context, loginID uuid.UUID,
 }
 
 // Check2FARequirement checks if 2FA is required for the login
-func (s *Service) Check2FARequirement(ctx context.Context, loginID uuid.UUID, users []mapper.User) (bool, []TwoFactorMethod, *tg.TokenValue, error) {
+func (s *Service) Check2FARequirement(ctx context.Context, loginID uuid.UUID, users []mapper.User) (bool, []TwoFactorMethod, map[string]tg.TokenValue, error) {
 	enabledTwoFAs, err := s.twoFactorService.FindEnabledTwoFAs(ctx, loginID)
 	if err != nil {
 		slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
@@ -302,13 +302,11 @@ func (s *Service) Check2FARequirement(ctx context.Context, loginID uuid.UUID, us
 		return false, nil, nil, fmt.Errorf("failed to generate temp token: %w", err)
 	}
 
-	tempToken := tempTokenMap[tg.TEMP_TOKEN_NAME]
-
-	return true, twoFactorMethods, &tempToken, nil
+	return true, twoFactorMethods, tempTokenMap, nil
 }
 
 // CheckMultipleUsers checks if there are multiple users and handles temp token generation
-func (s *Service) CheckMultipleUsers(ctx context.Context, loginID uuid.UUID, users []mapper.User) (bool, *tg.TokenValue, error) {
+func (s *Service) CheckMultipleUsers(ctx context.Context, loginID uuid.UUID, users []mapper.User) (bool, map[string]tg.TokenValue, error) {
 	if len(users) <= 1 {
 		return false, nil, nil
 	}
@@ -324,8 +322,7 @@ func (s *Service) CheckMultipleUsers(ctx context.Context, loginID uuid.UUID, use
 		return true, nil, fmt.Errorf("failed to generate temp token: %w", err)
 	}
 
-	tempToken := tempTokenMap[tg.TEMP_TOKEN_NAME]
-	return true, &tempToken, nil
+	return true, tempTokenMap, nil
 }
 
 // GenerateLoginTokens generates JWT tokens for a successful login
@@ -449,7 +446,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 		if requires2FA {
 			result.RequiresTwoFA = true
 			result.TwoFactorMethods = methods
-			result.TempToken = tempToken
+			result.Tokens = tempToken
 			return result
 		}
 	}
@@ -468,7 +465,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.TempToken = tempToken
+		result.Tokens = tempToken
 		return result
 	}
 
@@ -602,7 +599,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 		if requires2FA {
 			result.RequiresTwoFA = true
 			result.TwoFactorMethods = methods
-			result.TempToken = tempToken
+			result.Tokens = tempToken
 			return result
 		}
 	}
@@ -620,7 +617,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.TempToken = tempToken
+		result.Tokens = tempToken
 		return result
 	}
 
@@ -677,7 +674,7 @@ func (s *Service) ProcessMagicLinkValidation(ctx context.Context, token, ipAddre
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.TempToken = tempToken
+		result.Tokens = tempToken
 		return result
 	}
 
@@ -785,6 +782,7 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 		}
 		return result
 	}
+	slog.Info("Parsed temp token", "token", token)
 
 	// Step 2: Extract login ID from token
 	mapClaims, ok := token.Claims.(jwt.MapClaims)
@@ -796,11 +794,11 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 		return result
 	}
 
-	loginIDStr, exists := mapClaims["login_id"].(string)
-	if !exists {
+	loginIDStr, err := common.GetLoginIDFromClaims(mapClaims)
+	if err != nil {
 		result.ErrorResponse = &Error{
 			Type:    "invalid_token",
-			Message: "Missing login_id in token",
+			Message: "Invalid login_id format in token",
 		}
 		return result
 	}
@@ -886,12 +884,11 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 	result.Users = users
 
 	// Step 6: Check for user association flow
-	if extraClaims, exists := mapClaims["extra_claims"].(map[string]interface{}); exists {
-		if associateUser, exists := extraClaims["associate_users"]; exists && associateUser.(bool) {
-			// This is a user association flow - return special response
-			result.RequiresUserSelection = true
-			return result
-		}
+	isUserAssociation, userID := s.checkUserAssociationFlow(mapClaims)
+	if isUserAssociation {
+		result.RequiresUserAssociation = true
+		result.UserAssociationUserID = userID
+		return result
 	}
 
 	// Step 7: Check for multiple users
@@ -907,7 +904,7 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.TempToken = tempToken
+		result.Tokens = tempToken
 		return result
 	}
 
@@ -1057,7 +1054,7 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 
 	if requiresUserSelection {
 		result.RequiresUserSelection = true
-		result.TempToken = tempToken
+		result.Tokens = tempToken
 		return result
 	}
 
@@ -1194,5 +1191,374 @@ func (s *Service) ProcessUserSwitch(ctx context.Context, request UserSwitchReque
 	result.Success = true
 	result.Tokens = tokens
 	result.Users = []mapper.User{targetUser}
+	return result
+}
+
+// TokenRefreshRequest contains the data needed for token refresh
+type TokenRefreshRequest struct {
+	RefreshToken string
+}
+
+// ProcessTokenRefresh orchestrates the token refresh flow for web clients
+func (s *Service) ProcessTokenRefresh(ctx context.Context, request TokenRefreshRequest) Result {
+	result := Result{}
+
+	// Step 1: Validate the refresh token
+	token, err := s.validateRefreshToken(request.RefreshToken)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: err.Error(),
+		}
+		return result
+	}
+
+	// Step 2: Get user information from token
+	_, tokenUser, err := s.getUserFromToken(ctx, token)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: err.Error(),
+		}
+		return result
+	}
+
+	// Step 3: Generate new tokens
+	tokens, err := s.GenerateLoginTokens(ctx, tokenUser)
+	if err != nil {
+		slog.Error("Failed to create tokens", "err", err)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to create tokens",
+		}
+		return result
+	}
+
+	result.Success = true
+	result.Tokens = tokens
+	return result
+}
+
+// ProcessMobileTokenRefresh orchestrates the token refresh flow for mobile clients
+func (s *Service) ProcessMobileTokenRefresh(ctx context.Context, request TokenRefreshRequest) Result {
+	result := Result{}
+
+	// Step 1: Validate the refresh token
+	token, err := s.validateRefreshToken(request.RefreshToken)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: err.Error(),
+		}
+		return result
+	}
+
+	// Step 2: Get user information from token
+	_, tokenUser, err := s.getUserFromToken(ctx, token)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: err.Error(),
+		}
+		return result
+	}
+
+	// Step 3: Generate new mobile tokens
+	tokens, err := s.GenerateMobileLoginTokens(ctx, tokenUser)
+	if err != nil {
+		slog.Error("Failed to create mobile tokens", "err", err)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to create tokens",
+		}
+		return result
+	}
+
+	result.Success = true
+	result.Tokens = tokens
+	return result
+}
+
+// validateRefreshToken validates a refresh token and returns the parsed token
+func (s *Service) validateRefreshToken(tokenString string) (*jwt.Token, error) {
+	// Parse and validate the refresh token
+	token, err := s.tokenService.ParseToken(tokenString)
+	if err != nil {
+		slog.Error("Invalid refresh token", "err", err)
+		return nil, fmt.Errorf("invalid refresh token: %w", err)
+	}
+
+	// Explicitly check token expiration
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		slog.Error("Invalid token claims format")
+		return nil, fmt.Errorf("invalid token claims format")
+	}
+
+	// Check if token has expired
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		slog.Error("Missing expiration claim in token")
+		return nil, fmt.Errorf("invalid token format: missing expiration")
+	}
+
+	expTime := time.Unix(int64(exp), 0)
+	if time.Now().After(expTime) {
+		slog.Error("Refresh token has expired", "expiry", expTime)
+		return nil, fmt.Errorf("refresh token has expired")
+	}
+
+	return token, nil
+}
+
+// getUserFromToken extracts user information from token claims
+func (s *Service) getUserFromToken(ctx context.Context, token *jwt.Token) (string, mapper.User, error) {
+	// Get user ID from claims
+	mapClaims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		slog.Error("Invalid token claims format")
+		return "", mapper.User{}, fmt.Errorf("invalid token claims format")
+	}
+
+	userIdStr, exists := mapClaims["sub"].(string)
+	if !exists {
+		slog.Error("Missing user ID in token claims")
+		return "", mapper.User{}, fmt.Errorf("invalid token: missing user ID")
+	}
+
+	userUuid, err := uuid.Parse(userIdStr)
+	if err != nil {
+		slog.Error("Failed to parse user ID", "err", err)
+		return "", mapper.User{}, fmt.Errorf("failed to parse user ID: %w", err)
+	}
+
+	tokenUser, err := s.userMapper.GetUserByUserID(ctx, userUuid)
+	if err != nil {
+		slog.Error("Failed to get user by user ID", "err", err, "user_id", userIdStr)
+		return "", mapper.User{}, fmt.Errorf("failed to get user by user ID: %w", err)
+	}
+
+	// Extract claims from token and add them to the user's extra claims
+	tokenUser = s.userMapper.ExtractTokenClaims(tokenUser, mapClaims)
+
+	return userIdStr, tokenUser, nil
+}
+
+// TwoFASendRequest contains the data needed for sending 2FA notifications
+type TwoFASendRequest struct {
+	TokenString    string
+	UserID         string
+	TwoFAType      string
+	DeliveryOption string
+}
+
+// Process2FASend orchestrates the 2FA send notification flow
+func (s *Service) Process2FASend(ctx context.Context, request TwoFASendRequest) Result {
+	result := Result{}
+
+	// Step 1: Parse and validate temp token
+	token, err := s.tokenService.ParseToken(request.TokenString)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid temp token",
+		}
+		return result
+	}
+	slog.Info("Parsed temp token", "token", token)
+
+	// Step 2: Extract login ID from token
+	mapClaims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid token claims",
+		}
+		return result
+	}
+
+	loginIDStr, err := common.GetLoginIDFromClaims(mapClaims)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid login_id format in token",
+		}
+		return result
+	}
+
+	loginID, err := uuid.Parse(loginIDStr)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid login_id format in token",
+		}
+		return result
+	}
+
+	// Step 3: Parse user ID
+	userID, err := uuid.Parse(request.UserID)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_request",
+			Message: "Invalid user_id format",
+		}
+		return result
+	}
+	slog.Info("Parsed user ID", "user_id", userID)
+
+	// Step 4: Send 2FA notification
+	err = s.twoFactorService.SendTwoFaNotification(ctx, loginID, userID, request.TwoFAType, request.DeliveryOption)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "failed to init 2fa: " + err.Error(),
+		}
+		return result
+	}
+
+	result.Success = true
+	return result
+}
+
+// ProcessLogout orchestrates the logout flow by generating logout tokens
+func (s *Service) ProcessLogout(ctx context.Context) Result {
+	result := Result{}
+
+	// Generate logout token
+	tokenMap, err := s.tokenService.GenerateLogoutToken("", nil, nil)
+	if err != nil {
+		slog.Error("Failed to generate logout token", "err", err)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to generate logout token",
+		}
+		return result
+	}
+
+	result.Success = true
+	result.Tokens = tokenMap
+	return result
+}
+
+// GetDeviceExpiration returns the device expiration duration from the device service
+func (s *Service) GetDeviceExpiration() time.Duration {
+	return s.deviceService.GetDeviceExpiration()
+}
+
+func (s *Service) checkUserAssociationFlow(claims jwt.Claims) (bool, string) {
+	if mapClaims, ok := claims.(jwt.MapClaims); ok {
+		slog.Info("Claims", "claims", mapClaims)
+
+		// User options are nested inside extra_claims
+		if extraClaims, exists := mapClaims["extra_claims"].(map[string]interface{}); exists {
+			slog.Info("Extra claims", "extraClaims", extraClaims)
+
+			// Extract user options from extra_claims
+			if associateUser, exists := extraClaims["associate_users"]; exists {
+				slog.Info("Current 2FA is in associate user flow", "associateUser", associateUser)
+				userID, err := common.GetUserIDFromClaims(claims)
+				if err != nil {
+					slog.Error("Failed to get user ID from claims", "err", err)
+					return false, ""
+				}
+				return associateUser.(bool), userID
+			}
+		}
+	}
+	return false, ""
+}
+
+// GenerateUserAssociationToken generates a temp token for user association flow
+func (s *Service) GenerateUserAssociationToken(loginID, userID string, userOptions []mapper.User) (map[string]tg.TokenValue, error) {
+	// Prepare extra claims for the temp token
+	extraClaims := map[string]interface{}{
+		"login_id":     loginID,
+		"2fa_verified": true,
+	}
+
+	// Add user options to extra claims
+	if userOptions != nil {
+		extraClaims["user_options"] = userOptions
+	}
+
+	// Generate a temporary token with the necessary claims
+	tempTokenMap, err := s.tokenService.GenerateTempToken(userID, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return nil, fmt.Errorf("failed to generate temp token: %w", err)
+	}
+
+	return tempTokenMap, nil
+}
+
+// MobileUserLookupRequest contains the data needed for mobile user lookup
+type MobileUserLookupRequest struct {
+	TokenString string
+	TokenType   string
+}
+
+// ProcessMobileUserLookup orchestrates the mobile user lookup flow
+func (s *Service) ProcessMobileUserLookup(ctx context.Context, request MobileUserLookupRequest) Result {
+	result := Result{}
+
+	// Step 1: Parse and validate token
+	token, err := s.tokenService.ParseToken(request.TokenString)
+	if err != nil {
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid token",
+		}
+		return result
+	}
+
+	// Step 2: Validate 2FA if using temp token
+	if request.TokenType == tg.TEMP_TOKEN_NAME {
+		twofaVerified, err := common.Get2FAVerifiedFromClaims(token.Claims)
+		if err != nil || !twofaVerified {
+			slog.Error("2FA not verified", "err", err)
+			result.ErrorResponse = &Error{
+				Type:    "unauthorized",
+				Message: "2FA not verified",
+			}
+			return result
+		}
+	}
+
+	// Step 3: Extract login ID from token
+	loginIdStr, err := common.GetLoginIDFromClaims(token.Claims)
+	if err != nil {
+		slog.Error("Failed to extract login ID from token", "err", err)
+		result.ErrorResponse = &Error{
+			Type:    "invalid_token",
+			Message: "Invalid token: " + err.Error(),
+		}
+		return result
+	}
+
+	loginId, err := uuid.Parse(loginIdStr)
+	if err != nil {
+		slog.Error("Failed to parse login ID", "err", err)
+		result.ErrorResponse = &Error{
+			Type:    "invalid_request",
+			Message: "Failed to parse login ID: " + err.Error(),
+		}
+		return result
+	}
+
+	result.LoginID = loginId
+
+	// Step 4: Get users by login ID
+	users, err := s.loginService.GetUsersByLoginId(ctx, loginId)
+	if err != nil {
+		slog.Error("Failed to get users by login ID", "err", err)
+		result.ErrorResponse = &Error{
+			Type:    "internal_error",
+			Message: "Failed to get users by login ID",
+		}
+		return result
+	}
+
+	result.Success = true
+	result.Users = users
 	return result
 }
