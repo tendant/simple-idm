@@ -21,11 +21,14 @@ import (
 
 // Service orchestrates the complete login flow business logic
 type Service struct {
-	loginService     *login.LoginService
-	twoFactorService twofa.TwoFactorService
-	deviceService    device.DeviceService
-	tokenService     tg.TokenService
-	userMapper       mapper.UserMapper
+	LoginService     *login.LoginService
+	TwoFactorService twofa.TwoFactorService
+	DeviceService    *device.DeviceService
+	TokenService     tg.TokenService
+	UserMapper       mapper.UserMapper
+
+	// New pluggable flow system
+	FlowBuilders *LoginFlowBuilders
 }
 
 // Request contains all the data needed for a login flow
@@ -82,17 +85,27 @@ type TwoFactorMethod struct {
 func NewService(
 	loginService *login.LoginService,
 	twoFactorService twofa.TwoFactorService,
-	deviceService device.DeviceService,
+	deviceService *device.DeviceService,
 	tokenService tg.TokenService,
-	tokenCookieService tg.TokenCookieService,
+	tokenCookieService *tg.TokenCookieService,
 	userMapper mapper.UserMapper,
 ) *Service {
+	// Initialize the pluggable flow builders with the correct signature
+	flowBuilders := NewLoginFlowBuilders(
+		loginService,
+		twoFactorService,
+		deviceService,
+		tokenService,
+		userMapper,
+	)
+
 	return &Service{
-		loginService:     loginService,
-		twoFactorService: twoFactorService,
-		deviceService:    deviceService,
-		tokenService:     tokenService,
-		userMapper:       userMapper,
+		LoginService:     loginService,
+		TwoFactorService: twoFactorService,
+		DeviceService:    deviceService,
+		TokenService:     tokenService,
+		UserMapper:       userMapper,
+		FlowBuilders:     flowBuilders,
 	}
 }
 
@@ -101,16 +114,16 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 	result := Result{}
 
 	// Step 1: Authenticate user credentials
-	loginResult, err := s.loginService.Login(ctx, request.Username, request.Password)
+	loginResult, err := s.LoginService.Login(ctx, request.Username, request.Password)
 	if err != nil {
 		slog.Error("Login failed", "err", err)
 
 		// Record the login attempt
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, loginResult.FailureReason)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, loginResult.FailureReason)
 
 		// Handle specific error types
 		if login.IsAccountLockedError(err) {
-			lockoutDuration := s.loginService.GetLockoutDuration()
+			lockoutDuration := s.LoginService.GetLockoutDuration()
 			lockoutMinutes := int(lockoutDuration / time.Minute)
 			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
 
@@ -142,7 +155,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 	// Step 2: Validate users exist
 	if len(loginResult.Users) == 0 {
 		slog.Error("No user found after login")
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
 
 		result.ErrorResponse = &Error{
 			Type:    "no_user_found",
@@ -155,7 +168,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 	loginID, err := uuid.Parse(loginResult.Users[0].LoginID)
 	if err != nil {
 		slog.Error("Failed to parse login ID", "loginID", loginResult.Users[0].LoginID, "error", err)
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
@@ -179,7 +192,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 		requires2FA, methods, tempToken, err := s.Check2FARequirement(ctx, loginID, loginResult.Users)
 		if err != nil {
 			slog.Error("Failed to check 2FA", "err", err)
-			s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+			s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 			result.ErrorResponse = &Error{
 				Type:    "internal_error",
@@ -199,7 +212,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 	// Step 6: Check for multiple users
 	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, loginResult.Users)
 	if err != nil {
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
@@ -241,7 +254,7 @@ func (s *Service) CheckDeviceRecognition(ctx context.Context, loginID uuid.UUID,
 	}
 
 	// Check if this device is linked to the login
-	loginDevice, err := s.deviceService.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
+	loginDevice, err := s.DeviceService.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
 	if err != nil {
 		// Device not found or error occurred
 		return false, nil
@@ -259,7 +272,7 @@ func (s *Service) CheckDeviceRecognition(ctx context.Context, loginID uuid.UUID,
 
 // Check2FARequirement checks if 2FA is required for the login
 func (s *Service) Check2FARequirement(ctx context.Context, loginID uuid.UUID, users []mapper.User) (bool, []TwoFactorMethod, map[string]tg.TokenValue, error) {
-	enabledTwoFAs, err := s.twoFactorService.FindEnabledTwoFAs(ctx, loginID)
+	enabledTwoFAs, err := s.TwoFactorService.FindEnabledTwoFAs(ctx, loginID)
 	if err != nil {
 		slog.Error("Failed to find enabled 2FA", "loginUuid", loginID, "error", err)
 		return false, nil, nil, fmt.Errorf("failed to find enabled 2FA: %w", err)
@@ -296,7 +309,7 @@ func (s *Service) Check2FARequirement(ctx context.Context, loginID uuid.UUID, us
 	}
 
 	// Updated to use the new TokenService interface
-	tempTokenMap, err := s.tokenService.GenerateTempToken(users[0].UserId, nil, extraClaims)
+	tempTokenMap, err := s.TokenService.GenerateTempToken(users[0].UserId, nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate temp token", "err", err)
 		return false, nil, nil, fmt.Errorf("failed to generate temp token: %w", err)
@@ -316,7 +329,7 @@ func (s *Service) CheckMultipleUsers(ctx context.Context, loginID uuid.UUID, use
 		"login_id":     loginID.String(),
 		"2fa_verified": true, // This method will only be called if 2FA is not enabled or 2FA validation is passed
 	}
-	tempTokenMap, err := s.tokenService.GenerateTempToken(users[0].UserId, nil, extraClaims)
+	tempTokenMap, err := s.TokenService.GenerateTempToken(users[0].UserId, nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate temp token", "err", err)
 		return true, nil, fmt.Errorf("failed to generate temp token: %w", err)
@@ -328,9 +341,9 @@ func (s *Service) CheckMultipleUsers(ctx context.Context, loginID uuid.UUID, use
 // GenerateLoginTokens generates JWT tokens for a successful login
 func (s *Service) GenerateLoginTokens(ctx context.Context, user mapper.User) (map[string]tg.TokenValue, error) {
 	// Create JWT tokens using the JwtService
-	rootModifications, extraClaims := s.loginService.ToTokenClaims(user)
+	rootModifications, extraClaims := s.LoginService.ToTokenClaims(user)
 
-	tokens, err := s.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
+	tokens, err := s.TokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate tokens", "err", err)
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
@@ -342,11 +355,11 @@ func (s *Service) GenerateLoginTokens(ctx context.Context, user mapper.User) (ma
 // RecordSuccessfulLogin records a successful login attempt and updates device
 func (s *Service) RecordSuccessfulLogin(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, fingerprint string) {
 	// Record successful login attempt
-	s.loginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, true, "")
+	s.LoginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, true, "")
 
 	// Update device last login time
 	if fingerprint != "" {
-		_, err := s.deviceService.UpdateDeviceLastLogin(ctx, fingerprint)
+		_, err := s.DeviceService.UpdateDeviceLastLogin(ctx, fingerprint)
 		if err != nil {
 			slog.Error("Failed to update device last login time", "error", err, "fingerprint", fingerprint)
 			// Don't fail the login if we can't update the last login time
@@ -360,12 +373,12 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 	result := Result{}
 
 	// Step 1: Authenticate user credentials
-	loginResult, err := s.loginService.Login(ctx, request.Username, request.Password)
+	loginResult, err := s.LoginService.Login(ctx, request.Username, request.Password)
 	if err != nil {
 		slog.Error("Mobile login failed", "err", err)
 
 		// Record the login attempt
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, loginResult.FailureReason)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, loginResult.FailureReason)
 
 		// Handle specific error types
 		if login.IsAccountLockedError(err) {
@@ -397,7 +410,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 	// Step 2: Validate users exist
 	if len(loginResult.Users) == 0 {
 		slog.Error("No user found after mobile login")
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
 
 		result.ErrorResponse = &Error{
 			Type:    "no_user_found",
@@ -410,7 +423,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 	loginID, err := uuid.Parse(loginResult.Users[0].LoginID)
 	if err != nil {
 		slog.Error("Failed to parse login ID", "loginID", loginResult.Users[0].LoginID, "error", err)
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
@@ -434,7 +447,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 		requires2FA, methods, tempToken, err := s.Check2FARequirement(ctx, loginID, loginResult.Users)
 		if err != nil {
 			slog.Error("Failed to check 2FA", "err", err)
-			s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+			s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 			result.ErrorResponse = &Error{
 				Type:    "internal_error",
@@ -454,7 +467,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 	// Step 6: Check for multiple users (pass nil for ResponseWriter to skip cookie setting)
 	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, loginResult.Users)
 	if err != nil {
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
@@ -473,7 +486,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 	tokens, err := s.GenerateMobileLoginTokens(ctx, loginResult.Users[0])
 	if err != nil {
 		slog.Error("Failed to generate mobile tokens", "err", err)
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
@@ -493,9 +506,9 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 // GenerateMobileLoginTokens generates mobile JWT tokens for a successful login
 func (s *Service) GenerateMobileLoginTokens(ctx context.Context, user mapper.User) (map[string]tg.TokenValue, error) {
 	// Create mobile JWT tokens using the JwtService
-	rootModifications, extraClaims := s.loginService.ToTokenClaims(user)
+	rootModifications, extraClaims := s.LoginService.ToTokenClaims(user)
 
-	tokens, err := s.tokenService.GenerateMobileTokens(user.UserId, rootModifications, extraClaims)
+	tokens, err := s.TokenService.GenerateMobileTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate mobile tokens", "err", err)
 		return nil, fmt.Errorf("failed to generate mobile tokens: %w", err)
@@ -509,16 +522,16 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 	result := Result{}
 
 	// Step 1: Authenticate user credentials using email
-	loginResult, err := s.loginService.LoginByEmail(ctx, email, password)
+	loginResult, err := s.LoginService.LoginByEmail(ctx, email, password)
 	if err != nil {
 		slog.Error("Email login failed", "err", err)
 
 		// Record the login attempt
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint, false, loginResult.FailureReason)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint, false, loginResult.FailureReason)
 
 		// Handle specific error types
 		if login.IsAccountLockedError(err) {
-			lockoutDuration := s.loginService.GetLockoutDuration()
+			lockoutDuration := s.LoginService.GetLockoutDuration()
 			lockoutMinutes := int(lockoutDuration / time.Minute)
 			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
 
@@ -551,7 +564,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 	// Validate users exist
 	if len(loginResult.Users) == 0 {
 		slog.Error("No user found after email login")
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
 
 		result.ErrorResponse = &Error{
 			Type:    "no_user_found",
@@ -564,7 +577,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 	loginID, err := uuid.Parse(loginResult.Users[0].LoginID)
 	if err != nil {
 		slog.Error("Failed to parse login ID", "loginID", loginResult.Users[0].LoginID, "error", err)
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
@@ -587,7 +600,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 		requires2FA, methods, tempToken, err := s.Check2FARequirement(ctx, loginID, loginResult.Users)
 		if err != nil {
 			slog.Error("Failed to check 2FA", "err", err)
-			s.loginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+			s.LoginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 			result.ErrorResponse = &Error{
 				Type:    "internal_error",
@@ -606,7 +619,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 
 	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, loginResult.Users)
 	if err != nil {
-		s.loginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
@@ -645,7 +658,7 @@ func (s *Service) ProcessMagicLinkValidation(ctx context.Context, token, ipAddre
 	result := Result{}
 
 	// Step 1: Validate the magic link token
-	loginResult, err := s.loginService.ValidateMagicLinkToken(ctx, token)
+	loginResult, err := s.LoginService.ValidateMagicLinkToken(ctx, token)
 	if err != nil {
 		slog.Error("Magic link validation failed", "err", err)
 
@@ -663,7 +676,7 @@ func (s *Service) ProcessMagicLinkValidation(ctx context.Context, token, ipAddre
 	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginResult.LoginID, loginResult.Users)
 	if err != nil {
 		// Record failed login attempt
-		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, ipAddress, userAgent, fingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
@@ -774,7 +787,7 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 	result := Result{}
 
 	// Step 1: Parse and validate temp token
-	token, err := s.tokenService.ParseToken(request.TokenString)
+	token, err := s.TokenService.ParseToken(request.TokenString)
 	if err != nil {
 		result.ErrorResponse = &Error{
 			Type:    "invalid_token",
@@ -815,9 +828,9 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 	result.LoginID = loginID
 
 	// Step 3: Validate 2FA passcode
-	valid, err := s.twoFactorService.Validate2faPasscode(ctx, loginID, request.TwoFAType, request.Passcode)
+	valid, err := s.TwoFactorService.Validate2faPasscode(ctx, loginID, request.TwoFAType, request.Passcode)
 	if err != nil {
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "failed to validate 2fa: " + err.Error(),
@@ -827,15 +840,15 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 
 	if !valid {
 		// Record failed 2FA validation attempt
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
 
 		// Check if account should be locked
-		locked, _, err := s.loginService.IncrementFailedAttemptsAndCheckLock(ctx, loginID)
+		locked, _, err := s.LoginService.IncrementFailedAttemptsAndCheckLock(ctx, loginID)
 		if err != nil {
 			slog.Error("Failed to increment failed attempts", "err", err)
 		}
 		if locked {
-			lockoutDuration := s.loginService.GetLockoutDuration()
+			lockoutDuration := s.LoginService.GetLockoutDuration()
 			lockoutMinutes := int(lockoutDuration / time.Minute)
 			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
 			result.ErrorResponse = &Error{
@@ -853,7 +866,7 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 
 	// Step 4: Handle device remembering if requested
 	if request.RememberDevice && request.DeviceFingerprint != "" {
-		err := s.deviceService.LinkDeviceToLogin(ctx, loginID, request.DeviceFingerprint)
+		err := s.DeviceService.LinkDeviceToLogin(ctx, loginID, request.DeviceFingerprint)
 		if err != nil {
 			slog.Error("Failed to remember device", "err", err)
 			// Don't fail the login if we can't remember the device
@@ -861,9 +874,9 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 	}
 
 	// Step 5: Get users for the login ID
-	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
+	users, err := s.UserMapper.FindUsersByLoginID(ctx, loginID)
 	if err != nil {
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "failed to get user roles: " + err.Error(),
@@ -873,7 +886,7 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 
 	if len(users) == 0 {
 		slog.Error("No user found after 2fa")
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
 		result.ErrorResponse = &Error{
 			Type:    "no_user_found",
 			Message: "2fa validation failed",
@@ -894,7 +907,7 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 	// Step 7: Check for multiple users
 	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, users)
 	if err != nil {
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: err.Error(),
@@ -912,7 +925,7 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 	tokens, err := s.GenerateLoginTokens(ctx, users[0])
 	if err != nil {
 		slog.Error("Failed to create access token", "err", err)
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "Failed to create access token",
@@ -933,7 +946,7 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 	result := Result{}
 
 	// Step 1: Parse and validate temp token
-	token, err := s.tokenService.ParseToken(request.TokenString)
+	token, err := s.TokenService.ParseToken(request.TokenString)
 	if err != nil {
 		result.ErrorResponse = &Error{
 			Type:    "invalid_token",
@@ -973,9 +986,9 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 	result.LoginID = loginID
 
 	// Step 3: Validate 2FA passcode
-	valid, err := s.twoFactorService.Validate2faPasscode(ctx, loginID, request.TwoFAType, request.Passcode)
+	valid, err := s.TwoFactorService.Validate2faPasscode(ctx, loginID, request.TwoFAType, request.Passcode)
 	if err != nil {
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "failed to validate 2fa: " + err.Error(),
@@ -985,15 +998,15 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 
 	if !valid {
 		// Record failed 2FA validation attempt
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
 
 		// Check if account should be locked
-		locked, _, err := s.loginService.IncrementFailedAttemptsAndCheckLock(ctx, loginID)
+		locked, _, err := s.LoginService.IncrementFailedAttemptsAndCheckLock(ctx, loginID)
 		if err != nil {
 			slog.Error("Failed to increment failed attempts", "err", err)
 		}
 		if locked {
-			lockoutDuration := s.loginService.GetLockoutDuration()
+			lockoutDuration := s.LoginService.GetLockoutDuration()
 			lockoutMinutes := int(lockoutDuration / time.Minute)
 			slog.Info("Account locked", "lockoutDuration", lockoutMinutes)
 			result.ErrorResponse = &Error{
@@ -1011,7 +1024,7 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 
 	// Step 4: Handle device remembering if requested
 	if request.RememberDevice && request.DeviceFingerprint != "" {
-		err := s.deviceService.LinkDeviceToLogin(ctx, loginID, request.DeviceFingerprint)
+		err := s.DeviceService.LinkDeviceToLogin(ctx, loginID, request.DeviceFingerprint)
 		if err != nil {
 			slog.Error("Failed to remember device", "err", err)
 			// Don't fail the login if we can't remember the device
@@ -1019,9 +1032,9 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 	}
 
 	// Step 5: Get users for the login ID
-	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
+	users, err := s.UserMapper.FindUsersByLoginID(ctx, loginID)
 	if err != nil {
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "failed to get user roles: " + err.Error(),
@@ -1031,7 +1044,7 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 
 	if len(users) == 0 {
 		slog.Error("No user found after 2fa")
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
 		result.ErrorResponse = &Error{
 			Type:    "no_user_found",
 			Message: "2fa validation failed",
@@ -1044,7 +1057,7 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 	// Step 6: Check for multiple users
 	requiresUserSelection, tempToken, err := s.CheckMultipleUsers(ctx, loginID, users)
 	if err != nil {
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: err.Error(),
@@ -1062,7 +1075,7 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 	tokens, err := s.GenerateMobileLoginTokens(ctx, users[0])
 	if err != nil {
 		slog.Error("Failed to create tokens", "err", err)
-		s.loginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
+		s.LoginService.RecordLoginAttempt(ctx, loginID, request.IPAddress, request.UserAgent, request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
 			Message: "Failed to create tokens",
@@ -1083,7 +1096,7 @@ func (s *Service) ProcessUserSwitch(ctx context.Context, request UserSwitchReque
 	result := Result{}
 
 	// Step 1: Parse and validate token
-	token, err := s.tokenService.ParseToken(request.TokenString)
+	token, err := s.TokenService.ParseToken(request.TokenString)
 	if err != nil {
 		result.ErrorResponse = &Error{
 			Type:    "invalid_token",
@@ -1145,7 +1158,7 @@ func (s *Service) ProcessUserSwitch(ctx context.Context, request UserSwitchReque
 	result.LoginID = loginID
 
 	// Step 4: Get all users for the current login
-	users, err := s.loginService.GetUsersByLoginId(ctx, loginID)
+	users, err := s.LoginService.GetUsersByLoginId(ctx, loginID)
 	if err != nil {
 		slog.Error("Failed to get users", "err", err)
 		result.ErrorResponse = &Error{
@@ -1282,7 +1295,7 @@ func (s *Service) ProcessMobileTokenRefresh(ctx context.Context, request TokenRe
 // validateRefreshToken validates a refresh token and returns the parsed token
 func (s *Service) validateRefreshToken(tokenString string) (*jwt.Token, error) {
 	// Parse and validate the refresh token
-	token, err := s.tokenService.ParseToken(tokenString)
+	token, err := s.TokenService.ParseToken(tokenString)
 	if err != nil {
 		slog.Error("Invalid refresh token", "err", err)
 		return nil, fmt.Errorf("invalid refresh token: %w", err)
@@ -1332,14 +1345,14 @@ func (s *Service) getUserFromToken(ctx context.Context, token *jwt.Token) (strin
 		return "", mapper.User{}, fmt.Errorf("failed to parse user ID: %w", err)
 	}
 
-	tokenUser, err := s.userMapper.GetUserByUserID(ctx, userUuid)
+	tokenUser, err := s.UserMapper.GetUserByUserID(ctx, userUuid)
 	if err != nil {
 		slog.Error("Failed to get user by user ID", "err", err, "user_id", userIdStr)
 		return "", mapper.User{}, fmt.Errorf("failed to get user by user ID: %w", err)
 	}
 
 	// Extract claims from token and add them to the user's extra claims
-	tokenUser = s.userMapper.ExtractTokenClaims(tokenUser, mapClaims)
+	tokenUser = s.UserMapper.ExtractTokenClaims(tokenUser, mapClaims)
 
 	return userIdStr, tokenUser, nil
 }
@@ -1357,7 +1370,7 @@ func (s *Service) Process2FASend(ctx context.Context, request TwoFASendRequest) 
 	result := Result{}
 
 	// Step 1: Parse and validate temp token
-	token, err := s.tokenService.ParseToken(request.TokenString)
+	token, err := s.TokenService.ParseToken(request.TokenString)
 	if err != nil {
 		result.ErrorResponse = &Error{
 			Type:    "invalid_token",
@@ -1407,7 +1420,7 @@ func (s *Service) Process2FASend(ctx context.Context, request TwoFASendRequest) 
 	slog.Info("Parsed user ID", "user_id", userID)
 
 	// Step 4: Send 2FA notification
-	err = s.twoFactorService.SendTwoFaNotification(ctx, loginID, userID, request.TwoFAType, request.DeliveryOption)
+	err = s.TwoFactorService.SendTwoFaNotification(ctx, loginID, userID, request.TwoFAType, request.DeliveryOption)
 	if err != nil {
 		result.ErrorResponse = &Error{
 			Type:    "internal_error",
@@ -1425,7 +1438,7 @@ func (s *Service) ProcessLogout(ctx context.Context) Result {
 	result := Result{}
 
 	// Generate logout token
-	tokenMap, err := s.tokenService.GenerateLogoutToken("", nil, nil)
+	tokenMap, err := s.TokenService.GenerateLogoutToken("", nil, nil)
 	if err != nil {
 		slog.Error("Failed to generate logout token", "err", err)
 		result.ErrorResponse = &Error{
@@ -1442,7 +1455,7 @@ func (s *Service) ProcessLogout(ctx context.Context) Result {
 
 // GetDeviceExpiration returns the device expiration duration from the device service
 func (s *Service) GetDeviceExpiration() time.Duration {
-	return s.deviceService.GetDeviceExpiration()
+	return s.DeviceService.GetDeviceExpiration()
 }
 
 func (s *Service) checkUserAssociationFlow(claims jwt.Claims) (bool, string) {
@@ -1482,7 +1495,7 @@ func (s *Service) GenerateUserAssociationToken(loginID, userID string, userOptio
 	}
 
 	// Generate a temporary token with the necessary claims
-	tempTokenMap, err := s.tokenService.GenerateTempToken(userID, nil, extraClaims)
+	tempTokenMap, err := s.TokenService.GenerateTempToken(userID, nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate temp token", "err", err)
 		return nil, fmt.Errorf("failed to generate temp token: %w", err)
@@ -1502,7 +1515,7 @@ func (s *Service) ProcessMobileUserLookup(ctx context.Context, request MobileUse
 	result := Result{}
 
 	// Step 1: Parse and validate token
-	token, err := s.tokenService.ParseToken(request.TokenString)
+	token, err := s.TokenService.ParseToken(request.TokenString)
 	if err != nil {
 		result.ErrorResponse = &Error{
 			Type:    "invalid_token",
@@ -1548,7 +1561,7 @@ func (s *Service) ProcessMobileUserLookup(ctx context.Context, request MobileUse
 	result.LoginID = loginId
 
 	// Step 4: Get users by login ID
-	users, err := s.loginService.GetUsersByLoginId(ctx, loginId)
+	users, err := s.LoginService.GetUsersByLoginId(ctx, loginId)
 	if err != nil {
 		slog.Error("Failed to get users by login ID", "err", err)
 		result.ErrorResponse = &Error{
