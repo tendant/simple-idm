@@ -12,16 +12,39 @@ import (
 
 // DeviceService handles device recognition and management
 type DeviceService struct {
-	deviceRepository DeviceRepository
-	loginRepository  login.LoginRepository
+	deviceRepository     DeviceRepository
+	loginRepository      login.LoginRepository
+	deviceExpirationDays time.Duration
 }
 
 // NewDeviceService creates a new device service with the given repository
-func NewDeviceService(deviceRepository DeviceRepository, loginRepository login.LoginRepository) *DeviceService {
-	return &DeviceService{
-		deviceRepository: deviceRepository,
-		loginRepository:  loginRepository,
+func NewDeviceService(deviceRepository DeviceRepository, loginRepository login.LoginRepository, opts ...DeviceServiceOption) *DeviceService {
+	service := &DeviceService{
+		deviceRepository:     deviceRepository,
+		loginRepository:      loginRepository,
+		deviceExpirationDays: 90 * 24 * time.Hour, // Default to 90 days
 	}
+
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	return service
+}
+
+// DeviceServiceOption is a function type for configuring DeviceService
+type DeviceServiceOption func(*DeviceService)
+
+// WithDeviceExpirationDays sets the device expiration duration
+func WithDeviceExpirationDays(duration time.Duration) DeviceServiceOption {
+	return func(s *DeviceService) {
+		s.deviceExpirationDays = duration
+	}
+}
+
+// GetDeviceExpiration returns the device expiration duration
+func (s *DeviceService) GetDeviceExpiration() time.Duration {
+	return s.deviceExpirationDays
 }
 
 // RegisterDevice registers a new device or updates an existing one
