@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/mapper"
@@ -84,9 +85,10 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 		}
 
 		errorMessage := "Username/Password is wrong"
-		if s.loginType == "email" {
+		switch {
+		case s.loginType == "email":
 			errorMessage = "Email/Password is wrong"
-		} else if s.loginType == "magic_link" {
+		case s.loginType == "magic_link":
 			errorMessage = "Invalid or expired token"
 		}
 
@@ -101,6 +103,9 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 	// Store login result in flow context
 	flowContext.Result.LoginID = loginResult.LoginID
 	flowContext.Result.Users = loginResult.Users
+
+	// Set the LoginID in flow context (consolidating LoginIDParsingStep logic)
+	flowContext.LoginID = loginResult.LoginID
 
 	return &StepResult{
 		Continue: true,
@@ -141,46 +146,6 @@ func (s *UserValidationStep) Execute(ctx context.Context, flowContext *FlowConte
 			},
 		}, nil
 	}
-
-	return &StepResult{Continue: true}, nil
-}
-
-// LoginIDParsingStep parses and validates the login ID
-type LoginIDParsingStep struct{}
-
-func NewLoginIDParsingStep() *LoginIDParsingStep {
-	return &LoginIDParsingStep{}
-}
-
-func (s *LoginIDParsingStep) Name() string {
-	return "login_id_parsing"
-}
-
-func (s *LoginIDParsingStep) Order() int {
-	return OrderLoginIDParsing
-}
-
-func (s *LoginIDParsingStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
-	return false // Always parse login ID
-}
-
-func (s *LoginIDParsingStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
-	loginID, err := uuid.Parse(flowContext.Result.Users[0].LoginID)
-	if err != nil {
-		slog.Error("Failed to parse login ID", "loginID", flowContext.Result.Users[0].LoginID, "error", err)
-		flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.Result.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, false, login.FAILURE_REASON_INTERNAL_ERROR)
-
-		return &StepResult{
-			Error: &Error{
-				Type:    "internal_error",
-				Message: "Invalid login ID",
-			},
-		}, nil
-	}
-
-	// Update the login ID in flow context
-	flowContext.LoginID = loginID
-	flowContext.Result.LoginID = loginID
 
 	return &StepResult{Continue: true}, nil
 }
@@ -390,7 +355,9 @@ func (s *TokenGenerationStep) Execute(ctx context.Context, flowContext *FlowCont
 	case "mobile":
 		tokens, err = flowContext.Services.TokenService.GenerateMobileTokens(flowContext.Result.Users[0].UserId, rootModifications, extraClaims)
 	default: // "web" or any other type defaults to regular tokens
+		slog.Info("Generating web tokens")
 		tokens, err = flowContext.Services.TokenService.GenerateTokens(flowContext.Result.Users[0].UserId, rootModifications, extraClaims)
+		slog.Info("Web tokens generated successfully", "tokens", tokens)
 	}
 
 	if err != nil {
@@ -471,6 +438,331 @@ func getUniqueEmailsFromUsersForSteps(users []mapper.User) []DeliveryOption {
 	}
 
 	return deliveryOptions
+}
+
+// TempTokenValidationStep validates temp tokens for resumption flows
+type TempTokenValidationStep struct{}
+
+func NewTempTokenValidationStep() *TempTokenValidationStep {
+	return &TempTokenValidationStep{}
+}
+
+func (s *TempTokenValidationStep) Name() string {
+	return "temp_token_validation"
+}
+
+func (s *TempTokenValidationStep) Order() int {
+	return 50 // Execute before credential authentication
+}
+
+func (s *TempTokenValidationStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
+	return !flowContext.Request.IsResumption // Skip for initial flows
+}
+
+func (s *TempTokenValidationStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
+	// Parse and validate temp token
+	token, err := flowContext.Services.TokenService.ParseToken(flowContext.Request.TempToken)
+	if err != nil {
+		return &StepResult{
+			Error: &Error{Type: "invalid_token", Message: "Invalid temp token"},
+		}, nil
+	}
+
+	// Extract state from token claims using jwt.MapClaims
+	if mapClaims, ok := token.Claims.(jwt.MapClaims); ok {
+		// Convert jwt.MapClaims to map[string]interface{} for storage
+		claimsMap := make(map[string]interface{})
+		for key, value := range mapClaims {
+			if key == "extra_claims" {
+				// Handle extra_claims by flattening them into the main map
+				if extraClaims, ok := value.(map[string]interface{}); ok {
+					for extraKey, extraValue := range extraClaims {
+						claimsMap[extraKey] = extraValue
+					}
+				}
+			} else {
+				claimsMap[key] = value
+			}
+		}
+		flowContext.TempTokenClaims = claimsMap
+		flowContext.IsResumption = true
+
+		// Extract login_id from token claims
+		if loginIDStr, exists := claimsMap["login_id"].(string); exists {
+			if loginID, err := uuid.Parse(loginIDStr); err == nil {
+				flowContext.LoginID = loginID
+				flowContext.Result.LoginID = loginID
+			}
+		}
+
+		// Reconstruct users from token or fetch from DB if needed
+		if flowContext.LoginID != uuid.Nil {
+			users, err := flowContext.Services.UserMapper.FindUsersByLoginID(ctx, flowContext.LoginID)
+			if err == nil {
+				flowContext.Result.Users = users
+				flowContext.Users = users
+			}
+		}
+	}
+
+	return &StepResult{Continue: true}, nil
+}
+
+// TwoFAValidationStep validates 2FA codes during resumption
+type TwoFAValidationStep struct{}
+
+func NewTwoFAValidationStep() *TwoFAValidationStep {
+	return &TwoFAValidationStep{}
+}
+
+func (s *TwoFAValidationStep) Name() string {
+	return "two_fa_validation"
+}
+
+func (s *TwoFAValidationStep) Order() int {
+	return 550 // Execute after TwoFARequirement but before MultipleUsers
+}
+
+func (s *TwoFAValidationStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
+	// Skip if not resumption or no 2FA code provided
+	return !flowContext.Request.IsResumption || flowContext.Request.TwoFACode == ""
+}
+
+func (s *TwoFAValidationStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
+	// Validate 2FA code
+	valid, err := flowContext.Services.TwoFactorService.Validate2faPasscode(
+		ctx,
+		flowContext.LoginID,
+		flowContext.Request.TwoFAType,
+		flowContext.Request.TwoFACode,
+	)
+
+	if err != nil {
+		flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		return &StepResult{
+			Error: &Error{Type: "internal_error", Message: "failed to validate 2fa: " + err.Error()},
+		}, nil
+	}
+
+	if !valid {
+		// Record failed 2FA validation attempt
+		flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+
+		// Check if account should be locked
+		locked, _, err := flowContext.Services.LoginService.IncrementFailedAttemptsAndCheckLock(ctx, flowContext.LoginID)
+		if err != nil {
+			slog.Error("Failed to increment failed attempts", "err", err)
+		}
+		if locked {
+			lockoutDuration := flowContext.Services.LoginService.GetLockoutDuration()
+			lockoutMinutes := int(lockoutDuration / time.Minute)
+			return &StepResult{
+				Error: &Error{
+					Type:    "account_locked",
+					Message: "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
+				},
+			}, nil
+		}
+		return &StepResult{
+			Error: &Error{Type: "invalid_2fa_code", Message: "Invalid 2FA code"},
+		}, nil
+	}
+
+	// Mark 2FA as verified in context
+	flowContext.StepData["2fa_verified"] = true
+
+	return &StepResult{Continue: true}, nil
+}
+
+// UserSwitchValidationStep validates user switching requests
+type UserSwitchValidationStep struct{}
+
+func NewUserSwitchValidationStep() *UserSwitchValidationStep {
+	return &UserSwitchValidationStep{}
+}
+
+func (s *UserSwitchValidationStep) Name() string {
+	return "user_switch_validation"
+}
+
+func (s *UserSwitchValidationStep) Order() int {
+	return 560 // Execute after TwoFAValidation
+}
+
+func (s *UserSwitchValidationStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
+	// Skip if not resumption or no target user specified
+	return !flowContext.Request.IsResumption || flowContext.Request.Username == ""
+}
+
+func (s *UserSwitchValidationStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
+
+	// Get all users for the current login
+	users, err := flowContext.Services.LoginService.GetUsersByLoginId(ctx, flowContext.LoginID)
+	if err != nil {
+		slog.Error("Failed to get users", "err", err)
+		return &StepResult{
+			Error: &Error{Type: "internal_error", Message: "Failed to get users"},
+		}, nil
+	}
+
+	slog.Info("users available to switch", "users", users, "loginid", flowContext.LoginID)
+
+	// Check if the requested user is in the list (Username contains target user ID for user switch)
+	targetUserID := flowContext.Request.Username
+	var targetUser mapper.User
+	found := false
+	for _, user := range users {
+		if user.UserId == targetUserID {
+			targetUser = user
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return &StepResult{
+			Error: &Error{Type: "forbidden", Message: "Not authorized to switch to this user"},
+		}, nil
+	}
+
+	// Set the target user as the single user in the result
+	flowContext.Result.Users = []mapper.User{targetUser}
+
+	return &StepResult{Continue: true}, nil
+}
+
+// UserLookupStep handles user lookup operations
+type UserLookupStep struct{}
+
+func NewUserLookupStep() *UserLookupStep {
+	return &UserLookupStep{}
+}
+
+func (s *UserLookupStep) Name() string {
+	return "user_lookup"
+}
+
+func (s *UserLookupStep) Order() int {
+	return 570 // Execute after UserSwitchValidation
+}
+
+func (s *UserLookupStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
+	return false // Always execute user lookup
+}
+
+func (s *UserLookupStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
+	// Validate 2FA if using temp token (check from temp token claims)
+	if twofaVerified, exists := flowContext.TempTokenClaims["2fa_verified"].(bool); !exists || !twofaVerified {
+		return &StepResult{
+			Error: &Error{Type: "unauthorized", Message: "2FA not verified"},
+		}, nil
+	}
+
+	// Get all users for the current login
+	users, err := flowContext.Services.LoginService.GetUsersByLoginId(ctx, flowContext.LoginID)
+	if err != nil {
+		slog.Error("Failed to get users", "err", err)
+		return &StepResult{
+			Error: &Error{Type: "internal_error", Message: "Failed to get users"},
+		}, nil
+	}
+
+	// Set users in the result
+	flowContext.Result.Users = users
+	flowContext.Result.Success = true
+
+	return &StepResult{Continue: true}, nil
+}
+
+// TwoFASendStep handles sending 2FA notifications
+type TwoFASendStep struct{}
+
+func NewTwoFASendStep() *TwoFASendStep {
+	return &TwoFASendStep{}
+}
+
+func (s *TwoFASendStep) Name() string {
+	return "two_fa_send"
+}
+
+func (s *TwoFASendStep) Order() int {
+	return 580 // Execute after UserLookup
+}
+
+func (s *TwoFASendStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
+	return false // Always execute 2FA send
+}
+
+func (s *TwoFASendStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
+	// Extract user ID and delivery option from request
+	userID, err := uuid.Parse(flowContext.Request.Username) // Username contains user ID for 2FA send
+	if err != nil {
+		return &StepResult{
+			Error: &Error{Type: "invalid_request", Message: "Invalid user_id format"},
+		}, nil
+	}
+
+	// Send 2FA notification
+	err = flowContext.Services.TwoFactorService.SendTwoFaNotification(
+		ctx,
+		flowContext.LoginID,
+		userID,
+		flowContext.Request.TwoFAType,
+		flowContext.Request.DeliveryOption,
+	)
+	if err != nil {
+		return &StepResult{
+			Error: &Error{Type: "internal_error", Message: "failed to init 2fa: " + err.Error()},
+		}, nil
+	}
+
+	// Mark as successful
+	flowContext.Result.Success = true
+
+	return &StepResult{Continue: true}, nil
+}
+
+// DeviceRememberingStep handles device remembering after successful 2FA validation
+type DeviceRememberingStep struct{}
+
+func NewDeviceRememberingStep() *DeviceRememberingStep {
+	return &DeviceRememberingStep{}
+}
+
+func (s *DeviceRememberingStep) Name() string {
+	return "device_remembering"
+}
+
+func (s *DeviceRememberingStep) Order() int {
+	return OrderDeviceRemembering
+}
+
+func (s *DeviceRememberingStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
+	// Skip if RememberDevice is false or device fingerprint is empty
+	if !flowContext.Request.RememberDevice || flowContext.Request.DeviceFingerprint == "" {
+		return true
+	}
+
+	// Skip if 2FA was not verified (check from step data)
+	if twofaVerified, exists := flowContext.StepData["2fa_verified"].(bool); !exists || !twofaVerified {
+		return true
+	}
+
+	return false
+}
+
+func (s *DeviceRememberingStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
+	// Link device to login for remembering
+	err := flowContext.Services.DeviceService.LinkDeviceToLogin(ctx, flowContext.LoginID, flowContext.Request.DeviceFingerprint)
+	if err != nil {
+		// Log the error but don't fail the login flow
+		slog.Error("Failed to link device to login", "error", err, "fingerprint", flowContext.Request.DeviceFingerprint, "loginID", flowContext.LoginID)
+		// Continue with the flow even if device linking fails
+	} else {
+		slog.Info("Device linked to login for remembering", "fingerprint", flowContext.Request.DeviceFingerprint, "loginID", flowContext.LoginID)
+	}
+
+	return &StepResult{Continue: true}, nil
 }
 
 // getUniquePhonesFromUsersForSteps extracts unique phones from a list of users for steps

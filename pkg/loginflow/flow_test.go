@@ -684,9 +684,6 @@ func TestPredefinedStepOrders(t *testing.T) {
 	if OrderUserValidation != 200 {
 		t.Errorf("Expected OrderUserValidation to be 200, got %d", OrderUserValidation)
 	}
-	if OrderLoginIDParsing != 300 {
-		t.Errorf("Expected OrderLoginIDParsing to be 300, got %d", OrderLoginIDParsing)
-	}
 	if OrderDeviceRecognition != 400 {
 		t.Errorf("Expected OrderDeviceRecognition to be 400, got %d", OrderDeviceRecognition)
 	}
