@@ -3,4 +3,4 @@ echo "auto gen login.gen.go at login"
 # -o output file location
 # -p expected package name
 # yaml file
-goapi-gen -o login.gen.go -p apiv2 login.yaml
+goapi-gen -o login.gen.go -p loginapiv2 login.yaml
