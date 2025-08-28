@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/jinzhu/copier"
+	"github.com/tendant/simple-idm/pkg/loginflow"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 )
@@ -167,4 +169,136 @@ func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(loginID
 		body:        resp,
 		contentType: "application/json",
 	}
+}
+
+// mapErrorToHTTPResponse maps loginflow service errors to HTTP responses
+func (h Handle) mapErrorToHTTPResponse(err *loginflow.Error) *Response {
+	switch err.Type {
+	case "account_locked":
+		return &Response{
+			Code:        http.StatusTooManyRequests,
+			body:        err.Message,
+			contentType: "application/json",
+		}
+	case "password_expired":
+		return &Response{
+			Code:        http.StatusForbidden,
+			body:        err.Message,
+			contentType: "application/json",
+		}
+	case "invalid_credentials":
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: err.Message,
+		}
+	case "no_user_found":
+		return &Response{
+			Code: http.StatusForbidden,
+			body: err.Message,
+		}
+	case "internal_error":
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: err.Message,
+		}
+	default:
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "An unexpected error occurred",
+		}
+	}
+}
+
+// prepare2FARequiredResponse prepares a 2FA required response
+// helper method for login handler, private since no need for separate implementation
+func (h Handle) prepare2FARequiredResponse(w http.ResponseWriter, commonMethods []loginflow.TwoFactorMethod, tempTokenMap map[string]tg.TokenValue) *Response {
+	// Convert common.TwoFactorMethod to api.TwoFactorMethod
+	var twoFactorMethods []TwoFactorMethod
+	slog.Info("temp token", "token", tempTokenMap[tg.TEMP_TOKEN_NAME].Token)
+	err := copier.Copy(&twoFactorMethods, &commonMethods)
+	if err != nil {
+		slog.Error("Failed to copy 2FA methods", "err", err)
+		return &Response{
+			body: "Failed to process 2FA methods",
+			Code: http.StatusInternalServerError,
+		}
+	}
+
+	// Only set cookie if a writer is provided (web flow)
+	if w != nil {
+		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+		}
+	}
+
+	twoFARequiredResp := TwoFactorRequiredResponse{
+		TempToken:        tempTokenMap[tg.TEMP_TOKEN_NAME].Token,
+		TwoFactorMethods: twoFactorMethods,
+		Status:           STATUS_2FA_REQUIRED,
+		Message:          "Two-factor authentication is required",
+	}
+
+	return &Response{
+		Code: http.StatusAccepted,
+		body: twoFARequiredResp,
+	}
+}
+
+// prepareUserAssociationSelectionResponse prepares a response for user association selection
+// It uses the loginflow service to generate a temporary token and returns a properly formatted response
+func (h Handle) prepareUserAssociationSelectionResponse(w http.ResponseWriter, loginID, userID string, userOptions []mapper.User) *Response {
+	// Validate user options
+	if userOptions == nil {
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "No users found with login provided",
+		}
+	}
+
+	// Use loginflow service to generate the temp token
+	tempTokenMap, err := h.loginFlowService.GenerateUserAssociationToken(loginID, userID, userOptions)
+	if err != nil {
+		slog.Error("Failed to generate user association token", "err", err)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to generate temp token: " + err.Error(),
+		}
+	}
+
+	// Set the token cookie if a response writer is provided
+	if w != nil {
+		err = h.tokenCookieService.SetTokensCookie(w, tempTokenMap)
+		if err != nil {
+			slog.Error("Failed to set temp token cookie", "err", err)
+			return &Response{
+				Code: http.StatusInternalServerError,
+				body: "Failed to set temp token cookie: " + err.Error(),
+			}
+		}
+	}
+
+	if len(userOptions) > 1 {
+		return h.responseHandler.PrepareUserAssociationSelectionResponse(loginID, userOptions)
+	}
+
+	user := UserOption{
+		UserID:      userOptions[0].UserId,
+		DisplayName: userOptions[0].DisplayName,
+		Email:       userOptions[0].UserInfo.Email,
+	}
+
+	resp := AssociateUserResponse{
+		Status:     STATUS_USER_ASSOCIATION_REQUIRED,
+		Message:    "Please call user association endpoint",
+		LoginID:    loginID,
+		UserOption: user,
+	}
+
+	return &Response{
+		Code:        http.StatusAccepted,
+		body:        resp,
+		contentType: "application/json",
+	}
+
 }
