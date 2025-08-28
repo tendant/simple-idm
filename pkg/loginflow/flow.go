@@ -3,6 +3,7 @@ package loginflow
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 
 	"github.com/google/uuid"
@@ -44,6 +45,10 @@ type FlowContext struct {
 
 	// Services (injected by the flow executor)
 	Services *ServiceDependencies
+
+	// Resumption support
+	IsResumption    bool
+	TempTokenClaims map[string]interface{}
 }
 
 // StepResult represents the result of executing a login flow step
@@ -133,9 +138,11 @@ func (e *FlowExecutor) Execute(ctx context.Context, request Request) Result {
 	for _, step := range steps {
 		// Check if step should be skipped
 		if step.ShouldSkip(ctx, flowContext) {
+			slog.Info("Skipping step", "step", step.Name())
 			continue
 		}
 
+		slog.Info("Executing step", "step", step.Name())
 		// Execute the step
 		stepResult, err := step.Execute(ctx, flowContext)
 		if err != nil {
@@ -201,9 +208,9 @@ func (b *FlowBuilder) Build(services *ServiceDependencies) *FlowExecutor {
 const (
 	OrderCredentialAuthentication = 100
 	OrderUserValidation           = 200
-	OrderLoginIDParsing           = 300
 	OrderDeviceRecognition        = 400
 	OrderTwoFARequirement         = 500
+	OrderDeviceRemembering        = 575 // After 2FA validation but before multiple users
 	OrderMultipleUsers            = 600
 	OrderTokenGeneration          = 700
 	OrderSuccessRecording         = 800

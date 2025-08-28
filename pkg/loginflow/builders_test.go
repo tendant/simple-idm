@@ -18,13 +18,15 @@ func TestNewLoginFlowBuilders(t *testing.T) {
 	var tokenService tg.TokenService
 	var userMapper mapper.UserMapper
 
-	builders := NewLoginFlowBuilders(
-		loginService,
-		twoFactorService,
-		deviceService,
-		tokenService,
-		userMapper,
-	)
+	serviceDependencies := &ServiceDependencies{
+		LoginService:     loginService,
+		TwoFactorService: twoFactorService,
+		DeviceService:    deviceService,
+		TokenService:     tokenService,
+		UserMapper:       userMapper,
+	}
+
+	builders := NewLoginFlowBuilders(serviceDependencies)
 
 	if builders == nil {
 		t.Error("NewLoginFlowBuilders should return a non-nil instance")
@@ -48,11 +50,10 @@ func TestLoginFlowBuilders_BuildWebLoginFlow(t *testing.T) {
 		t.Error("Web login flow should have steps")
 	}
 
-	// Verify the steps are in the correct order
+	// Verify the steps are in the correct order (LoginIDParsingStep was consolidated into CredentialAuthenticationStep)
 	expectedSteps := []string{
 		"credential_authentication",
 		"user_validation",
-		"login_id_parsing",
 		"device_recognition",
 		"two_fa_requirement",
 		"multiple_users",
@@ -173,15 +174,15 @@ func TestLoginFlowBuilders_BuildMinimalLoginFlow(t *testing.T) {
 	}
 
 	// Minimal flow should have fewer steps than full flow
-	if len(steps) >= 8 { // Full flow has 8 steps
+	if len(steps) >= 7 { // Full flow now has 7 steps (after LoginIDParsingStep consolidation)
 		t.Error("Minimal login flow should have fewer steps than full flow")
 	}
 
-	// Should have basic steps: credential auth, user validation, login ID parsing, token generation, success recording
+	// Should have basic steps: credential auth, user validation, token generation, success recording
+	// (LoginIDParsingStep was consolidated into CredentialAuthenticationStep)
 	expectedSteps := []string{
 		"credential_authentication",
 		"user_validation",
-		"login_id_parsing",
 		"token_generation",
 		"success_recording",
 	}
@@ -291,6 +292,11 @@ func TestLoginFlowBuilders_GetAvailableFlowTypes(t *testing.T) {
 		FlowTypeMagicLink,
 		FlowTypeMinimal,
 		FlowTypePasswordless,
+		FlowType2FAValidation,
+		FlowTypeMobile2FAValidation,
+		FlowTypeUserSwitch,
+		FlowTypeMobileUserLookup,
+		FlowType2FASend,
 	}
 
 	if len(flowTypes) != len(expectedTypes) {
@@ -340,11 +346,13 @@ func createTestBuilders() *LoginFlowBuilders {
 	var tokenService tg.TokenService
 	var userMapper mapper.UserMapper
 
-	return NewLoginFlowBuilders(
-		loginService,
-		twoFactorService,
-		deviceService,
-		tokenService,
-		userMapper,
-	)
+	serviceDependencies := &ServiceDependencies{
+		LoginService:     loginService,
+		TwoFactorService: twoFactorService,
+		DeviceService:    deviceService,
+		TokenService:     tokenService,
+		UserMapper:       userMapper,
+	}
+
+	return NewLoginFlowBuilders(serviceDependencies)
 }
