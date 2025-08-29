@@ -60,7 +60,9 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 		slog.Error("Login failed", "err", err, "type", s.loginType)
 
 		// Record the login attempt
-		flowContext.Services.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, false, loginResult.FailureReason)
+		if loginResult.LoginID != uuid.Nil {
+			flowContext.Services.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, false, loginResult.FailureReason)
+		}
 
 		// Handle specific error types
 		if login.IsAccountLockedError(err) {
