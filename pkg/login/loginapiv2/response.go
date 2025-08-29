@@ -174,29 +174,29 @@ func (h *DefaultResponseHandler) PrepareUserAssociationSelectionResponse(loginID
 // mapErrorToHTTPResponse maps loginflow service errors to HTTP responses
 func (h Handle) mapErrorToHTTPResponse(err *loginflow.Error) *Response {
 	switch err.Type {
-	case "account_locked":
+	case loginflow.ErrorTypeAccountLocked:
 		return &Response{
 			Code:        http.StatusTooManyRequests,
 			body:        err.Message,
 			contentType: "application/json",
 		}
-	case "password_expired":
+	case loginflow.ErrorTypePasswordExpired:
 		return &Response{
 			Code:        http.StatusForbidden,
 			body:        err.Message,
 			contentType: "application/json",
 		}
-	case "invalid_credentials":
+	case loginflow.ErrorTypeInvalidCredentials:
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: err.Message,
 		}
-	case "no_user_found":
+	case loginflow.ErrorTypeNoUserFound:
 		return &Response{
 			Code: http.StatusForbidden,
 			body: err.Message,
 		}
-	case "internal_error":
+	case loginflow.ErrorTypeInternalError:
 		return &Response{
 			Code: http.StatusInternalServerError,
 			body: err.Message,

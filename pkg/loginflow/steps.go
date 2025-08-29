@@ -70,7 +70,7 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 			lockoutMinutes := int(lockoutDuration / time.Minute)
 			return &StepResult{
 				Error: &Error{
-					Type:    "account_locked",
+					Type:    ErrorTypeAccountLocked,
 					Message: "Your account has been temporarily locked. Please try again in " + strconv.Itoa(lockoutMinutes) + " minutes.",
 				},
 			}, nil
@@ -79,8 +79,8 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 		if strings.Contains(err.Error(), "password has expired") {
 			return &StepResult{
 				Error: &Error{
-					Type:    "password_expired",
-					Message: "Your password has expired and must be changed before you can log in.",
+					Type:    ErrorTypePasswordExpired,
+					Message: "Your password has expired, please reset your password through the forgot password link.",
 				},
 			}, nil
 		}
@@ -95,7 +95,7 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 
 		return &StepResult{
 			Error: &Error{
-				Type:    "invalid_credentials",
+				Type:    ErrorTypeInvalidCredentials,
 				Message: errorMessage,
 			},
 		}, nil
@@ -114,7 +114,7 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 		slog.Error("Failed to generate temp token", "err", err)
 		return &StepResult{
 			Error: &Error{
-				Type:    "internal_error",
+				Type:    ErrorTypeInternalError,
 				Message: "Failed to generate temp token",
 			},
 		}, nil
@@ -156,7 +156,7 @@ func (s *UserValidationStep) Execute(ctx context.Context, flowContext *FlowConte
 
 		return &StepResult{
 			Error: &Error{
-				Type:    "no_user_found",
+				Type:    ErrorTypeNoUserFound,
 				Message: "Account not active",
 			},
 		}, nil

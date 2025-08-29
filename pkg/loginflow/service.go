@@ -16,6 +16,15 @@ import (
 	"github.com/tendant/simple-idm/pkg/twofa"
 )
 
+// Error type constants
+const (
+	ErrorTypeAccountLocked      = "account_locked"
+	ErrorTypePasswordExpired    = "password_expired"
+	ErrorTypeInvalidCredentials = "invalid_credentials"
+	ErrorTypeNoUserFound        = "no_user_found"
+	ErrorTypeInternalError      = "internal_error"
+)
+
 // Service orchestrates the complete login flow business logic
 type LoginFlowService struct {
 	// New pluggable flow system
@@ -307,7 +316,7 @@ func (s *LoginFlowService) ProcessTokenRefresh(ctx context.Context, request Toke
 	if err != nil {
 		slog.Error("Failed to create tokens", "err", err)
 		result.ErrorResponse = &Error{
-			Type:    "internal_error",
+			Type:    ErrorTypeInternalError,
 			Message: "Failed to create tokens",
 		}
 		return result
@@ -347,7 +356,7 @@ func (s *LoginFlowService) ProcessMobileTokenRefresh(ctx context.Context, reques
 	if err != nil {
 		slog.Error("Failed to create mobile tokens", "err", err)
 		result.ErrorResponse = &Error{
-			Type:    "internal_error",
+			Type:    ErrorTypeInternalError,
 			Message: "Failed to create tokens",
 		}
 		return result
@@ -457,7 +466,7 @@ func (s *LoginFlowService) ProcessLogout(ctx context.Context) Result {
 	if err != nil {
 		slog.Error("Failed to generate logout token", "err", err)
 		result.ErrorResponse = &Error{
-			Type:    "internal_error",
+			Type:    ErrorTypeInternalError,
 			Message: "Failed to generate logout token",
 		}
 		return result
