@@ -1,4 +1,4 @@
-package loginapiv2
+package loginapi
 
 import (
 	"log/slog"
