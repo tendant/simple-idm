@@ -17,7 +17,7 @@ import (
 )
 
 // Service orchestrates the complete login flow business logic
-type Service struct {
+type LoginFlowService struct {
 	// New pluggable flow system
 	FlowBuilders *LoginFlowBuilders
 }
@@ -86,14 +86,14 @@ type TwoFactorMethod struct {
 }
 
 // NewService creates a new login flow service
-func NewService(
+func NewLoginFlowService(
 	loginService *login.LoginService,
 	twoFactorService twofa.TwoFactorService,
 	deviceService *device.DeviceService,
 	tokenService tg.TokenService,
 	tokenCookieService *tg.TokenCookieService,
 	userMapper mapper.UserMapper,
-) *Service {
+) *LoginFlowService {
 	// Initialize the pluggable flow builders with the correct signature
 	serviceDependencies := &ServiceDependencies{
 		LoginService:     loginService,
@@ -104,13 +104,13 @@ func NewService(
 	}
 	flowBuilders := NewLoginFlowBuilders(serviceDependencies)
 
-	return &Service{
+	return &LoginFlowService{
 		FlowBuilders: flowBuilders,
 	}
 }
 
 // ProcessLogin orchestrates the complete login flow using web login flow executor
-func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
+func (s *LoginFlowService) ProcessLogin(ctx context.Context, request Request) Result {
 	// Set flow type if not already specified
 	if request.FlowType == "" {
 		request.FlowType = "web"
@@ -122,7 +122,7 @@ func (s *Service) ProcessLogin(ctx context.Context, request Request) Result {
 }
 
 // GenerateLoginTokens generates JWT tokens for a successful login
-func (s *Service) GenerateLoginTokens(ctx context.Context, user mapper.User) (map[string]tg.TokenValue, error) {
+func (s *LoginFlowService) GenerateLoginTokens(ctx context.Context, user mapper.User) (map[string]tg.TokenValue, error) {
 	// Create JWT tokens using the JwtService
 	rootModifications, extraClaims := s.FlowBuilders.services.UserMapper.ToTokenClaims(user)
 
@@ -136,7 +136,7 @@ func (s *Service) GenerateLoginTokens(ctx context.Context, user mapper.User) (ma
 }
 
 // ProcessMobileLogin orchestrates the complete mobile login flow using mobile login flow executor
-func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Result {
+func (s *LoginFlowService) ProcessMobileLogin(ctx context.Context, request Request) Result {
 	// Set flow type if not already specified
 	if request.FlowType == "" {
 		request.FlowType = "mobile"
@@ -148,7 +148,7 @@ func (s *Service) ProcessMobileLogin(ctx context.Context, request Request) Resul
 }
 
 // GenerateMobileLoginTokens generates mobile JWT tokens for a successful login
-func (s *Service) GenerateMobileLoginTokens(ctx context.Context, user mapper.User) (map[string]tg.TokenValue, error) {
+func (s *LoginFlowService) GenerateMobileLoginTokens(ctx context.Context, user mapper.User) (map[string]tg.TokenValue, error) {
 	// Create mobile JWT tokens using the JwtService
 	rootModifications, extraClaims := s.FlowBuilders.services.UserMapper.ToTokenClaims(user)
 
@@ -162,7 +162,7 @@ func (s *Service) GenerateMobileLoginTokens(ctx context.Context, user mapper.Use
 }
 
 // ProcessLoginByEmail orchestrates the complete login flow using email with email login flow executor
-func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAddress, userAgent, fingerprint string) Result {
+func (s *LoginFlowService) ProcessLoginByEmail(ctx context.Context, email, password, ipAddress, userAgent, fingerprint string) Result {
 	// Convert parameters to unified Request format
 	request := Request{
 		Username:          email, // Use email as username for email login
@@ -179,7 +179,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 }
 
 // ProcessMagicLinkValidation orchestrates the magic link token validation flow using magic link flow executor
-func (s *Service) ProcessMagicLinkValidation(ctx context.Context, token, ipAddress, userAgent, fingerprint string) Result {
+func (s *LoginFlowService) ProcessMagicLinkValidation(ctx context.Context, token, ipAddress, userAgent, fingerprint string) Result {
 	// Convert parameters to unified Request format
 	request := Request{
 		MagicLinkToken:    token,
@@ -216,7 +216,7 @@ type TwoFAValidationRequest struct {
 }
 
 // Process2FAValidation orchestrates the 2FA validation flow using resumption strategy
-func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidationRequest) Result {
+func (s *LoginFlowService) Process2FAValidation(ctx context.Context, request TwoFAValidationRequest) Result {
 	// Convert TwoFAValidationRequest to the unified Request format
 	flowRequest := Request{
 		IsResumption:      true,
@@ -236,7 +236,7 @@ func (s *Service) Process2FAValidation(ctx context.Context, request TwoFAValidat
 }
 
 // ProcessMobile2FAValidation orchestrates the mobile 2FA validation flow using mobile 2FA validation flow executor
-func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAValidationRequest) Result {
+func (s *LoginFlowService) ProcessMobile2FAValidation(ctx context.Context, request TwoFAValidationRequest) Result {
 	// Convert TwoFAValidationRequest to the unified Request format
 	flowRequest := Request{
 		IsResumption:      true,
@@ -256,7 +256,7 @@ func (s *Service) ProcessMobile2FAValidation(ctx context.Context, request TwoFAV
 }
 
 // ProcessUserSwitch orchestrates the user switching flow using user switch flow executor
-func (s *Service) ProcessUserSwitch(ctx context.Context, request UserSwitchRequest) Result {
+func (s *LoginFlowService) ProcessUserSwitch(ctx context.Context, request UserSwitchRequest) Result {
 	// Convert UserSwitchRequest to the unified Request format
 	flowRequest := Request{
 		IsResumption:      true,
@@ -279,7 +279,7 @@ type TokenRefreshRequest struct {
 }
 
 // ProcessTokenRefresh orchestrates the token refresh flow for web clients
-func (s *Service) ProcessTokenRefresh(ctx context.Context, request TokenRefreshRequest) Result {
+func (s *LoginFlowService) ProcessTokenRefresh(ctx context.Context, request TokenRefreshRequest) Result {
 	result := Result{}
 
 	// Step 1: Validate the refresh token
@@ -319,7 +319,7 @@ func (s *Service) ProcessTokenRefresh(ctx context.Context, request TokenRefreshR
 }
 
 // ProcessMobileTokenRefresh orchestrates the token refresh flow for mobile clients
-func (s *Service) ProcessMobileTokenRefresh(ctx context.Context, request TokenRefreshRequest) Result {
+func (s *LoginFlowService) ProcessMobileTokenRefresh(ctx context.Context, request TokenRefreshRequest) Result {
 	result := Result{}
 
 	// Step 1: Validate the refresh token
@@ -359,7 +359,7 @@ func (s *Service) ProcessMobileTokenRefresh(ctx context.Context, request TokenRe
 }
 
 // validateRefreshToken validates a refresh token and returns the parsed token
-func (s *Service) validateRefreshToken(tokenString string) (*jwt.Token, error) {
+func (s *LoginFlowService) validateRefreshToken(tokenString string) (*jwt.Token, error) {
 	// Parse and validate the refresh token
 	token, err := s.FlowBuilders.services.TokenService.ParseToken(tokenString)
 	if err != nil {
@@ -391,7 +391,7 @@ func (s *Service) validateRefreshToken(tokenString string) (*jwt.Token, error) {
 }
 
 // getUserFromToken extracts user information from token claims
-func (s *Service) getUserFromToken(ctx context.Context, token *jwt.Token) (string, mapper.User, error) {
+func (s *LoginFlowService) getUserFromToken(ctx context.Context, token *jwt.Token) (string, mapper.User, error) {
 	// Get user ID from claims
 	mapClaims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
@@ -432,7 +432,7 @@ type TwoFASendRequest struct {
 }
 
 // Process2FASend orchestrates the 2FA send notification flow using 2FA send flow executor
-func (s *Service) Process2FASend(ctx context.Context, request TwoFASendRequest) Result {
+func (s *LoginFlowService) Process2FASend(ctx context.Context, request TwoFASendRequest) Result {
 	// Convert TwoFASendRequest to the unified Request format
 	flowRequest := Request{
 		Username:       request.UserID, // Use UserID as Username for 2FA send
@@ -449,7 +449,7 @@ func (s *Service) Process2FASend(ctx context.Context, request TwoFASendRequest) 
 }
 
 // ProcessLogout orchestrates the logout flow by generating logout tokens
-func (s *Service) ProcessLogout(ctx context.Context) Result {
+func (s *LoginFlowService) ProcessLogout(ctx context.Context) Result {
 	result := Result{}
 
 	// Generate logout token
@@ -469,11 +469,11 @@ func (s *Service) ProcessLogout(ctx context.Context) Result {
 }
 
 // GetDeviceExpiration returns the device expiration duration from the device service
-func (s *Service) GetDeviceExpiration() time.Duration {
+func (s *LoginFlowService) GetDeviceExpiration() time.Duration {
 	return s.FlowBuilders.services.DeviceService.GetDeviceExpiration()
 }
 
-func (s *Service) checkUserAssociationFlow(claims jwt.Claims) (bool, string) {
+func (s *LoginFlowService) checkUserAssociationFlow(claims jwt.Claims) (bool, string) {
 	if mapClaims, ok := claims.(jwt.MapClaims); ok {
 		slog.Info("Claims", "claims", mapClaims)
 
@@ -497,7 +497,7 @@ func (s *Service) checkUserAssociationFlow(claims jwt.Claims) (bool, string) {
 }
 
 // GenerateUserAssociationToken generates a temp token for user association flow
-func (s *Service) GenerateUserAssociationToken(loginID, userID string, userOptions []mapper.User) (map[string]tg.TokenValue, error) {
+func (s *LoginFlowService) GenerateUserAssociationToken(loginID, userID string, userOptions []mapper.User) (map[string]tg.TokenValue, error) {
 	// Prepare extra claims for the temp token
 	extraClaims := map[string]interface{}{
 		"login_id":     loginID,
@@ -526,7 +526,7 @@ type MobileUserLookupRequest struct {
 }
 
 // ProcessMobileUserLookup orchestrates the mobile user lookup flow using mobile user lookup flow executor
-func (s *Service) ProcessMobileUserLookup(ctx context.Context, request MobileUserLookupRequest) Result {
+func (s *LoginFlowService) ProcessMobileUserLookup(ctx context.Context, request MobileUserLookupRequest) Result {
 	// Convert MobileUserLookupRequest to the unified Request format
 	flowRequest := Request{
 		IsResumption: true,
