@@ -82,18 +82,6 @@ func (b *LoginFlowBuilders) BuildMinimalLoginFlow() *FlowExecutor {
 		Build(b.services)
 }
 
-// BuildPasswordlessLoginFlow creates a passwordless login flow (no 2FA, device recognition only)
-func (b *LoginFlowBuilders) BuildPasswordlessLoginFlow() *FlowExecutor {
-	return NewFlowBuilder().
-		AddStep(NewCredentialAuthenticationStep("username")).
-		AddStep(NewUserValidationStep()).
-		AddStep(NewDeviceRecognitionStep()).
-		AddStep(NewMultipleUsersStep()).
-		AddStep(NewTokenGenerationStep("web")).
-		AddStep(NewSuccessRecordingStep()).
-		Build(b.services)
-}
-
 // Build2FAValidationFlow creates a 2FA validation flow using resumption strategy
 func (b *LoginFlowBuilders) Build2FAValidationFlow() *FlowExecutor {
 	return NewFlowBuilder().
@@ -174,8 +162,6 @@ func (b *LoginFlowBuilders) BuildFlowByType(flowType FlowType) *FlowExecutor {
 		return b.BuildMagicLinkLoginFlow()
 	case FlowTypeMinimal:
 		return b.BuildMinimalLoginFlow()
-	case FlowTypePasswordless:
-		return b.BuildPasswordlessLoginFlow()
 	case FlowType2FAValidation:
 		return b.Build2FAValidationFlow()
 	case FlowTypeMobile2FAValidation:
