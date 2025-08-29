@@ -27,6 +27,7 @@ type Request struct {
 	// Original login fields
 	Username          string
 	Password          string
+	MagicLinkToken    string
 	IPAddress         string
 	UserAgent         string
 	DeviceFingerprint string
@@ -181,7 +182,7 @@ func (s *Service) ProcessLoginByEmail(ctx context.Context, email, password, ipAd
 func (s *Service) ProcessMagicLinkValidation(ctx context.Context, token, ipAddress, userAgent, fingerprint string) Result {
 	// Convert parameters to unified Request format
 	request := Request{
-		Username:          token, // Use token as username for magic link validation
+		MagicLinkToken:    token,
 		IPAddress:         ipAddress,
 		UserAgent:         userAgent,
 		DeviceFingerprint: fingerprint,

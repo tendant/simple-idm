@@ -46,8 +46,7 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 	case "email":
 		loginResult, err = flowContext.Services.LoginService.LoginByEmail(ctx, flowContext.Request.Username, flowContext.Request.Password)
 	case "magic_link":
-		// For magic link, the "password" field contains the token
-		loginResult, err = flowContext.Services.LoginService.ValidateMagicLinkToken(ctx, flowContext.Request.Password)
+		loginResult, err = flowContext.Services.LoginService.ValidateMagicLinkToken(ctx, flowContext.Request.MagicLinkToken)
 	default:
 		return &StepResult{
 			Error: &Error{
@@ -100,12 +99,26 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 		}, nil
 	}
 
+	extraClaims := map[string]interface{}{
+		"login_id": flowContext.LoginID.String(),
+	}
 	// Store login result in flow context
-	flowContext.Result.LoginID = loginResult.LoginID
+	flowContext.LoginID = loginResult.LoginID
 	flowContext.Result.Users = loginResult.Users
 
-	// Set the LoginID in flow context (consolidating LoginIDParsingStep logic)
-	flowContext.LoginID = loginResult.LoginID
+	// Generate temp token
+	tempTokenMap, err := flowContext.Services.TokenService.GenerateTempToken(flowContext.Result.Users[0].UserId, nil, extraClaims)
+	if err != nil {
+		slog.Error("Failed to generate temp token", "err", err)
+		return &StepResult{
+			Error: &Error{
+				Type:    "internal_error",
+				Message: "Failed to generate temp token",
+			},
+		}, nil
+	}
+
+	flowContext.Result.Tokens = tempTokenMap
 
 	return &StepResult{
 		Continue: true,
