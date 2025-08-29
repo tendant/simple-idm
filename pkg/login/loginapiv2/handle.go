@@ -18,7 +18,7 @@ import (
 
 type Handle struct {
 	loginService       *login.LoginService
-	loginFlowService   *loginflow.Service
+	loginFlowService   *loginflow.LoginFlowService
 	tokenCookieService tg.TokenCookieService
 	responseHandler    ResponseHandler
 }
@@ -41,7 +41,7 @@ func WithLoginService(ls *login.LoginService) Option {
 	}
 }
 
-func WithLoginFlowService(lfs *loginflow.Service) Option {
+func WithLoginFlowService(lfs *loginflow.LoginFlowService) Option {
 	return func(h *Handle) {
 		h.loginFlowService = lfs
 	}
@@ -170,11 +170,13 @@ func (h Handle) LoginByEmail(w http.ResponseWriter, r *http.Request) *Response {
 
 	// Handle 2FA required
 	if result.RequiresTwoFA {
+		h.tokenCookieService.SetTokensCookie(w, result.Tokens)
 		return h.prepare2FARequiredResponse(w, result.TwoFactorMethods, result.Tokens)
 	}
 
 	// Handle multiple users requiring selection
 	if result.RequiresUserSelection {
+		h.tokenCookieService.SetTokensCookie(w, result.Tokens)
 		return h.responseHandler.PrepareUserSelectionResponse(result.Users, result.LoginID, result.Tokens[tg.TEMP_TOKEN_NAME].Token)
 	}
 
@@ -504,16 +506,8 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
-	// Get all users for the current login to return in response
-	users, err := h.loginService.GetUsersByLoginId(r.Context(), result.LoginID)
-	if err != nil {
-		slog.Error("Failed to get users for response", "err", err)
-		// Don't fail the request, just return the switched user
-		return h.responseHandler.PrepareUserSwitchResponse(result.Users)
-	}
-
 	// Convert mapped users to API users (including all available users)
-	return h.responseHandler.PrepareUserSwitchResponse(users)
+	return h.responseHandler.PrepareUserSwitchResponse(result.Users)
 }
 
 // 2025-08-25: refactor Mobile Login routes to move business logic into service layer
