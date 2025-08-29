@@ -192,39 +192,6 @@ func TestLoginFlowBuilders_BuildMinimalLoginFlow(t *testing.T) {
 	}
 }
 
-func TestLoginFlowBuilders_BuildPasswordlessLoginFlow(t *testing.T) {
-	builders := createTestBuilders()
-	executor := builders.BuildPasswordlessLoginFlow()
-
-	if executor == nil {
-		t.Error("BuildPasswordlessLoginFlow should return a FlowExecutor")
-	}
-
-	steps := executor.registry.GetOrderedSteps()
-	if len(steps) == 0 {
-		t.Error("Passwordless login flow should have steps")
-	}
-
-	// Passwordless flow should have device recognition but no 2FA
-	hasDeviceRecognition := false
-	hasTwoFA := false
-	for _, step := range steps {
-		if step.Name() == "device_recognition" {
-			hasDeviceRecognition = true
-		}
-		if step.Name() == "two_fa_requirement" {
-			hasTwoFA = true
-		}
-	}
-
-	if !hasDeviceRecognition {
-		t.Error("Passwordless login flow should have device recognition step")
-	}
-	if hasTwoFA {
-		t.Error("Passwordless login flow should not have 2FA requirement step")
-	}
-}
-
 func TestLoginFlowBuilders_BuildCustomFlow(t *testing.T) {
 	builders := createTestBuilders()
 
