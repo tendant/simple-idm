@@ -1149,6 +1149,7 @@ func (h Handle) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, p
 
 	// Handle multiple users requiring selection
 	if result.RequiresUserSelection {
+		h.tokenCookieService.SetTokensCookie(w, result.Tokens)
 		return h.responseHandler.PrepareUserSelectionResponse(result.Users, result.LoginID, result.Tokens[tg.TEMP_TOKEN_NAME].Token)
 	}
 
