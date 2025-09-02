@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+	"github.com/tendant/simple-idm/pkg/pkce"
 	"golang.org/x/oauth2"
 )
 
@@ -46,10 +47,13 @@ var (
 )
 
 type SessionData struct {
-	State        string
-	CodeVerifier string
-	Token        *oauth2.Token
-	UserInfo     map[string]interface{}
+	State           string
+	CodeVerifier    string
+	CodeChallenge   string
+	ChallengeMethod string
+	UsePKCE         bool
+	Token           *oauth2.Token
+	UserInfo        map[string]interface{}
 }
 
 func main() {
@@ -127,8 +131,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 		html += `
         <div class="info">
             <h3>Not authenticated</h3>
-            <p>Click the button below to start the OAuth2 flow:</p>
-            <a href="/demo/login" class="button">Login with simple-idm</a>
+            <p>Choose your OAuth2 flow:</p>
+            <a href="/demo/login" class="button">Login with PKCE (Recommended)</a>
+            <a href="/demo/login?pkce=false" class="button">Login without PKCE</a>
         </div>`
 	}
 
@@ -158,13 +163,50 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Generate state parameter for CSRF protection
 	state := generateRandomString(32)
 
-	// Store session data
-	sessions[sessionID] = &SessionData{
-		State: state,
+	// Check if PKCE should be used (default to true for security)
+	usePKCE := r.URL.Query().Get("pkce") != "false" // Use PKCE unless explicitly disabled
+
+	sessionData := &SessionData{
+		State:   state,
+		UsePKCE: usePKCE,
 	}
 
-	// Build authorization URL
-	authURL := oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	var authURL string
+	if usePKCE {
+		// Generate PKCE parameters
+		codeVerifier, err := pkce.GenerateCodeVerifier()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to generate PKCE code verifier: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		codeChallenge, err := codeVerifier.GenerateCodeChallenge(pkce.ChallengeS256)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to generate PKCE code challenge: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Store PKCE parameters in session
+		sessionData.CodeVerifier = codeVerifier.Value
+		sessionData.CodeChallenge = codeChallenge.Value
+		sessionData.ChallengeMethod = string(codeChallenge.Method)
+
+		// Build authorization URL with PKCE parameters
+		authURL = oauth2Config.AuthCodeURL(state,
+			oauth2.AccessTypeOffline,
+			oauth2.SetAuthURLParam("code_challenge", codeChallenge.Value),
+			oauth2.SetAuthURLParam("code_challenge_method", string(codeChallenge.Method)),
+		)
+
+		fmt.Printf("Using PKCE flow - Code Challenge: %s, Method: %s\n", codeChallenge.Value, codeChallenge.Method)
+	} else {
+		// Standard OAuth2 flow without PKCE
+		authURL = oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+		fmt.Printf("Using standard OAuth2 flow (no PKCE)\n")
+	}
+
+	// Store session data
+	sessions[sessionID] = sessionData
 
 	fmt.Printf("Redirecting to authorization URL: %s\n", authURL)
 	http.Redirect(w, r, authURL, http.StatusFound)
@@ -199,7 +241,19 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Exchange code for token
 	ctx := context.Background()
-	token, err := oauth2Config.Exchange(ctx, code)
+	var token *oauth2.Token
+	var err error
+
+	if session.UsePKCE && session.CodeVerifier != "" {
+		// Use PKCE code verifier in token exchange
+		token, err = oauth2Config.Exchange(ctx, code, oauth2.VerifierOption(session.CodeVerifier))
+		fmt.Printf("Using PKCE token exchange with code verifier\n")
+	} else {
+		// Standard token exchange
+		token, err = oauth2Config.Exchange(ctx, code)
+		fmt.Printf("Using standard token exchange\n")
+	}
+
 	if err != nil {
 		fmt.Printf("Token exchange failed: %v\n", err)
 		http.Error(w, fmt.Sprintf("Token exchange failed: %v", err), http.StatusInternalServerError)
@@ -261,7 +315,27 @@ func handleProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	html += `
-        </div>
+        </div>`
+
+	// Add PKCE information if available
+	if session.UsePKCE {
+		html += `
+        <div class="info">
+            <h3>PKCE Information</h3>
+            <p><strong>Used PKCE:</strong> Yes</p>
+            <p><strong>Challenge Method:</strong> ` + session.ChallengeMethod + `</p>
+            <p><strong>Code Challenge:</strong> ` + session.CodeChallenge + `</p>
+            <p><strong>Code Verifier:</strong> ` + session.CodeVerifier + `</p>
+        </div>`
+	} else {
+		html += `
+        <div class="info">
+            <h3>PKCE Information</h3>
+            <p><strong>Used PKCE:</strong> No</p>
+        </div>`
+	}
+
+	html += `
         
         <div class="info">
             <h3>Raw Token Response</h3>
