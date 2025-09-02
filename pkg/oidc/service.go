@@ -349,3 +349,223 @@ func (s *OIDCService) GetLoginURL() string {
 	}
 	return "http://localhost:3000/login" // Default login URL
 }
+
+// Request/Response DTOs for service layer
+
+// AuthorizationRequest represents an OAuth2 authorization request
+type AuthorizationRequest struct {
+	ClientID            string
+	RedirectURI         string
+	ResponseType        string
+	Scope               string
+	State               *string
+	CodeChallenge       *string
+	CodeChallengeMethod *string
+	AccessToken         string // Extracted from HTTP request by handler
+	RequestURL          string // Full request URL for building auth URL
+}
+
+// AuthorizationResponse represents the result of processing an authorization request
+type AuthorizationResponse struct {
+	Success     bool
+	RedirectURL string
+	ErrorCode   string
+	ErrorDesc   string
+	HTTPStatus  int
+}
+
+// TokenRequest represents an OAuth2 token exchange request
+type TokenRequest struct {
+	GrantType    string
+	Code         string
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
+	CodeVerifier string
+}
+
+// TokenExchangeResponse represents the result of a token exchange
+type TokenExchangeResponse struct {
+	Success      bool
+	AccessToken  string
+	RefreshToken string
+	TokenType    string
+	ExpiresIn    int
+	Scope        string
+	ErrorCode    string
+	ErrorDesc    string
+	HTTPStatus   int
+}
+
+// ProcessAuthorizationRequest handles the complete OAuth2 authorization flow
+func (s *OIDCService) ProcessAuthorizationRequest(ctx context.Context, req AuthorizationRequest) *AuthorizationResponse {
+	// 1. Validate client and request parameters
+	client, err := s.clientService.ValidateAuthorizationRequest(
+		req.ClientID,
+		req.RedirectURI,
+		req.ResponseType,
+		req.Scope,
+	)
+	if err != nil {
+		return &AuthorizationResponse{
+			Success:    false,
+			ErrorCode:  "invalid_request",
+			ErrorDesc:  err.Error(),
+			HTTPStatus: 400,
+		}
+	}
+
+	// 2. Check if user is authenticated
+	userClaims, err := s.ValidateUserToken(req.AccessToken)
+	if err != nil {
+		// Build the full authorization URL to redirect back to after login
+		authURL := fmt.Sprintf("%s%s", s.GetBaseURL(), req.RequestURL)
+		loginURL := s.BuildLoginRedirectURL(authURL)
+
+		return &AuthorizationResponse{
+			Success:     false,
+			RedirectURL: loginURL,
+			HTTPStatus:  302, // Found - redirect to login
+		}
+	}
+
+	// 3. Extract user ID from claims
+	userID, ok := userClaims["sub"].(string)
+	if !ok || userID == "" {
+		return &AuthorizationResponse{
+			Success:    false,
+			ErrorCode:  "invalid_token",
+			ErrorDesc:  "Invalid or missing user ID in token",
+			HTTPStatus: 401,
+		}
+	}
+
+	// 4. Generate authorization code (with PKCE support if provided)
+	var authCode string
+	if req.CodeChallenge != nil && *req.CodeChallenge != "" {
+		// PKCE flow
+		codeChallenge := *req.CodeChallenge
+		codeChallengeMethod := string(pkce.ChallengeS256) // Default to S256
+		if req.CodeChallengeMethod != nil {
+			codeChallengeMethod = string(*req.CodeChallengeMethod)
+		}
+
+		authCode, err = s.GenerateAuthorizationCodeWithPKCE(
+			ctx, client.ClientID, req.RedirectURI, req.Scope, req.State, userID,
+			codeChallenge, codeChallengeMethod)
+	} else {
+		// Standard flow (backward compatibility)
+		authCode, err = s.GenerateAuthorizationCode(
+			ctx, client.ClientID, req.RedirectURI, req.Scope, req.State, userID)
+	}
+
+	if err != nil {
+		return &AuthorizationResponse{
+			Success:    false,
+			ErrorCode:  "server_error",
+			ErrorDesc:  "Failed to generate authorization code",
+			HTTPStatus: 400,
+		}
+	}
+
+	// 5. Build callback URL and redirect
+	callbackURL, err := s.BuildCallbackURL(req.RedirectURI, authCode, req.State)
+	if err != nil {
+		return &AuthorizationResponse{
+			Success:    false,
+			ErrorCode:  "server_error",
+			ErrorDesc:  "Failed to build callback URL",
+			HTTPStatus: 400,
+		}
+	}
+
+	return &AuthorizationResponse{
+		Success:     true,
+		RedirectURL: callbackURL,
+		HTTPStatus:  302, // Found - redirect to client
+	}
+}
+
+// ProcessTokenRequest handles the complete OAuth2 token exchange flow
+func (s *OIDCService) ProcessTokenRequest(ctx context.Context, req TokenRequest) *TokenExchangeResponse {
+	// Validate grant type
+	if req.GrantType != "authorization_code" {
+		return &TokenExchangeResponse{
+			Success:    false,
+			ErrorCode:  "unsupported_grant_type",
+			ErrorDesc:  "Only authorization_code grant type is supported",
+			HTTPStatus: 400,
+		}
+	}
+
+	// Validate required parameters
+	if req.Code == "" || req.ClientID == "" || req.ClientSecret == "" || req.RedirectURI == "" {
+		return &TokenExchangeResponse{
+			Success:    false,
+			ErrorCode:  "invalid_request",
+			ErrorDesc:  "Missing required parameters",
+			HTTPStatus: 400,
+		}
+	}
+
+	// Validate client credentials
+	client, err := s.clientService.ValidateClientCredentials(req.ClientID, req.ClientSecret)
+	if err != nil {
+		return &TokenExchangeResponse{
+			Success:    false,
+			ErrorCode:  "invalid_client",
+			ErrorDesc:  "Invalid client credentials",
+			HTTPStatus: 401,
+		}
+	}
+
+	// Get and validate authorization code (with PKCE support if provided)
+	var authCode *AuthorizationCode
+	if req.CodeVerifier != "" {
+		// PKCE flow - validate code verifier
+		authCode, err = s.ValidateAndConsumeAuthorizationCodeWithPKCE(ctx, req.Code, req.ClientID, req.RedirectURI, req.CodeVerifier)
+	} else {
+		// Standard flow (backward compatibility)
+		authCode, err = s.ValidateAndConsumeAuthorizationCode(ctx, req.Code, req.ClientID, req.RedirectURI)
+	}
+
+	if err != nil {
+		return &TokenExchangeResponse{
+			Success:    false,
+			ErrorCode:  "invalid_grant",
+			ErrorDesc:  "Invalid or expired authorization code",
+			HTTPStatus: 400,
+		}
+	}
+
+	// Generate access token
+	accessToken, err := s.GenerateAccessToken(ctx, authCode.UserID, client.ClientID, authCode.Scope)
+	if err != nil {
+		return &TokenExchangeResponse{
+			Success:    false,
+			ErrorCode:  "server_error",
+			ErrorDesc:  "Failed to generate access token",
+			HTTPStatus: 500,
+		}
+	}
+
+	refreshToken, err := s.GenerateRefreshToken(ctx, authCode.UserID, client.ClientID, authCode.Scope)
+	if err != nil {
+		return &TokenExchangeResponse{
+			Success:    false,
+			ErrorCode:  "server_error",
+			ErrorDesc:  "Failed to generate refresh token",
+			HTTPStatus: 500,
+		}
+	}
+
+	return &TokenExchangeResponse{
+		Success:      true,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    3600, // 1 hour
+		Scope:        authCode.Scope,
+		HTTPStatus:   200,
+	}
+}
