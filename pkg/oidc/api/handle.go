@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -47,115 +46,66 @@ func (h *Handle) Authorize(w http.ResponseWriter, r *http.Request, params Author
 		"scope", params.Scope,
 		"state", params.State)
 
-	// 1. Validate client and request parameters
+	// Extract access token from HTTP request
+	accessToken, err := h.getAccessToken(r)
+	if err != nil {
+		accessToken = "" // Will be handled by service layer
+	}
+
+	// Prepare scope
 	scope := ""
 	if params.Scope != nil {
 		scope = *params.Scope
 	}
 
-	client, err := h.clientService.ValidateAuthorizationRequest(
-		params.ClientID,
-		params.RedirectURI,
-		string(params.ResponseType),
-		scope,
-	)
-	if err != nil {
-		slog.Error("Invalid authorization request", "error", err)
-		return AuthorizeJSON400Response(struct {
-			Error            *string `json:"error,omitempty"`
-			ErrorDescription *string `json:"error_description,omitempty"`
-		}{
-			Error:            stringPtr("invalid_request"),
-			ErrorDescription: stringPtr(err.Error()),
-		})
+	// Convert CodeChallengeMethod to *string if present
+	var codeChallengeMethod *string
+	if params.CodeChallengeMethod != nil {
+		method := string(*params.CodeChallengeMethod)
+		codeChallengeMethod = &method
 	}
 
-	// 2. Check if user is authenticated
-	accessToken, err := h.getAccessToken(r)
-	userClaims, err := h.oidcService.ValidateUserToken(accessToken)
-	if err != nil {
-		slog.Info("User not authenticated, redirecting to login", "error", err)
-		// Build the full authorization URL to redirect back to after login
-		authURL := fmt.Sprintf("%s%s", h.oidcService.GetBaseURL(), r.URL.String())
-		loginURL := h.buildLoginRedirectURL(authURL)
-
-		slog.Info("Redirecting to login", "login_url", loginURL, "return_url", authURL)
-
-		w.Header().Set("Location", loginURL)
-		w.WriteHeader(http.StatusFound)
-		return nil
+	// Build authorization request for service layer
+	authReq := oidc.AuthorizationRequest{
+		ClientID:            params.ClientID,
+		RedirectURI:         params.RedirectURI,
+		ResponseType:        string(params.ResponseType),
+		Scope:               scope,
+		State:               params.State,
+		CodeChallenge:       params.CodeChallenge,
+		CodeChallengeMethod: codeChallengeMethod,
+		AccessToken:         accessToken,
+		RequestURL:          r.URL.String(),
 	}
 
-	// 3. Extract user ID from claims
-	userID, ok := userClaims["sub"].(string)
-	if !ok || userID == "" {
-		slog.Error("Missing or invalid subject claim in token")
-		return AuthorizeJSON401Response(struct {
-			Error            *string `json:"error,omitempty"`
-			ErrorDescription *string `json:"error_description,omitempty"`
-		}{
-			Error:            stringPtr("invalid_token"),
-			ErrorDescription: stringPtr("Invalid or missing user ID in token"),
-		})
-	}
+	// Process authorization request through service layer
+	response := h.oidcService.ProcessAuthorizationRequest(r.Context(), authReq)
 
-	slog.Info("User authenticated successfully", "user_id", userID, "client_id", client.ClientID)
-
-	// 4. Generate authorization code (with PKCE support if provided)
-	var authCode string
-	if params.CodeChallenge != nil && *params.CodeChallenge != "" {
-		// PKCE flow
-		codeChallenge := *params.CodeChallenge
-		codeChallengeMethod := "S256" // Default to S256
-		if params.CodeChallengeMethod != nil {
-			codeChallengeMethod = string(*params.CodeChallengeMethod)
+	// Handle service response
+	if !response.Success {
+		if response.RedirectURL != "" {
+			// Redirect case (login required)
+			slog.Info("Redirecting to login", "login_url", response.RedirectURL)
+			w.Header().Set("Location", response.RedirectURL)
+			w.WriteHeader(response.HTTPStatus)
+			return nil
+		} else {
+			// Error case
+			slog.Error("Authorization request failed", "error", response.ErrorCode, "description", response.ErrorDesc)
+			return AuthorizeJSON400Response(struct {
+				Error            *string `json:"error,omitempty"`
+				ErrorDescription *string `json:"error_description,omitempty"`
+			}{
+				Error:            stringPtr(response.ErrorCode),
+				ErrorDescription: stringPtr(response.ErrorDesc),
+			})
 		}
-
-		slog.Info("Using PKCE flow",
-			"code_challenge", codeChallenge,
-			"code_challenge_method", codeChallengeMethod)
-
-		authCode, err = h.oidcService.GenerateAuthorizationCodeWithPKCE(
-			r.Context(), client.ClientID, params.RedirectURI, scope, params.State, userID,
-			codeChallenge, codeChallengeMethod)
-	} else {
-		// Standard flow (backward compatibility)
-		authCode, err = h.oidcService.GenerateAuthorizationCode(
-			r.Context(), client.ClientID, params.RedirectURI, scope, params.State, userID)
 	}
 
-	if err != nil {
-		slog.Error("Failed to generate authorization code", "error", err)
-		return AuthorizeJSON400Response(struct {
-			Error            *string `json:"error,omitempty"`
-			ErrorDescription *string `json:"error_description,omitempty"`
-		}{
-			Error:            stringPtr("server_error"),
-			ErrorDescription: stringPtr("Failed to generate authorization code"),
-		})
-	}
-
-	// 5. Build callback URL and redirect
-	callbackURL, err := h.buildCallbackURL(params.RedirectURI, authCode, params.State)
-	if err != nil {
-		slog.Error("Failed to build callback URL", "error", err)
-		return AuthorizeJSON400Response(struct {
-			Error            *string `json:"error,omitempty"`
-			ErrorDescription *string `json:"error_description,omitempty"`
-		}{
-			Error:            stringPtr("server_error"),
-			ErrorDescription: stringPtr("Failed to build callback URL"),
-		})
-	}
-
-	slog.Info("Authorization successful, redirecting to client",
-		"callback_url", callbackURL,
-		"auth_code", authCode,
-		"user_id", userID)
-
-	// Redirect back to client with authorization code
-	w.Header().Set("Location", callbackURL)
-	w.WriteHeader(http.StatusFound)
+	// Success case - redirect to client
+	slog.Info("Authorization successful, redirecting to client", "callback_url", response.RedirectURL)
+	w.Header().Set("Location", response.RedirectURL)
+	w.WriteHeader(response.HTTPStatus)
 	return nil
 }
 
@@ -188,31 +138,6 @@ func (h *Handle) getAccessToken(r *http.Request) (string, error) {
 	return accessToken, nil
 }
 
-// buildCallbackURL constructs the callback URL with authorization code
-func (h *Handle) buildCallbackURL(redirectURI, code string, state *string) (string, error) {
-	u, err := url.Parse(redirectURI)
-	if err != nil {
-		return "", err
-	}
-
-	q := u.Query()
-	q.Set("code", code)
-	if state != nil && *state != "" {
-		q.Set("state", *state)
-	}
-	u.RawQuery = q.Encode()
-
-	return u.String(), nil
-}
-
-// buildLoginRedirectURL constructs the login URL with return parameter
-func (h *Handle) buildLoginRedirectURL(returnURL string) string {
-	// Redirect to the frontend login page (running on port 3000)
-	// The frontend will handle the login and redirect back to the OAuth2 flow
-	loginURL := fmt.Sprintf("%s?redirect=%s", h.oidcService.GetLoginURL(), url.QueryEscape(returnURL))
-	return loginURL
-}
-
 // Token implements the OAuth2 token endpoint
 func (h *Handle) Token(w http.ResponseWriter, r *http.Request) *Response {
 	slog.Info("OIDC Token request received")
@@ -224,88 +149,45 @@ func (h *Handle) Token(w http.ResponseWriter, r *http.Request) *Response {
 		return nil
 	}
 
-	// Extract parameters
-	grantType := r.FormValue("grant_type")
-	code := r.FormValue("code")
-	clientID := r.FormValue("client_id")
-	clientSecret := r.FormValue("client_secret")
-	redirectURI := r.FormValue("redirect_uri")
-	codeVerifier := r.FormValue("code_verifier")
+	// Extract parameters and build token request for service layer
+	tokenReq := oidc.TokenRequest{
+		GrantType:    r.FormValue("grant_type"),
+		Code:         r.FormValue("code"),
+		ClientID:     r.FormValue("client_id"),
+		ClientSecret: r.FormValue("client_secret"),
+		RedirectURI:  r.FormValue("redirect_uri"),
+		CodeVerifier: r.FormValue("code_verifier"),
+	}
 
 	slog.Info("Token request parameters",
-		"grant_type", grantType,
-		"client_id", clientID,
-		"code", code,
-		"redirect_uri", redirectURI,
-		"has_code_verifier", codeVerifier != "")
+		"grant_type", tokenReq.GrantType,
+		"client_id", tokenReq.ClientID,
+		"code", tokenReq.Code,
+		"redirect_uri", tokenReq.RedirectURI,
+		"has_code_verifier", tokenReq.CodeVerifier != "")
 
-	// Validate grant type
-	if grantType != "authorization_code" {
-		slog.Error("Invalid grant type", "grant_type", grantType)
-		h.writeErrorResponse(w, "unsupported_grant_type", "Only authorization_code grant type is supported", http.StatusBadRequest)
+	// Process token request through service layer
+	response := h.oidcService.ProcessTokenRequest(r.Context(), tokenReq)
+
+	// Handle service response
+	if !response.Success {
+		slog.Error("Token request failed", "error", response.ErrorCode, "description", response.ErrorDesc)
+		h.writeErrorResponse(w, response.ErrorCode, response.ErrorDesc, response.HTTPStatus)
 		return nil
 	}
 
-	// Validate required parameters
-	if code == "" || clientID == "" || clientSecret == "" || redirectURI == "" {
-		slog.Error("Missing required parameters")
-		h.writeErrorResponse(w, "invalid_request", "Missing required parameters", http.StatusBadRequest)
-		return nil
-	}
-
-	// Validate client credentials
-	client, err := h.clientService.ValidateClientCredentials(clientID, clientSecret)
-	if err != nil {
-		slog.Error("Invalid client credentials", "error", err, "client_id", clientID)
-		h.writeErrorResponse(w, "invalid_client", "Invalid client credentials", http.StatusUnauthorized)
-		return nil
-	}
-
-	// Get and validate authorization code (with PKCE support if provided)
-	var authCode *oidc.AuthorizationCode
-	if codeVerifier != "" {
-		// PKCE flow - validate code verifier
-		slog.Info("Using PKCE validation", "code_verifier_length", len(codeVerifier))
-		authCode, err = h.oidcService.ValidateAndConsumeAuthorizationCodeWithPKCE(r.Context(), code, clientID, redirectURI, codeVerifier)
-	} else {
-		// Standard flow (backward compatibility)
-		authCode, err = h.oidcService.ValidateAndConsumeAuthorizationCode(r.Context(), code, clientID, redirectURI)
-	}
-
-	if err != nil {
-		slog.Error("Invalid authorization code", "error", err, "code", code)
-		h.writeErrorResponse(w, "invalid_grant", "Invalid or expired authorization code", http.StatusBadRequest)
-		return nil
-	}
-
-	// Generate access token
-	accessToken, err := h.oidcService.GenerateAccessToken(r.Context(), authCode.UserID, client.ClientID, authCode.Scope)
-	if err != nil {
-		slog.Error("Failed to generate access token", "error", err)
-		h.writeErrorResponse(w, "server_error", "Failed to generate access token", http.StatusInternalServerError)
-		return nil
-	}
-
-	refreshToken, err := h.oidcService.GenerateRefreshToken(r.Context(), authCode.UserID, client.ClientID, authCode.Scope)
-	if err != nil {
-		slog.Error("Failed to generate refresh token", "error", err)
-		h.writeErrorResponse(w, "server_error", "Failed to generate refresh token", http.StatusInternalServerError)
-		return nil
-	}
-
-	// Create token response
+	// Success case - create token response
 	tokenResponse := TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: &refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    3600, // 1 hour
-		Scope:        stringPtr(authCode.Scope),
+		AccessToken:  response.AccessToken,
+		RefreshToken: &response.RefreshToken,
+		TokenType:    response.TokenType,
+		ExpiresIn:    response.ExpiresIn,
+		Scope:        stringPtr(response.Scope),
 	}
 
 	slog.Info("Token exchange successful",
-		"client_id", clientID,
-		"user_id", authCode.UserID,
-		"scope", authCode.Scope)
+		"client_id", tokenReq.ClientID,
+		"scope", response.Scope)
 
 	h.writeJSONResponse(w, tokenResponse, http.StatusOK)
 	return nil
