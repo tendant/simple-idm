@@ -1,12 +1,14 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	"github.com/tendant/simple-idm/pkg/oidc"
 )
@@ -23,22 +25,37 @@ type AuthorizationCode struct {
 	Used        bool
 }
 
-// Handle implements the ServerInterface for OIDC endpoints
-type Handle struct {
+// OidcHandle implements the ServerInterface for OIDC endpoints
+type OidcHandle struct {
 	clientService *oauth2client.ClientService
 	oidcService   *oidc.OIDCService
+	jwksService   *jwks.JWKSService
 }
 
-// NewHandle creates a new OIDC API handle
-func NewHandle(clientService *oauth2client.ClientService, oidcService *oidc.OIDCService) *Handle {
-	return &Handle{
+// Option configures the OidcHandle
+type Option func(*OidcHandle)
+
+// NewOidcHandle creates a new OIDC API handle with required services and optional configurations
+func NewOidcHandle(clientService *oauth2client.ClientService, oidcService *oidc.OIDCService, opts ...Option) *OidcHandle {
+	h := &OidcHandle{
 		clientService: clientService,
 		oidcService:   oidcService,
+	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
+}
+
+// WithJwksService configures the optional JWKS service
+func WithJwksService(js *jwks.JWKSService) Option {
+	return func(h *OidcHandle) {
+		h.jwksService = js
 	}
 }
 
 // Authorize implements the OAuth2 authorization endpoint
-func (h *Handle) Authorize(w http.ResponseWriter, r *http.Request, params AuthorizeParams) *Response {
+func (h *OidcHandle) Authorize(w http.ResponseWriter, r *http.Request, params AuthorizeParams) *Response {
 	slog.Info("OIDC Authorization request received",
 		"client_id", params.ClientID,
 		"redirect_uri", params.RedirectURI,
@@ -110,7 +127,7 @@ func (h *Handle) Authorize(w http.ResponseWriter, r *http.Request, params Author
 }
 
 // getAccessToken retrieves the access token from the request
-func (h *Handle) getAccessToken(r *http.Request) (string, error) {
+func (h *OidcHandle) getAccessToken(r *http.Request) (string, error) {
 	// Try to retrieve the token from the Authorization header
 	authHeader := r.Header.Get("Authorization")
 
@@ -139,7 +156,7 @@ func (h *Handle) getAccessToken(r *http.Request) (string, error) {
 }
 
 // Token implements the OAuth2 token endpoint
-func (h *Handle) Token(w http.ResponseWriter, r *http.Request) *Response {
+func (h *OidcHandle) Token(w http.ResponseWriter, r *http.Request) *Response {
 	slog.Info("OIDC Token request received")
 
 	// Parse form data
@@ -194,7 +211,7 @@ func (h *Handle) Token(w http.ResponseWriter, r *http.Request) *Response {
 }
 
 // writeErrorResponse writes an OAuth2 error response
-func (h *Handle) writeErrorResponse(w http.ResponseWriter, errorCode, errorDescription string, statusCode int) {
+func (h *OidcHandle) writeErrorResponse(w http.ResponseWriter, errorCode, errorDescription string, statusCode int) {
 	errorResponse := ErrorResponse{
 		Error:            errorCode,
 		ErrorDescription: stringPtr(errorDescription),
@@ -203,7 +220,7 @@ func (h *Handle) writeErrorResponse(w http.ResponseWriter, errorCode, errorDescr
 }
 
 // writeJSONResponse writes a JSON response
-func (h *Handle) writeJSONResponse(w http.ResponseWriter, data interface{}, statusCode int) {
+func (h *OidcHandle) writeJSONResponse(w http.ResponseWriter, data interface{}, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
@@ -227,6 +244,42 @@ func (h *Handle) writeJSONResponse(w http.ResponseWriter, data interface{}, stat
 			fmt.Fprintf(w, `,"error_uri":"%s"`, *v.ErrorURI)
 		}
 		fmt.Fprint(w, "}")
+	}
+}
+
+// JWKS implements the JWKS endpoint
+func (h *OidcHandle) Jwks(w http.ResponseWriter, r *http.Request) *Response {
+	slog.Info("JWKS request received")
+
+	// Check if JWKS service is configured
+	if h.jwksService == nil {
+		slog.Error("JWKS service not configured")
+		h.writeErrorResponse(w, "server_error", "JWKS endpoint not available", http.StatusNotImplemented)
+		return nil
+	}
+
+	// Get JWKS from service
+	jwks, err := (*h.jwksService).GetJWKS()
+	if err != nil {
+		slog.Error("Failed to get JWKS", "error", err)
+		h.writeErrorResponse(w, "server_error", "Failed to retrieve keys", http.StatusInternalServerError)
+		return nil
+	}
+
+	// Write JWKS response
+	h.writeJWKSResponse(w, jwks, http.StatusOK)
+	return nil
+}
+
+// writeJWKSResponse writes a JWKS JSON response
+func (h *OidcHandle) writeJWKSResponse(w http.ResponseWriter, jwks interface{}, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	// Use encoding/json for JWKS response since it's more complex
+	if err := json.NewEncoder(w).Encode(jwks); err != nil {
+		slog.Error("Failed to encode JWKS response", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
