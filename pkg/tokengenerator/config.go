@@ -1,6 +1,7 @@
 package tokengenerator
 
 import (
+	"crypto/rsa"
 	"fmt"
 	"log/slog"
 	"time"
@@ -84,6 +85,18 @@ func WithLogoutTokenExpiry(expiry interface{}) Option {
 	}
 }
 
+func WithPrivateKey(privateKey *rsa.PrivateKey) Option {
+	return func(s *DefaultTokenService) {
+		s.privateKey = privateKey
+	}
+}
+
+func WithSecret(secret string) Option {
+	return func(s *DefaultTokenService) {
+		s.Secret = secret
+	}
+}
+
 // NewDefaultTokenServiceWithOptions creates a new token service with options
 func NewDefaultTokenServiceWithOptions(accessTokenGenerator, refreshTokenGenerator, tempTokenGenerator, logoutTokenGenerator TokenGenerator, secret string, opts ...Option) TokenService {
 	service := &DefaultTokenService{
@@ -98,19 +111,48 @@ func NewDefaultTokenServiceWithOptions(accessTokenGenerator, refreshTokenGenerat
 		tempTokenExpiry:          DefaultTempTokenExpiry,
 		logoutTokenExpiry:        DefaultLogoutTokenExpiry,
 	}
-	
+
 	// Apply options
 	for _, opt := range opts {
 		opt(service)
 	}
-	
+
 	slog.Info("Token service configured",
 		"accessTokenExpiry", service.accessTokenExpiry,
 		"refreshTokenExpiry", service.refreshTokenExpiry,
 		"mobileRefreshTokenExpiry", service.mobileRefreshTokenExpiry,
 		"tempTokenExpiry", service.tempTokenExpiry,
 		"logoutTokenExpiry", service.logoutTokenExpiry)
-	
+
 	return service
 }
 
+// 2025-09-03: new constructor that support either RSA or HMAC
+func NewTokenServiceWithOptions(accessTokenGenerator, refreshTokenGenerator, tempTokenGenerator, logoutTokenGenerator TokenGenerator, opts ...Option) TokenService {
+	service := &DefaultTokenService{
+		accessTokenGenerator:     accessTokenGenerator,
+		refreshTokenGenerator:    refreshTokenGenerator,
+		tempTokenGenerator:       tempTokenGenerator,
+		logoutTokenGenerator:     logoutTokenGenerator,
+		accessTokenExpiry:        DefaultAccessTokenExpiry,
+		refreshTokenExpiry:       DefaultRefreshTokenExpiry,
+		mobileRefreshTokenExpiry: DefaultMobileRefreshTokenExpiry,
+		tempTokenExpiry:          DefaultTempTokenExpiry,
+		logoutTokenExpiry:        DefaultLogoutTokenExpiry,
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	slog.Info("Token service configured",
+		"accessTokenExpiry", service.accessTokenExpiry,
+		"refreshTokenExpiry", service.refreshTokenExpiry,
+		"mobileRefreshTokenExpiry", service.mobileRefreshTokenExpiry,
+		"tempTokenExpiry", service.tempTokenExpiry,
+		"logoutTokenExpiry", service.logoutTokenExpiry,
+		"using RSA", service.privateKey != nil,
+		"using secret", service.Secret != "")
+	return service
+}
