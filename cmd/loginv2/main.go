@@ -19,10 +19,12 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
+	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	"github.com/tendant/simple-idm/pkg/oidc"
 	oidcapi "github.com/tendant/simple-idm/pkg/oidc/api"
 	"github.com/tendant/simple-idm/pkg/signup"
+	"github.com/tendant/simple-idm/pkg/wellknown"
 
 	// "github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
 
@@ -149,7 +151,7 @@ type ExternalProviderConfig struct {
 }
 
 type Config struct {
-	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:3000"`
+	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:4000"`
 	IdmDbConfig              IdmDbConfig
 	AppConfig                app.AppConfig
 	JwtConfig                JwtConfig
@@ -357,17 +359,39 @@ func main() {
 	// Setup default OAuth2 clients through the service layer
 	setupDefaultOAuth2Clients(clientService)
 
-	// Create OIDC repository and service
+	// Initialize JWKS service for RSA key management with in-memory storage
+	jwksService, err := jwks.NewJWKSServiceWithInMemoryStorage()
+	if err != nil {
+		slog.Error("Failed to initialize JWKS service", "error", err)
+		os.Exit(-1)
+	}
+
+	// Get the active signing key for RSA token generation
+	activeKey, err := jwksService.GetActiveSigningKey()
+	if err != nil {
+		slog.Error("Failed to get active signing key", "error", err)
+		os.Exit(-1)
+	}
+
+	// Create RSA token generator using the active key
+	rsaTokenGenerator := tokengenerator.NewRSATokenGenerator(
+		activeKey.PrivateKey,
+		activeKey.Kid,
+		config.JwtConfig.Issuer,
+		config.JwtConfig.Audience,
+	)
+
+	// Create OIDC repository and service with RSA token generator
 	oidcRepository := oidc.NewInMemoryOIDCRepository()
 	oidcService := oidc.NewOIDCServiceWithOptions(
 		oidcRepository,
 		clientService,
-		oidc.WithTokenGenerator(tokenGenerator),
-		oidc.WithBaseURL("http://localhost:4000"),
+		oidc.WithTokenGenerator(rsaTokenGenerator),
+		oidc.WithBaseURL(config.BaseUrl),
 		oidc.WithLoginURL("http://localhost:3000/login"),
 	)
 
-	oidcHandle := oidcapi.NewHandle(clientService, oidcService)
+	oidcHandle := oidcapi.NewOidcHandle(clientService, oidcService, oidcapi.WithJwksService(jwksService))
 
 	// Initialize External Provider repository and service
 	externalProviderRepository := externalprovider.NewInMemoryExternalProviderRepository()
@@ -382,7 +406,7 @@ func main() {
 		externalProviderRepository,
 		loginService,
 		userMapper,
-		externalprovider.WithBaseURL("http://localhost:4000"),
+		externalprovider.WithBaseURL(config.BaseUrl),
 		externalprovider.WithStateExpiration(10*time.Minute),
 		externalprovider.WithHTTPClient(&http.Client{}),
 		externalprovider.WithNotificationManager(notificationManager),
@@ -403,9 +427,25 @@ func main() {
 		loginService,
 		tokenService,
 		tokenCookieService,
-	).WithFrontendURL(config.BaseUrl)
+	).WithFrontendURL("http://localhost:3000")
+
+	// Configure well-known endpoints for MCP compliance
+	wellKnownConfig := wellknown.Config{
+		ResourceURI:            config.BaseUrl,
+		AuthorizationServerURI: config.BaseUrl,
+		BaseURL:                config.BaseUrl,
+		Scopes:                 []string{"openid", "profile", "email"},
+		ResourceDocumentation:  config.BaseUrl + "/docs",
+	}
+	wellKnownHandler := wellknown.NewHandler(wellKnownConfig)
+
+	// Register well-known endpoints for MCP compliance (public, no authentication required)
+	server.R.Get("/.well-known/oauth-protected-resource", wellKnownHandler.ProtectedResourceMetadata)
+	server.R.Get("/.well-known/oauth-authorization-server", wellKnownHandler.AuthorizationServerMetadata)
+	server.R.Get("/.well-known/openid-configuration", wellKnownHandler.OpenIDConfiguration)
 
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
+	slog.Info("MCP Well-known endpoints configured", "base_url", config.BaseUrl)
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 	server.R.Mount("/api/idm/signup", signup.Handler(signupHandle))
 
@@ -679,6 +719,32 @@ func setupDefaultOAuth2Clients(service *oauth2client.ClientService) {
 		slog.Info("Default OAuth2 client configured successfully",
 			"client_id", defaultClient.ClientID,
 			"client_name", defaultClient.ClientName)
+	}
+
+	// Configure Concourse OAuth2 client
+	concourseClient := &oauth2client.OAuth2Client{
+		ClientID:      "concourse_client",
+		ClientSecret:  "concourse_secret",
+		ClientName:    "Concourse CI",
+		RedirectURIs:  []string{"http://localhost:8082/sky/issuer/callback"},
+		ResponseTypes: []string{"code"},
+		GrantTypes:    []string{"authorization_code"},
+		Scopes:        []string{"openid", "profile", "email"},
+		ClientType:    "confidential",
+	}
+
+	slog.Info("Creating Concourse OAuth2 client",
+		"client_id", concourseClient.ClientID,
+		"client_name", concourseClient.ClientName,
+		"client_type", concourseClient.ClientType)
+
+	err = service.CreateClient(ctx, concourseClient)
+	if err != nil {
+		slog.Error("Failed to create Concourse OAuth2 client", "error", err, "client_id", concourseClient.ClientID)
+	} else {
+		slog.Info("Concourse OAuth2 client configured successfully",
+			"client_id", concourseClient.ClientID,
+			"client_name", concourseClient.ClientName)
 	}
 
 	slog.Info("OAuth2 client setup completed")
