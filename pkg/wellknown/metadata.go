@@ -34,6 +34,9 @@ type AuthorizationServerMetadata struct {
 	// OPTIONAL: URL of the authorization server's JWK Set document
 	JwksURI string `json:"jwks_uri,omitempty"`
 
+	// OPTIONAL: URL of the authorization server's UserInfo endpoint (OIDC)
+	UserinfoEndpoint string `json:"userinfo_endpoint,omitempty"`
+
 	// OPTIONAL: URL of the authorization server's Dynamic Client Registration endpoint
 	RegistrationEndpoint string `json:"registration_endpoint,omitempty"`
 
@@ -102,6 +105,7 @@ func NewAuthorizationServerMetadata(config Config) *AuthorizationServerMetadata 
 		AuthorizationEndpoint:             config.BaseURL + "/api/idm/oauth2/authorize",
 		TokenEndpoint:                     config.BaseURL + "/api/idm/oauth2/token",
 		JwksURI:                           config.BaseURL + "/api/idm/oauth2/jwks",
+		UserinfoEndpoint:                  config.BaseURL + "/api/idm/oauth2/userinfo",
 		ScopesSupported:                   scopes,
 		ResponseTypesSupported:            []string{"code"},
 		GrantTypesSupported:               []string{"authorization_code"},
