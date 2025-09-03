@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -39,6 +40,13 @@ type ErrorResponse struct {
 	Error            string  `json:"error"`
 	ErrorDescription *string `json:"error_description,omitempty"`
 	ErrorURI         *string `json:"error_uri,omitempty"`
+}
+
+// UserInfoResponse represents OIDC user information response
+type UserInfoResponse struct {
+	Sub   string  `json:"sub"`             // Subject identifier (required)
+	Name  *string `json:"name,omitempty"`  // Full name
+	Email *string `json:"email,omitempty"` // Email address
 }
 
 // OIDCService provides OIDC business logic operations
@@ -568,4 +576,73 @@ func (s *OIDCService) ProcessTokenRequest(ctx context.Context, req TokenRequest)
 		Scope:        authCode.Scope,
 		HTTPStatus:   200,
 	}
+}
+
+// GetUserInfo validates an access token and returns user information
+func (s *OIDCService) GetUserInfo(ctx context.Context, accessToken string) (*UserInfoResponse, error) {
+	// Validate the access token
+	claims, err := s.ValidateUserToken(accessToken)
+	if err != nil {
+		return nil, fmt.Errorf("invalid access token: %w", err)
+	}
+
+	// Extract user ID from claims
+	userID, ok := claims["sub"].(string)
+	if !ok || userID == "" {
+		return nil, fmt.Errorf("invalid or missing user ID in token")
+	}
+
+	// Extract scope from claims to determine what information to return
+	scope := ""
+	if scopeClaim, exists := claims["scope"]; exists {
+		if scopeStr, ok := scopeClaim.(string); ok {
+			scope = scopeStr
+		}
+	}
+
+	// Build user info response based on available claims and scope
+	userInfo := &UserInfoResponse{
+		Sub: userID, // Subject is always required
+	}
+
+	// Add profile information if profile scope is granted
+	if containsScope(scope, "profile") {
+		// Try to extract name information from claims
+		if extraClaims, exists := claims["extra_claims"]; exists {
+			if extraMap, ok := extraClaims.(map[string]interface{}); ok {
+				if name, exists := extraMap["display_name"]; exists {
+					if nameStr, ok := name.(string); ok {
+						userInfo.Name = &nameStr
+					}
+				}
+			}
+		}
+	}
+
+	// Add email information if email scope is granted
+	if containsScope(scope, "email") {
+		if extraMap, ok := claims["extra_claims"].(map[string]interface{}); ok {
+			if userInfoMap, ok := extraMap["user_info"].(map[string]interface{}); ok {
+				if emailStr, ok := userInfoMap["email"].(string); ok {
+					userInfo.Email = &emailStr
+				}
+			}
+		}
+	}
+
+	return userInfo, nil
+}
+
+// containsScope checks if a specific scope is present in the scope string
+func containsScope(scopeString, targetScope string) bool {
+	if scopeString == "" {
+		return false
+	}
+	scopes := strings.Fields(scopeString)
+	for _, scope := range scopes {
+		if scope == targetScope {
+			return true
+		}
+	}
+	return false
 }
