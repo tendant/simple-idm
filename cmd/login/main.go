@@ -267,10 +267,10 @@ func main() {
 
 	// Create token service with options
 	tokenService := tokengenerator.NewDefaultTokenServiceWithOptions(
-		tokenGenerator, 
-		tokenGenerator, 
-		tempTokenGenerator, 
-		tokenGenerator, 
+		tokenGenerator,
+		tokenGenerator,
+		tempTokenGenerator,
+		tokenGenerator,
 		config.JwtConfig.Secret,
 		tokengenerator.WithAccessTokenExpiry(config.JwtConfig.AccessTokenExpiry),
 		tokengenerator.WithRefreshTokenExpiry(config.JwtConfig.RefreshTokenExpiry),
@@ -367,7 +367,7 @@ func main() {
 		oidc.WithLoginURL("http://localhost:3000/login"),
 	)
 
-	oidcHandle := oidcapi.NewHandle(clientService, oidcService)
+	oidcHandle := oidcapi.NewOidcHandle(clientService, oidcService)
 
 	// Initialize External Provider repository and service
 	externalProviderRepository := externalprovider.NewInMemoryExternalProviderRepository()
