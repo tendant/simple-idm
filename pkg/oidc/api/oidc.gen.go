@@ -33,6 +33,33 @@ type ErrorResponse struct {
 	ErrorURI *string `json:"error_uri,omitempty"`
 }
 
+// JWK defines model for JWK.
+type JWK struct {
+	// Algorithm
+	Alg *string `json:"alg,omitempty"`
+
+	// RSA public key exponent (base64url encoded)
+	E *string `json:"e,omitempty"`
+
+	// RSA public key modulus (base64url encoded)
+	False *string `json:"false,omitempty"`
+
+	// Key ID
+	Kid *string `json:"kid,omitempty"`
+
+	// Key type
+	Kty *string `json:"kty,omitempty"`
+
+	// Public key use
+	Use *string `json:"use,omitempty"`
+}
+
+// JWKSResponse defines model for JWKSResponse.
+type JWKSResponse struct {
+	// Array of JSON Web Keys
+	Keys []JWK `json:"keys"`
+}
+
 // TokenResponse defines model for TokenResponse.
 type TokenResponse struct {
 	// The access token
@@ -148,6 +175,26 @@ func AuthorizeJSON401Response(body struct {
 	}
 }
 
+// JwksJSON200Response is a constructor method for a Jwks response.
+// A *Response is returned with the configured status code and content type from the spec.
+func JwksJSON200Response(body JWKSResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// JwksJSON500Response is a constructor method for a Jwks response.
+// A *Response is returned with the configured status code and content type from the spec.
+func JwksJSON500Response(body ErrorResponse) *Response {
+	return &Response{
+		body:        body,
+		Code:        500,
+		contentType: "application/json",
+	}
+}
+
 // TokenJSON200Response is a constructor method for a Token response.
 // A *Response is returned with the configured status code and content type from the spec.
 func TokenJSON200Response(body TokenResponse) *Response {
@@ -183,6 +230,9 @@ type ServerInterface interface {
 	// OAuth2 Authorization Endpoint
 	// (GET /authorize)
 	Authorize(w http.ResponseWriter, r *http.Request, params AuthorizeParams) *Response
+	// JSON Web Key Set Endpoint
+	// (GET /jwks)
+	Jwks(w http.ResponseWriter, r *http.Request) *Response
 	// OAuth2 Token Endpoint
 	// (POST /token)
 	Token(w http.ResponseWriter, r *http.Request) *Response
@@ -259,6 +309,24 @@ func (siw *ServerInterfaceWrapper) Authorize(w http.ResponseWriter, r *http.Requ
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Authorize(w, r, params)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// Jwks operation middleware
+func (siw *ServerInterfaceWrapper) Jwks(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.Jwks(w, r)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -405,6 +473,7 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Get("/authorize", wrapper.Authorize)
+		r.Get("/jwks", wrapper.Jwks)
 		r.Post("/token", wrapper.Token)
 	})
 	return r
@@ -431,30 +500,39 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
