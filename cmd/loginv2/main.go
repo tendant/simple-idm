@@ -258,29 +258,52 @@ func main() {
 	slog.Info("Login service created", "maxFailedAttempts", config.LoginConfig.MaxFailedAttempts, "lockoutDuration", lockoutDuration.ToTimeDuration())
 
 	// Create JWT token generator
-	tokenGenerator := tokengenerator.NewJwtTokenGenerator(
-		config.JwtConfig.JwtSecret,
-		"simple-idm", // Issuer
-		"simple-idm", // Audience
+	// tokenGenerator := tokengenerator.NewJwtTokenGenerator(
+	// 	config.JwtConfig.JwtSecret,
+	// 	"simple-idm", // Issuer
+	// 	"simple-idm", // Audience
+	// )
+
+	// Initialize JWKS service for RSA key management with in-memory storage
+	jwksService, err := jwks.NewJWKSServiceWithInMemoryStorage()
+	if err != nil {
+		slog.Error("Failed to initialize JWKS service", "error", err)
+		os.Exit(-1)
+	}
+
+	// Get the active signing key for RSA token generation
+	activeKey, err := jwksService.GetActiveSigningKey()
+	if err != nil {
+		slog.Error("Failed to get active signing key", "error", err)
+		os.Exit(-1)
+	}
+
+	// Create RSA token generator using the active key
+	rsaTokenGenerator := tokengenerator.NewRSATokenGenerator(
+		activeKey.PrivateKey,
+		activeKey.Kid,
+		config.JwtConfig.Issuer,
+		config.JwtConfig.Audience,
 	)
 
-	tempTokenGenerator := tokengenerator.NewTempTokenGenerator(
-		config.JwtConfig.JwtSecret,
-		"simple-idm", // Issuer
-		"simple-idm", // Audience
+	tempTokenGenerator := tokengenerator.NewTempRSATokenGenerator(
+		activeKey.PrivateKey,
+		activeKey.Kid,
+		config.JwtConfig.Issuer,
+		config.JwtConfig.Audience,
 	)
 
 	// Create token service with options
-	tokenService := tokengenerator.NewDefaultTokenServiceWithOptions(
-		tokenGenerator,
-		tokenGenerator,
+	tokenService := tokengenerator.NewTokenServiceWithOptions(
+		rsaTokenGenerator,
+		rsaTokenGenerator,
 		tempTokenGenerator,
-		tokenGenerator,
-		config.JwtConfig.Secret,
+		rsaTokenGenerator,
 		tokengenerator.WithAccessTokenExpiry(config.JwtConfig.AccessTokenExpiry),
 		tokengenerator.WithRefreshTokenExpiry(config.JwtConfig.RefreshTokenExpiry),
 		tokengenerator.WithTempTokenExpiry(config.JwtConfig.TempTokenExpiry),
 		tokengenerator.WithLogoutTokenExpiry(config.JwtConfig.LogoutTokenExpiry),
+		tokengenerator.WithPrivateKey(activeKey.PrivateKey),
 	)
 	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
 		"/",
@@ -359,28 +382,6 @@ func main() {
 	// Setup default OAuth2 clients through the service layer
 	setupDefaultOAuth2Clients(clientService)
 
-	// Initialize JWKS service for RSA key management with in-memory storage
-	jwksService, err := jwks.NewJWKSServiceWithInMemoryStorage()
-	if err != nil {
-		slog.Error("Failed to initialize JWKS service", "error", err)
-		os.Exit(-1)
-	}
-
-	// Get the active signing key for RSA token generation
-	activeKey, err := jwksService.GetActiveSigningKey()
-	if err != nil {
-		slog.Error("Failed to get active signing key", "error", err)
-		os.Exit(-1)
-	}
-
-	// Create RSA token generator using the active key
-	rsaTokenGenerator := tokengenerator.NewRSATokenGenerator(
-		activeKey.PrivateKey,
-		activeKey.Kid,
-		config.JwtConfig.Issuer,
-		config.JwtConfig.Audience,
-	)
-
 	// Create OIDC repository and service with RSA token generator
 	oidcRepository := oidc.NewInMemoryOIDCRepository()
 	oidcService := oidc.NewOIDCServiceWithOptions(
@@ -455,7 +456,7 @@ func main() {
 	// Mount external provider endpoints (public, no authentication required)
 	server.R.Mount("/api/idm/external", externalProviderAPI.Handler(externalProviderHandle))
 
-	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
+	tokenAuth := jwtauth.New("RS256", activeKey.PrivateKey, nil)
 
 	server.R.Group(func(r chi.Router) {
 		r.Use(client.Verifier(tokenAuth))
