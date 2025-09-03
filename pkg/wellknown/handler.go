@@ -116,7 +116,7 @@ func (h *Handler) OpenIDConfiguration(w http.ResponseWriter, r *http.Request) {
 		// OpenID Connect specific fields
 		"subject_types_supported":               []string{"public"},
 		"id_token_signing_alg_values_supported": []string{"HS256"},
-		"userinfo_endpoint":                     h.config.BaseURL + "/oidc/userinfo",
+		"userinfo_endpoint":                     metadata.UserinfoEndpoint,
 	}
 
 	// Set appropriate headers
