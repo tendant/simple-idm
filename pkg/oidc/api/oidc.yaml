@@ -177,7 +177,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /userinfo:
+    get:
+      operationId: userinfo
+      summary: OIDC UserInfo Endpoint
+      description: Returns user information for the authenticated user (RFC 6749, OpenID Connect Core 1.0)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successful userinfo response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          description: Unauthorized - invalid or missing access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - insufficient scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     TokenResponse:
       type: object
@@ -258,3 +295,21 @@ components:
           type: string
           description: RSA public key exponent (base64url encoded)
           example: "AQAB"
+    UserInfoResponse:
+      type: object
+      properties:
+        sub:
+          type: string
+          description: Subject identifier (user ID)
+          example: "user-123"
+        name:
+          type: string
+          description: Full name of the user
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: Email address of the user
+          example: "john.doe@example.com"
+      required:
+        - sub
