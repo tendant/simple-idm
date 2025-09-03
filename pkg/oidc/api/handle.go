@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	openapi_types "github.com/discord-gophers/goapi-gen/types"
 	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	"github.com/tendant/simple-idm/pkg/oidc"
@@ -281,6 +282,57 @@ func (h *OidcHandle) writeJWKSResponse(w http.ResponseWriter, jwks interface{}, 
 		slog.Error("Failed to encode JWKS response", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
+}
+
+// Userinfo implements the OIDC UserInfo endpoint
+func (h *OidcHandle) Userinfo(w http.ResponseWriter, r *http.Request) *Response {
+	slog.Info("OIDC UserInfo request received")
+
+	// Extract access token from HTTP request
+	accessToken, err := h.getAccessToken(r)
+	if err != nil {
+		slog.Error("Failed to get access token", "error", err)
+		return UserinfoJSON401Response(ErrorResponse{
+			Error:            "invalid_token",
+			ErrorDescription: stringPtr("Missing or invalid access token"),
+		})
+	}
+
+	// Get user info from service
+	serviceUserInfo, err := h.oidcService.GetUserInfo(r.Context(), accessToken)
+	if err != nil {
+		slog.Error("Failed to get user info", "error", err)
+		return UserinfoJSON401Response(ErrorResponse{
+			Error:            "invalid_token",
+			ErrorDescription: stringPtr("Invalid or expired access token"),
+		})
+	}
+	slog.Info("UserInfo request successful", "user_info", serviceUserInfo)
+
+	// Convert service UserInfoResponse to API UserInfoResponse
+	apiUserInfo := h.convertToAPIUserInfo(serviceUserInfo)
+
+	// Return user info response
+	slog.Info("UserInfo request successful", "user_id", serviceUserInfo.Sub)
+	return UserinfoJSON200Response(apiUserInfo)
+}
+
+// convertToAPIUserInfo converts service UserInfoResponse to API UserInfoResponse
+func (h *OidcHandle) convertToAPIUserInfo(serviceUserInfo *oidc.UserInfoResponse) UserInfoResponse {
+	apiUserInfo := UserInfoResponse{
+		Sub: serviceUserInfo.Sub,
+	}
+	// Copy optional fields if they exist
+	if serviceUserInfo.Name != nil {
+		apiUserInfo.Name = serviceUserInfo.Name
+	}
+	if serviceUserInfo.Email != nil {
+		// Convert string to openapi_types.Email
+		email := (*openapi_types.Email)(serviceUserInfo.Email)
+		apiUserInfo.Email = email
+	}
+
+	return apiUserInfo
 }
 
 // Helper function to create string pointers
