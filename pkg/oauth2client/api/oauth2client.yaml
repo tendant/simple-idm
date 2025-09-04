@@ -1,0 +1,745 @@
+openapi: 3.0.0
+info:
+  title: OAuth2 Client Registration API
+  version: 1.0.0
+  description: RFC 7591 compliant OAuth2 Dynamic Client Registration API for simple-idm
+servers:
+  - url: http://localhost:4000
+    description: Development server
+paths:
+  /:
+    post:
+      operationId: registerClient
+      summary: Register OAuth2 Client
+      description: Register a new OAuth2 client (RFC 7591)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientRegistrationRequest'
+      responses:
+        '201':
+          description: Client registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientRegistrationResponse'
+        '400':
+          description: Invalid client metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - insufficient privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      operationId: listClients
+      summary: List OAuth2 Clients
+      description: List all registered OAuth2 clients (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of clients to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Number of clients to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: client_type
+          in: query
+          description: Filter by client type
+          schema:
+            type: string
+            enum: ["public", "confidential"]
+        - name: is_active
+          in: query
+          description: Filter by active status
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of clients
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientListResponse'
+        '401':
+          description: Unauthorized - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - insufficient privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /{client_id}:
+    get:
+      operationId: getClient
+      summary: Get OAuth2 Client
+      description: Get details of a specific OAuth2 client
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          description: The client identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Client details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '401':
+          description: Unauthorized - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - insufficient privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      operationId: updateClient
+      summary: Update OAuth2 Client
+      description: Update an existing OAuth2 client
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          description: The client identifier
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientUpdateRequest'
+      responses:
+        '200':
+          description: Client updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientResponse'
+        '400':
+          description: Invalid client metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - insufficient privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: deleteClient
+      summary: Delete OAuth2 Client
+      description: Delete an OAuth2 client
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          description: The client identifier
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Client deleted successfully
+        '401':
+          description: Unauthorized - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - insufficient privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /{client_id}/regenerate-secret:
+    post:
+      operationId: regenerateClientSecret
+      summary: Regenerate Client Secret
+      description: Generate a new client secret for the specified client
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: client_id
+          in: path
+          required: true
+          description: The client identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          description: New client secret generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientSecretResponse'
+        '401':
+          description: Unauthorized - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - insufficient privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Client not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ClientRegistrationRequest:
+      type: object
+      properties:
+        client_name:
+          type: string
+          description: Human-readable name of the client
+          example: "My Application"
+        client_uri:
+          type: string
+          format: uri
+          description: URL of the client's homepage
+          example: "https://myapp.example.com"
+        logo_uri:
+          type: string
+          format: uri
+          description: URL of the client's logo
+          example: "https://myapp.example.com/logo.png"
+        redirect_uris:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Array of redirect URIs
+          example: ["https://myapp.example.com/callback"]
+        response_types:
+          type: array
+          items:
+            type: string
+            enum: ["code", "token", "id_token"]
+          description: Array of OAuth2 response types
+          default: ["code"]
+          example: ["code"]
+        grant_types:
+          type: array
+          items:
+            type: string
+            enum: ["authorization_code", "implicit", "refresh_token", "client_credentials"]
+          description: Array of OAuth2 grant types
+          default: ["authorization_code"]
+          example: ["authorization_code"]
+        scope:
+          type: string
+          description: Space-separated list of scope values
+          example: "openid profile email"
+        contacts:
+          type: array
+          items:
+            type: string
+            format: email
+          description: Array of contact email addresses
+          example: ["admin@myapp.example.com"]
+        tos_uri:
+          type: string
+          format: uri
+          description: URL of the client's terms of service
+          example: "https://myapp.example.com/tos"
+        policy_uri:
+          type: string
+          format: uri
+          description: URL of the client's privacy policy
+          example: "https://myapp.example.com/privacy"
+        jwks_uri:
+          type: string
+          format: uri
+          description: URL of the client's JSON Web Key Set
+          example: "https://myapp.example.com/.well-known/jwks.json"
+        software_id:
+          type: string
+          description: Software identifier
+          example: "myapp-v1.0"
+        software_version:
+          type: string
+          description: Software version
+          example: "1.0.0"
+        client_type:
+          type: string
+          enum: ["public", "confidential"]
+          description: Client type
+          default: "confidential"
+          example: "confidential"
+        token_endpoint_auth_method:
+          type: string
+          enum: ["client_secret_basic", "client_secret_post", "none"]
+          description: Authentication method for token endpoint
+          default: "client_secret_basic"
+          example: "client_secret_basic"
+        description:
+          type: string
+          description: Optional description of the client
+          example: "OAuth2 client for My Application"
+      required:
+        - client_name
+        - redirect_uris
+    ClientRegistrationResponse:
+      type: object
+      properties:
+        client_id:
+          type: string
+          description: The client identifier
+          example: "client_12345"
+        client_secret:
+          type: string
+          description: The client secret (only returned on creation)
+          example: "secret_abcdef123456"
+        client_name:
+          type: string
+          description: Human-readable name of the client
+          example: "My Application"
+        client_uri:
+          type: string
+          format: uri
+          description: URL of the client's homepage
+          example: "https://myapp.example.com"
+        logo_uri:
+          type: string
+          format: uri
+          description: URL of the client's logo
+          example: "https://myapp.example.com/logo.png"
+        redirect_uris:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Array of redirect URIs
+          example: ["https://myapp.example.com/callback"]
+        response_types:
+          type: array
+          items:
+            type: string
+          description: Array of OAuth2 response types
+          example: ["code"]
+        grant_types:
+          type: array
+          items:
+            type: string
+          description: Array of OAuth2 grant types
+          example: ["authorization_code"]
+        scope:
+          type: string
+          description: Space-separated list of scope values
+          example: "openid profile email"
+        contacts:
+          type: array
+          items:
+            type: string
+            format: email
+          description: Array of contact email addresses
+          example: ["admin@myapp.example.com"]
+        tos_uri:
+          type: string
+          format: uri
+          description: URL of the client's terms of service
+          example: "https://myapp.example.com/tos"
+        policy_uri:
+          type: string
+          format: uri
+          description: URL of the client's privacy policy
+          example: "https://myapp.example.com/privacy"
+        jwks_uri:
+          type: string
+          format: uri
+          description: URL of the client's JSON Web Key Set
+          example: "https://myapp.example.com/.well-known/jwks.json"
+        software_id:
+          type: string
+          description: Software identifier
+          example: "myapp-v1.0"
+        software_version:
+          type: string
+          description: Software version
+          example: "1.0.0"
+        client_type:
+          type: string
+          enum: ["public", "confidential"]
+          description: Client type
+          example: "confidential"
+        token_endpoint_auth_method:
+          type: string
+          description: Authentication method for token endpoint
+          example: "client_secret_basic"
+        description:
+          type: string
+          description: Optional description of the client
+          example: "OAuth2 client for My Application"
+        created_at:
+          type: string
+          format: date-time
+          description: Client creation timestamp
+          example: "2023-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Client last update timestamp
+          example: "2023-01-01T00:00:00Z"
+        is_active:
+          type: boolean
+          description: Whether the client is active
+          example: true
+      required:
+        - client_id
+        - client_name
+        - redirect_uris
+        - response_types
+        - grant_types
+        - client_type
+        - created_at
+        - updated_at
+        - is_active
+    ClientUpdateRequest:
+      type: object
+      properties:
+        client_name:
+          type: string
+          description: Human-readable name of the client
+          example: "My Updated Application"
+        client_uri:
+          type: string
+          format: uri
+          description: URL of the client's homepage
+          example: "https://myapp.example.com"
+        logo_uri:
+          type: string
+          format: uri
+          description: URL of the client's logo
+          example: "https://myapp.example.com/logo.png"
+        redirect_uris:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Array of redirect URIs
+          example: ["https://myapp.example.com/callback"]
+        response_types:
+          type: array
+          items:
+            type: string
+            enum: ["code", "token", "id_token"]
+          description: Array of OAuth2 response types
+          example: ["code"]
+        grant_types:
+          type: array
+          items:
+            type: string
+            enum: ["authorization_code", "implicit", "refresh_token", "client_credentials"]
+          description: Array of OAuth2 grant types
+          example: ["authorization_code"]
+        scope:
+          type: string
+          description: Space-separated list of scope values
+          example: "openid profile email"
+        contacts:
+          type: array
+          items:
+            type: string
+            format: email
+          description: Array of contact email addresses
+          example: ["admin@myapp.example.com"]
+        tos_uri:
+          type: string
+          format: uri
+          description: URL of the client's terms of service
+          example: "https://myapp.example.com/tos"
+        policy_uri:
+          type: string
+          format: uri
+          description: URL of the client's privacy policy
+          example: "https://myapp.example.com/privacy"
+        jwks_uri:
+          type: string
+          format: uri
+          description: URL of the client's JSON Web Key Set
+          example: "https://myapp.example.com/.well-known/jwks.json"
+        software_id:
+          type: string
+          description: Software identifier
+          example: "myapp-v1.0"
+        software_version:
+          type: string
+          description: Software version
+          example: "1.0.0"
+        client_type:
+          type: string
+          enum: ["public", "confidential"]
+          description: Client type
+          example: "confidential"
+        token_endpoint_auth_method:
+          type: string
+          enum: ["client_secret_basic", "client_secret_post", "none"]
+          description: Authentication method for token endpoint
+          example: "client_secret_basic"
+        description:
+          type: string
+          description: Optional description of the client
+          example: "Updated OAuth2 client for My Application"
+        is_active:
+          type: boolean
+          description: Whether the client is active
+          example: true
+    ClientResponse:
+      type: object
+      properties:
+        client_id:
+          type: string
+          description: The client identifier
+          example: "client_12345"
+        client_name:
+          type: string
+          description: Human-readable name of the client
+          example: "My Application"
+        client_uri:
+          type: string
+          format: uri
+          description: URL of the client's homepage
+          example: "https://myapp.example.com"
+        logo_uri:
+          type: string
+          format: uri
+          description: URL of the client's logo
+          example: "https://myapp.example.com/logo.png"
+        redirect_uris:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Array of redirect URIs
+          example: ["https://myapp.example.com/callback"]
+        response_types:
+          type: array
+          items:
+            type: string
+          description: Array of OAuth2 response types
+          example: ["code"]
+        grant_types:
+          type: array
+          items:
+            type: string
+          description: Array of OAuth2 grant types
+          example: ["authorization_code"]
+        scope:
+          type: string
+          description: Space-separated list of scope values
+          example: "openid profile email"
+        contacts:
+          type: array
+          items:
+            type: string
+            format: email
+          description: Array of contact email addresses
+          example: ["admin@myapp.example.com"]
+        tos_uri:
+          type: string
+          format: uri
+          description: URL of the client's terms of service
+          example: "https://myapp.example.com/tos"
+        policy_uri:
+          type: string
+          format: uri
+          description: URL of the client's privacy policy
+          example: "https://myapp.example.com/privacy"
+        jwks_uri:
+          type: string
+          format: uri
+          description: URL of the client's JSON Web Key Set
+          example: "https://myapp.example.com/.well-known/jwks.json"
+        software_id:
+          type: string
+          description: Software identifier
+          example: "myapp-v1.0"
+        software_version:
+          type: string
+          description: Software version
+          example: "1.0.0"
+        client_type:
+          type: string
+          enum: ["public", "confidential"]
+          description: Client type
+          example: "confidential"
+        token_endpoint_auth_method:
+          type: string
+          description: Authentication method for token endpoint
+          example: "client_secret_basic"
+        description:
+          type: string
+          description: Optional description of the client
+          example: "OAuth2 client for My Application"
+        created_at:
+          type: string
+          format: date-time
+          description: Client creation timestamp
+          example: "2023-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Client last update timestamp
+          example: "2023-01-01T00:00:00Z"
+        is_active:
+          type: boolean
+          description: Whether the client is active
+          example: true
+        last_used_at:
+          type: string
+          format: date-time
+          description: Last time client was used for authentication
+          example: "2023-01-01T00:00:00Z"
+      required:
+        - client_id
+        - client_name
+        - redirect_uris
+        - response_types
+        - grant_types
+        - client_type
+        - created_at
+        - updated_at
+        - is_active
+    ClientListResponse:
+      type: object
+      properties:
+        clients:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientResponse'
+        total:
+          type: integer
+          description: Total number of clients
+          example: 42
+        limit:
+          type: integer
+          description: Maximum number of clients returned
+          example: 20
+        offset:
+          type: integer
+          description: Number of clients skipped
+          example: 0
+      required:
+        - clients
+        - total
+        - limit
+        - offset
+    ClientSecretResponse:
+      type: object
+      properties:
+        client_id:
+          type: string
+          description: The client identifier
+          example: "client_12345"
+        client_secret:
+          type: string
+          description: The new client secret
+          example: "secret_newabcdef123456"
+        updated_at:
+          type: string
+          format: date-time
+          description: Timestamp when secret was regenerated
+          example: "2023-01-01T00:00:00Z"
+      required:
+        - client_id
+        - client_secret
+        - updated_at
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: "invalid_client_metadata"
+        error_description:
+          type: string
+          description: Human-readable error description
+          example: "The redirect_uri is invalid"
+        error_uri:
+          type: string
+          format: uri
+          description: URI to error documentation
+          example: "https://tools.ietf.org/html/rfc7591#section-3.2.2"
+      required:
+        - error
+        - error_description
