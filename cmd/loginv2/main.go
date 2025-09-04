@@ -21,6 +21,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
+	oauth2clientapi "github.com/tendant/simple-idm/pkg/oauth2client/api"
 	"github.com/tendant/simple-idm/pkg/oidc"
 	oidcapi "github.com/tendant/simple-idm/pkg/oidc/api"
 	"github.com/tendant/simple-idm/pkg/signup"
@@ -520,6 +521,15 @@ func main() {
 			r.Mount("/", logins.Handler(loginsHandle))
 		})
 		r.Mount("/api/idm/logins", loginsRouter)
+
+		// Initialize OAuth2 client management API (admin only)
+		oauth2ClientHandle := oauth2clientapi.NewHandle(clientService)
+		oauth2ClientRouter := chi.NewRouter()
+		oauth2ClientRouter.Group(func(r chi.Router) {
+			r.Use(client.AdminRoleMiddleware)
+			r.Mount("/", oauth2clientapi.Handler(oauth2ClientHandle))
+		})
+		r.Mount("/api/idm/oauth2-clients", oauth2ClientRouter)
 
 		// Initialize impersonate service and routes
 		// impersonateService := impersonate.NewService(userMapper, nil)
