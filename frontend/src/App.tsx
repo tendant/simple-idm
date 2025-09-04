@@ -11,6 +11,10 @@ import Logins from './pages/Logins';
 import CreateLogin from './pages/CreateLogin';
 import EditLogin from './pages/EditLogin';
 import LoginDetail from './pages/LoginDetail';
+import OAuth2Clients from './pages/OAuth2Clients';
+import CreateOAuth2Client from './pages/CreateOAuth2Client';
+import EditOAuth2Client from './pages/EditOAuth2Client';
+import OAuth2ClientDetail from './pages/OAuth2ClientDetail';
 import Navigation from './components/Navigation';
 import PasswordResetInit from './pages/PasswordResetInit';
 import PasswordReset from './pages/PasswordReset';
@@ -137,6 +141,54 @@ const LoginDetailPage: Component = () => {
   );
 };
 
+const OAuth2ClientsPage: Component = () => {
+  return (
+    <div class="min-h-screen bg-gray-1">
+      <main class="py-10 px-4 sm:px-6 lg:px-8">
+        <Navigation />
+        <OAuth2Clients />
+      </main>
+    </div>
+  );
+};
+
+const CreateOAuth2ClientPage: Component = () => {
+  return (
+    <div class="min-h-screen bg-gray-1">
+      <main class="py-10 px-4 sm:px-6 lg:px-8">
+        <Navigation />
+        <CreateOAuth2Client />
+      </main>
+    </div>
+  );
+};
+
+const EditOAuth2ClientPage: Component = () => {
+  return (
+    <div class="min-h-screen bg-gray-1">
+      <main class="py-10 px-4 sm:px-6 lg:px-8">
+        <Navigation />
+        <Suspense>
+          <EditOAuth2Client />
+        </Suspense>
+      </main>
+    </div>
+  );
+};
+
+const OAuth2ClientDetailPage: Component = () => {
+  return (
+    <div class="min-h-screen bg-gray-1">
+      <main class="py-10 px-4 sm:px-6 lg:px-8">
+        <Navigation />
+        <Suspense>
+          <OAuth2ClientDetail />
+        </Suspense>
+      </main>
+    </div>
+  );
+};
+
 const SettingsPage: Component = () => {
   return (
     <div class="min-h-screen bg-gray-1">
@@ -169,6 +221,10 @@ const App: Component = () => {
       <Route path="/logins/create" component={CreateLoginPage} />
       <Route path="/logins/:id/detail" component={LoginDetailPage} />
       <Route path="/logins/:id/edit" component={EditLoginPage} />
+      <Route path="/oauth2-clients" component={OAuth2ClientsPage} />
+      <Route path="/oauth2-clients/create" component={CreateOAuth2ClientPage} />
+      <Route path="/oauth2-clients/:id/edit" component={EditOAuth2ClientPage} />
+      <Route path="/oauth2-clients/:id/detail" component={OAuth2ClientDetailPage} />
       <Route path="/password-reset-init" component={PasswordResetInit} />
       <Route path="/password-reset/:code" component={PasswordReset} />
       <Route path="/auth/user/reset-password" component={PasswordReset} />
