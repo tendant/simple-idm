@@ -34,6 +34,13 @@ const Navigation: Component = () => {
               >
                 Logins
               </A>
+              <A
+                href="/oauth2-clients"
+                class="inline-flex items-center border-b-2 border-transparent px-1 pt-1 text-sm font-medium text-gray-11 hover:border-gray-7 hover:text-gray-12"
+                activeClass="border-blue-500 text-gray-12"
+              >
+                OAuth2 Clients
+              </A>
             </div>
           </div>
           <div class="flex items-center space-x-4">
