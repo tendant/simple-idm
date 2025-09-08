@@ -5,12 +5,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/joho/godotenv"
 	"github.com/tendant/chi-demo/app"
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/pkg/client"
@@ -77,7 +79,7 @@ func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
 type JwtConfig struct {
 	JwtSecret      string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
 	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
-	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
+	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"true"`
 	// Token expiry durations
 	AccessTokenExpiry  string `env:"ACCESS_TOKEN_EXPIRY" env-default:"5m"`
 	RefreshTokenExpiry string `env:"REFRESH_TOKEN_EXPIRY" env-default:"15m"`
@@ -163,6 +165,47 @@ type Config struct {
 	ExternalProviderConfig   ExternalProviderConfig
 }
 
+// loadEnvFile loads environment variables from .env file if it exists
+// Only sets variables that are not already set in the environment
+func loadEnvFile() {
+	// Get the directory where the executable is located
+	execPath, err := os.Executable()
+	if err != nil {
+		slog.Debug("Failed to get executable path", "error", err)
+		return
+	}
+
+	execDir := filepath.Dir(execPath)
+	envFile := filepath.Join(execDir, ".env")
+
+	// Also check current working directory
+	if _, err := os.Stat(envFile); os.IsNotExist(err) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			slog.Debug("Failed to get current working directory", "error", err)
+			return
+		}
+		envFile = filepath.Join(cwd, ".env")
+	}
+
+	// Check if .env file exists
+	if _, err := os.Stat(envFile); os.IsNotExist(err) {
+		slog.Debug("No .env file found", "path", envFile)
+		return
+	}
+
+	slog.Info("Loading configuration from .env file", "path", envFile)
+
+	// Load .env file using godotenv
+	err = godotenv.Load(envFile)
+	if err != nil {
+		slog.Warn("Failed to load .env file", "error", err, "path", envFile)
+		return
+	}
+
+	slog.Info("Configuration loaded from .env file successfully")
+}
+
 func main() {
 
 	// Create a logger with source enabled
@@ -172,6 +215,9 @@ func main() {
 
 	// Set the logger as the default
 	slog.SetDefault(logger)
+
+	// Load .env file if it exists (before reading environment variables)
+	loadEnvFile()
 
 	config := Config{}
 	cleanenv.ReadEnv(&config)
