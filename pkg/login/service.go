@@ -796,7 +796,7 @@ type SendMagicLinkEmailParams struct {
 
 func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPasswordResetEmailParams) error {
 	resetLink := fmt.Sprintf("%s/auth/user/reset-password?token=%s", s.notificationManager.BaseUrl, param.ResetToken)
-	slog.Info("Sending password reset email", "email", param.Email, "resetLink", resetLink)
+	slog.Info("Sending password reset email", "email", param.Email)
 	data := map[string]string{
 		"Link":     resetLink,
 		"UserId":   param.UserId,
@@ -815,7 +815,7 @@ func (s *LoginService) SendMagicLinkEmail(ctx context.Context, param SendMagicLi
 	}
 
 	magicLink := fmt.Sprintf("%s/magic-link-validate?token=%s", s.notificationManager.BaseUrl, param.Token)
-	slog.Info("Sending magic link email", "email", param.Email, "magicLink", magicLink)
+	slog.Info("Sending magic link email", "email", param.Email)
 
 	data := map[string]string{
 		"Link":           magicLink,
