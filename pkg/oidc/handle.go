@@ -67,19 +67,19 @@ type Config struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		PrivateKeyPath:            "../../pkg/oidc/sample/keys/private.pem",
-		ClientID:                  "myclient",
-		ClientSecret:              "mysecret",
-		RedirectURIs:              []string{"http://localhost:3000/oauth2/callback"},
-		ResponseTypes:             []string{"code", "token", "id_token"},
-		GrantTypes:                []string{"authorization_code", "implicit", "refresh_token"},
-		Scopes:                    []string{"openid", "profile", "email"},
-		AccessTokenLifespan:       time.Hour,
-		AuthorizeCodeLifespan:     time.Minute * 10,
-		IDTokenLifespan:           time.Hour,
-		GlobalSecret:              "some-very-long-secret-at-least-32-characters",
+		PrivateKeyPath:             "../../pkg/oidc/sample/keys/private.pem",
+		ClientID:                   "myclient",
+		ClientSecret:               "mysecret",
+		RedirectURIs:               []string{"http://localhost:3000/oauth2/callback"},
+		ResponseTypes:              []string{"code", "token", "id_token"},
+		GrantTypes:                 []string{"authorization_code", "implicit", "refresh_token"},
+		Scopes:                     []string{"openid", "profile", "email"},
+		AccessTokenLifespan:        time.Hour,
+		AuthorizeCodeLifespan:      time.Minute * 10,
+		IDTokenLifespan:            time.Hour,
+		GlobalSecret:               "some-very-long-secret-at-least-32-characters",
 		SendDebugMessagesToClients: true,
-		AllowedPromptValues:       []string{"login", "none", "consent", "select_account"},
+		AllowedPromptValues:        []string{"login", "none", "consent", "select_account"},
 	}
 }
 
@@ -225,35 +225,35 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 	name := "Unknown User"
 	email := ""
 	username := ""
-	
+
 	// If we have claims, extract user information from them
 	if len(userClaims) > 0 {
 		if n, ok := userClaims["name"].(string); ok && n != "" {
 			name = n
 		}
-		
+
 		if e, ok := userClaims["email"].(string); ok && e != "" {
 			email = e
 		}
-		
+
 		if u, ok := userClaims["username"].(string); ok && u != "" {
 			username = u
 		} else if u, ok := userClaims["preferred_username"].(string); ok && u != "" {
 			username = u
 		}
 	}
-	
+
 	// If username is still empty, use the userID as a fallback
 	if username == "" {
 		username = userID
 	}
-	
+
 	// Set expiration times
 	now := time.Now()
 	accessExpiry := now.Add(1 * time.Hour)
 	refreshExpiry := now.Add(30 * 24 * time.Hour)
 	idTokenExpiry := now.Add(1 * time.Hour)
-	
+
 	// Create the session with all the information
 	session := &DefaultSession{
 		Subject: userID,
@@ -268,7 +268,7 @@ func (h *Handle) AuthorizeEndpoint(w http.ResponseWriter, r *http.Request) {
 		},
 		Username: username,
 	}
-	
+
 	slog.Info("[INFO] Created session", "subject", userID, "username", username, "expires", accessExpiry)
 	// Generate the authorization response
 	response, err := h.OAuth2Provider.NewAuthorizeResponse(ctx, ar, session)
@@ -302,14 +302,14 @@ func (h *Handle) ValidateUserToken(r *http.Request) (map[string]interface{}, err
 	if accessToken == "" {
 		// Check for both possible cookie names
 		cookie, err := r.Cookie("access_token")
-		slog.Info("[INFO] Checking cookie", "err", err, "cookie", cookie)
+		slog.Info("[INFO] Checking cookie", "err", err)
 		if err == nil {
 			accessToken = cookie.Value
 		} else {
 			cookie, err = r.Cookie("accessToken")
-			slog.Info("[INFO] Checking cookie", "err", err, "cookie", cookie)
+			slog.Info("[INFO] Checking cookie", "err", err)
 			if err == nil {
-				slog.Info("[INFO] Found cookie", "cookie", cookie)
+				slog.Info("[INFO] Found cookie")
 				accessToken = cookie.Value
 			}
 		}
@@ -367,7 +367,7 @@ func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 	// In a real implementation, you would validate the authorization code
 	// and retrieve the user information from your database
 	userID := "user-123456" // Default user ID for testing
-	
+
 	// Try to get the user ID from the authorization code if available
 	code := r.FormValue("code")
 	if code != "" {
@@ -376,18 +376,18 @@ func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 		slog.Info("[INFO] Processing authorization code", "code", code)
 		// For now, we'll continue using the default user ID
 	}
-	
+
 	// Set default user information
 	name := "Test User"
 	email := "user@example.com"
 	username := "testuser"
-	
+
 	// Set expiration times
 	now := time.Now()
 	accessExpiry := now.Add(1 * time.Hour)
 	refreshExpiry := now.Add(30 * 24 * time.Hour)
 	idTokenExpiry := now.Add(1 * time.Hour)
-	
+
 	// Create the session with all the information
 	session := &DefaultSession{
 		Subject: userID,
@@ -402,7 +402,7 @@ func (h *Handle) TokenEndpoint(w http.ResponseWriter, r *http.Request) {
 		},
 		Username: username,
 	}
-	
+
 	slog.Info("[INFO] Created token session", "subject", userID, "username", username, "expires", accessExpiry)
 
 	// Parse token request
