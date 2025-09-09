@@ -214,7 +214,7 @@ func (h Handle) mapErrorToHTTPResponse(err *loginflow.Error) *Response {
 func (h Handle) prepare2FARequiredResponse(w http.ResponseWriter, commonMethods []loginflow.TwoFactorMethod, tempTokenMap map[string]tg.TokenValue) *Response {
 	// Convert common.TwoFactorMethod to api.TwoFactorMethod
 	var twoFactorMethods []TwoFactorMethod
-	slog.Info("temp token", "token", tempTokenMap[tg.TEMP_TOKEN_NAME].Token)
+	slog.Info("temp token generated")
 	err := copier.Copy(&twoFactorMethods, &commonMethods)
 	if err != nil {
 		slog.Error("Failed to copy 2FA methods", "err", err)
