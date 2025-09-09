@@ -429,6 +429,8 @@ func main() {
 		} else {
 			slog.Info("user exists, skipping creation")
 		}
+	} else {
+		slog.Error("Error checking user existence", "error", err)
 	}
 
 	signupHandle := signup.NewHandle(
