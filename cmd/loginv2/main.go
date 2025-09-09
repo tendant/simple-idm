@@ -27,6 +27,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/oidc"
 	oidcapi "github.com/tendant/simple-idm/pkg/oidc/api"
 	"github.com/tendant/simple-idm/pkg/signup"
+	"github.com/tendant/simple-idm/pkg/user"
 	"github.com/tendant/simple-idm/pkg/wellknown"
 
 	// "github.com/tendant/simple-idm/pkg/impersonate/impersonatedb"
@@ -413,6 +414,20 @@ func main() {
 	}
 	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
 	loginsHandle := logins.NewHandle(loginsService, *twoFaService)
+
+	userService := user.NewUserService(iamService, loginsService, iamQueries)
+
+	if exists, err := iamService.AnyUserExists(context.Background()); err != nil {
+		if !exists {
+			slog.Info("no user exists, creating first admin user")
+			res, err := userService.CreateAdminUser(context.Background(), user.CreateAdminUserOptions{})
+			if err != nil {
+				slog.Error("Error creating admin user", "error", err)
+			} else {
+				slog.Info("Admin user created successfully", "user", res)
+			}
+		}
+	}
 
 	signupHandle := signup.NewHandle(
 		signup.WithIamService(*iamService),
