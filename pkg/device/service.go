@@ -219,3 +219,35 @@ func (s *DeviceService) UpdateDeviceDisplayName(ctx context.Context, loginID uui
 	slog.Debug("Updated device display name", "fingerprint", fingerprint, "loginID", loginID, "displayName", displayName)
 	return loginDevice, nil
 }
+
+func (s *DeviceService) RememberDevice(ctx context.Context, fingerprint FingerprintData, loginID uuid.UUID) (bool, error) {
+	fingerprintStr := GenerateFingerprint(fingerprint)
+	slog.Info("Remembering device", "fingerprint", fingerprintStr, "loginID", loginID)
+
+	// check if device is already linked to login and not expired
+	loginDevice, err := s.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprintStr, loginID)
+	if err == nil && !loginDevice.IsExpired() {
+		// Device is recognized and not expired, skip 2FA
+		slog.Info("Device recognized", "fingerprint", fingerprintStr, "loginID", loginID)
+		return true, nil
+	}
+
+	slog.Info("Device not recognized or expired", "fingerprint", fingerprintStr, "loginID", loginID)
+	// register new device
+	_, err = s.GetDeviceByFingerprint(ctx, fingerprintStr)
+	if err != nil {
+		slog.Info("registering device", "fingerprint", fingerprintStr)
+		_, err = s.RegisterDevice(ctx, fingerprintStr, fingerprint)
+		if err != nil {
+			slog.Error("Failed to register device", "err", err)
+			return false, err
+		}
+	}
+	slog.Info("linking device to login", "fingerprint", fingerprintStr, "loginID", loginID)
+	err = s.LinkDeviceToLogin(ctx, loginID, fingerprintStr)
+	if err != nil {
+		slog.Error("Failed to link device to login", "err", err)
+		return false, err
+	}
+	return true, nil
+}

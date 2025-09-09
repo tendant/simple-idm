@@ -61,7 +61,7 @@ func (s *CredentialAuthenticationStep) Execute(ctx context.Context, flowContext 
 
 		// Record the login attempt
 		if loginResult.LoginID != uuid.Nil {
-			flowContext.Services.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, false, loginResult.FailureReason)
+			flowContext.Services.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprintStr, false, loginResult.FailureReason)
 		}
 
 		// Handle specific error types
@@ -152,7 +152,7 @@ func (s *UserValidationStep) ShouldSkip(ctx context.Context, flowContext *FlowCo
 func (s *UserValidationStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
 	if len(flowContext.Result.Users) == 0 {
 		slog.Error("No user found after login")
-		flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.Result.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, false, login.FAILURE_REASON_NO_USER_FOUND)
+		flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.Result.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 
 		return &StepResult{
 			Error: &Error{
@@ -181,12 +181,12 @@ func (s *DeviceRecognitionStep) Order() int {
 }
 
 func (s *DeviceRecognitionStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
-	return flowContext.Request.DeviceFingerprint == "" // Skip if no fingerprint
+	return flowContext.Request.DeviceFingerprintStr == "" // Skip if no fingerprint
 }
 
 func (s *DeviceRecognitionStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
 	// Check if this device is linked to the login
-	loginDevice, err := flowContext.Services.DeviceService.FindLoginDeviceByFingerprintAndLoginID(ctx, flowContext.Request.DeviceFingerprint, flowContext.LoginID)
+	loginDevice, err := flowContext.Services.DeviceService.FindLoginDeviceByFingerprintAndLoginID(ctx, flowContext.Request.DeviceFingerprintStr, flowContext.LoginID)
 	if err != nil {
 		// Device not found or error occurred
 		flowContext.DeviceRecognized = false
@@ -372,7 +372,7 @@ func (s *TokenGenerationStep) Execute(ctx context.Context, flowContext *FlowCont
 	default: // "web" or any other type defaults to regular tokens
 		slog.Info("Generating web tokens")
 		tokens, err = flowContext.Services.TokenService.GenerateTokens(flowContext.Result.Users[0].UserId, rootModifications, extraClaims)
-		slog.Info("Web tokens generated successfully", "tokens", tokens)
+		slog.Info("Web tokens generated successfully")
 	}
 
 	if err != nil {
@@ -411,11 +411,11 @@ func (s *SuccessRecordingStep) ShouldSkip(ctx context.Context, flowContext *Flow
 
 func (s *SuccessRecordingStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
 	// Record successful login attempt
-	flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, true, "")
+	flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprintStr, true, "")
 
 	// Update device last login time
-	if flowContext.Request.DeviceFingerprint != "" {
-		_, err := flowContext.Services.DeviceService.UpdateDeviceLastLogin(ctx, flowContext.Request.DeviceFingerprint)
+	if flowContext.Request.DeviceFingerprintStr != "" {
+		_, err := flowContext.Services.DeviceService.UpdateDeviceLastLogin(ctx, flowContext.Request.DeviceFingerprintStr)
 		if err != nil {
 			slog.Error("Failed to update device last login time", "error", err, "fingerprint", flowContext.Request.DeviceFingerprint)
 			// Don't fail the login if we can't update the last login time
@@ -553,7 +553,7 @@ func (s *TwoFAValidationStep) Execute(ctx context.Context, flowContext *FlowCont
 	)
 
 	if err != nil {
-		flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
 		return &StepResult{
 			Error: &Error{Type: "internal_error", Message: "failed to validate 2fa: " + err.Error()},
 		}, nil
@@ -561,7 +561,7 @@ func (s *TwoFAValidationStep) Execute(ctx context.Context, flowContext *FlowCont
 
 	if !valid {
 		// Record failed 2FA validation attempt
-		flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprint, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
+		flowContext.Services.LoginService.RecordLoginAttempt(ctx, flowContext.LoginID, flowContext.Request.IPAddress, flowContext.Request.UserAgent, flowContext.Request.DeviceFingerprintStr, false, login.FAILURE_REASON_2FA_VALIDATION_FAILED)
 
 		// Check if account should be locked
 		locked, _, err := flowContext.Services.LoginService.IncrementFailedAttemptsAndCheckLock(ctx, flowContext.LoginID)
@@ -581,6 +581,11 @@ func (s *TwoFAValidationStep) Execute(ctx context.Context, flowContext *FlowCont
 		return &StepResult{
 			Error: &Error{Type: "invalid_2fa_code", Message: "Invalid 2FA code"},
 		}, nil
+	}
+
+	if flowContext.Request.RememberDevice {
+		// Remember the device for future logins
+		flowContext.Services.DeviceService.RememberDevice(ctx, flowContext.Request.DeviceFingerprint, flowContext.LoginID)
 	}
 
 	// Mark 2FA as verified in context
@@ -754,7 +759,7 @@ func (s *DeviceRememberingStep) Order() int {
 
 func (s *DeviceRememberingStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
 	// Skip if RememberDevice is false or device fingerprint is empty
-	if !flowContext.Request.RememberDevice || flowContext.Request.DeviceFingerprint == "" {
+	if !flowContext.Request.RememberDevice || flowContext.Request.DeviceFingerprintStr == "" {
 		return true
 	}
 
@@ -768,7 +773,7 @@ func (s *DeviceRememberingStep) ShouldSkip(ctx context.Context, flowContext *Flo
 
 func (s *DeviceRememberingStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
 	// Link device to login for remembering
-	err := flowContext.Services.DeviceService.LinkDeviceToLogin(ctx, flowContext.LoginID, flowContext.Request.DeviceFingerprint)
+	err := flowContext.Services.DeviceService.LinkDeviceToLogin(ctx, flowContext.LoginID, flowContext.Request.DeviceFingerprintStr)
 	if err != nil {
 		// Log the error but don't fail the login flow
 		slog.Error("Failed to link device to login", "error", err, "fingerprint", flowContext.Request.DeviceFingerprint, "loginID", flowContext.LoginID)

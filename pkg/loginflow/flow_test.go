@@ -623,11 +623,11 @@ func TestFlowExecutor_Execute_FlowContextInitialization(t *testing.T) {
 	// Setup
 	ctx := context.Background()
 	request := Request{
-		Username:          "testuser",
-		Password:          "password",
-		IPAddress:         "192.168.1.1",
-		UserAgent:         "test-agent",
-		DeviceFingerprint: "test-fingerprint",
+		Username:             "testuser",
+		Password:             "password",
+		IPAddress:            "192.168.1.1",
+		UserAgent:            "test-agent",
+		DeviceFingerprintStr: "test-fingerprint",
 	}
 
 	step := NewMockStep("step", 100)
@@ -645,7 +645,7 @@ func TestFlowExecutor_Execute_FlowContextInitialization(t *testing.T) {
 		if flowContext.Request.UserAgent != "test-agent" {
 			t.Errorf("Expected user agent 'test-agent', got '%s'", flowContext.Request.UserAgent)
 		}
-		if flowContext.Request.DeviceFingerprint != "test-fingerprint" {
+		if flowContext.Request.DeviceFingerprintStr != "test-fingerprint" {
 			t.Errorf("Expected fingerprint 'test-fingerprint', got '%s'", flowContext.Request.DeviceFingerprint)
 		}
 		if flowContext.Result == nil {

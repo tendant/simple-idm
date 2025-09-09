@@ -34,12 +34,13 @@ type LoginFlowService struct {
 // Request contains all the data needed for a login flow
 type Request struct {
 	// Original login fields
-	Username          string
-	Password          string
-	MagicLinkToken    string
-	IPAddress         string
-	UserAgent         string
-	DeviceFingerprint string
+	Username             string
+	Password             string
+	MagicLinkToken       string
+	IPAddress            string
+	UserAgent            string
+	DeviceFingerprint    device.FingerprintData
+	DeviceFingerprintStr string
 
 	// Resumption fields
 	IsResumption   bool
@@ -171,7 +172,7 @@ func (s *LoginFlowService) GenerateMobileLoginTokens(ctx context.Context, user m
 }
 
 // ProcessLoginByEmail orchestrates the complete login flow using email with email login flow executor
-func (s *LoginFlowService) ProcessLoginByEmail(ctx context.Context, email, password, ipAddress, userAgent, fingerprint string) Result {
+func (s *LoginFlowService) ProcessLoginByEmail(ctx context.Context, email, password, ipAddress, userAgent string, fingerprint device.FingerprintData) Result {
 	// Convert parameters to unified Request format
 	request := Request{
 		Username:          email, // Use email as username for email login
@@ -188,7 +189,7 @@ func (s *LoginFlowService) ProcessLoginByEmail(ctx context.Context, email, passw
 }
 
 // ProcessMagicLinkValidation orchestrates the magic link token validation flow using magic link flow executor
-func (s *LoginFlowService) ProcessMagicLinkValidation(ctx context.Context, token, ipAddress, userAgent, fingerprint string) Result {
+func (s *LoginFlowService) ProcessMagicLinkValidation(ctx context.Context, token string, ipAddress string, userAgent string, fingerprint device.FingerprintData) Result {
 	// Convert parameters to unified Request format
 	request := Request{
 		MagicLinkToken:    token,
@@ -205,23 +206,25 @@ func (s *LoginFlowService) ProcessMagicLinkValidation(ctx context.Context, token
 
 // UserSwitchRequest contains the data needed for user switching
 type UserSwitchRequest struct {
-	TokenString       string
-	TokenType         string
-	TargetUserID      string
-	IPAddress         string
-	UserAgent         string
-	DeviceFingerprint string
+	TokenString          string
+	TokenType            string
+	TargetUserID         string
+	IPAddress            string
+	UserAgent            string
+	DeviceFingerprint    device.FingerprintData
+	DeviceFingerprintStr string
 }
 
 // TwoFAValidationRequest contains the data needed for 2FA validation
 type TwoFAValidationRequest struct {
-	TokenString       string
-	TwoFAType         string
-	Passcode          string
-	RememberDevice    bool
-	IPAddress         string
-	UserAgent         string
-	DeviceFingerprint string
+	TokenString          string
+	TwoFAType            string
+	Passcode             string
+	RememberDevice       bool
+	IPAddress            string
+	UserAgent            string
+	DeviceFingerprint    device.FingerprintData
+	DeviceFingerprintStr string
 }
 
 // Process2FAValidation orchestrates the 2FA validation flow using resumption strategy

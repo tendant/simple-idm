@@ -84,11 +84,12 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	// Use loginflow service to process the login
 	loginRequest := loginflow.Request{
-		Username:          data.Username,
-		Password:          data.Password,
-		IPAddress:         ipAddress,
-		UserAgent:         userAgent,
-		DeviceFingerprint: fingerprintStr,
+		Username:             data.Username,
+		Password:             data.Password,
+		IPAddress:            ipAddress,
+		UserAgent:            userAgent,
+		DeviceFingerprint:    fingerprintData,
+		DeviceFingerprintStr: fingerprintStr,
 	}
 
 	result := h.loginFlowService.ProcessLogin(r.Context(), loginRequest)
@@ -158,10 +159,9 @@ func (h Handle) LoginByEmail(w http.ResponseWriter, r *http.Request) *Response {
 	ipAddress := getIPAddressFromRequest(r)
 	userAgent := getUserAgentFromRequest(r)
 	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
-	fingerprintStr := device.GenerateFingerprint(fingerprintData)
 
 	// Use loginflow service to process the email login
-	result := h.loginFlowService.ProcessLoginByEmail(r.Context(), string(data.Email), data.Password, ipAddress, userAgent, fingerprintStr)
+	result := h.loginFlowService.ProcessLoginByEmail(r.Context(), string(data.Email), data.Password, ipAddress, userAgent, fingerprintData)
 
 	// Handle error responses
 	if result.ErrorResponse != nil {
@@ -480,12 +480,13 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 
 	// Use loginflow service to process the user switch
 	switchRequest := loginflow.UserSwitchRequest{
-		TokenString:       tokenStr,
-		TokenType:         "temp_token",
-		TargetUserID:      data.UserID,
-		IPAddress:         ipAddress,
-		UserAgent:         userAgent,
-		DeviceFingerprint: fingerprintStr,
+		TokenString:          tokenStr,
+		TokenType:            "temp_token",
+		TargetUserID:         data.UserID,
+		IPAddress:            ipAddress,
+		UserAgent:            userAgent,
+		DeviceFingerprint:    fingerprintData,
+		DeviceFingerprintStr: fingerprintStr,
 	}
 
 	result := h.loginFlowService.ProcessUserSwitch(r.Context(), switchRequest)
@@ -529,11 +530,12 @@ func (h Handle) PostMobileLogin(w http.ResponseWriter, r *http.Request) *Respons
 
 	// Use loginflow service to process the mobile login
 	loginRequest := loginflow.Request{
-		Username:          data.Username,
-		Password:          data.Password,
-		IPAddress:         ipAddress,
-		UserAgent:         userAgent,
-		DeviceFingerprint: fingerprintStr,
+		Username:             data.Username,
+		Password:             data.Password,
+		IPAddress:            ipAddress,
+		UserAgent:            userAgent,
+		DeviceFingerprint:    fingerprintData,
+		DeviceFingerprintStr: fingerprintStr,
 	}
 
 	result := h.loginFlowService.ProcessMobileLogin(r.Context(), loginRequest)
@@ -724,13 +726,14 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 
 	// Use loginflow service to process the 2FA validation
 	validationRequest := loginflow.TwoFAValidationRequest{
-		TokenString:       tokenStr,
-		TwoFAType:         data.TwofaType,
-		Passcode:          data.Passcode,
-		RememberDevice:    data.RememberDevice2fa,
-		IPAddress:         ipAddress,
-		UserAgent:         userAgent,
-		DeviceFingerprint: fingerprintStr,
+		TokenString:          tokenStr,
+		TwoFAType:            data.TwofaType,
+		Passcode:             data.Passcode,
+		RememberDevice:       data.RememberDevice2fa,
+		IPAddress:            ipAddress,
+		UserAgent:            userAgent,
+		DeviceFingerprint:    fingerprintData,
+		DeviceFingerprintStr: fingerprintStr,
 	}
 
 	result := h.loginFlowService.Process2FAValidation(r.Context(), validationRequest)
@@ -871,13 +874,14 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 
 	// Use loginflow service to process the mobile 2FA validation
 	validationRequest := loginflow.TwoFAValidationRequest{
-		TokenString:       tokenStr,
-		TwoFAType:         data.TwofaType,
-		Passcode:          data.Passcode,
-		RememberDevice:    data.RememberDevice2fa,
-		IPAddress:         ipAddress,
-		UserAgent:         userAgent,
-		DeviceFingerprint: fingerprintStr,
+		TokenString:          tokenStr,
+		TwoFAType:            data.TwofaType,
+		Passcode:             data.Passcode,
+		RememberDevice:       data.RememberDevice2fa,
+		IPAddress:            ipAddress,
+		UserAgent:            userAgent,
+		DeviceFingerprint:    fingerprintData,
+		DeviceFingerprintStr: fingerprintStr,
 	}
 
 	result := h.loginFlowService.ProcessMobile2FAValidation(r.Context(), validationRequest)
@@ -941,12 +945,13 @@ func (h Handle) PostMobileUserSwitch(w http.ResponseWriter, r *http.Request) *Re
 
 	// Use loginflow service to process the user switch
 	switchRequest := loginflow.UserSwitchRequest{
-		TokenString:       tokenStr,
-		TokenType:         tokenType,
-		TargetUserID:      data.UserID,
-		IPAddress:         ipAddress,
-		UserAgent:         userAgent,
-		DeviceFingerprint: fingerprintStr,
+		TokenString:          tokenStr,
+		TokenType:            tokenType,
+		TargetUserID:         data.UserID,
+		IPAddress:            ipAddress,
+		UserAgent:            userAgent,
+		DeviceFingerprint:    fingerprintData,
+		DeviceFingerprintStr: fingerprintStr,
 	}
 
 	result := h.loginFlowService.ProcessUserSwitch(r.Context(), switchRequest)
@@ -1125,10 +1130,9 @@ func (h Handle) ValidateMagicLinkToken(w http.ResponseWriter, r *http.Request, p
 	ipAddress := getIPAddressFromRequest(r)
 	userAgent := getUserAgentFromRequest(r)
 	fingerprintData := device.ExtractFingerprintDataFromRequest(r)
-	fingerprintStr := device.GenerateFingerprint(fingerprintData)
 
 	// Use loginflow service to process the magic link validation
-	result := h.loginFlowService.ProcessMagicLinkValidation(r.Context(), params.Token, ipAddress, userAgent, fingerprintStr)
+	result := h.loginFlowService.ProcessMagicLinkValidation(r.Context(), params.Token, ipAddress, userAgent, fingerprintData)
 
 	// Handle error responses
 	if result.ErrorResponse != nil {

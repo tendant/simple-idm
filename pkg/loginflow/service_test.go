@@ -247,11 +247,11 @@ func TestLoginFlowService_ProcessLogin(t *testing.T) {
 		service := setupTestServices(pool)
 
 		request := Request{
-			Username:          "singleuser",
-			Password:          "Admin123.",
-			IPAddress:         "127.0.0.1",
-			UserAgent:         "test-agent",
-			DeviceFingerprint: "test-fingerprint",
+			Username:             "singleuser",
+			Password:             "Admin123.",
+			IPAddress:            "127.0.0.1",
+			UserAgent:            "test-agent",
+			DeviceFingerprintStr: "test-fingerprint",
 		}
 
 		result := service.ProcessLogin(ctx, request)
@@ -273,11 +273,11 @@ func TestLoginFlowService_ProcessLogin(t *testing.T) {
 		service := setupTestServices(pool)
 
 		request := Request{
-			Username:          "admin",
-			Password:          "Admin123.",
-			IPAddress:         "127.0.0.1",
-			UserAgent:         "test-agent",
-			DeviceFingerprint: "test-fingerprint",
+			Username:             "admin",
+			Password:             "Admin123.",
+			IPAddress:            "127.0.0.1",
+			UserAgent:            "test-agent",
+			DeviceFingerprintStr: "test-fingerprint",
 		}
 
 		result := service.ProcessLogin(ctx, request)
@@ -296,11 +296,11 @@ func TestLoginFlowService_ProcessLogin(t *testing.T) {
 		service := setupTestServices(pool)
 
 		request := Request{
-			Username:          "admin",
-			Password:          "wrongpassword",
-			IPAddress:         "127.0.0.1",
-			UserAgent:         "test-agent",
-			DeviceFingerprint: "test-fingerprint",
+			Username:             "admin",
+			Password:             "wrongpassword",
+			IPAddress:            "127.0.0.1",
+			UserAgent:            "test-agent",
+			DeviceFingerprintStr: "test-fingerprint",
 		}
 
 		result := service.ProcessLogin(ctx, request)
@@ -314,11 +314,11 @@ func TestLoginFlowService_ProcessLogin(t *testing.T) {
 		service := setupTestServices(pool)
 
 		request := Request{
-			Username:          "nonexistent",
-			Password:          "password",
-			IPAddress:         "127.0.0.1",
-			UserAgent:         "test-agent",
-			DeviceFingerprint: "test-fingerprint",
+			Username:             "nonexistent",
+			Password:             "password",
+			IPAddress:            "127.0.0.1",
+			UserAgent:            "test-agent",
+			DeviceFingerprintStr: "test-fingerprint",
 		}
 
 		result := service.ProcessLogin(ctx, request)
@@ -344,11 +344,11 @@ func TestLoginFlowService_ProcessMobileLogin(t *testing.T) {
 
 	t.Run("successful mobile login", func(t *testing.T) {
 		request := Request{
-			Username:          "admin",
-			Password:          "Admin123.",
-			IPAddress:         "127.0.0.1",
-			UserAgent:         "mobile-agent",
-			DeviceFingerprint: "mobile-fingerprint",
+			Username:             "admin",
+			Password:             "Admin123.",
+			IPAddress:            "127.0.0.1",
+			UserAgent:            "mobile-agent",
+			DeviceFingerprintStr: "mobile-fingerprint",
 		}
 
 		result := service.ProcessMobileLogin(ctx, request)
@@ -360,11 +360,11 @@ func TestLoginFlowService_ProcessMobileLogin(t *testing.T) {
 
 	t.Run("invalid mobile credentials", func(t *testing.T) {
 		request := Request{
-			Username:          "admin",
-			Password:          "wrongpassword",
-			IPAddress:         "127.0.0.1",
-			UserAgent:         "mobile-agent",
-			DeviceFingerprint: "mobile-fingerprint",
+			Username:             "admin",
+			Password:             "wrongpassword",
+			IPAddress:            "127.0.0.1",
+			UserAgent:            "mobile-agent",
+			DeviceFingerprintStr: "mobile-fingerprint",
 		}
 
 		result := service.ProcessMobileLogin(ctx, request)
@@ -387,9 +387,12 @@ func TestLoginFlowService_ProcessLoginByEmail(t *testing.T) {
 	service := setupTestServices(pool)
 
 	ctx := context.Background()
+	fingerprint := device.FingerprintData{
+		UserAgent: "test-agent",
+	}
 
 	t.Run("successful email login", func(t *testing.T) {
-		result := service.ProcessLoginByEmail(ctx, "admin@test.com", "Admin123.", "127.0.0.1", "test-agent", "test-fingerprint")
+		result := service.ProcessLoginByEmail(ctx, "admin@test.com", "Admin123.", "127.0.0.1", "test-agent", fingerprint)
 
 		require.True(t, result.Success)
 		require.NotEmpty(t, result.Tokens)
@@ -397,7 +400,7 @@ func TestLoginFlowService_ProcessLoginByEmail(t *testing.T) {
 	})
 
 	t.Run("invalid email credentials", func(t *testing.T) {
-		result := service.ProcessLoginByEmail(ctx, "admin@test.com", "wrongpassword", "127.0.0.1", "test-agent", "test-fingerprint")
+		result := service.ProcessLoginByEmail(ctx, "admin@test.com", "wrongpassword", "127.0.0.1", "test-agent", fingerprint)
 
 		require.False(t, result.Success)
 		require.NotNil(t, result.ErrorResponse)
@@ -669,13 +672,13 @@ func TestLoginFlowService_Process2FAValidation(t *testing.T) {
 
 	t.Run("invalid temp token", func(t *testing.T) {
 		request := TwoFAValidationRequest{
-			TokenString:       "invalid-token",
-			TwoFAType:         "totp",
-			Passcode:          "123456",
-			RememberDevice:    false,
-			IPAddress:         "127.0.0.1",
-			UserAgent:         "test-agent",
-			DeviceFingerprint: "test-fingerprint",
+			TokenString:          "invalid-token",
+			TwoFAType:            "totp",
+			Passcode:             "123456",
+			RememberDevice:       false,
+			IPAddress:            "127.0.0.1",
+			UserAgent:            "test-agent",
+			DeviceFingerprintStr: "test-fingerprint",
 		}
 
 		result := service.Process2FAValidation(ctx, request)
@@ -701,13 +704,13 @@ func TestLoginFlowService_ProcessMobile2FAValidation(t *testing.T) {
 
 	t.Run("invalid temp token for mobile", func(t *testing.T) {
 		request := TwoFAValidationRequest{
-			TokenString:       "invalid-token",
-			TwoFAType:         "totp",
-			Passcode:          "123456",
-			RememberDevice:    false,
-			IPAddress:         "127.0.0.1",
-			UserAgent:         "mobile-agent",
-			DeviceFingerprint: "mobile-fingerprint",
+			TokenString:          "invalid-token",
+			TwoFAType:            "totp",
+			Passcode:             "123456",
+			RememberDevice:       false,
+			IPAddress:            "127.0.0.1",
+			UserAgent:            "mobile-agent",
+			DeviceFingerprintStr: "mobile-fingerprint",
 		}
 
 		result := service.ProcessMobile2FAValidation(ctx, request)
@@ -733,12 +736,12 @@ func TestLoginFlowService_ProcessUserSwitch(t *testing.T) {
 
 	t.Run("invalid temp token for user switch", func(t *testing.T) {
 		request := UserSwitchRequest{
-			TokenString:       "invalid-token",
-			TokenType:         "temp_token",
-			TargetUserID:      "test-user-id",
-			IPAddress:         "127.0.0.1",
-			UserAgent:         "test-agent",
-			DeviceFingerprint: "test-fingerprint",
+			TokenString:          "invalid-token",
+			TokenType:            "temp_token",
+			TargetUserID:         "test-user-id",
+			IPAddress:            "127.0.0.1",
+			UserAgent:            "test-agent",
+			DeviceFingerprintStr: "test-fingerprint",
 		}
 
 		result := service.ProcessUserSwitch(ctx, request)
@@ -818,8 +821,12 @@ func TestLoginFlowService_ProcessMagicLinkValidation(t *testing.T) {
 
 	ctx := context.Background()
 
+	fingerprint := device.FingerprintData{
+		UserAgent: "test-agent",
+	}
+
 	t.Run("invalid magic link token", func(t *testing.T) {
-		result := service.ProcessMagicLinkValidation(ctx, "invalid-magic-link-token", "127.0.0.1", "test-agent", "test-fingerprint")
+		result := service.ProcessMagicLinkValidation(ctx, "invalid-magic-link-token", "127.0.0.1", "test-agent", fingerprint)
 
 		require.False(t, result.Success)
 		require.NotNil(t, result.ErrorResponse)
