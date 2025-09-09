@@ -110,3 +110,8 @@ WHERE u.deleted_at IS NULL
 GROUP BY u.id, u.created_at, u.last_modified_at, u.deleted_at, u.created_by, u.email, u.name, l.username, u.login_id
 ORDER BY u.created_at ASC
 LIMIT 50;
+
+-- name: AnyUserExists :one
+SELECT EXISTS (
+    SELECT 1 FROM users
+) as exists;
