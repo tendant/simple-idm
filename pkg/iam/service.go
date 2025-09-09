@@ -22,6 +22,7 @@ type IamRepository interface {
 	UpdateUserLoginID(ctx context.Context, userID uuid.UUID, loginID *uuid.UUID) (User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
 	DeleteUserRoles(ctx context.Context, userID uuid.UUID) error
+	AnyUserExists(ctx context.Context) (bool, error)
 
 	// Role operations
 	CreateUserRole(ctx context.Context, params UserRoleParams) error
@@ -399,6 +400,11 @@ func (r *PostgresIamRepository) DeleteUserRoles(ctx context.Context, userID uuid
 	return r.queries.DeleteUserRoles(ctx, userID)
 }
 
+// AnyUserExists checks if any user exists in the system
+func (r *PostgresIamRepository) AnyUserExists(ctx context.Context) (bool, error) {
+	return r.queries.AnyUserExists(ctx)
+}
+
 // CreateUserRole creates a user-role association
 func (r *PostgresIamRepository) CreateUserRole(ctx context.Context, params UserRoleParams) error {
 	// Convert domain model to iamdb model
@@ -551,4 +557,8 @@ func (s *IamService) DeleteUser(ctx context.Context, userId uuid.UUID) error {
 	}
 
 	return s.repo.DeleteUser(ctx, userId)
+}
+
+func (s *IamService) AnyUserExists(ctx context.Context) (bool, error) {
+	return s.repo.AnyUserExists(ctx)
 }
