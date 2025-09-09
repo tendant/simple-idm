@@ -429,7 +429,7 @@ func main() {
 				slog.Info("Admin user created successfully", "user", res)
 			}
 		} else {
-			slog.Info("user exists, skipping creation")
+			slog.Info("User exists, skipping creation")
 		}
 	}
 
