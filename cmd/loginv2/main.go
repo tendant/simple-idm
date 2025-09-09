@@ -172,7 +172,7 @@ func loadEnvFile() {
 	// Get the directory where the executable is located
 	execPath, err := os.Executable()
 	if err != nil {
-		slog.Debug("Failed to get executable path", "error", err)
+		slog.Error("Failed to get executable path", "error", err)
 		return
 	}
 
@@ -183,7 +183,7 @@ func loadEnvFile() {
 	if _, err := os.Stat(envFile); os.IsNotExist(err) {
 		cwd, err := os.Getwd()
 		if err != nil {
-			slog.Debug("Failed to get current working directory", "error", err)
+			slog.Error("Failed to get current working directory", "error", err)
 			return
 		}
 		envFile = filepath.Join(cwd, ".env")
@@ -191,7 +191,7 @@ func loadEnvFile() {
 
 	// Check if .env file exists
 	if _, err := os.Stat(envFile); os.IsNotExist(err) {
-		slog.Debug("No .env file found", "path", envFile)
+		slog.Error("No .env file found", "path", envFile)
 		return
 	}
 
@@ -200,7 +200,7 @@ func loadEnvFile() {
 	// Load .env file using godotenv
 	err = godotenv.Load(envFile)
 	if err != nil {
-		slog.Warn("Failed to load .env file", "error", err, "path", envFile)
+		slog.Error("Failed to load .env file", "error", err, "path", envFile)
 		return
 	}
 
@@ -426,6 +426,8 @@ func main() {
 			} else {
 				slog.Info("Admin user created successfully", "user", res)
 			}
+		} else {
+			slog.Info("user exists, skipping creation")
 		}
 	}
 
