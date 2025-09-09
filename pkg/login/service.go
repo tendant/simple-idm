@@ -904,7 +904,7 @@ func (s *LoginService) ValidateMagicLinkToken(ctx context.Context, token string)
 	if err != nil {
 		return LoginResult{}, fmt.Errorf("invalid or expired token: %w", err)
 	}
-	slog.Info("Magic link token validated successfully", "login_id", loginID, "token", token)
+	slog.Info("Magic link token validated successfully", "login_id", loginID)
 
 	// Mark the token as used
 	err = s.repository.MarkMagicLinkTokenUsed(ctx, token)
@@ -912,7 +912,7 @@ func (s *LoginService) ValidateMagicLinkToken(ctx context.Context, token string)
 		slog.Error("Failed to mark token as used", "error", err)
 		// Continue anyway
 	}
-	slog.Info("Magic link token marked as used", "login_id", loginID, "token", token)
+	slog.Info("Magic link token marked as used", "login_id", loginID)
 
 	// Get users associated with this login
 	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)

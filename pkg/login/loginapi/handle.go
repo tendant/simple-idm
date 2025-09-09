@@ -668,7 +668,7 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 	}
 	tokenStr := cookie.Value
 
-	slog.Info("found temp token", "token", tokenStr)
+	slog.Info("found temp token")
 
 	// Use loginflow service to process the 2FA send
 	sendRequest := loginflow.TwoFASendRequest{
