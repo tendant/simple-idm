@@ -4,9 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -53,7 +57,16 @@ type SessionData struct {
 	ChallengeMethod string
 	UsePKCE         bool
 	Token           *oauth2.Token
+	IDToken         string
 	UserInfo        map[string]interface{}
+}
+
+// IDTokenResponse represents the response from the token endpoint with ID token
+type IDTokenResponse struct {
+	IDToken   string `json:"id_token"`
+	TokenType string `json:"token_type"`
+	ExpiresIn int    `json:"expires_in"`
+	Scope     string `json:"scope,omitempty"`
 }
 
 func main() {
@@ -239,31 +252,36 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Received authorization code: %s\n", code)
 
-	// Exchange code for token
+	// Exchange code for ID token using custom function
 	ctx := context.Background()
-	var token *oauth2.Token
-	var err error
-
+	var codeVerifier string
 	if session.UsePKCE && session.CodeVerifier != "" {
-		// Use PKCE code verifier in token exchange
-		token, err = oauth2Config.Exchange(ctx, code, oauth2.VerifierOption(session.CodeVerifier))
+		codeVerifier = session.CodeVerifier
 		fmt.Printf("Using PKCE token exchange with code verifier\n")
 	} else {
-		// Standard token exchange
-		token, err = oauth2Config.Exchange(ctx, code)
 		fmt.Printf("Using standard token exchange\n")
 	}
 
+	idTokenResp, err := exchangeCodeForIDToken(ctx, code, codeVerifier)
 	if err != nil {
 		fmt.Printf("Token exchange failed: %v\n", err)
 		http.Error(w, fmt.Sprintf("Token exchange failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	fmt.Printf("Token exchange successful. Access token: %s...\n", token.AccessToken)
+	fmt.Printf("Token exchange successful. ID token: %s...\n", idTokenResp.IDToken[:50])
 
-	// Store token in session
+	// Create a compatible oauth2.Token structure for display purposes
+	// Note: We're storing the ID token in the AccessToken field for compatibility with existing UI
+	token := &oauth2.Token{
+		AccessToken: idTokenResp.IDToken,
+		TokenType:   idTokenResp.TokenType,
+		Expiry:      time.Now().Add(time.Duration(idTokenResp.ExpiresIn) * time.Second),
+	}
+
+	// Store both the oauth2.Token (for compatibility) and the ID token separately
 	session.Token = token
+	session.IDToken = idTokenResp.IDToken
 
 	// Redirect to home page
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -306,15 +324,10 @@ func handleProfile(w http.ResponseWriter, r *http.Request) {
         
         <div class="info success">
             <h3>Token Information</h3>
-            <p><strong>Access Token:</strong> ` + session.Token.AccessToken + `...</p>
+            <p><strong>ID Token:</strong> ` + session.IDToken[:100] + `...</p>
             <p><strong>Token Type:</strong> ` + session.Token.TokenType + `</p>
-            <p><strong>Expires:</strong> ` + session.Token.Expiry.Format(time.RFC3339) + `</p>`
-
-	if session.Token.RefreshToken != "" {
-		html += `<p><strong>Refresh Token:</strong> ` + session.Token.RefreshToken + `...</p>`
-	}
-
-	html += `
+            <p><strong>Expires:</strong> ` + session.Token.Expiry.Format(time.RFC3339) + `</p>
+            <p><em>Note: This is an OIDC ID Token, not an OAuth2 Access Token</em></p>
         </div>`
 
 	// Add PKCE information if available
@@ -389,6 +402,57 @@ func getOrCreateSessionID(w http.ResponseWriter, r *http.Request) string {
 		})
 	}
 	return sessionID
+}
+
+// exchangeCodeForIDToken performs a custom token exchange that handles ID token response
+func exchangeCodeForIDToken(ctx context.Context, code, codeVerifier string) (*IDTokenResponse, error) {
+	// Prepare form data for token exchange
+	data := url.Values{}
+	data.Set("grant_type", "authorization_code")
+	data.Set("code", code)
+	data.Set("client_id", clientID)
+	data.Set("client_secret", clientSecret)
+	data.Set("redirect_uri", redirectURL)
+
+	if codeVerifier != "" {
+		data.Set("code_verifier", codeVerifier)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	// Make the request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for HTTP errors
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token exchange failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse JSON response
+	var tokenResp IDTokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &tokenResp, nil
 }
 
 func generateRandomString(length int) string {
