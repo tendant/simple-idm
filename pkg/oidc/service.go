@@ -319,14 +319,6 @@ func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, sco
 		"iss": s.issuer,           // Issuer (configurable)
 	}
 
-	// Prepare extra claims for OIDC-specific data
-	// extraClaims := map[string]interface{}{
-	// 	"scope":     scope,    // Granted scopes
-	// 	"token_use": "id",     // Token usage type
-	// 	"user_id":   userID,   // User ID
-	// 	"client_id": clientID, // Client ID
-	// }
-
 	// Fetch real user data if UserMapper is available
 	if userUUID, err := uuid.Parse(userID); err == nil {
 		if user, err := s.userMapper.GetUserByUserID(ctx, userUUID); err == nil {
@@ -341,7 +333,6 @@ func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, sco
 			if containsScope(scope, "email") {
 				if user.UserInfo.Email != "" {
 					rootModifications["email"] = user.UserInfo.Email
-					slog.Info("email verified", "email verified", user.UserInfo.EmailVerified)
 					rootModifications["email_verified"] = user.UserInfo.EmailVerified
 				}
 			}
@@ -350,6 +341,7 @@ func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, sco
 			if containsScope(scope, "phone") {
 				if user.UserInfo.PhoneNumber != "" {
 					rootModifications["phone_number"] = user.UserInfo.PhoneNumber
+					rootModifications["phone_number_verified"] = user.UserInfo.PhoneNumberVerified
 				}
 			}
 		} else {
