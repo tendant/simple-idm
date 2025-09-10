@@ -266,8 +266,8 @@ func (s *OIDCService) validatePKCE(codeVerifier, codeChallenge, codeChallengeMet
 func (s *OIDCService) GenerateAccessToken(ctx context.Context, userID, clientID, scope string) (string, error) {
 	// Prepare root modifications for standard JWT claims
 	rootModifications := map[string]interface{}{
-		"aud": clientID, // Audience (client ID)
-		"iss": s.issuer, // Issuer (configurable)
+		"aud": []string{clientID}, // Audience (client ID)
+		"iss": s.issuer,           // Issuer (configurable)
 	}
 
 	// Prepare extra claims for OIDC-specific data
@@ -311,8 +311,8 @@ func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, sco
 	slog.Info("generating ID token", "userID", userID, "clientID", clientID, "scope", scope)
 	// Prepare root modifications for standard JWT claims
 	rootModifications := map[string]interface{}{
-		"aud": clientID, // Audience (client ID)
-		"iss": s.issuer, // Issuer (configurable)
+		"aud": []string{clientID}, // Audience (client ID)
+		"iss": s.issuer,           // Issuer (configurable)
 	}
 
 	// Prepare extra claims for OIDC-specific data
