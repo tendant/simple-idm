@@ -156,6 +156,7 @@ type ExternalProviderConfig struct {
 
 type Config struct {
 	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:4000"`
+	FrontendUrl              string `env:"FRONTEND_URL" env-default:"http://localhost:3000"`
 	IdmDbConfig              IdmDbConfig
 	AppConfig                app.AppConfig
 	JwtConfig                JwtConfig
@@ -455,7 +456,8 @@ func main() {
 		clientService,
 		oidc.WithTokenGenerator(rsaTokenGenerator),
 		oidc.WithBaseURL(config.BaseUrl),
-		oidc.WithLoginURL("http://localhost:3000/login"),
+		oidc.WithLoginURL(config.FrontendUrl+"/login"),
+		oidc.WithUserMapper(userMapper),
 	)
 
 	oidcHandle := oidcapi.NewOidcHandle(clientService, oidcService, oidcapi.WithJwksService(jwksService))
@@ -494,7 +496,7 @@ func main() {
 		loginService,
 		tokenService,
 		tokenCookieService,
-	).WithFrontendURL("http://localhost:3000")
+	).WithFrontendURL(config.FrontendUrl)
 
 	// Configure well-known endpoints for MCP compliance
 	wellKnownConfig := wellknown.Config{
