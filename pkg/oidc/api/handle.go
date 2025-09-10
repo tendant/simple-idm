@@ -210,10 +210,6 @@ func (h *OidcHandle) Token(w http.ResponseWriter, r *http.Request) *Response {
 	slog.Info("Token exchange successful",
 		"client_id", tokenReq.ClientID,
 		"scope", response.Scope,
-		"id_token", response.IDToken,
-		"access_token", response.AccessToken,
-		"expires_in", response.ExpiresIn,
-		"token_type", response.TokenType,
 	)
 
 	return TokenJSON200Response(tokenResponse)
