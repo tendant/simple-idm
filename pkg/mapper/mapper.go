@@ -18,15 +18,16 @@ type User struct {
 }
 
 type UserInfo struct {
-	Sub               string    `json:"sub,omitempty"`            // Subject - Identifier for the End-User (required)
-	Name              string    `json:"name,omitempty"`           // End-User's full name
-	PreferredName     string    `json:"preferred_name,omitempty"` // Name by which the End-User wishes to be referred to
-	PreferredUsername string    `json:"preferred_username,omitempty"`
-	Email             string    `json:"email,omitempty"`          // End-User's preferred e-mail address
-	EmailVerified     bool      `json:"email_verified,omitempty"` // True if email has been verified
-	UpdatedAt         time.Time `json:"updated_at,omitempty"`     // Time the information was last updated
-	PhoneNumber       string    `json:"phone_number,omitempty"`   // End-User's preferred telephone number
-	Birthdate         string    `json:"birthdate,omitempty"`      // End-User's birthday
+	Sub                 string    `json:"sub,omitempty"`            // Subject - Identifier for the End-User (required)
+	Name                string    `json:"name,omitempty"`           // End-User's full name
+	PreferredName       string    `json:"preferred_name,omitempty"` // Name by which the End-User wishes to be referred to
+	PreferredUsername   string    `json:"preferred_username,omitempty"`
+	Email               string    `json:"email,omitempty"`                 // End-User's preferred e-mail address
+	EmailVerified       bool      `json:"email_verified,omitempty"`        // True if email has been verified
+	UpdatedAt           time.Time `json:"updated_at,omitempty"`            // Time the information was last updated
+	PhoneNumber         string    `json:"phone_number,omitempty"`          // End-User's preferred telephone number
+	PhoneNumberVerified bool      `json:"phone_number_verified,omitempty"` // True if phone number has been verified
+	Birthdate           string    `json:"birthdate,omitempty"`             // End-User's birthday
 }
 
 // DelegatedUserMapper interface for retrieving delegated users
