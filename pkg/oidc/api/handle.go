@@ -196,11 +196,11 @@ func (h *OidcHandle) Token(w http.ResponseWriter, r *http.Request) *Response {
 
 	// Success case - create token response
 	tokenResponse := TokenResponse{
-		AccessToken:  response.AccessToken,
-		RefreshToken: &response.RefreshToken,
-		TokenType:    response.TokenType,
-		ExpiresIn:    response.ExpiresIn,
-		Scope:        stringPtr(response.Scope),
+		IDToken:     response.IDToken,
+		AccessToken: response.AccessToken,
+		TokenType:   response.TokenType,
+		ExpiresIn:   response.ExpiresIn,
+		Scope:       stringPtr(response.Scope),
 	}
 
 	slog.Info("Token exchange successful",
@@ -228,12 +228,9 @@ func (h *OidcHandle) writeJSONResponse(w http.ResponseWriter, data interface{}, 
 	// Simple JSON encoding without external dependencies
 	switch v := data.(type) {
 	case TokenResponse:
-		fmt.Fprintf(w, `{"access_token":"%s","token_type":"%s","expires_in":%d`, v.AccessToken, v.TokenType, v.ExpiresIn)
+		fmt.Fprintf(w, `{"id_token":"%s","token_type":"%s","expires_in":%d`, v.IDToken, v.TokenType, v.ExpiresIn)
 		if v.Scope != nil {
 			fmt.Fprintf(w, `,"scope":"%s"`, *v.Scope)
-		}
-		if v.RefreshToken != nil {
-			fmt.Fprintf(w, `,"refresh_token":"%s"`, *v.RefreshToken)
 		}
 		fmt.Fprint(w, "}")
 	case ErrorResponse:

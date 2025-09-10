@@ -5,11 +5,14 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	"github.com/tendant/simple-idm/pkg/pkce"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -54,6 +57,7 @@ type OIDCService struct {
 	repository      OIDCRepository
 	clientService   *oauth2client.ClientService
 	tokenGenerator  tokengenerator.TokenGenerator
+	userMapper      mapper.UserMapper
 	codeExpiration  time.Duration
 	tokenExpiration time.Duration
 	baseURL         string
@@ -95,6 +99,13 @@ func WithLoginURL(url string) Option {
 func WithTokenGenerator(generator tokengenerator.TokenGenerator) Option {
 	return func(s *OIDCService) {
 		s.tokenGenerator = generator
+	}
+}
+
+// WithUserMapper sets the user mapper for fetching user data
+func WithUserMapper(userMapper mapper.UserMapper) Option {
+	return func(s *OIDCService) {
+		s.userMapper = userMapper
 	}
 }
 
@@ -266,23 +277,87 @@ func (s *OIDCService) GenerateAccessToken(ctx context.Context, userID, clientID,
 	return tokenString, nil
 }
 
-func (s *OIDCService) GenerateRefreshToken(ctx context.Context, userID, clientID, scope string) (string, error) {
+// func (s *OIDCService) GenerateRefreshToken(ctx context.Context, userID, clientID, scope string) (string, error) {
+// 	// Prepare root modifications for standard JWT claims
+// 	rootModifications := map[string]interface{}{
+// 		"aud": clientID,     // Audience (client ID)
+// 		"iss": "simple-idm", // Issuer
+// 	}
+// 	// Prepare extra claims for OIDC-specific data
+// 	extraClaims := map[string]interface{}{
+// 		"scope":     scope,     // Granted scopes
+// 		"token_use": "refresh", // Token usage type
+// 		"user_id":   userID,    // User ID
+// 		"client_id": clientID,  // Client ID
+// 	}
+// 	tokenString, _, err := s.tokenGenerator.GenerateToken(userID, s.tokenExpiration, rootModifications, extraClaims)
+// 	if err != nil {
+// 		return "", fmt.Errorf("failed to generate refresh token using TokenGenerator: %w", err)
+// 	}
+// 	return tokenString, nil
+// }
+
+// GenerateIDToken creates an OIDC ID token (JWT) for the user
+func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, scope string) (string, error) {
+	slog.Info("generating ID token", "userID", userID, "clientID", clientID, "scope", scope)
 	// Prepare root modifications for standard JWT claims
 	rootModifications := map[string]interface{}{
 		"aud": clientID,     // Audience (client ID)
 		"iss": "simple-idm", // Issuer
 	}
+
 	// Prepare extra claims for OIDC-specific data
 	extraClaims := map[string]interface{}{
-		"scope":     scope,     // Granted scopes
-		"token_use": "refresh", // Token usage type
-		"user_id":   userID,    // User ID
-		"client_id": clientID,  // Client ID
+		"scope":     scope,    // Granted scopes
+		"token_use": "id",     // Token usage type
+		"user_id":   userID,   // User ID
+		"client_id": clientID, // Client ID
 	}
+
+	// Fetch real user data if UserMapper is available
+	if s.userMapper != nil {
+		if userUUID, err := uuid.Parse(userID); err == nil {
+			if user, err := s.userMapper.GetUserByUserID(ctx, userUUID); err == nil {
+				slog.Info("user info from user mapper", "user", user)
+				// Add OIDC-specific claims based on scope using real user data
+				if containsScope(scope, "profile") {
+					if user.DisplayName != "" {
+						extraClaims["name"] = user.DisplayName
+					}
+				}
+
+				if containsScope(scope, "email") {
+					if user.UserInfo.Email != "" {
+						extraClaims["email"] = user.UserInfo.Email
+						extraClaims["email_verified"] = true
+					}
+				}
+
+				// Add phone number support (new feature)
+				if containsScope(scope, "phone") {
+					if user.UserInfo.PhoneNumber != "" {
+						extraClaims["phone_number"] = user.UserInfo.PhoneNumber
+						extraClaims["phone_number_verified"] = true
+					}
+				}
+			} else {
+				// Log error but continue with empty values
+				fmt.Printf("Warning: Failed to fetch user data for ID %s: %v\n", userID, err)
+			}
+		} else {
+			// Log error but continue with empty values
+			fmt.Printf("Warning: Failed to parse user ID as UUID: %s\n", userID)
+		}
+	} else {
+		// UserMapper not available, use empty values
+		fmt.Printf("Info: UserMapper not configured, generating ID token with minimal claims for user ID %s\n", userID)
+	}
+
 	tokenString, _, err := s.tokenGenerator.GenerateToken(userID, s.tokenExpiration, rootModifications, extraClaims)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate refresh token using TokenGenerator: %w", err)
+		return "", fmt.Errorf("failed to generate ID token using TokenGenerator: %w", err)
 	}
+
 	return tokenString, nil
 }
 
@@ -394,15 +469,15 @@ type TokenRequest struct {
 
 // TokenExchangeResponse represents the result of a token exchange
 type TokenExchangeResponse struct {
-	Success      bool
-	AccessToken  string
-	RefreshToken string
-	TokenType    string
-	ExpiresIn    int
-	Scope        string
-	ErrorCode    string
-	ErrorDesc    string
-	HTTPStatus   int
+	Success     bool
+	IDToken     string
+	AccessToken string
+	TokenType   string
+	ExpiresIn   int
+	Scope       string
+	ErrorCode   string
+	ErrorDesc   string
+	HTTPStatus  int
 }
 
 // ProcessAuthorizationRequest handles the complete OAuth2 authorization flow
@@ -546,35 +621,27 @@ func (s *OIDCService) ProcessTokenRequest(ctx context.Context, req TokenRequest)
 		}
 	}
 
-	// Generate access token
-	accessToken, err := s.GenerateAccessToken(ctx, authCode.UserID, client.ClientID, authCode.Scope)
+	// Generate ID token
+	idToken, err := s.GenerateIDToken(ctx, authCode.UserID, client.ClientID, authCode.Scope)
 	if err != nil {
 		return &TokenExchangeResponse{
 			Success:    false,
 			ErrorCode:  "server_error",
-			ErrorDesc:  "Failed to generate access token",
+			ErrorDesc:  "Failed to generate ID token",
 			HTTPStatus: 500,
 		}
 	}
 
-	refreshToken, err := s.GenerateRefreshToken(ctx, authCode.UserID, client.ClientID, authCode.Scope)
-	if err != nil {
-		return &TokenExchangeResponse{
-			Success:    false,
-			ErrorCode:  "server_error",
-			ErrorDesc:  "Failed to generate refresh token",
-			HTTPStatus: 500,
-		}
-	}
+	accessToken, err := s.GenerateAccessToken(ctx, authCode.UserID, client.ClientID, authCode.Scope)
 
 	return &TokenExchangeResponse{
-		Success:      true,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    3600, // 1 hour
-		Scope:        authCode.Scope,
-		HTTPStatus:   200,
+		Success:     true,
+		IDToken:     idToken,
+		AccessToken: accessToken,
+		TokenType:   "Bearer",
+		ExpiresIn:   3600, // 1 hour
+		Scope:       authCode.Scope,
+		HTTPStatus:  200,
 	}
 }
 

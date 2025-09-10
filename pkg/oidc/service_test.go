@@ -208,9 +208,18 @@ func TestOIDCService_GenerateAccessToken(t *testing.T) {
 		t.Errorf("Expected audience as string or array, got '%v' of type %T", aud, aud)
 	}
 
-	// The scope might be nil if not properly set in the token generation
-	if scope := claims["scope"]; scope != nil && scope != "openid profile" {
-		t.Errorf("Expected scope 'openid profile', got '%v'", scope)
+	// Access extra claims nested under "extra_claims"
+	extraClaims, ok := claims["extra_claims"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Failed to extract extra claims from token")
+	}
+
+	if extraClaims["token_use"] != "access" {
+		t.Errorf("Expected token_use 'access', got '%v'", extraClaims["token_use"])
+	}
+
+	if extraClaims["scope"] != "openid profile" {
+		t.Errorf("Expected scope 'openid profile', got '%v'", extraClaims["scope"])
 	}
 }
 
@@ -350,7 +359,7 @@ func TestOIDCService_GetAuthorizationCode_EmptyCode(t *testing.T) {
 	}
 }
 
-func TestOIDCService_GenerateRefreshToken(t *testing.T) {
+func TestOIDCService_GenerateIDToken(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
 	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
@@ -369,7 +378,7 @@ func TestOIDCService_GenerateRefreshToken(t *testing.T) {
 	ctx := context.Background()
 
 	// Test
-	token, err := service.GenerateRefreshToken(ctx, "user123", "test-client", "openid profile")
+	token, err := service.GenerateIDToken(ctx, "user123", "test-client", "openid profile")
 
 	// Assertions
 	if err != nil {
@@ -377,7 +386,7 @@ func TestOIDCService_GenerateRefreshToken(t *testing.T) {
 	}
 
 	if token == "" {
-		t.Fatal("Expected non-empty refresh token")
+		t.Fatal("Expected non-empty ID token")
 	}
 
 	// Verify the token can be parsed using the TokenGenerator
@@ -408,8 +417,8 @@ func TestOIDCService_GenerateRefreshToken(t *testing.T) {
 		t.Fatal("Failed to extract extra claims from token")
 	}
 
-	if extraClaims["token_use"] != "refresh" {
-		t.Errorf("Expected token_use 'refresh', got '%v'", extraClaims["token_use"])
+	if extraClaims["token_use"] != "id" {
+		t.Errorf("Expected token_use 'id', got '%v'", extraClaims["token_use"])
 	}
 
 	if extraClaims["user_id"] != "user123" {
@@ -437,7 +446,7 @@ func TestOIDCService_ValidateUserToken(t *testing.T) {
 		WithLoginURL("http://localhost:3000/login"),
 	)
 
-	// Generate a token first
+	// Generate an access token first (not ID token for validation)
 	ctx := context.Background()
 	token, err := service.GenerateAccessToken(ctx, "user123", "test-client", "openid profile")
 	if err != nil {
@@ -586,7 +595,7 @@ func TestOIDCService_GetCodeExpiration(t *testing.T) {
 	}
 }
 
-func TestOIDCService_GenerateAccessToken_AdditionalClaims(t *testing.T) {
+func TestOIDCService_ProcessTokenRequest(t *testing.T) {
 	// Setup
 	repository := NewInMemoryOIDCRepository()
 	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
@@ -604,57 +613,78 @@ func TestOIDCService_GenerateAccessToken_AdditionalClaims(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Test
-	token, err := service.GenerateAccessToken(ctx, "user123", "test-client", "openid profile")
-
-	// Assertions
+	// First, create a client for testing
+	client := &oauth2client.OAuth2Client{
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		RedirectURIs: []string{"http://localhost:8080/callback"},
+		Scopes:       []string{"openid", "profile"},
+	}
+	err := clientService.CreateClient(ctx, client)
 	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
+		t.Fatalf("Failed to create test client: %v", err)
 	}
 
-	if token == "" {
+	// Generate an authorization code first
+	code, err := service.GenerateAuthorizationCode(ctx, "test-client", "http://localhost:8080/callback", "openid profile", stringPtr("test-state"), "user123")
+	if err != nil {
+		t.Fatalf("Failed to generate authorization code: %v", err)
+	}
+
+	// Test token request
+	tokenReq := TokenRequest{
+		GrantType:    "authorization_code",
+		Code:         code,
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		RedirectURI:  "http://localhost:8080/callback",
+	}
+
+	response := service.ProcessTokenRequest(ctx, tokenReq)
+
+	// Assertions
+	if !response.Success {
+		t.Fatalf("Expected successful token exchange, got error: %s - %s", response.ErrorCode, response.ErrorDesc)
+	}
+
+	if response.IDToken == "" {
+		t.Fatal("Expected non-empty ID token")
+	}
+
+	if response.AccessToken == "" {
 		t.Fatal("Expected non-empty access token")
 	}
 
-	// Verify the token can be parsed using the TokenGenerator
-	parsedToken, err := tokenGen.ParseToken(token)
+	if response.TokenType != "Bearer" {
+		t.Errorf("Expected token type 'Bearer', got '%s'", response.TokenType)
+	}
+
+	if response.ExpiresIn != 3600 {
+		t.Errorf("Expected expires_in 3600, got %d", response.ExpiresIn)
+	}
+
+	if response.Scope != "openid profile" {
+		t.Errorf("Expected scope 'openid profile', got '%s'", response.Scope)
+	}
+
+	// Verify ID token can be parsed
+	parsedIDToken, err := tokenGen.ParseToken(response.IDToken)
 	if err != nil {
-		t.Fatalf("Expected valid JWT token, got error: %v", err)
+		t.Fatalf("Expected valid ID token, got error: %v", err)
 	}
 
-	if !parsedToken.Valid {
-		t.Fatal("Expected valid token")
+	if !parsedIDToken.Valid {
+		t.Fatal("Expected valid ID token")
 	}
 
-	// Extract claims from the JWT token
-	var claims map[string]interface{}
-	if mapClaims, ok := parsedToken.Claims.(jwt.MapClaims); ok {
-		claims = map[string]interface{}(mapClaims)
-	} else {
-		t.Fatal("Failed to extract claims from token")
+	// Verify access token can be parsed
+	parsedAccessToken, err := tokenGen.ParseToken(response.AccessToken)
+	if err != nil {
+		t.Fatalf("Expected valid access token, got error: %v", err)
 	}
 
-	// Access extra claims nested under "extra_claims"
-	extraClaims, ok := claims["extra_claims"].(map[string]interface{})
-	if !ok {
-		t.Fatal("Failed to extract extra claims from token")
-	}
-
-	// Check the new additional claims
-	if extraClaims["token_use"] != "access" {
-		t.Errorf("Expected token_use 'access', got '%v'", extraClaims["token_use"])
-	}
-
-	if extraClaims["user_id"] != "user123" {
-		t.Errorf("Expected user_id 'user123', got '%v'", extraClaims["user_id"])
-	}
-
-	if extraClaims["client_id"] != "test-client" {
-		t.Errorf("Expected client_id 'test-client', got '%v'", extraClaims["client_id"])
-	}
-
-	if extraClaims["scope"] != "openid profile" {
-		t.Errorf("Expected scope 'openid profile', got '%v'", extraClaims["scope"])
+	if !parsedAccessToken.Valid {
+		t.Fatal("Expected valid access token")
 	}
 }
 

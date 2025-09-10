@@ -89,16 +89,45 @@ func PKCEExample() {
 	fmt.Printf("User ID: %s\n", validatedAuthCode.UserID)
 	fmt.Printf("Scope: %s\n", validatedAuthCode.Scope)
 
-	// Step 4: Generate access token
-	fmt.Println("\n=== Step 4: Generate Access Token ===")
+	// Step 4: Generate tokens using ProcessTokenRequest
+	fmt.Println("\n=== Step 4: Generate Tokens ===")
 
-	accessToken, err := oidcService.GenerateAccessToken(ctx, userID, clientID, scope)
-	if err != nil {
-		log.Fatalf("Failed to generate access token: %v", err)
+	// Create a mock client for the token request
+	client := &oauth2client.OAuth2Client{
+		ClientID:     clientID,
+		ClientSecret: "test-secret",
+		RedirectURIs: []string{redirectURI},
+		Scopes:       []string{"openid", "profile"},
 	}
-	fmt.Printf("Access Token: %s\n", accessToken)
+	err = clientService.CreateClient(ctx, client)
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Create token request
+	tokenReq := TokenRequest{
+		GrantType:    "authorization_code",
+		Code:         authCode,
+		ClientID:     clientID,
+		ClientSecret: "test-secret",
+		RedirectURI:  redirectURI,
+		CodeVerifier: codeVerifier.Value, // Include PKCE code verifier
+	}
+
+	// Process token request (this will return both ID token and access token)
+	tokenResponse := oidcService.ProcessTokenRequest(ctx, tokenReq)
+	if !tokenResponse.Success {
+		log.Fatalf("Token request failed: %s - %s", tokenResponse.ErrorCode, tokenResponse.ErrorDesc)
+	}
+
+	fmt.Printf("ID Token: %s\n", tokenResponse.IDToken[:50]+"...")
+	fmt.Printf("Access Token: %s\n", tokenResponse.AccessToken[:50]+"...")
+	fmt.Printf("Token Type: %s\n", tokenResponse.TokenType)
+	fmt.Printf("Expires In: %d seconds\n", tokenResponse.ExpiresIn)
+	fmt.Printf("Scope: %s\n", tokenResponse.Scope)
 
 	fmt.Println("\n=== PKCE Flow Complete! ===")
+	fmt.Println("Both ID token and access token generated successfully with PKCE validation!")
 }
 
 // PKCEFailureExample demonstrates PKCE validation failure scenarios

@@ -219,10 +219,14 @@ components:
     TokenResponse:
       type: object
       properties:
+        id_token:
+          type: string
+          description: The ID token (JWT)
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
         access_token:
           type: string
-          description: The access token
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          description: The access token (JWT)
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
         token_type:
           type: string
           description: The token type
@@ -231,15 +235,12 @@ components:
           type: integer
           description: Token lifetime in seconds
           example: 3600
-        refresh_token:
-          type: string
-          description: The refresh token (optional)
-          example: "def50200..."
         scope:
           type: string
           description: The granted scopes
           example: "openid profile email"
       required:
+        - id_token
         - access_token
         - token_type
         - expires_in
