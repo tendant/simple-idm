@@ -57,6 +57,12 @@ func (g *RSATokenGenerator) GenerateToken(subject string, expiry time.Duration, 
 		if jti, ok := rootModifications["jti"].(string); ok {
 			claims.RegisteredClaims.ID = jti
 		}
+		if email, ok := rootModifications["email"].(string); ok {
+			claims.Email = email
+		}
+		if username, ok := rootModifications["username"].(string); ok {
+			claims.Username = username
+		}
 	}
 
 	// Create token with RSA signing method and include key ID in header

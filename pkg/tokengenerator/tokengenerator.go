@@ -22,6 +22,8 @@ type TokenGenerator interface {
 type Claims struct {
 	ExtraClaims  interface{} `json:"extra_claims,omitempty"`
 	CustomClaims interface{} `json:"custom_claims,omitempty"`
+	Username     string      `json:"username,omitempty"`
+	Email        string      `json:"email,omitempty"`
 	jwt.RegisteredClaims
 }
 
