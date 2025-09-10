@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 	"time"
 
 	openapi_types "github.com/discord-gophers/goapi-gen/types"
+	"github.com/jinzhu/copier"
 	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	"github.com/tendant/simple-idm/pkg/oidc"
@@ -163,8 +163,10 @@ func (h *OidcHandle) Token(w http.ResponseWriter, r *http.Request) *Response {
 	// Parse form data
 	if err := r.ParseForm(); err != nil {
 		slog.Error("Failed to parse form data", "error", err)
-		h.writeErrorResponse(w, "invalid_request", "Failed to parse form data", http.StatusBadRequest)
-		return nil
+		return &Response{
+			Code: http.StatusBadRequest,
+			body: "Failed to parse form data",
+		}
 	}
 
 	// Extract parameters and build token request for service layer
@@ -190,8 +192,10 @@ func (h *OidcHandle) Token(w http.ResponseWriter, r *http.Request) *Response {
 	// Handle service response
 	if !response.Success {
 		slog.Error("Token request failed", "error", response.ErrorCode, "description", response.ErrorDesc)
-		h.writeErrorResponse(w, response.ErrorCode, response.ErrorDesc, response.HTTPStatus)
-		return nil
+		return &Response{
+			Code: response.HTTPStatus,
+			body: response.ErrorDesc,
+		}
 	}
 
 	// Success case - create token response
@@ -205,44 +209,14 @@ func (h *OidcHandle) Token(w http.ResponseWriter, r *http.Request) *Response {
 
 	slog.Info("Token exchange successful",
 		"client_id", tokenReq.ClientID,
-		"scope", response.Scope)
+		"scope", response.Scope,
+		"id_token", response.IDToken,
+		"access_token", response.AccessToken,
+		"expires_in", response.ExpiresIn,
+		"token_type", response.TokenType,
+	)
 
-	h.writeJSONResponse(w, tokenResponse, http.StatusOK)
-	return nil
-}
-
-// writeErrorResponse writes an OAuth2 error response
-func (h *OidcHandle) writeErrorResponse(w http.ResponseWriter, errorCode, errorDescription string, statusCode int) {
-	errorResponse := ErrorResponse{
-		Error:            errorCode,
-		ErrorDescription: stringPtr(errorDescription),
-	}
-	h.writeJSONResponse(w, errorResponse, statusCode)
-}
-
-// writeJSONResponse writes a JSON response
-func (h *OidcHandle) writeJSONResponse(w http.ResponseWriter, data interface{}, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-
-	// Simple JSON encoding without external dependencies
-	switch v := data.(type) {
-	case TokenResponse:
-		fmt.Fprintf(w, `{"id_token":"%s","token_type":"%s","expires_in":%d`, v.IDToken, v.TokenType, v.ExpiresIn)
-		if v.Scope != nil {
-			fmt.Fprintf(w, `,"scope":"%s"`, *v.Scope)
-		}
-		fmt.Fprint(w, "}")
-	case ErrorResponse:
-		fmt.Fprintf(w, `{"error":"%s"`, v.Error)
-		if v.ErrorDescription != nil {
-			fmt.Fprintf(w, `,"error_description":"%s"`, *v.ErrorDescription)
-		}
-		if v.ErrorURI != nil {
-			fmt.Fprintf(w, `,"error_uri":"%s"`, *v.ErrorURI)
-		}
-		fmt.Fprint(w, "}")
-	}
+	return TokenJSON200Response(tokenResponse)
 }
 
 // JWKS implements the JWKS endpoint
@@ -252,33 +226,28 @@ func (h *OidcHandle) Jwks(w http.ResponseWriter, r *http.Request) *Response {
 	// Check if JWKS service is configured
 	if h.jwksService == nil {
 		slog.Error("JWKS service not configured")
-		h.writeErrorResponse(w, "server_error", "JWKS endpoint not available", http.StatusNotImplemented)
-		return nil
+		return &Response{
+			Code: http.StatusNotImplemented,
+			body: "JWKS endpoint not available",
+		}
 	}
 
 	// Get JWKS from service
 	jwks, err := (*h.jwksService).GetJWKS()
 	if err != nil {
 		slog.Error("Failed to get JWKS", "error", err)
-		h.writeErrorResponse(w, "server_error", "Failed to retrieve keys", http.StatusInternalServerError)
-		return nil
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "Failed to retrieve keys",
+		}
 	}
 
-	// Write JWKS response
-	h.writeJWKSResponse(w, jwks, http.StatusOK)
-	return nil
-}
+	response := JWKSResponse{}
 
-// writeJWKSResponse writes a JWKS JSON response
-func (h *OidcHandle) writeJWKSResponse(w http.ResponseWriter, jwks interface{}, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
+	copier.Copy(&response, &jwks)
+	slog.Info("JWKS request successful", "keys", response.Keys)
 
-	// Use encoding/json for JWKS response since it's more complex
-	if err := json.NewEncoder(w).Encode(jwks); err != nil {
-		slog.Error("Failed to encode JWKS response", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
+	return JwksJSON200Response(response)
 }
 
 // Userinfo implements the OIDC UserInfo endpoint
