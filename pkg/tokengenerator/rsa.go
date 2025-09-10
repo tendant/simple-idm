@@ -43,6 +43,21 @@ func (g *RSATokenGenerator) GenerateToken(subject string, expiry time.Duration, 
 			Audience:  jwt.ClaimStrings{g.audience},
 		},
 	}
+	// Apply root modifications to the registered claims
+	if rootModifications != nil {
+		if iss, ok := rootModifications["iss"].(string); ok {
+			claims.RegisteredClaims.Issuer = iss
+		}
+		if sub, ok := rootModifications["sub"].(string); ok {
+			claims.RegisteredClaims.Subject = sub
+		}
+		if aud, ok := rootModifications["aud"].([]string); ok {
+			claims.RegisteredClaims.Audience = jwt.ClaimStrings(aud)
+		}
+		if jti, ok := rootModifications["jti"].(string); ok {
+			claims.RegisteredClaims.ID = jti
+		}
+	}
 
 	// Create token with RSA signing method and include key ID in header
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
