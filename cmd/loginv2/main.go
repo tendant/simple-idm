@@ -458,6 +458,7 @@ func main() {
 		oidc.WithBaseURL(config.BaseUrl),
 		oidc.WithLoginURL(config.FrontendUrl+"/login"),
 		oidc.WithUserMapper(userMapper),
+		oidc.WithIssuer(config.JwtConfig.Issuer), // Use configured issuer
 	)
 
 	oidcHandle := oidcapi.NewOidcHandle(clientService, oidcService, oidcapi.WithJwksService(jwksService))
