@@ -341,6 +341,8 @@ func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, sco
 			if containsScope(scope, "email") {
 				if user.UserInfo.Email != "" {
 					rootModifications["email"] = user.UserInfo.Email
+					slog.Info("email verified", "email verified", user.UserInfo.EmailVerified)
+					rootModifications["email_verified"] = user.UserInfo.EmailVerified
 				}
 			}
 
