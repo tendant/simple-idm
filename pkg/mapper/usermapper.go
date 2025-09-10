@@ -67,8 +67,10 @@ func (m *DefaultUserMapper) FindUsersByLoginID(ctx context.Context, loginID uuid
 		}
 
 		userInfo := UserInfo{
-			Email:       user.Email,
-			PhoneNumber: user.Phone.String,
+			Email: user.Email,
+			// FIX-ME: need to add email verification flow in the future
+			EmailVerified: true,
+			PhoneNumber:   user.Phone.String,
 		}
 
 		mappedUsers = append(mappedUsers, User{
@@ -117,6 +119,8 @@ func (m *DefaultUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUI
 
 	userInfo := UserInfo{
 		Email: user.Email,
+		// FIX-ME: need to add email verification flow in the future
+		EmailVerified: true,
 	}
 
 	return User{
