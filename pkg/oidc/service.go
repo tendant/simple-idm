@@ -62,6 +62,7 @@ type OIDCService struct {
 	tokenExpiration time.Duration
 	baseURL         string
 	loginURL        string
+	issuer          string
 }
 
 // Option is a function that configures an OIDCService
@@ -109,6 +110,13 @@ func WithUserMapper(userMapper mapper.UserMapper) Option {
 	}
 }
 
+// WithIssuer sets the issuer URL for JWT tokens
+func WithIssuer(issuer string) Option {
+	return func(s *OIDCService) {
+		s.issuer = issuer
+	}
+}
+
 // OIDCServiceOptions contains optional parameters for creating an OIDCService (deprecated)
 type OIDCServiceOptions struct {
 	CodeExpiration  time.Duration
@@ -125,6 +133,7 @@ func NewOIDCServiceWithOptions(repository OIDCRepository, clientService *oauth2c
 		clientService:   clientService,
 		codeExpiration:  10 * time.Minute,
 		tokenExpiration: time.Hour,
+		issuer:          "simple-idm", // Default issuer for backward compatibility
 	}
 
 	// Apply all options
@@ -257,8 +266,8 @@ func (s *OIDCService) validatePKCE(codeVerifier, codeChallenge, codeChallengeMet
 func (s *OIDCService) GenerateAccessToken(ctx context.Context, userID, clientID, scope string) (string, error) {
 	// Prepare root modifications for standard JWT claims
 	rootModifications := map[string]interface{}{
-		"aud": clientID,     // Audience (client ID)
-		"iss": "simple-idm", // Issuer
+		"aud": clientID, // Audience (client ID)
+		"iss": s.issuer, // Issuer (configurable)
 	}
 
 	// Prepare extra claims for OIDC-specific data
@@ -302,8 +311,8 @@ func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, sco
 	slog.Info("generating ID token", "userID", userID, "clientID", clientID, "scope", scope)
 	// Prepare root modifications for standard JWT claims
 	rootModifications := map[string]interface{}{
-		"aud": clientID,     // Audience (client ID)
-		"iss": "simple-idm", // Issuer
+		"aud": clientID, // Audience (client ID)
+		"iss": s.issuer, // Issuer (configurable)
 	}
 
 	// Prepare extra claims for OIDC-specific data
