@@ -282,7 +282,6 @@ func (s *OIDCService) GenerateAccessToken(ctx context.Context, userID, clientID,
 	if err != nil {
 		return "", fmt.Errorf("failed to generate access token using TokenGenerator: %w", err)
 	}
-	slog.Info("Access token generated successfully", "userID", userID, "access_token", tokenString)
 	return tokenString, nil
 }
 
@@ -357,7 +356,6 @@ func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, sco
 	if err != nil {
 		return "", fmt.Errorf("failed to generate ID token using TokenGenerator: %w", err)
 	}
-	slog.Info("ID token generated successfully", "userID", userID, "id_token", tokenString)
 	return tokenString, nil
 }
 
