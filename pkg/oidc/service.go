@@ -308,6 +308,10 @@ func (s *OIDCService) GenerateAccessToken(ctx context.Context, userID, clientID,
 
 // GenerateIDToken creates an OIDC ID token (JWT) for the user
 func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, scope string) (string, error) {
+	if s.userMapper == nil {
+		slog.Error("UserMapper not configured")
+		return "", fmt.Errorf("user mapper not configured")
+	}
 	slog.Info("generating ID token", "userID", userID, "clientID", clientID, "scope", scope)
 	// Prepare root modifications for standard JWT claims
 	rootModifications := map[string]interface{}{
@@ -316,54 +320,46 @@ func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, sco
 	}
 
 	// Prepare extra claims for OIDC-specific data
-	extraClaims := map[string]interface{}{
-		"scope":     scope,    // Granted scopes
-		"token_use": "id",     // Token usage type
-		"user_id":   userID,   // User ID
-		"client_id": clientID, // Client ID
-	}
+	// extraClaims := map[string]interface{}{
+	// 	"scope":     scope,    // Granted scopes
+	// 	"token_use": "id",     // Token usage type
+	// 	"user_id":   userID,   // User ID
+	// 	"client_id": clientID, // Client ID
+	// }
 
 	// Fetch real user data if UserMapper is available
-	if s.userMapper != nil {
-		if userUUID, err := uuid.Parse(userID); err == nil {
-			if user, err := s.userMapper.GetUserByUserID(ctx, userUUID); err == nil {
-				slog.Info("user info from user mapper", "user", user)
-				// Add OIDC-specific claims based on scope using real user data
-				if containsScope(scope, "profile") {
-					if user.DisplayName != "" {
-						extraClaims["name"] = user.DisplayName
-						extraClaims["preferred_username"] = user.DisplayName
-					}
+	if userUUID, err := uuid.Parse(userID); err == nil {
+		if user, err := s.userMapper.GetUserByUserID(ctx, userUUID); err == nil {
+			slog.Info("user info from user mapper", "user", user)
+			// Add OIDC-specific claims based on scope using real user data
+			if containsScope(scope, "profile") {
+				if user.DisplayName != "" {
+					rootModifications["username"] = user.DisplayName
 				}
+			}
 
-				if containsScope(scope, "email") {
-					if user.UserInfo.Email != "" {
-						extraClaims["email"] = user.UserInfo.Email
-						extraClaims["email_verified"] = true
-					}
+			if containsScope(scope, "email") {
+				if user.UserInfo.Email != "" {
+					rootModifications["email"] = user.UserInfo.Email
 				}
+			}
 
-				// Add phone number support (new feature)
-				if containsScope(scope, "phone") {
-					if user.UserInfo.PhoneNumber != "" {
-						extraClaims["phone_number"] = user.UserInfo.PhoneNumber
-						extraClaims["phone_number_verified"] = true
-					}
+			// Add phone number support (new feature)
+			if containsScope(scope, "phone") {
+				if user.UserInfo.PhoneNumber != "" {
+					rootModifications["phone_number"] = user.UserInfo.PhoneNumber
 				}
-			} else {
-				// Log error but continue with empty values
-				fmt.Printf("Warning: Failed to fetch user data for ID %s: %v\n", userID, err)
 			}
 		} else {
 			// Log error but continue with empty values
-			fmt.Printf("Warning: Failed to parse user ID as UUID: %s\n", userID)
+			fmt.Printf("Warning: Failed to fetch user data for ID %s: %v\n", userID, err)
 		}
 	} else {
-		// UserMapper not available, use empty values
-		fmt.Printf("Info: UserMapper not configured, generating ID token with minimal claims for user ID %s\n", userID)
+		// Log error but continue with empty values
+		fmt.Printf("Warning: Failed to parse user ID as UUID: %s\n", userID)
 	}
 
-	tokenString, _, err := s.tokenGenerator.GenerateToken(userID, s.tokenExpiration, rootModifications, extraClaims)
+	tokenString, _, err := s.tokenGenerator.GenerateToken(userID, s.tokenExpiration, rootModifications, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate ID token using TokenGenerator: %w", err)
 	}
