@@ -107,6 +107,22 @@ ALTER SEQUENCE public.goose_db_version_id_seq OWNED BY public.goose_db_version.i
 
 
 --
+-- Name: groups; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.groups (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name character varying(255) NOT NULL,
+    description text,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    updated_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    deleted_at timestamp without time zone
+);
+
+
+ALTER TABLE public.groups OWNER TO idm;
+
+--
 -- Name: login; Type: TABLE; Schema: public; Owner: idm
 --
 
@@ -250,6 +266,20 @@ CREATE TABLE public.roles (
 ALTER TABLE public.roles OWNER TO idm;
 
 --
+-- Name: user_groups; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.user_groups (
+    user_id uuid NOT NULL,
+    group_id uuid NOT NULL,
+    assigned_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    deleted_at timestamp without time zone
+);
+
+
+ALTER TABLE public.user_groups OWNER TO idm;
+
+--
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: idm
 --
 
@@ -317,6 +347,22 @@ ALTER TABLE ONLY public.device
 
 ALTER TABLE ONLY public.goose_db_version
     ADD CONSTRAINT goose_db_version_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: groups groups_name_key; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.groups
+    ADD CONSTRAINT groups_name_key UNIQUE (name);
+
+
+--
+-- Name: groups groups_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.groups
+    ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
 
 --
@@ -400,6 +446,14 @@ ALTER TABLE ONLY public.roles
 
 
 --
+-- Name: user_groups user_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.user_groups
+    ADD CONSTRAINT user_groups_pkey PRIMARY KEY (user_id, group_id);
+
+
+--
 -- Name: user_roles user_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
@@ -434,6 +488,13 @@ CREATE INDEX idx_backup_codes_user_uuid ON public.backup_codes USING btree (user
 --
 
 CREATE INDEX idx_device_device_id ON public.device USING btree (device_id);
+
+
+--
+-- Name: idx_groups_name; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_groups_name ON public.groups USING btree (name);
 
 
 --
@@ -483,6 +544,20 @@ CREATE INDEX idx_login_password_reset_tokens_login_id ON public.login_password_r
 --
 
 CREATE INDEX idx_login_password_reset_tokens_token ON public.login_password_reset_tokens USING btree (token);
+
+
+--
+-- Name: idx_user_groups_group_id; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_user_groups_group_id ON public.user_groups USING btree (group_id);
+
+
+--
+-- Name: idx_user_groups_user_id; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_user_groups_user_id ON public.user_groups USING btree (user_id);
 
 
 --
@@ -561,6 +636,22 @@ ALTER TABLE ONLY public.login_password_history
 
 ALTER TABLE ONLY public.login_password_reset_tokens
     ADD CONSTRAINT login_password_reset_tokens_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
+
+
+--
+-- Name: user_groups user_groups_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.user_groups
+    ADD CONSTRAINT user_groups_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_groups user_groups_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.user_groups
+    ADD CONSTRAINT user_groups_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
