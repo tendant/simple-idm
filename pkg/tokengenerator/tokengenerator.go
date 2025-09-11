@@ -27,6 +27,7 @@ type Claims struct {
 	EmailVerified       bool        `json:"email_verified,omitempty"`
 	PhoneNumber         string      `json:"phone_number,omitempty"`
 	PhoneNumberVerified bool        `json:"phone_number_verified,omitempty"`
+	Groups              []string    `json:"groups,omitempty"`
 	jwt.RegisteredClaims
 }
 

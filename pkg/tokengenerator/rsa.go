@@ -72,6 +72,9 @@ func (g *RSATokenGenerator) GenerateToken(subject string, expiry time.Duration, 
 		if phoneVerified, ok := rootModifications["phone_number_verified"].(bool); ok {
 			claims.PhoneNumberVerified = phoneVerified
 		}
+		if groups, ok := rootModifications["groups"].([]string); ok {
+			claims.Groups = groups
+		}
 	}
 
 	// Create token with RSA signing method and include key ID in header
