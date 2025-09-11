@@ -81,7 +81,7 @@ type Config struct {
 func NewProtectedResourceMetadata(config Config) *ProtectedResourceMetadata {
 	scopes := config.Scopes
 	if len(scopes) == 0 {
-		scopes = []string{"openid", "profile", "email"}
+		scopes = []string{"openid", "profile", "email", "groups"}
 	}
 
 	return &ProtectedResourceMetadata{
@@ -97,7 +97,7 @@ func NewProtectedResourceMetadata(config Config) *ProtectedResourceMetadata {
 func NewAuthorizationServerMetadata(config Config) *AuthorizationServerMetadata {
 	scopes := config.Scopes
 	if len(scopes) == 0 {
-		scopes = []string{"openid", "profile", "email"}
+		scopes = []string{"openid", "profile", "email", "groups"}
 	}
 
 	return &AuthorizationServerMetadata{
