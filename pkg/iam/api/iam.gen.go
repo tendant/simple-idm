@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/discord-gophers/goapi-gen/runtime"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -35,6 +36,36 @@ type PostJSONBody struct {
 	Username string `json:"username"`
 }
 
+// PostGroupsJSONBody defines parameters for PostGroups.
+type PostGroupsJSONBody struct {
+	// Description of the group
+	Description *string `json:"description,omitempty"`
+
+	// Unique name for the group
+	Name string `json:"name"`
+}
+
+// PutGroupsIDJSONBody defines parameters for PutGroupsID.
+type PutGroupsIDJSONBody struct {
+	// Description of the group
+	Description *string `json:"description,omitempty"`
+
+	// Unique name for the group
+	Name *string `json:"name,omitempty"`
+}
+
+// DeleteGroupsIDUsersJSONBody defines parameters for DeleteGroupsIDUsers.
+type DeleteGroupsIDUsersJSONBody struct {
+	// UUID of the user to remove from the group
+	UserID string `json:"user_id"`
+}
+
+// PostGroupsIDUsersJSONBody defines parameters for PostGroupsIDUsers.
+type PostGroupsIDUsersJSONBody struct {
+	// UUID of the user to add to the group
+	UserID string `json:"user_id"`
+}
+
 // PutIDJSONBody defines parameters for PutID.
 type PutIDJSONBody struct {
 	// Full name of the user
@@ -52,6 +83,38 @@ type PostJSONRequestBody PostJSONBody
 
 // Bind implements render.Binder.
 func (PostJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostGroupsJSONRequestBody defines body for PostGroups for application/json ContentType.
+type PostGroupsJSONRequestBody PostGroupsJSONBody
+
+// Bind implements render.Binder.
+func (PostGroupsJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PutGroupsIDJSONRequestBody defines body for PutGroupsID for application/json ContentType.
+type PutGroupsIDJSONRequestBody PutGroupsIDJSONBody
+
+// Bind implements render.Binder.
+func (PutGroupsIDJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// DeleteGroupsIDUsersJSONRequestBody defines body for DeleteGroupsIDUsers for application/json ContentType.
+type DeleteGroupsIDUsersJSONRequestBody DeleteGroupsIDUsersJSONBody
+
+// Bind implements render.Binder.
+func (DeleteGroupsIDUsersJSONRequestBody) Bind(*http.Request) error {
+	return nil
+}
+
+// PostGroupsIDUsersJSONRequestBody defines body for PostGroupsIDUsers for application/json ContentType.
+type PostGroupsIDUsersJSONRequestBody PostGroupsIDUsersJSONBody
+
+// Bind implements render.Binder.
+func (PostGroupsIDUsersJSONRequestBody) Bind(*http.Request) error {
 	return nil
 }
 
@@ -146,6 +209,85 @@ func PostJSON200Response(body struct {
 	}
 }
 
+// GetGroupsJSON200Response is a constructor method for a GetGroups response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetGroupsJSON200Response(body []struct {
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	ID          *string    `json:"id,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// PostGroupsJSON200Response is a constructor method for a PostGroups response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PostGroupsJSON200Response(body struct {
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	ID          *string    `json:"id,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// GetGroupsIDJSON200Response is a constructor method for a GetGroupsID response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetGroupsIDJSON200Response(body struct {
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	ID          *string    `json:"id,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// PutGroupsIDJSON200Response is a constructor method for a PutGroupsID response.
+// A *Response is returned with the configured status code and content type from the spec.
+func PutGroupsIDJSON200Response(body struct {
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	ID          *string    `json:"id,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
+// GetGroupsIDUsersJSON200Response is a constructor method for a GetGroupsIDUsers response.
+// A *Response is returned with the configured status code and content type from the spec.
+func GetGroupsIDUsersJSON200Response(body []struct {
+	Email    *string `json:"email,omitempty"`
+	ID       *string `json:"id,omitempty"`
+	Name     *string `json:"name,omitempty"`
+	Username *string `json:"username,omitempty"`
+}) *Response {
+	return &Response{
+		body:        body,
+		Code:        200,
+		contentType: "application/json",
+	}
+}
+
 // GetIDJSON200Response is a constructor method for a GetID response.
 // A *Response is returned with the configured status code and content type from the spec.
 func GetIDJSON200Response(body struct {
@@ -196,6 +338,30 @@ type ServerInterface interface {
 	// Create a new user
 	// (POST /)
 	Post(w http.ResponseWriter, r *http.Request) *Response
+	// Get a list of groups
+	// (GET /groups)
+	GetGroups(w http.ResponseWriter, r *http.Request) *Response
+	// Create a new group
+	// (POST /groups)
+	PostGroups(w http.ResponseWriter, r *http.Request) *Response
+	// Delete group by UUID
+	// (DELETE /groups/{id})
+	DeleteGroupsID(w http.ResponseWriter, r *http.Request, id string) *Response
+	// Get group details by UUID
+	// (GET /groups/{id})
+	GetGroupsID(w http.ResponseWriter, r *http.Request, id string) *Response
+	// Update group details by UUID
+	// (PUT /groups/{id})
+	PutGroupsID(w http.ResponseWriter, r *http.Request, id string) *Response
+	// Remove user from group
+	// (DELETE /groups/{id}/users)
+	DeleteGroupsIDUsers(w http.ResponseWriter, r *http.Request, id string) *Response
+	// Get users in a group
+	// (GET /groups/{id}/users)
+	GetGroupsIDUsers(w http.ResponseWriter, r *http.Request, id string) *Response
+	// Add user to group
+	// (POST /groups/{id}/users)
+	PostGroupsIDUsers(w http.ResponseWriter, r *http.Request, id string) *Response
 	// Delete user by UUID
 	// (DELETE /{id})
 	DeleteID(w http.ResponseWriter, r *http.Request, id string) *Response
@@ -237,6 +403,198 @@ func (siw *ServerInterfaceWrapper) Post(w http.ResponseWriter, r *http.Request) 
 
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.Post(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetGroups operation middleware
+func (siw *ServerInterfaceWrapper) GetGroups(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetGroups(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PostGroups operation middleware
+func (siw *ServerInterfaceWrapper) PostGroups(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostGroups(w, r)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// DeleteGroupsID operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGroupsID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.DeleteGroupsID(w, r, id)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetGroupsID operation middleware
+func (siw *ServerInterfaceWrapper) GetGroupsID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetGroupsID(w, r, id)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PutGroupsID operation middleware
+func (siw *ServerInterfaceWrapper) PutGroupsID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PutGroupsID(w, r, id)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// DeleteGroupsIDUsers operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGroupsIDUsers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.DeleteGroupsIDUsers(w, r, id)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// GetGroupsIDUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetGroupsIDUsers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.GetGroupsIDUsers(w, r, id)
+		if resp != nil {
+			if resp.body != nil {
+				render.Render(w, r, resp)
+			} else {
+				w.WriteHeader(resp.Code)
+			}
+		}
+	})
+
+	handler(w, r.WithContext(ctx))
+}
+
+// PostGroupsIDUsers operation middleware
+func (siw *ServerInterfaceWrapper) PostGroupsIDUsers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// ------------- Path parameter "id" -------------
+	var id string
+
+	if err := runtime.BindStyledParameter("simple", false, "id", chi.URLParam(r, "id"), &id); err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "id"})
+		return
+	}
+
+	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := siw.Handler.PostGroupsIDUsers(w, r, id)
 		if resp != nil {
 			if resp.body != nil {
 				render.Render(w, r, resp)
@@ -444,6 +802,14 @@ func Handler(si ServerInterface, opts ...ServerOption) http.Handler {
 	r.Route(options.BaseURL, func(r chi.Router) {
 		r.Get("/", wrapper.Get)
 		r.Post("/", wrapper.Post)
+		r.Get("/groups", wrapper.GetGroups)
+		r.Post("/groups", wrapper.PostGroups)
+		r.Delete("/groups/{id}", wrapper.DeleteGroupsID)
+		r.Get("/groups/{id}", wrapper.GetGroupsID)
+		r.Put("/groups/{id}", wrapper.PutGroupsID)
+		r.Delete("/groups/{id}/users", wrapper.DeleteGroupsIDUsers)
+		r.Get("/groups/{id}/users", wrapper.GetGroupsIDUsers)
+		r.Post("/groups/{id}/users", wrapper.PostGroupsIDUsers)
 		r.Delete("/{id}", wrapper.DeleteID)
 		r.Get("/{id}", wrapper.GetID)
 		r.Put("/{id}", wrapper.PutID)
@@ -472,16 +838,21 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+xVTW/bMAz9KwLPRpNtN9+2BRsCbEAvORXFoFpMwsKWVIlqYRj+7wPltEsWJ9nWYluB",
-	"XGJH5tcj3xM7qFzjnUXLEcquL4Ds0kHZARPXCCUsIgb1VVu9wgYtq/eXcyjgHkMkZ6GENxfTiyn0BTiP",
-	"VnuCEt7lowK85rVEhYn8rJDl4TwGzeTs3EAJn5GhgIDROxsxG7+dTuVROctos4v2vqYqO01uo2TtIFZr",
-	"bLS8EWOTHX2Q2ExDGGw01RlI6wVH5EB2JYWSkeOlC41mKCElMlDsm1nd4Kh/cPWQwmCsAnkeGvGFIiu3",
-	"VDpGWlk0KtupB+K14jVSUAZZUx2hOFTz8yrrn0zdzS1WDD8OdAi6lf8pYvhjdzEZxyxhYw4RU9Po0A6j",
-	"VVrVuxYFeBdHeHApp0KEu4SRPzjT/hYHfnX0j9B3UXxKda3kkxTKa8zFjjVeJvqNzJHhi4Waz6JityGC",
-	"vG3FfJr8ySkfG91u8oWluzRkyCiWLhyB0Q9tpoAGyqtNs7bCX+/xYNeFQ8L+mZo9S/WFpbovzXxvVwE1",
-	"o1ExVRXGuEx13f4k04/ZRGll8WFgjHyfdGT6oXE1Mu4LdpbP57N8zQfdIIu+y6sOSLLL1Q+P8CH3ZpdB",
-	"xRYbTnSxvx5n2wjeodqjeIfCM1J106rFYj6Tbh/aTv8U4VlP/5meNjBUQA6E98eZJgswbXtt0c2nsSWY",
-	"/ibdXmLTnvfpIfKc9+Vr1nfy5tTeXGSTAwLv+/57AAAA//+zrhbOWg0AAA==",
+	"H4sIAAAAAAAC/+xY32/aMBD+V6x7zgrb3vLWDa1C2qRqEk9VVbnxAa4SO7UvrRDK/z7Z5kcCaQijtKXi",
+	"pQVztu/u++7z2XNIdJZrhYosxPMyAqnGGuI5kKQUIYaRRcO4EuzK6CJnf7jiE8xQEbu8HkIET2is1Api",
+	"+HrRv+hDGYHOUfFcQgzf/VAEOaepWx967s8Eyf3TORpOUquhgBiukCACgzbXyqI3/tbvu3+JVoTKT+F5",
+	"nsrET+o9WLfrHGwyxYy7T5Iw8xNz49YmGZbBjMvUhzTLXUSWjFQT56gUbnisTcYJYigKKSDaNlM8w8b5",
+	"RqdhC4E2MTKnkIjf0hLTY8atlROFgnk79ixpymiK0jCBxGVqIXrJ58M8K1em+v4BE4L1ADeGz9z3wqL5",
+	"7+nOpDlmt6z1S9giy7iZBWgZZ2ndIoJc2wYeXLtRR4THAi390GK2Fwe6Qr8MvR7FryJNmfvJOUpT9M42",
+	"Jd4heidFC/jOgg0HlpFeEMF9qqy5Qn4nym3Q1TcfKflYhB18FGNtWsIoQ5qlQQHxzSJZleVvt3hQn0Km",
+	"wPLAmj2X6iuX6nZpegVPDHJCwWyRJGjtuEjT2UaZ/vQmjDOFz4Ex7vfexOm+bdPtq2BxHPVeOH7HqZZm",
+	"wQm/kMywKde1+I9ApiIXe/p0iKQuAGjT1KVJm6hWUHoNad3Icd31wfrbUkm9i21ZblSymoq9sMSGjL2T",
+	"dH1Wnm7zMjSC+wpKAK+iKL25FGUAPkXCbdIO/Hig7XDgu0jDMyTXPsQ3c5DOGddZwjIF4PNTRzmqILYj",
+	"k+VtMyOawg9Ot4Yf/A+Bs/sZG42GA4dKu4y+a6Rn7nfi/qInYAbJSHxqp4FT6kltWoULedGk1sXbc+HT",
+	"HQln+X+TEljs0VYAI2/yUg1sHAi9cD3sfCyMvPkpVYkL8C5Au8Hv0XBQvXe6+6LBTD8hGxud1fi+y9t6",
+	"S7Tc8oCuqOFKEXwTwbmAbgsL/oZIfGDrGV3Ow7eF+JTen475hsOkqjBu+0hbGfE1krsuH5++XLkQy1ee",
+	"j1SpXAj0ju2s0kshVsFUOvZurfoHatJ92N17dB9yhxb9FJvz85vasd7U9r4GFNVZHW4BJ9b/n9/U3+Pm",
+	"ca7vY9d39ztOc4GXZfkvAAD//wthZmpoHQAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

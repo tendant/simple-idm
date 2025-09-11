@@ -26,6 +26,33 @@ func (q *Queries) AnyUserExists(ctx context.Context) (bool, error) {
 	return exists, err
 }
 
+const createGroup = `-- name: CreateGroup :one
+
+INSERT INTO groups (name, description)
+VALUES ($1, $2)
+RETURNING id, name, description, created_at, updated_at, deleted_at
+`
+
+type CreateGroupParams struct {
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+}
+
+// Group queries
+func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error) {
+	row := q.db.QueryRow(ctx, createGroup, arg.Name, arg.Description)
+	var i Group
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const createRole = `-- name: CreateRole :one
 INSERT INTO roles (name) VALUES ($1) RETURNING id
 `
@@ -66,6 +93,29 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const createUserGroup = `-- name: CreateUserGroup :one
+INSERT INTO user_groups (user_id, group_id)
+VALUES ($1, $2)
+RETURNING user_id, group_id, assigned_at, deleted_at
+`
+
+type CreateUserGroupParams struct {
+	UserID  uuid.UUID `json:"user_id"`
+	GroupID uuid.UUID `json:"group_id"`
+}
+
+func (q *Queries) CreateUserGroup(ctx context.Context, arg CreateUserGroupParams) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, createUserGroup, arg.UserID, arg.GroupID)
+	var i UserGroup
+	err := row.Scan(
+		&i.UserID,
+		&i.GroupID,
+		&i.AssignedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const createUserRole = `-- name: CreateUserRole :one
 INSERT INTO user_roles (user_id, role_id)
 VALUES ($1, $2)
@@ -89,6 +139,17 @@ type CreateUserRoleBatchParams struct {
 	RoleID uuid.UUID `json:"role_id"`
 }
 
+const deleteGroup = `-- name: DeleteGroup :exec
+UPDATE groups
+SET deleted_at = NOW() at time zone 'UTC'
+WHERE id = $1
+`
+
+func (q *Queries) DeleteGroup(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGroup, id)
+	return err
+}
+
 const deleteRole = `-- name: DeleteRole :exec
 DELETE FROM roles WHERE id = $1
 `
@@ -109,6 +170,22 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const deleteUserGroup = `-- name: DeleteUserGroup :exec
+UPDATE user_groups
+SET deleted_at = NOW() at time zone 'UTC'
+WHERE user_id = $1 AND group_id = $2
+`
+
+type DeleteUserGroupParams struct {
+	UserID  uuid.UUID `json:"user_id"`
+	GroupID uuid.UUID `json:"group_id"`
+}
+
+func (q *Queries) DeleteUserGroup(ctx context.Context, arg DeleteUserGroupParams) error {
+	_, err := q.db.Exec(ctx, deleteUserGroup, arg.UserID, arg.GroupID)
+	return err
+}
+
 const deleteUserRoles = `-- name: DeleteUserRoles :exec
 DELETE FROM user_roles
 WHERE user_id = $1
@@ -117,6 +194,83 @@ WHERE user_id = $1
 func (q *Queries) DeleteUserRoles(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteUserRoles, userID)
 	return err
+}
+
+const findGroupUsers = `-- name: FindGroupUsers :many
+SELECT u.id, u.email, u.name
+FROM users u
+JOIN user_groups ug ON ug.user_id = u.id
+WHERE ug.group_id = $1 
+AND u.deleted_at IS NULL
+AND ug.deleted_at IS NULL
+ORDER BY u.email
+`
+
+type FindGroupUsersRow struct {
+	ID    uuid.UUID      `json:"id"`
+	Email string         `json:"email"`
+	Name  sql.NullString `json:"name"`
+}
+
+func (q *Queries) FindGroupUsers(ctx context.Context, groupID uuid.UUID) ([]FindGroupUsersRow, error) {
+	rows, err := q.db.Query(ctx, findGroupUsers, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindGroupUsersRow
+	for rows.Next() {
+		var i FindGroupUsersRow
+		if err := rows.Scan(&i.ID, &i.Email, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const findGroups = `-- name: FindGroups :many
+SELECT id, created_at, updated_at, name, description
+FROM groups
+WHERE deleted_at IS NULL
+ORDER BY name ASC
+`
+
+type FindGroupsRow struct {
+	ID          uuid.UUID      `json:"id"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+}
+
+func (q *Queries) FindGroups(ctx context.Context) ([]FindGroupsRow, error) {
+	rows, err := q.db.Query(ctx, findGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FindGroupsRow
+	for rows.Next() {
+		var i FindGroupsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
+			&i.Description,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const findRoles = `-- name: FindRoles :many
@@ -263,6 +417,35 @@ func (q *Queries) FindUsersWithRoles(ctx context.Context) ([]FindUsersWithRolesR
 		return nil, err
 	}
 	return items, nil
+}
+
+const getGroupById = `-- name: GetGroupById :one
+SELECT id, created_at, updated_at, deleted_at, name, description
+FROM groups
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+type GetGroupByIdRow struct {
+	ID          uuid.UUID      `json:"id"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	DeletedAt   sql.NullTime   `json:"deleted_at"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+}
+
+func (q *Queries) GetGroupById(ctx context.Context, id uuid.UUID) (GetGroupByIdRow, error) {
+	row := q.db.QueryRow(ctx, getGroupById, id)
+	var i GetGroupByIdRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Name,
+		&i.Description,
+	)
+	return i, err
 }
 
 const getRoleById = `-- name: GetRoleById :one
@@ -421,6 +604,33 @@ type RemoveUserFromRoleParams struct {
 func (q *Queries) RemoveUserFromRole(ctx context.Context, arg RemoveUserFromRoleParams) error {
 	_, err := q.db.Exec(ctx, removeUserFromRole, arg.UserID, arg.RoleID)
 	return err
+}
+
+const updateGroup = `-- name: UpdateGroup :one
+UPDATE groups 
+SET name = $2, description = $3, updated_at = NOW() at time zone 'UTC'
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, name, description, created_at, updated_at, deleted_at
+`
+
+type UpdateGroupParams struct {
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+}
+
+func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group, error) {
+	row := q.db.QueryRow(ctx, updateGroup, arg.ID, arg.Name, arg.Description)
+	var i Group
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const updateRole = `-- name: UpdateRole :exec

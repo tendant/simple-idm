@@ -23,8 +23,8 @@ type BackupCode struct {
 
 type Device struct {
 	Fingerprint      string         `json:"fingerprint"`
-	UserAgent        pgtype.Text    `json:"user_agent"`
-	AcceptHeaders    pgtype.Text    `json:"accept_headers"`
+	UserAgent        sql.NullString `json:"user_agent"`
+	AcceptHeaders    sql.NullString `json:"accept_headers"`
 	Timezone         sql.NullString `json:"timezone"`
 	ScreenResolution sql.NullString `json:"screen_resolution"`
 	LastLoginAt      time.Time      `json:"last_login_at"`
@@ -39,6 +39,15 @@ type GooseDbVersion struct {
 	VersionID int64        `json:"version_id"`
 	IsApplied bool         `json:"is_applied"`
 	Tstamp    sql.NullTime `json:"tstamp"`
+}
+
+type Group struct {
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	DeletedAt   sql.NullTime   `json:"deleted_at"`
 }
 
 type Login struct {
@@ -62,7 +71,7 @@ type Login struct {
 type Login2fa struct {
 	ID                   uuid.UUID      `json:"id"`
 	LoginID              uuid.UUID      `json:"login_id"`
-	TwoFactorSecret      pgtype.Text    `json:"two_factor_secret"`
+	TwoFactorSecret      sql.NullString `json:"two_factor_secret"`
 	TwoFactorEnabled     pgtype.Bool    `json:"two_factor_enabled"`
 	TwoFactorType        sql.NullString `json:"two_factor_type"`
 	TwoFactorBackupCodes []string       `json:"two_factor_backup_codes"`
@@ -76,7 +85,7 @@ type LoginAttempt struct {
 	LoginID           uuid.UUID      `json:"login_id"`
 	CreatedAt         time.Time      `json:"created_at"`
 	IpAddress         sql.NullString `json:"ip_address"`
-	UserAgent         pgtype.Text    `json:"user_agent"`
+	UserAgent         sql.NullString `json:"user_agent"`
 	Success           bool           `json:"success"`
 	FailureReason     sql.NullString `json:"failure_reason"`
 	DeviceFingerprint sql.NullString `json:"device_fingerprint"`
@@ -123,9 +132,9 @@ type LoginPasswordResetToken struct {
 }
 
 type Role struct {
-	ID          uuid.UUID   `json:"id"`
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
 }
 
 type User struct {
@@ -138,6 +147,13 @@ type User struct {
 	Name           sql.NullString `json:"name"`
 	LoginID        uuid.NullUUID  `json:"login_id"`
 	Phone          sql.NullString `json:"phone"`
+}
+
+type UserGroup struct {
+	UserID     uuid.UUID    `json:"user_id"`
+	GroupID    uuid.UUID    `json:"group_id"`
+	AssignedAt sql.NullTime `json:"assigned_at"`
+	DeletedAt  sql.NullTime `json:"deleted_at"`
 }
 
 type UserRole struct {
