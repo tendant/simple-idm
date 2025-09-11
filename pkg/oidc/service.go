@@ -47,9 +47,10 @@ type ErrorResponse struct {
 
 // UserInfoResponse represents OIDC user information response
 type UserInfoResponse struct {
-	Sub   string  `json:"sub"`             // Subject identifier (required)
-	Name  *string `json:"name,omitempty"`  // Full name
-	Email *string `json:"email,omitempty"` // Email address
+	Sub    string    `json:"sub"`              // Subject identifier (required)
+	Name   *string   `json:"name,omitempty"`   // Full name
+	Email  *string   `json:"email,omitempty"`  // Email address
+	Groups *[]string `json:"groups,omitempty"` // User groups
 }
 
 // OIDCService provides OIDC business logic operations
@@ -341,6 +342,14 @@ func (s *OIDCService) GenerateIDToken(ctx context.Context, userID, clientID, sco
 				if user.UserInfo.PhoneNumber != "" {
 					rootModifications["phone_number"] = user.UserInfo.PhoneNumber
 					rootModifications["phone_number_verified"] = user.UserInfo.PhoneNumberVerified
+				}
+			}
+
+			// Add groups support for OIDC groups claim
+			if containsScope(scope, "groups") {
+				slog.Info("contains groups scope", "group", user.Groups)
+				if len(user.Groups) > 0 {
+					rootModifications["groups"] = user.Groups
 				}
 			}
 		} else {
@@ -690,6 +699,25 @@ func (s *OIDCService) GetUserInfo(ctx context.Context, accessToken string) (*Use
 			if userInfoMap, ok := extraMap["user_info"].(map[string]interface{}); ok {
 				if emailStr, ok := userInfoMap["email"].(string); ok {
 					userInfo.Email = &emailStr
+				}
+			}
+		}
+	}
+
+	// Add groups information if groups scope is granted
+	if containsScope(scope, "groups") {
+		if extraMap, ok := claims["extra_claims"].(map[string]interface{}); ok {
+			if groupsInterface, exists := extraMap["groups"]; exists {
+				if groupsSlice, ok := groupsInterface.([]interface{}); ok {
+					groups := make([]string, 0, len(groupsSlice))
+					for _, g := range groupsSlice {
+						if groupStr, ok := g.(string); ok {
+							groups = append(groups, groupStr)
+						}
+					}
+					if len(groups) > 0 {
+						userInfo.Groups = &groups
+					}
 				}
 			}
 		}
