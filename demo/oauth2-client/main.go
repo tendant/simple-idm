@@ -39,7 +39,7 @@ var (
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURL,
-		Scopes:       []string{"openid", "profile", "email"},
+		Scopes:       []string{"openid", "profile", "email", "groups"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  authURL,
 			TokenURL: tokenURL,
