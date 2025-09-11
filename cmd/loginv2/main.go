@@ -503,7 +503,7 @@ func main() {
 		ResourceURI:            config.BaseUrl,
 		AuthorizationServerURI: config.BaseUrl,
 		BaseURL:                config.BaseUrl,
-		Scopes:                 []string{"openid", "profile", "email"},
+		Scopes:                 []string{"openid", "profile", "email", "groups"},
 		ResourceDocumentation:  config.BaseUrl + "/docs",
 	}
 	wellKnownHandler := wellknown.NewHandler(wellKnownConfig)
