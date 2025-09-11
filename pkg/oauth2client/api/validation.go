@@ -67,6 +67,7 @@ var (
 		"address":        true,
 		"phone":          true,
 		"offline_access": true,
+		"groups":         true,
 	}
 )
 
