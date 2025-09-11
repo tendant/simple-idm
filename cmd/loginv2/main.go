@@ -399,8 +399,7 @@ func main() {
 	)
 
 	// Initialize IAM repository and service
-	iamRepo := iam.NewPostgresIamRepository(iamQueries)
-	iamService := iam.NewIamService(iamRepo)
+	iamService := iam.NewIamServiceWithQueriesAndGroups(iamQueries)
 	userHandle := iamapi.NewHandle(iamService)
 
 	// Initialize role repository and service
@@ -782,7 +781,7 @@ func setupDefaultOAuth2Clients(service *oauth2client.ClientService) {
 		RedirectURIs:  []string{"http://localhost:8182/demo/callback"},
 		ResponseTypes: []string{"code"},
 		GrantTypes:    []string{"authorization_code"},
-		Scopes:        []string{"openid", "profile", "email"},
+		Scopes:        []string{"openid", "profile", "email", "groups"},
 		ClientType:    "confidential",
 	}
 
@@ -808,7 +807,7 @@ func setupDefaultOAuth2Clients(service *oauth2client.ClientService) {
 		RedirectURIs:  []string{"http://localhost:8082/sky/issuer/callback"},
 		ResponseTypes: []string{"code"},
 		GrantTypes:    []string{"authorization_code"},
-		Scopes:        []string{"openid", "profile", "email"},
+		Scopes:        []string{"openid", "profile", "email", "groups"},
 		ClientType:    "confidential",
 	}
 
