@@ -42,7 +42,7 @@ func (q *Queries) FindUsernamesByEmail(ctx context.Context, email string) ([]sql
 }
 
 const getUserById = `-- name: GetUserById :one
-SELECT u.id, u.name, u.email,u.phone, u.created_at, u.last_modified_at,
+SELECT u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at,
        COALESCE(array_agg(r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles, u.login_id
 FROM users u
 LEFT JOIN user_roles ur ON u.id = ur.user_id
@@ -73,6 +73,49 @@ func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (GetUserByIdRow
 		&i.Phone,
 		&i.CreatedAt,
 		&i.LastModifiedAt,
+		&i.Roles,
+		&i.LoginID,
+	)
+	return i, err
+}
+
+const getUserWithGroupsAndRoles = `-- name: GetUserWithGroupsAndRoles :one
+SELECT u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at,
+       COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL AND g.deleted_at IS NULL), '{}') as groups,
+       COALESCE(array_agg(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles,
+       u.login_id
+FROM users u
+LEFT JOIN user_groups ug ON u.id = ug.user_id AND ug.deleted_at IS NULL
+LEFT JOIN groups g ON ug.group_id = g.id AND g.deleted_at IS NULL
+LEFT JOIN user_roles ur ON u.id = ur.user_id
+LEFT JOIN roles r ON ur.role_id = r.id
+WHERE u.id = $1 AND u.deleted_at IS NULL
+GROUP BY u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at, u.login_id
+`
+
+type GetUserWithGroupsAndRolesRow struct {
+	ID             uuid.UUID      `json:"id"`
+	Name           sql.NullString `json:"name"`
+	Email          string         `json:"email"`
+	Phone          sql.NullString `json:"phone"`
+	CreatedAt      time.Time      `json:"created_at"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	Groups         interface{}    `json:"groups"`
+	Roles          interface{}    `json:"roles"`
+	LoginID        uuid.NullUUID  `json:"login_id"`
+}
+
+func (q *Queries) GetUserWithGroupsAndRoles(ctx context.Context, id uuid.UUID) (GetUserWithGroupsAndRolesRow, error) {
+	row := q.db.QueryRow(ctx, getUserWithGroupsAndRoles, id)
+	var i GetUserWithGroupsAndRolesRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Phone,
+		&i.CreatedAt,
+		&i.LastModifiedAt,
+		&i.Groups,
 		&i.Roles,
 		&i.LoginID,
 	)
@@ -116,6 +159,59 @@ func (q *Queries) GetUsersByLoginId(ctx context.Context, loginID uuid.NullUUID) 
 			&i.Phone,
 			&i.CreatedAt,
 			&i.LastModifiedAt,
+			&i.Roles,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUsersByLoginIdWithGroups = `-- name: GetUsersByLoginIdWithGroups :many
+SELECT u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at,
+       COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL AND g.deleted_at IS NULL), '{}') as groups,
+       COALESCE(array_agg(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
+FROM users u
+LEFT JOIN user_groups ug ON u.id = ug.user_id AND ug.deleted_at IS NULL
+LEFT JOIN groups g ON ug.group_id = g.id AND g.deleted_at IS NULL
+LEFT JOIN user_roles ur ON u.id = ur.user_id
+LEFT JOIN roles r ON ur.role_id = r.id
+WHERE u.login_id = $1 AND u.deleted_at IS NULL
+GROUP BY u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at
+`
+
+type GetUsersByLoginIdWithGroupsRow struct {
+	ID             uuid.UUID      `json:"id"`
+	Name           sql.NullString `json:"name"`
+	Email          string         `json:"email"`
+	Phone          sql.NullString `json:"phone"`
+	CreatedAt      time.Time      `json:"created_at"`
+	LastModifiedAt time.Time      `json:"last_modified_at"`
+	Groups         interface{}    `json:"groups"`
+	Roles          interface{}    `json:"roles"`
+}
+
+func (q *Queries) GetUsersByLoginIdWithGroups(ctx context.Context, loginID uuid.NullUUID) ([]GetUsersByLoginIdWithGroupsRow, error) {
+	rows, err := q.db.Query(ctx, getUsersByLoginIdWithGroups, loginID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUsersByLoginIdWithGroupsRow
+	for rows.Next() {
+		var i GetUsersByLoginIdWithGroupsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Email,
+			&i.Phone,
+			&i.CreatedAt,
+			&i.LastModifiedAt,
+			&i.Groups,
 			&i.Roles,
 		); err != nil {
 			return nil, err

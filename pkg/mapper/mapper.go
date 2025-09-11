@@ -15,6 +15,7 @@ type User struct {
 	ExtraClaims map[string]interface{} `json:"extra_claims,omitempty"`
 	UserInfo    UserInfo               `json:"user_info,omitempty"`
 	Roles       []string               `json:"roles,omitempty"`
+	Groups      []string               `json:"groups,omitempty"`
 }
 
 type UserInfo struct {
