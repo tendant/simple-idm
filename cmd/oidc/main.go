@@ -211,22 +211,22 @@ package main
 // 	fmt.Fprint(w, htmlContent)
 // }
 
-// func main() {
+func main() {
 
-// 	tokenAuth := jwtauth.New("HS256", []byte("very-secure-jwt-secret"), nil)
-// 	handle := oidc.NewHandle(tokenAuth)
+	// 	tokenAuth := jwtauth.New("HS256", []byte("very-secure-jwt-secret"), nil)
+	// 	handle := oidc.NewHandle(tokenAuth)
 
-// 	// OIDC endpoints
-// 	http.HandleFunc("/oidc/authorize", handle.AuthorizeEndpoint)
-// 	http.HandleFunc("/oidc/token", handle.TokenEndpoint)
-// 	http.HandleFunc("/oidc/userinfo", handle.UserInfoEndpoint)
-// 	http.HandleFunc("/oidc/jwks", handle.JwksEndpoint)
+	// 	// OIDC endpoints
+	// 	http.HandleFunc("/oidc/authorize", handle.AuthorizeEndpoint)
+	// 	http.HandleFunc("/oidc/token", handle.TokenEndpoint)
+	// 	http.HandleFunc("/oidc/userinfo", handle.UserInfoEndpoint)
+	// 	http.HandleFunc("/oidc/jwks", handle.JwksEndpoint)
 
-// 	// Client endpoints
-// 	http.HandleFunc("/oauth2/home", homeHandler)
-// 	http.HandleFunc("/oauth2/callback", callbackHandler)
+	// 	// Client endpoints
+	// 	http.HandleFunc("/oauth2/home", homeHandler)
+	// 	http.HandleFunc("/oauth2/callback", callbackHandler)
 
-// 	log.Println("OIDC Provider running on http://localhost:4002")
-// 	log.Println("Visit http://localhost:4002/ to start the OAuth2 flow")
-// 	log.Fatal(http.ListenAndServe(":4002", nil))
-// }
+	// log.Println("OIDC Provider running on http://localhost:4002")
+	// log.Println("Visit http://localhost:4002/ to start the OAuth2 flow")
+	// log.Fatal(http.ListenAndServe(":4002", nil))
+}
