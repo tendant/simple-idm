@@ -8,39 +8,18 @@ export interface OAuth2Client {
   response_types: string[];
   grant_types: string[];
   scope?: string;
-  client_uri?: string;
-  logo_uri?: string;
-  contacts?: string[];
-  tos_uri?: string;
-  policy_uri?: string;
-  jwks_uri?: string;
-  software_id?: string;
-  software_version?: string;
-  description?: string;
-  token_endpoint_auth_method?: string;
   created_at: string;
   updated_at: string;
-  is_active: boolean;
-  last_used_at?: string;
 }
 
 export interface OAuth2ClientRegistrationRequest {
+  client_id: string;
   client_name: string;
   redirect_uris: string[];
   client_type?: 'confidential' | 'public';
   response_types?: string[];
   grant_types?: string[];
   scope?: string;
-  client_uri?: string;
-  logo_uri?: string;
-  contacts?: string[];
-  tos_uri?: string;
-  policy_uri?: string;
-  jwks_uri?: string;
-  software_id?: string;
-  software_version?: string;
-  description?: string;
-  token_endpoint_auth_method?: string;
 }
 
 export interface OAuth2ClientUpdateRequest {
@@ -50,17 +29,6 @@ export interface OAuth2ClientUpdateRequest {
   response_types?: string[];
   grant_types?: string[];
   scope?: string;
-  client_uri?: string;
-  logo_uri?: string;
-  contacts?: string[];
-  tos_uri?: string;
-  policy_uri?: string;
-  jwks_uri?: string;
-  software_id?: string;
-  software_version?: string;
-  description?: string;
-  token_endpoint_auth_method?: string;
-  is_active?: boolean;
 }
 
 export interface OAuth2ClientRegistrationResponse extends OAuth2Client {

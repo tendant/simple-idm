@@ -42,10 +42,6 @@ const OAuth2Clients: Component = () => {
     return type === 'confidential' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
   };
 
-  const getStatusColor = (isActive: boolean) => {
-    return isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-  };
-
   onMount(() => {
     fetchClients();
   });
@@ -102,16 +98,10 @@ const OAuth2Clients: Component = () => {
                         Type
                       </th>
                       <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-11 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-11 uppercase tracking-wider">
                         Grant Types
                       </th>
                       <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-11 uppercase tracking-wider">
                         Created
-                      </th>
-                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-11 uppercase tracking-wider">
-                        Last Used
                       </th>
                       <th scope="col" class="relative px-6 py-3">
                         <span class="sr-only">Actions</span>
@@ -121,7 +111,7 @@ const OAuth2Clients: Component = () => {
                   <tbody class="bg-white divide-y divide-gray-6">
                     <Show when={clients().length === 0}>
                       <tr>
-                        <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-9">
+                        <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-9">
                           No OAuth2 clients found. 
                           <button
                             type="button"
@@ -145,22 +135,12 @@ const OAuth2Clients: Component = () => {
                                 <div class="text-sm text-gray-9 font-mono">
                                   {truncateString(client.client_id, 20)}
                                 </div>
-                                <Show when={client.description}>
-                                  <div class="text-xs text-gray-8 mt-1">
-                                    {truncateString(client.description!, 50)}
-                                  </div>
-                                </Show>
                               </div>
                             </div>
                           </td>
                           <td class="px-6 py-4 whitespace-nowrap">
                             <span class={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getClientTypeColor(client.client_type)}`}>
                               {client.client_type}
-                            </span>
-                          </td>
-                          <td class="px-6 py-4 whitespace-nowrap">
-                            <span class={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(client.is_active)}`}>
-                              {client.is_active ? 'Active' : 'Inactive'}
                             </span>
                           </td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-9">
@@ -181,9 +161,6 @@ const OAuth2Clients: Component = () => {
                           </td>
                           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-9">
                             {formatDate(client.created_at)}
-                          </td>
-                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-9">
-                            {client.last_used_at ? formatDate(client.last_used_at) : 'Never'}
                           </td>
                           <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div class="flex justify-end space-x-2">
