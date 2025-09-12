@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/discord-gophers/goapi-gen/runtime"
-	openapi_types "github.com/discord-gophers/goapi-gen/types"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -26,112 +25,6 @@ import (
 
 const (
 	BearerAuthScopes = "bearerAuth.Scopes"
-)
-
-// Defines values for ClientRegistrationRequestClientType.
-var (
-	UnknownClientRegistrationRequestClientType = ClientRegistrationRequestClientType{}
-
-	ClientRegistrationRequestClientTypeConfidential = ClientRegistrationRequestClientType{"confidential"}
-
-	ClientRegistrationRequestClientTypePublic = ClientRegistrationRequestClientType{"public"}
-)
-
-// Defines values for ClientRegistrationRequestGrantTypes.
-var (
-	UnknownClientRegistrationRequestGrantTypes = ClientRegistrationRequestGrantTypes{}
-
-	ClientRegistrationRequestGrantTypesAuthorizationCode = ClientRegistrationRequestGrantTypes{"authorization_code"}
-
-	ClientRegistrationRequestGrantTypesClientCredentials = ClientRegistrationRequestGrantTypes{"client_credentials"}
-
-	ClientRegistrationRequestGrantTypesImplicit = ClientRegistrationRequestGrantTypes{"implicit"}
-
-	ClientRegistrationRequestGrantTypesRefreshToken = ClientRegistrationRequestGrantTypes{"refresh_token"}
-)
-
-// Defines values for ClientRegistrationRequestResponseTypes.
-var (
-	UnknownClientRegistrationRequestResponseTypes = ClientRegistrationRequestResponseTypes{}
-
-	ClientRegistrationRequestResponseTypesCode = ClientRegistrationRequestResponseTypes{"code"}
-
-	ClientRegistrationRequestResponseTypesIDToken = ClientRegistrationRequestResponseTypes{"id_token"}
-
-	ClientRegistrationRequestResponseTypesToken = ClientRegistrationRequestResponseTypes{"token"}
-)
-
-// Defines values for ClientRegistrationRequestTokenEndpointAuthMethod.
-var (
-	UnknownClientRegistrationRequestTokenEndpointAuthMethod = ClientRegistrationRequestTokenEndpointAuthMethod{}
-
-	ClientRegistrationRequestTokenEndpointAuthMethodClientSecretBasic = ClientRegistrationRequestTokenEndpointAuthMethod{"client_secret_basic"}
-
-	ClientRegistrationRequestTokenEndpointAuthMethodClientSecretPost = ClientRegistrationRequestTokenEndpointAuthMethod{"client_secret_post"}
-
-	ClientRegistrationRequestTokenEndpointAuthMethodNone = ClientRegistrationRequestTokenEndpointAuthMethod{"none"}
-)
-
-// Defines values for ClientRegistrationResponseClientType.
-var (
-	UnknownClientRegistrationResponseClientType = ClientRegistrationResponseClientType{}
-
-	ClientRegistrationResponseClientTypeConfidential = ClientRegistrationResponseClientType{"confidential"}
-
-	ClientRegistrationResponseClientTypePublic = ClientRegistrationResponseClientType{"public"}
-)
-
-// Defines values for ClientResponseClientType.
-var (
-	UnknownClientResponseClientType = ClientResponseClientType{}
-
-	ClientResponseClientTypeConfidential = ClientResponseClientType{"confidential"}
-
-	ClientResponseClientTypePublic = ClientResponseClientType{"public"}
-)
-
-// Defines values for ClientUpdateRequestClientType.
-var (
-	UnknownClientUpdateRequestClientType = ClientUpdateRequestClientType{}
-
-	ClientUpdateRequestClientTypeConfidential = ClientUpdateRequestClientType{"confidential"}
-
-	ClientUpdateRequestClientTypePublic = ClientUpdateRequestClientType{"public"}
-)
-
-// Defines values for ClientUpdateRequestGrantTypes.
-var (
-	UnknownClientUpdateRequestGrantTypes = ClientUpdateRequestGrantTypes{}
-
-	ClientUpdateRequestGrantTypesAuthorizationCode = ClientUpdateRequestGrantTypes{"authorization_code"}
-
-	ClientUpdateRequestGrantTypesClientCredentials = ClientUpdateRequestGrantTypes{"client_credentials"}
-
-	ClientUpdateRequestGrantTypesImplicit = ClientUpdateRequestGrantTypes{"implicit"}
-
-	ClientUpdateRequestGrantTypesRefreshToken = ClientUpdateRequestGrantTypes{"refresh_token"}
-)
-
-// Defines values for ClientUpdateRequestResponseTypes.
-var (
-	UnknownClientUpdateRequestResponseTypes = ClientUpdateRequestResponseTypes{}
-
-	ClientUpdateRequestResponseTypesCode = ClientUpdateRequestResponseTypes{"code"}
-
-	ClientUpdateRequestResponseTypesIDToken = ClientUpdateRequestResponseTypes{"id_token"}
-
-	ClientUpdateRequestResponseTypesToken = ClientUpdateRequestResponseTypes{"token"}
-)
-
-// Defines values for ClientUpdateRequestTokenEndpointAuthMethod.
-var (
-	UnknownClientUpdateRequestTokenEndpointAuthMethod = ClientUpdateRequestTokenEndpointAuthMethod{}
-
-	ClientUpdateRequestTokenEndpointAuthMethodClientSecretBasic = ClientUpdateRequestTokenEndpointAuthMethod{"client_secret_basic"}
-
-	ClientUpdateRequestTokenEndpointAuthMethodClientSecretPost = ClientUpdateRequestTokenEndpointAuthMethod{"client_secret_post"}
-
-	ClientUpdateRequestTokenEndpointAuthMethodNone = ClientUpdateRequestTokenEndpointAuthMethod{"none"}
 )
 
 // ClientListResponse defines model for ClientListResponse.
@@ -150,53 +43,25 @@ type ClientListResponse struct {
 
 // ClientRegistrationRequest defines model for ClientRegistrationRequest.
 type ClientRegistrationRequest struct {
+	ClientID string `json:"client_id"`
+
 	// Human-readable name of the client
 	ClientName string `json:"client_name"`
 
 	// Client type
-	ClientType *ClientRegistrationRequestClientType `json:"client_type,omitempty"`
-
-	// URL of the client's homepage
-	ClientURI *string `json:"client_uri,omitempty"`
-
-	// Array of contact email addresses
-	Contacts []openapi_types.Email `json:"contacts,omitempty"`
-
-	// Optional description of the client
-	Description *string `json:"description,omitempty"`
+	ClientType *string `json:"client_type,omitempty"`
 
 	// Array of OAuth2 grant types
-	GrantTypes []ClientRegistrationRequestGrantTypes `json:"grant_types,omitempty"`
-
-	// URL of the client's JSON Web Key Set
-	JwksURI *string `json:"jwks_uri,omitempty"`
-
-	// URL of the client's logo
-	LogoURI *string `json:"logo_uri,omitempty"`
-
-	// URL of the client's privacy policy
-	PolicyURI *string `json:"policy_uri,omitempty"`
+	GrantTypes []string `json:"grant_types,omitempty"`
 
 	// Array of redirect URIs
 	RedirectUris []string `json:"redirect_uris"`
 
 	// Array of OAuth2 response types
-	ResponseTypes []ClientRegistrationRequestResponseTypes `json:"response_types,omitempty"`
+	ResponseTypes []string `json:"response_types,omitempty"`
 
 	// Space-separated list of scope values
 	Scope *string `json:"scope,omitempty"`
-
-	// Software identifier
-	SoftwareID *string `json:"software_id,omitempty"`
-
-	// Software version
-	SoftwareVersion *string `json:"software_version,omitempty"`
-
-	// Authentication method for token endpoint
-	TokenEndpointAuthMethod *ClientRegistrationRequestTokenEndpointAuthMethod `json:"token_endpoint_auth_method,omitempty"`
-
-	// URL of the client's terms of service
-	TosURI *string `json:"tos_uri,omitempty"`
 }
 
 // ClientRegistrationResponse defines model for ClientRegistrationResponse.
@@ -211,34 +76,13 @@ type ClientRegistrationResponse struct {
 	ClientSecret *string `json:"client_secret,omitempty"`
 
 	// Client type
-	ClientType ClientRegistrationResponseClientType `json:"client_type"`
-
-	// URL of the client's homepage
-	ClientURI *string `json:"client_uri,omitempty"`
-
-	// Array of contact email addresses
-	Contacts []openapi_types.Email `json:"contacts,omitempty"`
+	ClientType string `json:"client_type"`
 
 	// Client creation timestamp
 	CreatedAt time.Time `json:"created_at"`
 
-	// Optional description of the client
-	Description *string `json:"description,omitempty"`
-
 	// Array of OAuth2 grant types
 	GrantTypes []string `json:"grant_types"`
-
-	// Whether the client is active
-	IsActive bool `json:"is_active"`
-
-	// URL of the client's JSON Web Key Set
-	JwksURI *string `json:"jwks_uri,omitempty"`
-
-	// URL of the client's logo
-	LogoURI *string `json:"logo_uri,omitempty"`
-
-	// URL of the client's privacy policy
-	PolicyURI *string `json:"policy_uri,omitempty"`
 
 	// Array of redirect URIs
 	RedirectUris []string `json:"redirect_uris"`
@@ -248,18 +92,6 @@ type ClientRegistrationResponse struct {
 
 	// Space-separated list of scope values
 	Scope *string `json:"scope,omitempty"`
-
-	// Software identifier
-	SoftwareID *string `json:"software_id,omitempty"`
-
-	// Software version
-	SoftwareVersion *string `json:"software_version,omitempty"`
-
-	// Authentication method for token endpoint
-	TokenEndpointAuthMethod *string `json:"token_endpoint_auth_method,omitempty"`
-
-	// URL of the client's terms of service
-	TosURI *string `json:"tos_uri,omitempty"`
 
 	// Client last update timestamp
 	UpdatedAt time.Time `json:"updated_at"`
@@ -274,37 +106,13 @@ type ClientResponse struct {
 	ClientName string `json:"client_name"`
 
 	// Client type
-	ClientType ClientResponseClientType `json:"client_type"`
-
-	// URL of the client's homepage
-	ClientURI *string `json:"client_uri,omitempty"`
-
-	// Array of contact email addresses
-	Contacts []openapi_types.Email `json:"contacts,omitempty"`
+	ClientType string `json:"client_type"`
 
 	// Client creation timestamp
 	CreatedAt time.Time `json:"created_at"`
 
-	// Optional description of the client
-	Description *string `json:"description,omitempty"`
-
 	// Array of OAuth2 grant types
 	GrantTypes []string `json:"grant_types"`
-
-	// Whether the client is active
-	IsActive bool `json:"is_active"`
-
-	// URL of the client's JSON Web Key Set
-	JwksURI *string `json:"jwks_uri,omitempty"`
-
-	// Last time client was used for authentication
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-
-	// URL of the client's logo
-	LogoURI *string `json:"logo_uri,omitempty"`
-
-	// URL of the client's privacy policy
-	PolicyURI *string `json:"policy_uri,omitempty"`
 
 	// Array of redirect URIs
 	RedirectUris []string `json:"redirect_uris"`
@@ -314,18 +122,6 @@ type ClientResponse struct {
 
 	// Space-separated list of scope values
 	Scope *string `json:"scope,omitempty"`
-
-	// Software identifier
-	SoftwareID *string `json:"software_id,omitempty"`
-
-	// Software version
-	SoftwareVersion *string `json:"software_version,omitempty"`
-
-	// Authentication method for token endpoint
-	TokenEndpointAuthMethod *string `json:"token_endpoint_auth_method,omitempty"`
-
-	// URL of the client's terms of service
-	TosURI *string `json:"tos_uri,omitempty"`
 
 	// Client last update timestamp
 	UpdatedAt time.Time `json:"updated_at"`
@@ -349,52 +145,19 @@ type ClientUpdateRequest struct {
 	ClientName *string `json:"client_name,omitempty"`
 
 	// Client type
-	ClientType *ClientUpdateRequestClientType `json:"client_type,omitempty"`
-
-	// URL of the client's homepage
-	ClientURI *string `json:"client_uri,omitempty"`
-
-	// Array of contact email addresses
-	Contacts []openapi_types.Email `json:"contacts,omitempty"`
-
-	// Optional description of the client
-	Description *string `json:"description,omitempty"`
+	ClientType *string `json:"client_type,omitempty"`
 
 	// Array of OAuth2 grant types
-	GrantTypes []ClientUpdateRequestGrantTypes `json:"grant_types,omitempty"`
-
-	// Whether the client is active
-	IsActive *bool `json:"is_active,omitempty"`
-
-	// URL of the client's JSON Web Key Set
-	JwksURI *string `json:"jwks_uri,omitempty"`
-
-	// URL of the client's logo
-	LogoURI *string `json:"logo_uri,omitempty"`
-
-	// URL of the client's privacy policy
-	PolicyURI *string `json:"policy_uri,omitempty"`
+	GrantTypes []string `json:"grant_types,omitempty"`
 
 	// Array of redirect URIs
 	RedirectUris []string `json:"redirect_uris,omitempty"`
 
 	// Array of OAuth2 response types
-	ResponseTypes []ClientUpdateRequestResponseTypes `json:"response_types,omitempty"`
+	ResponseTypes []string `json:"response_types,omitempty"`
 
 	// Space-separated list of scope values
 	Scope *string `json:"scope,omitempty"`
-
-	// Software identifier
-	SoftwareID *string `json:"software_id,omitempty"`
-
-	// Software version
-	SoftwareVersion *string `json:"software_version,omitempty"`
-
-	// Authentication method for token endpoint
-	TokenEndpointAuthMethod *ClientUpdateRequestTokenEndpointAuthMethod `json:"token_endpoint_auth_method,omitempty"`
-
-	// URL of the client's terms of service
-	TosURI *string `json:"tos_uri,omitempty"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -409,368 +172,6 @@ type ErrorResponse struct {
 	ErrorURI *string `json:"error_uri,omitempty"`
 }
 
-// Client type
-type ClientRegistrationRequestClientType struct {
-	value string
-}
-
-func (t *ClientRegistrationRequestClientType) ToValue() string {
-	return t.value
-}
-func (t ClientRegistrationRequestClientType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientRegistrationRequestClientType) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientRegistrationRequestClientType) FromValue(value string) error {
-	switch value {
-
-	case ClientRegistrationRequestClientTypeConfidential.value:
-		t.value = value
-		return nil
-
-	case ClientRegistrationRequestClientTypePublic.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
-// ClientRegistrationRequestGrantTypes defines model for ClientRegistrationRequest.GrantTypes.
-type ClientRegistrationRequestGrantTypes struct {
-	value string
-}
-
-func (t *ClientRegistrationRequestGrantTypes) ToValue() string {
-	return t.value
-}
-func (t ClientRegistrationRequestGrantTypes) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientRegistrationRequestGrantTypes) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientRegistrationRequestGrantTypes) FromValue(value string) error {
-	switch value {
-
-	case ClientRegistrationRequestGrantTypesAuthorizationCode.value:
-		t.value = value
-		return nil
-
-	case ClientRegistrationRequestGrantTypesClientCredentials.value:
-		t.value = value
-		return nil
-
-	case ClientRegistrationRequestGrantTypesImplicit.value:
-		t.value = value
-		return nil
-
-	case ClientRegistrationRequestGrantTypesRefreshToken.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
-// ClientRegistrationRequestResponseTypes defines model for ClientRegistrationRequest.ResponseTypes.
-type ClientRegistrationRequestResponseTypes struct {
-	value string
-}
-
-func (t *ClientRegistrationRequestResponseTypes) ToValue() string {
-	return t.value
-}
-func (t ClientRegistrationRequestResponseTypes) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientRegistrationRequestResponseTypes) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientRegistrationRequestResponseTypes) FromValue(value string) error {
-	switch value {
-
-	case ClientRegistrationRequestResponseTypesCode.value:
-		t.value = value
-		return nil
-
-	case ClientRegistrationRequestResponseTypesIDToken.value:
-		t.value = value
-		return nil
-
-	case ClientRegistrationRequestResponseTypesToken.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
-// Authentication method for token endpoint
-type ClientRegistrationRequestTokenEndpointAuthMethod struct {
-	value string
-}
-
-func (t *ClientRegistrationRequestTokenEndpointAuthMethod) ToValue() string {
-	return t.value
-}
-func (t ClientRegistrationRequestTokenEndpointAuthMethod) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientRegistrationRequestTokenEndpointAuthMethod) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientRegistrationRequestTokenEndpointAuthMethod) FromValue(value string) error {
-	switch value {
-
-	case ClientRegistrationRequestTokenEndpointAuthMethodClientSecretBasic.value:
-		t.value = value
-		return nil
-
-	case ClientRegistrationRequestTokenEndpointAuthMethodClientSecretPost.value:
-		t.value = value
-		return nil
-
-	case ClientRegistrationRequestTokenEndpointAuthMethodNone.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
-// Client type
-type ClientRegistrationResponseClientType struct {
-	value string
-}
-
-func (t *ClientRegistrationResponseClientType) ToValue() string {
-	return t.value
-}
-func (t ClientRegistrationResponseClientType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientRegistrationResponseClientType) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientRegistrationResponseClientType) FromValue(value string) error {
-	switch value {
-
-	case ClientRegistrationResponseClientTypeConfidential.value:
-		t.value = value
-		return nil
-
-	case ClientRegistrationResponseClientTypePublic.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
-// Client type
-type ClientResponseClientType struct {
-	value string
-}
-
-func (t *ClientResponseClientType) ToValue() string {
-	return t.value
-}
-func (t ClientResponseClientType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientResponseClientType) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientResponseClientType) FromValue(value string) error {
-	switch value {
-
-	case ClientResponseClientTypeConfidential.value:
-		t.value = value
-		return nil
-
-	case ClientResponseClientTypePublic.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
-// Client type
-type ClientUpdateRequestClientType struct {
-	value string
-}
-
-func (t *ClientUpdateRequestClientType) ToValue() string {
-	return t.value
-}
-func (t ClientUpdateRequestClientType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientUpdateRequestClientType) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientUpdateRequestClientType) FromValue(value string) error {
-	switch value {
-
-	case ClientUpdateRequestClientTypeConfidential.value:
-		t.value = value
-		return nil
-
-	case ClientUpdateRequestClientTypePublic.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
-// ClientUpdateRequestGrantTypes defines model for ClientUpdateRequest.GrantTypes.
-type ClientUpdateRequestGrantTypes struct {
-	value string
-}
-
-func (t *ClientUpdateRequestGrantTypes) ToValue() string {
-	return t.value
-}
-func (t ClientUpdateRequestGrantTypes) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientUpdateRequestGrantTypes) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientUpdateRequestGrantTypes) FromValue(value string) error {
-	switch value {
-
-	case ClientUpdateRequestGrantTypesAuthorizationCode.value:
-		t.value = value
-		return nil
-
-	case ClientUpdateRequestGrantTypesClientCredentials.value:
-		t.value = value
-		return nil
-
-	case ClientUpdateRequestGrantTypesImplicit.value:
-		t.value = value
-		return nil
-
-	case ClientUpdateRequestGrantTypesRefreshToken.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
-// ClientUpdateRequestResponseTypes defines model for ClientUpdateRequest.ResponseTypes.
-type ClientUpdateRequestResponseTypes struct {
-	value string
-}
-
-func (t *ClientUpdateRequestResponseTypes) ToValue() string {
-	return t.value
-}
-func (t ClientUpdateRequestResponseTypes) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientUpdateRequestResponseTypes) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientUpdateRequestResponseTypes) FromValue(value string) error {
-	switch value {
-
-	case ClientUpdateRequestResponseTypesCode.value:
-		t.value = value
-		return nil
-
-	case ClientUpdateRequestResponseTypesIDToken.value:
-		t.value = value
-		return nil
-
-	case ClientUpdateRequestResponseTypesToken.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
-// Authentication method for token endpoint
-type ClientUpdateRequestTokenEndpointAuthMethod struct {
-	value string
-}
-
-func (t *ClientUpdateRequestTokenEndpointAuthMethod) ToValue() string {
-	return t.value
-}
-func (t ClientUpdateRequestTokenEndpointAuthMethod) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.value)
-}
-func (t *ClientUpdateRequestTokenEndpointAuthMethod) UnmarshalJSON(data []byte) error {
-	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	return t.FromValue(value)
-}
-func (t *ClientUpdateRequestTokenEndpointAuthMethod) FromValue(value string) error {
-	switch value {
-
-	case ClientUpdateRequestTokenEndpointAuthMethodClientSecretBasic.value:
-		t.value = value
-		return nil
-
-	case ClientUpdateRequestTokenEndpointAuthMethodClientSecretPost.value:
-		t.value = value
-		return nil
-
-	case ClientUpdateRequestTokenEndpointAuthMethodNone.value:
-		t.value = value
-		return nil
-
-	}
-	return fmt.Errorf("unknown enum value: %v", value)
-}
-
 // ListClientsParams defines parameters for ListClients.
 type ListClientsParams struct {
 	// Maximum number of clients to return
@@ -780,14 +181,8 @@ type ListClientsParams struct {
 	Offset *int `json:"offset,omitempty"`
 
 	// Filter by client type
-	ClientType *ListClientsParamsClientType `json:"client_type,omitempty"`
-
-	// Filter by active status
-	IsActive *bool `json:"is_active,omitempty"`
+	ClientType *string `json:"client_type,omitempty"`
 }
-
-// ListClientsParamsClientType defines parameters for ListClients.
-type ListClientsParamsClientType string
 
 // RegisterClientJSONBody defines parameters for RegisterClient.
 type RegisterClientJSONBody ClientRegistrationRequest
@@ -1143,14 +538,6 @@ func (siw *ServerInterfaceWrapper) ListClients(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// ------------- Optional query parameter "is_active" -------------
-
-	if err := runtime.BindQueryParameter("form", true, false, "is_active", r.URL.Query(), &params.IsActive); err != nil {
-		err = fmt.Errorf("invalid format for parameter is_active: %w", err)
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{err, "is_active"})
-		return
-	}
-
 	var handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := siw.Handler.ListClients(w, r, params)
 		if resp != nil {
@@ -1443,42 +830,34 @@ func WithErrorHandler(handler func(w http.ResponseWriter, r *http.Request, err e
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

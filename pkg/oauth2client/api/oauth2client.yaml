@@ -72,12 +72,6 @@ paths:
           description: Filter by client type
           schema:
             type: string
-            enum: ["public", "confidential"]
-        - name: is_active
-          in: query
-          description: Filter by active status
-          schema:
-            type: boolean
       responses:
         '200':
           description: List of clients
@@ -273,16 +267,8 @@ components:
           type: string
           description: Human-readable name of the client
           example: "My Application"
-        client_uri:
+        client_id:
           type: string
-          format: uri
-          description: URL of the client's homepage
-          example: "https://myapp.example.com"
-        logo_uri:
-          type: string
-          format: uri
-          description: URL of the client's logo
-          example: "https://myapp.example.com/logo.png"
         redirect_uris:
           type: array
           items:
@@ -294,7 +280,6 @@ components:
           type: array
           items:
             type: string
-            enum: ["code", "token", "id_token"]
           description: Array of OAuth2 response types
           default: ["code"]
           example: ["code"]
@@ -302,7 +287,6 @@ components:
           type: array
           items:
             type: string
-            enum: ["authorization_code", "implicit", "refresh_token", "client_credentials"]
           description: Array of OAuth2 grant types
           default: ["authorization_code"]
           example: ["authorization_code"]
@@ -310,54 +294,13 @@ components:
           type: string
           description: Space-separated list of scope values
           example: "openid profile email"
-        contacts:
-          type: array
-          items:
-            type: string
-            format: email
-          description: Array of contact email addresses
-          example: ["admin@myapp.example.com"]
-        tos_uri:
-          type: string
-          format: uri
-          description: URL of the client's terms of service
-          example: "https://myapp.example.com/tos"
-        policy_uri:
-          type: string
-          format: uri
-          description: URL of the client's privacy policy
-          example: "https://myapp.example.com/privacy"
-        jwks_uri:
-          type: string
-          format: uri
-          description: URL of the client's JSON Web Key Set
-          example: "https://myapp.example.com/.well-known/jwks.json"
-        software_id:
-          type: string
-          description: Software identifier
-          example: "myapp-v1.0"
-        software_version:
-          type: string
-          description: Software version
-          example: "1.0.0"
         client_type:
           type: string
-          enum: ["public", "confidential"]
           description: Client type
           default: "confidential"
-          example: "confidential"
-        token_endpoint_auth_method:
-          type: string
-          enum: ["client_secret_basic", "client_secret_post", "none"]
-          description: Authentication method for token endpoint
-          default: "client_secret_basic"
-          example: "client_secret_basic"
-        description:
-          type: string
-          description: Optional description of the client
-          example: "OAuth2 client for My Application"
       required:
         - client_name
+        - client_id
         - redirect_uris
     ClientRegistrationResponse:
       type: object
@@ -374,16 +317,6 @@ components:
           type: string
           description: Human-readable name of the client
           example: "My Application"
-        client_uri:
-          type: string
-          format: uri
-          description: URL of the client's homepage
-          example: "https://myapp.example.com"
-        logo_uri:
-          type: string
-          format: uri
-          description: URL of the client's logo
-          example: "https://myapp.example.com/logo.png"
         redirect_uris:
           type: array
           items:
@@ -407,49 +340,10 @@ components:
           type: string
           description: Space-separated list of scope values
           example: "openid profile email"
-        contacts:
-          type: array
-          items:
-            type: string
-            format: email
-          description: Array of contact email addresses
-          example: ["admin@myapp.example.com"]
-        tos_uri:
-          type: string
-          format: uri
-          description: URL of the client's terms of service
-          example: "https://myapp.example.com/tos"
-        policy_uri:
-          type: string
-          format: uri
-          description: URL of the client's privacy policy
-          example: "https://myapp.example.com/privacy"
-        jwks_uri:
-          type: string
-          format: uri
-          description: URL of the client's JSON Web Key Set
-          example: "https://myapp.example.com/.well-known/jwks.json"
-        software_id:
-          type: string
-          description: Software identifier
-          example: "myapp-v1.0"
-        software_version:
-          type: string
-          description: Software version
-          example: "1.0.0"
         client_type:
           type: string
-          enum: ["public", "confidential"]
           description: Client type
           example: "confidential"
-        token_endpoint_auth_method:
-          type: string
-          description: Authentication method for token endpoint
-          example: "client_secret_basic"
-        description:
-          type: string
-          description: Optional description of the client
-          example: "OAuth2 client for My Application"
         created_at:
           type: string
           format: date-time
@@ -460,10 +354,6 @@ components:
           format: date-time
           description: Client last update timestamp
           example: "2023-01-01T00:00:00Z"
-        is_active:
-          type: boolean
-          description: Whether the client is active
-          example: true
       required:
         - client_id
         - client_name
@@ -473,7 +363,6 @@ components:
         - client_type
         - created_at
         - updated_at
-        - is_active
     ClientUpdateRequest:
       type: object
       properties:
@@ -481,16 +370,6 @@ components:
           type: string
           description: Human-readable name of the client
           example: "My Updated Application"
-        client_uri:
-          type: string
-          format: uri
-          description: URL of the client's homepage
-          example: "https://myapp.example.com"
-        logo_uri:
-          type: string
-          format: uri
-          description: URL of the client's logo
-          example: "https://myapp.example.com/logo.png"
         redirect_uris:
           type: array
           items:
@@ -502,68 +381,22 @@ components:
           type: array
           items:
             type: string
-            enum: ["code", "token", "id_token"]
           description: Array of OAuth2 response types
           example: ["code"]
         grant_types:
           type: array
           items:
             type: string
-            enum: ["authorization_code", "implicit", "refresh_token", "client_credentials"]
           description: Array of OAuth2 grant types
           example: ["authorization_code"]
         scope:
           type: string
           description: Space-separated list of scope values
           example: "openid profile email"
-        contacts:
-          type: array
-          items:
-            type: string
-            format: email
-          description: Array of contact email addresses
-          example: ["admin@myapp.example.com"]
-        tos_uri:
-          type: string
-          format: uri
-          description: URL of the client's terms of service
-          example: "https://myapp.example.com/tos"
-        policy_uri:
-          type: string
-          format: uri
-          description: URL of the client's privacy policy
-          example: "https://myapp.example.com/privacy"
-        jwks_uri:
-          type: string
-          format: uri
-          description: URL of the client's JSON Web Key Set
-          example: "https://myapp.example.com/.well-known/jwks.json"
-        software_id:
-          type: string
-          description: Software identifier
-          example: "myapp-v1.0"
-        software_version:
-          type: string
-          description: Software version
-          example: "1.0.0"
         client_type:
           type: string
-          enum: ["public", "confidential"]
           description: Client type
           example: "confidential"
-        token_endpoint_auth_method:
-          type: string
-          enum: ["client_secret_basic", "client_secret_post", "none"]
-          description: Authentication method for token endpoint
-          example: "client_secret_basic"
-        description:
-          type: string
-          description: Optional description of the client
-          example: "Updated OAuth2 client for My Application"
-        is_active:
-          type: boolean
-          description: Whether the client is active
-          example: true
     ClientResponse:
       type: object
       properties:
@@ -575,16 +408,6 @@ components:
           type: string
           description: Human-readable name of the client
           example: "My Application"
-        client_uri:
-          type: string
-          format: uri
-          description: URL of the client's homepage
-          example: "https://myapp.example.com"
-        logo_uri:
-          type: string
-          format: uri
-          description: URL of the client's logo
-          example: "https://myapp.example.com/logo.png"
         redirect_uris:
           type: array
           items:
@@ -608,49 +431,10 @@ components:
           type: string
           description: Space-separated list of scope values
           example: "openid profile email"
-        contacts:
-          type: array
-          items:
-            type: string
-            format: email
-          description: Array of contact email addresses
-          example: ["admin@myapp.example.com"]
-        tos_uri:
-          type: string
-          format: uri
-          description: URL of the client's terms of service
-          example: "https://myapp.example.com/tos"
-        policy_uri:
-          type: string
-          format: uri
-          description: URL of the client's privacy policy
-          example: "https://myapp.example.com/privacy"
-        jwks_uri:
-          type: string
-          format: uri
-          description: URL of the client's JSON Web Key Set
-          example: "https://myapp.example.com/.well-known/jwks.json"
-        software_id:
-          type: string
-          description: Software identifier
-          example: "myapp-v1.0"
-        software_version:
-          type: string
-          description: Software version
-          example: "1.0.0"
         client_type:
           type: string
-          enum: ["public", "confidential"]
           description: Client type
           example: "confidential"
-        token_endpoint_auth_method:
-          type: string
-          description: Authentication method for token endpoint
-          example: "client_secret_basic"
-        description:
-          type: string
-          description: Optional description of the client
-          example: "OAuth2 client for My Application"
         created_at:
           type: string
           format: date-time
@@ -661,15 +445,6 @@ components:
           format: date-time
           description: Client last update timestamp
           example: "2023-01-01T00:00:00Z"
-        is_active:
-          type: boolean
-          description: Whether the client is active
-          example: true
-        last_used_at:
-          type: string
-          format: date-time
-          description: Last time client was used for authentication
-          example: "2023-01-01T00:00:00Z"
       required:
         - client_id
         - client_name
@@ -679,7 +454,6 @@ components:
         - client_type
         - created_at
         - updated_at
-        - is_active
     ClientListResponse:
       type: object
       properties:

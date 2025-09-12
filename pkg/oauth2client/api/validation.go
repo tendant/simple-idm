@@ -112,6 +112,14 @@ func ValidateClientRegistrationRequest(req *ClientRegistrationRequest) Validatio
 		})
 	}
 
+	if req.ClientID == "" {
+		errors = append(errors, ValidationError{
+			Field:   "client_id",
+			Message: "client_id is required",
+			Code:    "invalid_client_metadata",
+		})
+	}
+
 	if len(req.RedirectUris) == 0 {
 		errors = append(errors, ValidationError{
 			Field:   "redirect_uris",
@@ -133,7 +141,7 @@ func ValidateClientRegistrationRequest(req *ClientRegistrationRequest) Validatio
 
 	// Validate client type
 	if req.ClientType != nil {
-		clientType := req.ClientType.ToValue()
+		clientType := *req.ClientType
 		if !validClientTypes[clientType] {
 			errors = append(errors, ValidationError{
 				Field:   "client_type",
@@ -145,7 +153,7 @@ func ValidateClientRegistrationRequest(req *ClientRegistrationRequest) Validatio
 
 	// Validate grant types
 	for i, gt := range req.GrantTypes {
-		grantType := gt.ToValue()
+		grantType := gt
 		if !validGrantTypes[grantType] {
 			errors = append(errors, ValidationError{
 				Field:   fmt.Sprintf("grant_types[%d]", i),
@@ -157,85 +165,11 @@ func ValidateClientRegistrationRequest(req *ClientRegistrationRequest) Validatio
 
 	// Validate response types
 	for i, rt := range req.ResponseTypes {
-		responseType := rt.ToValue()
+		responseType := rt
 		if !validResponseTypes[responseType] {
 			errors = append(errors, ValidationError{
 				Field:   fmt.Sprintf("response_types[%d]", i),
 				Message: fmt.Sprintf("invalid response_type: %s", responseType),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	// Validate token endpoint auth method
-	if req.TokenEndpointAuthMethod != nil {
-		authMethod := req.TokenEndpointAuthMethod.ToValue()
-		if !validTokenEndpointAuthMethods[authMethod] {
-			errors = append(errors, ValidationError{
-				Field:   "token_endpoint_auth_method",
-				Message: fmt.Sprintf("invalid token_endpoint_auth_method: %s", authMethod),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	// Validate URIs
-	if req.ClientURI != nil {
-		if err := validateURI(*req.ClientURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "client_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	if req.LogoURI != nil {
-		if err := validateURI(*req.LogoURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "logo_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	if req.TosURI != nil {
-		if err := validateURI(*req.TosURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "tos_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	if req.PolicyURI != nil {
-		if err := validateURI(*req.PolicyURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "policy_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	if req.JwksURI != nil {
-		if err := validateURI(*req.JwksURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "jwks_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	// Validate contacts (email addresses)
-	for i, contact := range req.Contacts {
-		if !emailRegex.MatchString(string(contact)) {
-			errors = append(errors, ValidationError{
-				Field:   fmt.Sprintf("contacts[%d]", i),
-				Message: fmt.Sprintf("invalid email address: %s", contact),
 				Code:    "invalid_client_metadata",
 			})
 		}
@@ -260,11 +194,6 @@ func ValidateClientRegistrationRequest(req *ClientRegistrationRequest) Validatio
 		errors = append(errors, *err)
 	}
 
-	// Validate client type and auth method consistency
-	if err := validateClientTypeAuthMethodConsistency(req); err != nil {
-		errors = append(errors, *err)
-	}
-
 	return errors
 }
 
@@ -285,7 +214,7 @@ func ValidateClientUpdateRequest(req *ClientUpdateRequest) ValidationErrors {
 
 	// Validate client type if provided
 	if req.ClientType != nil {
-		clientType := req.ClientType.ToValue()
+		clientType := *req.ClientType
 		if !validClientTypes[clientType] {
 			errors = append(errors, ValidationError{
 				Field:   "client_type",
@@ -297,7 +226,7 @@ func ValidateClientUpdateRequest(req *ClientUpdateRequest) ValidationErrors {
 
 	// Validate grant types if provided
 	for i, gt := range req.GrantTypes {
-		grantType := gt.ToValue()
+		grantType := gt
 		if !validGrantTypes[grantType] {
 			errors = append(errors, ValidationError{
 				Field:   fmt.Sprintf("grant_types[%d]", i),
@@ -309,85 +238,11 @@ func ValidateClientUpdateRequest(req *ClientUpdateRequest) ValidationErrors {
 
 	// Validate response types if provided
 	for i, rt := range req.ResponseTypes {
-		responseType := rt.ToValue()
+		responseType := rt
 		if !validResponseTypes[responseType] {
 			errors = append(errors, ValidationError{
 				Field:   fmt.Sprintf("response_types[%d]", i),
 				Message: fmt.Sprintf("invalid response_type: %s", responseType),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	// Validate token endpoint auth method if provided
-	if req.TokenEndpointAuthMethod != nil {
-		authMethod := req.TokenEndpointAuthMethod.ToValue()
-		if !validTokenEndpointAuthMethods[authMethod] {
-			errors = append(errors, ValidationError{
-				Field:   "token_endpoint_auth_method",
-				Message: fmt.Sprintf("invalid token_endpoint_auth_method: %s", authMethod),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	// Validate URIs if provided
-	if req.ClientURI != nil {
-		if err := validateURI(*req.ClientURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "client_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	if req.LogoURI != nil {
-		if err := validateURI(*req.LogoURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "logo_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	if req.TosURI != nil {
-		if err := validateURI(*req.TosURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "tos_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	if req.PolicyURI != nil {
-		if err := validateURI(*req.PolicyURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "policy_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	if req.JwksURI != nil {
-		if err := validateURI(*req.JwksURI); err != nil {
-			errors = append(errors, ValidationError{
-				Field:   "jwks_uri",
-				Message: err.Error(),
-				Code:    "invalid_client_metadata",
-			})
-		}
-	}
-
-	// Validate contacts if provided
-	for i, contact := range req.Contacts {
-		if !emailRegex.MatchString(string(contact)) {
-			errors = append(errors, ValidationError{
-				Field:   fmt.Sprintf("contacts[%d]", i),
-				Message: fmt.Sprintf("invalid email address: %s", contact),
 				Code:    "invalid_client_metadata",
 			})
 		}
@@ -462,18 +317,14 @@ func validateGrantTypeResponseTypeConsistency(req *ClientRegistrationRequest) *V
 	grantTypes := []string{"authorization_code"}
 	if len(req.GrantTypes) > 0 {
 		grantTypes = make([]string, len(req.GrantTypes))
-		for i, gt := range req.GrantTypes {
-			grantTypes[i] = gt.ToValue()
-		}
+		copy(grantTypes, req.GrantTypes)
 	}
 
 	// If no response types specified, use default
 	responseTypes := []string{"code"}
 	if len(req.ResponseTypes) > 0 {
 		responseTypes = make([]string, len(req.ResponseTypes))
-		for i, rt := range req.ResponseTypes {
-			responseTypes[i] = rt.ToValue()
-		}
+		copy(responseTypes, req.ResponseTypes)
 	}
 
 	// Check consistency
@@ -495,39 +346,6 @@ func validateGrantTypeResponseTypeConsistency(req *ClientRegistrationRequest) *V
 		return &ValidationError{
 			Field:   "grant_types",
 			Message: "implicit grant type is required when using token response type",
-			Code:    "invalid_client_metadata",
-		}
-	}
-
-	return nil
-}
-
-// validateClientTypeAuthMethodConsistency validates consistency between client type and auth method
-func validateClientTypeAuthMethodConsistency(req *ClientRegistrationRequest) *ValidationError {
-	clientType := "confidential"
-	if req.ClientType != nil {
-		clientType = req.ClientType.ToValue()
-	}
-
-	authMethod := "client_secret_basic"
-	if req.TokenEndpointAuthMethod != nil {
-		authMethod = req.TokenEndpointAuthMethod.ToValue()
-	}
-
-	// Public clients should use "none" auth method
-	if clientType == "public" && authMethod != "none" {
-		return &ValidationError{
-			Field:   "token_endpoint_auth_method",
-			Message: "public clients must use 'none' as token_endpoint_auth_method",
-			Code:    "invalid_client_metadata",
-		}
-	}
-
-	// Confidential clients should not use "none" auth method
-	if clientType == "confidential" && authMethod == "none" {
-		return &ValidationError{
-			Field:   "token_endpoint_auth_method",
-			Message: "confidential clients cannot use 'none' as token_endpoint_auth_method",
 			Code:    "invalid_client_metadata",
 		}
 	}
