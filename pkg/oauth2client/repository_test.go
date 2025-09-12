@@ -46,7 +46,7 @@ func TestInMemoryOAuth2ClientRepository_CreateClient(t *testing.T) {
 	}
 
 	// Test creating a new client
-	err := repo.CreateClient(ctx, newClient)
+	_, err := repo.CreateClient(ctx, newClient)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -62,7 +62,7 @@ func TestInMemoryOAuth2ClientRepository_CreateClient(t *testing.T) {
 	}
 
 	// Test creating a client with duplicate ID
-	err = repo.CreateClient(ctx, newClient)
+	_, err = repo.CreateClient(ctx, newClient)
 	if err == nil {
 		t.Error("Expected error for duplicate client ID, got nil")
 	}
@@ -145,7 +145,7 @@ func TestInMemoryOAuth2ClientRepository_UpdateClient(t *testing.T) {
 		ClientType:    "public",
 	}
 
-	err = repo.UpdateClient(ctx, updatedClient)
+	_, err = repo.UpdateClient(ctx, updatedClient)
 	if err != nil {
 		t.Fatalf("Expected no error updating client, got %v", err)
 	}
@@ -168,7 +168,7 @@ func TestInMemoryOAuth2ClientRepository_UpdateClient(t *testing.T) {
 	nonExistentClient := &OAuth2Client{
 		ClientID: "non_existent",
 	}
-	err = repo.UpdateClient(ctx, nonExistentClient)
+	_, err = repo.UpdateClient(ctx, nonExistentClient)
 	if err == nil {
 		t.Error("Expected error updating non-existent client, got nil")
 	}
@@ -189,7 +189,7 @@ func TestInMemoryOAuth2ClientRepository_DeleteClient(t *testing.T) {
 		ClientType:   "confidential",
 	}
 
-	err := repo.CreateClient(ctx, testClient)
+	_, err := repo.CreateClient(ctx, testClient)
 	if err != nil {
 		t.Fatalf("Expected no error creating test client, got %v", err)
 	}

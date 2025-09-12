@@ -1,5 +1,7 @@
 package oauth2client
 
+import "time"
+
 // OAuth2Client represents an OAuth2 client configuration
 type OAuth2Client struct {
 	ClientID      string
@@ -11,6 +13,9 @@ type OAuth2Client struct {
 	Scopes        []string
 	ClientType    string // "public" or "confidential"
 	RequirePKCE   bool   // Whether this client requires PKCE
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	CreatedBy     string
 }
 
 // ValidateRedirectURI checks if the provided redirect URI is allowed for this client
