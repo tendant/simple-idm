@@ -99,7 +99,7 @@ func PKCEExample() {
 		RedirectURIs: []string{redirectURI},
 		Scopes:       []string{"openid", "profile"},
 	}
-	err = clientService.CreateClient(ctx, client)
+	_, err = clientService.CreateClient(ctx, client)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
