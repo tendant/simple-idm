@@ -620,7 +620,7 @@ func TestOIDCService_ProcessTokenRequest(t *testing.T) {
 		RedirectURIs: []string{"http://localhost:8080/callback"},
 		Scopes:       []string{"openid", "profile"},
 	}
-	err := clientService.CreateClient(ctx, client)
+	_, err := clientService.CreateClient(ctx, client)
 	if err != nil {
 		t.Fatalf("Failed to create test client: %v", err)
 	}
