@@ -253,6 +253,56 @@ CREATE TABLE public.login_password_reset_tokens (
 ALTER TABLE public.login_password_reset_tokens OWNER TO idm;
 
 --
+-- Name: oauth2_client_redirect_uris; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.oauth2_client_redirect_uris (
+    client_id uuid NOT NULL,
+    redirect_uri text NOT NULL,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    deleted_at timestamp without time zone
+);
+
+
+ALTER TABLE public.oauth2_client_redirect_uris OWNER TO idm;
+
+--
+-- Name: oauth2_client_scopes; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.oauth2_client_scopes (
+    client_id uuid NOT NULL,
+    scope_id uuid NOT NULL,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    deleted_at timestamp without time zone
+);
+
+
+ALTER TABLE public.oauth2_client_scopes OWNER TO idm;
+
+--
+-- Name: oauth2_clients; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.oauth2_clients (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    client_id character varying(255) NOT NULL,
+    client_secret_encrypted text NOT NULL,
+    client_name character varying(255) NOT NULL,
+    client_type character varying(50) NOT NULL,
+    require_pkce boolean DEFAULT false NOT NULL,
+    description text,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    updated_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    created_by character varying(255),
+    deleted_at timestamp without time zone,
+    CONSTRAINT oauth2_clients_client_type_check CHECK (((client_type)::text = ANY ((ARRAY['public'::character varying, 'confidential'::character varying])::text[])))
+);
+
+
+ALTER TABLE public.oauth2_clients OWNER TO idm;
+
+--
 -- Name: roles; Type: TABLE; Schema: public; Owner: idm
 --
 
@@ -264,6 +314,22 @@ CREATE TABLE public.roles (
 
 
 ALTER TABLE public.roles OWNER TO idm;
+
+--
+-- Name: scopes; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.scopes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name character varying(255) NOT NULL,
+    description text,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    updated_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    deleted_at timestamp without time zone
+);
+
+
+ALTER TABLE public.scopes OWNER TO idm;
 
 --
 -- Name: user_groups; Type: TABLE; Schema: public; Owner: idm
@@ -422,6 +488,38 @@ ALTER TABLE ONLY public.login
 
 
 --
+-- Name: oauth2_client_redirect_uris oauth2_client_redirect_uris_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.oauth2_client_redirect_uris
+    ADD CONSTRAINT oauth2_client_redirect_uris_pkey PRIMARY KEY (client_id, redirect_uri);
+
+
+--
+-- Name: oauth2_client_scopes oauth2_client_scopes_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.oauth2_client_scopes
+    ADD CONSTRAINT oauth2_client_scopes_pkey PRIMARY KEY (client_id, scope_id);
+
+
+--
+-- Name: oauth2_clients oauth2_clients_client_id_key; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.oauth2_clients
+    ADD CONSTRAINT oauth2_clients_client_id_key UNIQUE (client_id);
+
+
+--
+-- Name: oauth2_clients oauth2_clients_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.oauth2_clients
+    ADD CONSTRAINT oauth2_clients_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: login_password_reset_tokens password_reset_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
@@ -443,6 +541,22 @@ ALTER TABLE ONLY public.roles
 
 ALTER TABLE ONLY public.roles
     ADD CONSTRAINT roles_role_name_key UNIQUE (name);
+
+
+--
+-- Name: scopes scopes_name_key; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.scopes
+    ADD CONSTRAINT scopes_name_key UNIQUE (name);
+
+
+--
+-- Name: scopes scopes_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.scopes
+    ADD CONSTRAINT scopes_pkey PRIMARY KEY (id);
 
 
 --
@@ -636,6 +750,30 @@ ALTER TABLE ONLY public.login_password_history
 
 ALTER TABLE ONLY public.login_password_reset_tokens
     ADD CONSTRAINT login_password_reset_tokens_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
+
+
+--
+-- Name: oauth2_client_redirect_uris oauth2_client_redirect_uris_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.oauth2_client_redirect_uris
+    ADD CONSTRAINT oauth2_client_redirect_uris_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.oauth2_clients(id) ON DELETE CASCADE;
+
+
+--
+-- Name: oauth2_client_scopes oauth2_client_scopes_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.oauth2_client_scopes
+    ADD CONSTRAINT oauth2_client_scopes_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.oauth2_clients(id) ON DELETE CASCADE;
+
+
+--
+-- Name: oauth2_client_scopes oauth2_client_scopes_scope_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.oauth2_client_scopes
+    ADD CONSTRAINT oauth2_client_scopes_scope_id_fkey FOREIGN KEY (scope_id) REFERENCES public.scopes(id) ON DELETE CASCADE;
 
 
 --
