@@ -5,20 +5,13 @@ import { Input } from '@/components/ui/input';
 
 const CreateOAuth2Client: Component = () => {
   const navigate = useNavigate();
+  const [clientId, setClientId] = createSignal('');
   const [clientName, setClientName] = createSignal('');
   const [clientType, setClientType] = createSignal<'confidential' | 'public'>('confidential');
   const [redirectUris, setRedirectUris] = createSignal<string[]>(['']);
   const [grantTypes, setGrantTypes] = createSignal<string[]>(['authorization_code']);
   const [responseTypes, setResponseTypes] = createSignal<string[]>(['code']);
   const [scope, setScope] = createSignal('');
-  const [description, setDescription] = createSignal('');
-  const [clientUri, setClientUri] = createSignal('');
-  const [logoUri, setLogoUri] = createSignal('');
-  const [contacts, setContacts] = createSignal<string[]>(['']);
-  const [tosUri, setTosUri] = createSignal('');
-  const [policyUri, setPolicyUri] = createSignal('');
-  const [jwksUri, setJwksUri] = createSignal('');
-  const [tokenEndpointAuthMethod, setTokenEndpointAuthMethod] = createSignal('client_secret_basic');
   
   const [error, setError] = createSignal<string | null>(null);
   const [saving, setSaving] = createSignal(false);
@@ -26,14 +19,6 @@ const CreateOAuth2Client: Component = () => {
 
   const availableGrantTypes = ['authorization_code'];
   const availableResponseTypes = ['code'];
-
-  const availableAuthMethods = [
-    'client_secret_basic',
-    'client_secret_post',
-    'client_secret_jwt',
-    'private_key_jwt',
-    'none'
-  ];
 
   const addRedirectUri = () => {
     setRedirectUris([...redirectUris(), '']);
@@ -48,21 +33,6 @@ const CreateOAuth2Client: Component = () => {
     const uris = [...redirectUris()];
     uris[index] = value;
     setRedirectUris(uris);
-  };
-
-  const addContact = () => {
-    setContacts([...contacts(), '']);
-  };
-
-  const removeContact = (index: number) => {
-    const contactList = contacts().filter((_, i) => i !== index);
-    setContacts(contactList.length > 0 ? contactList : ['']);
-  };
-
-  const updateContact = (index: number, value: string) => {
-    const contactList = [...contacts()];
-    contactList[index] = value;
-    setContacts(contactList);
   };
 
   const toggleGrantType = (grantType: string) => {
@@ -92,7 +62,14 @@ const CreateOAuth2Client: Component = () => {
     try {
       // Filter out empty values
       const filteredRedirectUris = redirectUris().filter(uri => uri.trim() !== '');
-      const filteredContacts = contacts().filter(contact => contact.trim() !== '');
+
+      if (!clientId().trim()) {
+        throw new Error('Client ID is required');
+      }
+
+      if (!clientName().trim()) {
+        throw new Error('Client name is required');
+      }
 
       if (filteredRedirectUris.length === 0) {
         throw new Error('At least one redirect URI is required');
@@ -107,23 +84,16 @@ const CreateOAuth2Client: Component = () => {
       }
 
       const registrationData: OAuth2ClientRegistrationRequest = {
-        client_name: clientName(),
-        client_type: clientType(),
+        client_id: clientId().trim(),
+        client_name: clientName().trim(),
         redirect_uris: filteredRedirectUris,
+        client_type: clientType(),
         grant_types: grantTypes(),
         response_types: responseTypes(),
-        token_endpoint_auth_method: tokenEndpointAuthMethod(),
       };
 
       // Add optional fields if they have values
       if (scope().trim()) registrationData.scope = scope().trim();
-      if (description().trim()) registrationData.description = description().trim();
-      if (clientUri().trim()) registrationData.client_uri = clientUri().trim();
-      if (logoUri().trim()) registrationData.logo_uri = logoUri().trim();
-      if (tosUri().trim()) registrationData.tos_uri = tosUri().trim();
-      if (policyUri().trim()) registrationData.policy_uri = policyUri().trim();
-      if (jwksUri().trim()) registrationData.jwks_uri = jwksUri().trim();
-      if (filteredContacts.length > 0) registrationData.contacts = filteredContacts;
 
       const result = await oauth2ClientApi.registerClient(registrationData);
       setRegistrationResult(result);
@@ -262,7 +232,25 @@ const CreateOAuth2Client: Component = () => {
                   </p>
 
                   <div class="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
-                    <div class="sm:col-span-2">
+                    <div>
+                      <label for="client-id" class="block text-sm font-medium text-gray-11">
+                        Client ID <span class="text-red-500">*</span>
+                      </label>
+                      <div class="mt-1">
+                        <Input
+                          type="text"
+                          name="client-id"
+                          id="client-id"
+                          required
+                          value={clientId()}
+                          onInput={(e) => setClientId(e.target.value)}
+                          placeholder="my-app-client"
+                        />
+                      </div>
+                      <p class="mt-1 text-sm text-gray-8">A unique identifier for your client application.</p>
+                    </div>
+
+                    <div>
                       <label for="client-name" class="block text-sm font-medium text-gray-11">
                         Client Name <span class="text-red-500">*</span>
                       </label>
@@ -300,42 +288,6 @@ const CreateOAuth2Client: Component = () => {
                         Confidential clients can securely store credentials. Public clients cannot.
                       </p>
                     </div>
-
-                    <div>
-                      <label for="auth-method" class="block text-sm font-medium text-gray-11">
-                        Token Endpoint Auth Method
-                      </label>
-                      <div class="mt-1">
-                        <select
-                          id="auth-method"
-                          name="auth-method"
-                          value={tokenEndpointAuthMethod()}
-                          onChange={(e) => setTokenEndpointAuthMethod(e.currentTarget.value)}
-                          class="block w-full rounded-lg border-gray-6 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-                        >
-                          <For each={availableAuthMethods}>
-                            {(method) => <option value={method}>{method}</option>}
-                          </For>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div class="sm:col-span-2">
-                      <label for="description" class="block text-sm font-medium text-gray-11">
-                        Description
-                      </label>
-                      <div class="mt-1">
-                        <textarea
-                          id="description"
-                          name="description"
-                          rows="3"
-                          value={description()}
-                          onInput={(e) => setDescription(e.target.value)}
-                          placeholder="A brief description of your application..."
-                          class="block w-full rounded-lg border-gray-6 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
                   </div>
                 </div>
 
@@ -356,36 +308,34 @@ const CreateOAuth2Client: Component = () => {
                         Valid redirect URIs for your application. HTTPS is required except for localhost.
                       </p>
                       <div class="mt-2 space-y-2">
-                      <Index each={redirectUris()}>
-                        {(uri, i) => (
-                        <div class="flex items-center space-x-2">
-                          <Input
-                            type="url"
-                            value={uri()}
-                            onInput={(e) => updateRedirectUri(i, e.currentTarget.value)}
-                            placeholder="https://example.com/callback"
-                            class="flex-1"
-                          />
-                           <button
-                            type="button"
-                            onClick={() => removeRedirectUri(i)}
-                            class="px-3 py-2 text-red-600 hover:text-red-800"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                        
-                      )}
-                    </Index>
-                     <button
-                        type="button"
-                        onClick={addRedirectUri}
-                        class="inline-flex items-center rounded-lg bg-gray-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-500"
-                      >
-                        Add Redirect URI
-                      </button>
-                   
-                    </div>
+                        <Index each={redirectUris()}>
+                          {(uri, i) => (
+                            <div class="flex items-center space-x-2">
+                              <Input
+                                type="url"
+                                value={uri()}
+                                onInput={(e) => updateRedirectUri(i, e.currentTarget.value)}
+                                placeholder="https://example.com/callback"
+                                class="flex-1"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeRedirectUri(i)}
+                                class="px-3 py-2 text-red-600 hover:text-red-800"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </Index>
+                        <button
+                          type="button"
+                          onClick={addRedirectUri}
+                          class="inline-flex items-center rounded-lg bg-gray-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-500"
+                        >
+                          Add Redirect URI
+                        </button>
+                      </div>
                     </div>
 
                     {/* Grant Types */}
@@ -456,140 +406,6 @@ const CreateOAuth2Client: Component = () => {
                       <p class="mt-1 text-sm text-gray-8">
                         Space-separated list of scopes that your client will request.
                       </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Optional Metadata */}
-                <div>
-                  <h3 class="text-lg font-medium leading-6 text-gray-12">Optional Metadata</h3>
-                  <p class="mt-1 text-sm text-gray-9">
-                    Additional information about your client application.
-                  </p>
-
-                  <div class="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
-                    <div>
-                      <label for="client-uri" class="block text-sm font-medium text-gray-11">
-                        Client URI
-                      </label>
-                      <div class="mt-1">
-                        <Input
-                          type="url"
-                          name="client-uri"
-                          id="client-uri"
-                          value={clientUri()}
-                          onInput={(e) => setClientUri(e.target.value)}
-                          placeholder="https://example.com"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label for="logo-uri" class="block text-sm font-medium text-gray-11">
-                        Logo URI
-                      </label>
-                      <div class="mt-1">
-                        <Input
-                          type="url"
-                          name="logo-uri"
-                          id="logo-uri"
-                          value={logoUri()}
-                          onInput={(e) => setLogoUri(e.target.value)}
-                          placeholder="https://example.com/logo.png"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label for="tos-uri" class="block text-sm font-medium text-gray-11">
-                        Terms of Service URI
-                      </label>
-                      <div class="mt-1">
-                        <Input
-                          type="url"
-                          name="tos-uri"
-                          id="tos-uri"
-                          value={tosUri()}
-                          onInput={(e) => setTosUri(e.target.value)}
-                          placeholder="https://example.com/terms"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label for="policy-uri" class="block text-sm font-medium text-gray-11">
-                        Privacy Policy URI
-                      </label>
-                      <div class="mt-1">
-                        <Input
-                          type="url"
-                          name="policy-uri"
-                          id="policy-uri"
-                          value={policyUri()}
-                          onInput={(e) => setPolicyUri(e.target.value)}
-                          placeholder="https://example.com/privacy"
-                        />
-                      </div>
-                    </div>
-
-                    <div class="sm:col-span-2">
-                      <label for="jwks-uri" class="block text-sm font-medium text-gray-11">
-                        JWKS URI
-                      </label>
-                      <div class="mt-1">
-                        <Input
-                          type="url"
-                          name="jwks-uri"
-                          id="jwks-uri"
-                          value={jwksUri()}
-                          onInput={(e) => setJwksUri(e.target.value)}
-                          placeholder="https://example.com/.well-known/jwks.json"
-                        />
-                      </div>
-                      <p class="mt-1 text-sm text-gray-8">
-                        URI for your client's JSON Web Key Set (for JWT authentication).
-                      </p>
-                    </div>
-
-                    {/* Contacts */}
-                    <div class="sm:col-span-2">
-                      <label class="block text-sm font-medium text-gray-11">
-                        Contact Emails
-                      </label>
-                      <p class="mt-1 text-sm text-gray-8">
-                        Email addresses for people responsible for this client.
-                      </p>
-                    <div class="mt-2 space-y-2">
-                      <Index each={contacts()}>
-                        {(contact, i) => (
-                          <div class="flex items-center space-x-2">
-                            <Input
-                              type="email"
-                              value={contact()}                                   // accessor from <Index>
-                              onInput={(e) => updateContact(i, e.currentTarget.value)} // no casting
-                              placeholder="admin@example.com"
-                              class="flex-1"
-                            />
-                             <button
-                            type="button"
-                            onClick={() => removeContact(i)}
-                            class="px-3 py-2 text-red-600 hover:text-red-800"
-                          >
-                            Remove
-                          </button>
-                          </div>
-                        )}
-                       
-                      </Index>
-
-                      <button
-                        type="button"
-                        onClick={addContact}
-                        class="inline-flex items-center rounded-lg bg-gray-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-500"
-                      >
-                        Add Contact
-                      </button>
-                    </div>
                     </div>
                   </div>
                 </div>

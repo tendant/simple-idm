@@ -49,10 +49,6 @@ const OAuth2ClientDetail: Component = () => {
     return type === 'confidential' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
   };
 
-  const getStatusColor = (isActive: boolean) => {
-    return isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-  };
-
   onMount(() => {
     fetchClient();
   });
@@ -180,22 +176,6 @@ const OAuth2ClientDetail: Component = () => {
                 </div>
                 
                 <div>
-                  <dt class="text-sm font-medium text-gray-11">Status</dt>
-                  <dd class="mt-1">
-                    <span class={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(client()!.is_active)}`}>
-                      {client()!.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </dd>
-                </div>
-                
-                <Show when={client()!.description}>
-                  <div class="sm:col-span-2">
-                    <dt class="text-sm font-medium text-gray-11">Description</dt>
-                    <dd class="mt-1 text-sm text-gray-12">{client()!.description}</dd>
-                  </div>
-                </Show>
-                
-                <div>
                   <dt class="text-sm font-medium text-gray-11">Created</dt>
                   <dd class="mt-1 text-sm text-gray-12">{formatDate(client()!.created_at)}</dd>
                 </div>
@@ -204,13 +184,6 @@ const OAuth2ClientDetail: Component = () => {
                   <dt class="text-sm font-medium text-gray-11">Last Modified</dt>
                   <dd class="mt-1 text-sm text-gray-12">{formatDate(client()!.updated_at)}</dd>
                 </div>
-                
-                <Show when={client()!.last_used_at}>
-                  <div>
-                    <dt class="text-sm font-medium text-gray-11">Last Used</dt>
-                    <dd class="mt-1 text-sm text-gray-12">{formatDate(client()!.last_used_at!)}</dd>
-                  </div>
-                </Show>
               </dl>
             </div>
           </div>
@@ -276,13 +249,6 @@ const OAuth2ClientDetail: Component = () => {
                     </dd>
                   </div>
                 </Show>
-                
-                <Show when={client()!.token_endpoint_auth_method}>
-                  <div>
-                    <dt class="text-sm font-medium text-gray-11">Token Endpoint Auth Method</dt>
-                    <dd class="mt-1 text-sm text-gray-12">{client()!.token_endpoint_auth_method}</dd>
-                  </div>
-                </Show>
               </dl>
             </div>
           </div>
@@ -307,103 +273,6 @@ const OAuth2ClientDetail: Component = () => {
                     {regeneratingSecret() ? 'Regenerating...' : 'Regenerate Client Secret'}
                   </button>
                 </div>
-              </div>
-            </div>
-          </Show>
-
-          {/* Optional Metadata */}
-          <Show when={client()!.client_uri || client()!.logo_uri || client()!.tos_uri || client()!.policy_uri || client()!.jwks_uri || (client()!.contacts && client()!.contacts.length > 0)}>
-            <div class="overflow-hidden bg-white shadow rounded-lg">
-              <div class="px-4 py-5 sm:p-6">
-                <h3 class="text-lg font-medium leading-6 text-gray-12 mb-4">Additional Information</h3>
-                
-                <dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-                  <Show when={client()!.client_uri}>
-                    <div>
-                      <dt class="text-sm font-medium text-gray-11">Client URI</dt>
-                      <dd class="mt-1 text-sm text-blue-600 hover:text-blue-500">
-                        <a href={client()!.client_uri} target="_blank" rel="noopener noreferrer" class="break-all">
-                          {client()!.client_uri}
-                        </a>
-                      </dd>
-                    </div>
-                  </Show>
-                  
-                  <Show when={client()!.logo_uri}>
-                    <div>
-                      <dt class="text-sm font-medium text-gray-11">Logo URI</dt>
-                      <dd class="mt-1 text-sm text-blue-600 hover:text-blue-500">
-                        <a href={client()!.logo_uri} target="_blank" rel="noopener noreferrer" class="break-all">
-                          {client()!.logo_uri}
-                        </a>
-                      </dd>
-                    </div>
-                  </Show>
-                  
-                  <Show when={client()!.tos_uri}>
-                    <div>
-                      <dt class="text-sm font-medium text-gray-11">Terms of Service URI</dt>
-                      <dd class="mt-1 text-sm text-blue-600 hover:text-blue-500">
-                        <a href={client()!.tos_uri} target="_blank" rel="noopener noreferrer" class="break-all">
-                          {client()!.tos_uri}
-                        </a>
-                      </dd>
-                    </div>
-                  </Show>
-                  
-                  <Show when={client()!.policy_uri}>
-                    <div>
-                      <dt class="text-sm font-medium text-gray-11">Privacy Policy URI</dt>
-                      <dd class="mt-1 text-sm text-blue-600 hover:text-blue-500">
-                        <a href={client()!.policy_uri} target="_blank" rel="noopener noreferrer" class="break-all">
-                          {client()!.policy_uri}
-                        </a>
-                      </dd>
-                    </div>
-                  </Show>
-                  
-                  <Show when={client()!.jwks_uri}>
-                    <div class="sm:col-span-2">
-                      <dt class="text-sm font-medium text-gray-11">JWKS URI</dt>
-                      <dd class="mt-1 text-sm text-blue-600 hover:text-blue-500">
-                        <a href={client()!.jwks_uri} target="_blank" rel="noopener noreferrer" class="break-all">
-                          {client()!.jwks_uri}
-                        </a>
-                      </dd>
-                    </div>
-                  </Show>
-                  
-                  <Show when={client()!.contacts && client()!.contacts.length > 0}>
-                    <div class="sm:col-span-2">
-                      <dt class="text-sm font-medium text-gray-11">Contact Emails</dt>
-                      <dd class="mt-1">
-                        <ul class="space-y-1">
-                          <For each={client()!.contacts}>
-                            {(contact) => (
-                              <li class="text-sm text-blue-600 hover:text-blue-500">
-                                <a href={`mailto:${contact}`}>{contact}</a>
-                              </li>
-                            )}
-                          </For>
-                        </ul>
-                      </dd>
-                    </div>
-                  </Show>
-                  
-                  <Show when={client()?.software_id}>
-                    <div>
-                      <dt class="text-sm font-medium text-gray-11">Software ID</dt>
-                      <dd class="mt-1 text-sm text-gray-12">{client()?.software_id}</dd>
-                    </div>
-                  </Show>
-                  
-                  <Show when={client()?.software_version}>
-                    <div>
-                      <dt class="text-sm font-medium text-gray-11">Software Version</dt>
-                      <dd class="mt-1 text-sm text-gray-12">{client()?.software_version}</dd>
-                    </div>
-                  </Show>
-                </dl>
               </div>
             </div>
           </Show>
