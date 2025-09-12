@@ -2,6 +2,8 @@ package oauth2client
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strings"
 )
@@ -75,13 +77,13 @@ func (s *ClientService) ListClients() map[string]*OAuth2Client {
 	return clientMap
 }
 
-// CreateClient creates a new OAuth2 client
-func (s *ClientService) CreateClient(ctx context.Context, client *OAuth2Client) error {
+// CreateClient creates a new OAuth2 client and returns the created client
+func (s *ClientService) CreateClient(ctx context.Context, client *OAuth2Client) (*OAuth2Client, error) {
 	return s.repository.CreateClient(ctx, client)
 }
 
-// UpdateClient updates an existing OAuth2 client
-func (s *ClientService) UpdateClient(ctx context.Context, client *OAuth2Client) error {
+// UpdateClient updates an existing OAuth2 client and returns the updated client
+func (s *ClientService) UpdateClient(ctx context.Context, client *OAuth2Client) (*OAuth2Client, error) {
 	return s.repository.UpdateClient(ctx, client)
 }
 
@@ -113,4 +115,13 @@ func (s *ClientService) GetClientsByRedirectURI(ctx context.Context, redirectURI
 // GetClientsByScope finds clients that support the specified scope
 func (s *ClientService) GetClientsByScope(ctx context.Context, scope string) ([]*OAuth2Client, error) {
 	return s.repository.GetClientsByScope(ctx, scope)
+}
+
+// GenerateClientSecret generates a new client secret
+func (s *ClientService) GenerateClientSecret() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "secret_" + hex.EncodeToString(bytes), nil
 }
