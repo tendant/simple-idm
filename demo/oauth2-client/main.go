@@ -23,7 +23,7 @@ import (
 const (
 	// OAuth2 configuration
 	clientID     = "golang_app"
-	clientSecret = "BfCGGjEvIgD5EnnF3Q5EobrW95wK0tOK"
+	clientSecret = "secret_2ceb79c2e01586cbc94df03a26c0a687807a34e130b3396a2961b73d18178c9a"
 	redirectURL  = "http://localhost:8182/demo/callback"
 
 	// OIDC Provider URLs (simple-idm server)
