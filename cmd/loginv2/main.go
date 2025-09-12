@@ -129,6 +129,11 @@ type LoginConfig struct {
 	PhoneVerificationSecret  string `env:"PHONE_VERIFICATION_SECRET" env-default:"secret"`
 }
 
+type OAuth2ClientConfig struct {
+	// OAuth2 Client Secret Encryption Key (32 bytes base64 encoded)
+	EncryptionKey string `env:"OAUTH2_CLIENT_ENCRYPTION_KEY"`
+}
+
 type ExternalProviderConfig struct {
 	// Google OAuth2
 	GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
@@ -164,6 +169,7 @@ type Config struct {
 	PasswordComplexityConfig PasswordComplexityConfig
 	LoginConfig              LoginConfig
 	TwilioConfig             TwilioConfig
+	OAuth2ClientConfig       OAuth2ClientConfig
 	ExternalProviderConfig   ExternalProviderConfig
 }
 
@@ -443,10 +449,18 @@ func main() {
 	)
 
 	// Initialize OAuth2 client service and OIDC handler
-	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
+	var clientService *oauth2client.ClientService
+	// Use PostgreSQL repository with encryption
+	postgresRepo, err := oauth2client.NewPostgresOAuth2ClientRepository(pool, config.OAuth2ClientConfig.EncryptionKey)
+	if err != nil {
+		slog.Error("Failed to create PostgreSQL OAuth2 client repository", "error", err)
+		os.Exit(-1)
+	}
+	clientService = oauth2client.NewClientService(postgresRepo)
+	slog.Info("Using PostgreSQL OAuth2 client repository with encryption")
 
 	// Setup default OAuth2 clients through the service layer
-	setupDefaultOAuth2Clients(clientService)
+	// setupDefaultOAuth2Clients(clientService)
 
 	// Create OIDC repository and service with RSA token generator
 	oidcRepository := oidc.NewInMemoryOIDCRepository()
@@ -770,60 +784,60 @@ func setupExternalProviders(service *externalprovider.ExternalProviderService, c
 }
 
 // setupDefaultOAuth2Clients configures default OAuth2 clients through the service layer
-func setupDefaultOAuth2Clients(service *oauth2client.ClientService) {
-	ctx := context.Background()
+// func setupDefaultOAuth2Clients(service *oauth2client.ClientService) {
+// 	ctx := context.Background()
 
-	// Configure default Golang demo app client
-	defaultClient := &oauth2client.OAuth2Client{
-		ClientID:      "golang_app",
-		ClientSecret:  "BfCGGjEvIgD5EnnF3Q5EobrW95wK0tOK",
-		ClientName:    "Golang Demo App",
-		RedirectURIs:  []string{"http://localhost:8182/demo/callback"},
-		ResponseTypes: []string{"code"},
-		GrantTypes:    []string{"authorization_code"},
-		Scopes:        []string{"openid", "profile", "email", "groups"},
-		ClientType:    "confidential",
-	}
+// 	// Configure default Golang demo app client
+// 	defaultClient := &oauth2client.OAuth2Client{
+// 		ClientID:      "golang_app",
+// 		ClientSecret:  "BfCGGjEvIgD5EnnF3Q5EobrW95wK0tOK",
+// 		ClientName:    "Golang Demo App",
+// 		RedirectURIs:  []string{"http://localhost:8182/demo/callback"},
+// 		ResponseTypes: []string{"code"},
+// 		GrantTypes:    []string{"authorization_code"},
+// 		Scopes:        []string{"openid", "profile", "email", "groups"},
+// 		ClientType:    "confidential",
+// 	}
 
-	slog.Info("Creating default OAuth2 client",
-		"client_id", defaultClient.ClientID,
-		"client_name", defaultClient.ClientName,
-		"client_type", defaultClient.ClientType)
+// 	slog.Info("Creating default OAuth2 client",
+// 		"client_id", defaultClient.ClientID,
+// 		"client_name", defaultClient.ClientName,
+// 		"client_type", defaultClient.ClientType)
 
-	err := service.CreateClient(ctx, defaultClient)
-	if err != nil {
-		slog.Error("Failed to create default OAuth2 client", "error", err, "client_id", defaultClient.ClientID)
-	} else {
-		slog.Info("Default OAuth2 client configured successfully",
-			"client_id", defaultClient.ClientID,
-			"client_name", defaultClient.ClientName)
-	}
+// 	err := service.CreateClient(ctx, defaultClient)
+// 	if err != nil {
+// 		slog.Error("Failed to create default OAuth2 client", "error", err, "client_id", defaultClient.ClientID)
+// 	} else {
+// 		slog.Info("Default OAuth2 client configured successfully",
+// 			"client_id", defaultClient.ClientID,
+// 			"client_name", defaultClient.ClientName)
+// 	}
 
-	// Configure Concourse OAuth2 client
-	concourseClient := &oauth2client.OAuth2Client{
-		ClientID:      "concourse_client",
-		ClientSecret:  "concourse_secret",
-		ClientName:    "Concourse CI",
-		RedirectURIs:  []string{"http://localhost:8082/sky/issuer/callback"},
-		ResponseTypes: []string{"code"},
-		GrantTypes:    []string{"authorization_code"},
-		Scopes:        []string{"openid", "profile", "email", "groups"},
-		ClientType:    "confidential",
-	}
+// 	// Configure Concourse OAuth2 client
+// 	concourseClient := &oauth2client.OAuth2Client{
+// 		ClientID:      "concourse_client",
+// 		ClientSecret:  "concourse_secret",
+// 		ClientName:    "Concourse CI",
+// 		RedirectURIs:  []string{"http://localhost:8082/sky/issuer/callback"},
+// 		ResponseTypes: []string{"code"},
+// 		GrantTypes:    []string{"authorization_code"},
+// 		Scopes:        []string{"openid", "profile", "email", "groups"},
+// 		ClientType:    "confidential",
+// 	}
 
-	slog.Info("Creating Concourse OAuth2 client",
-		"client_id", concourseClient.ClientID,
-		"client_name", concourseClient.ClientName,
-		"client_type", concourseClient.ClientType)
+// 	slog.Info("Creating Concourse OAuth2 client",
+// 		"client_id", concourseClient.ClientID,
+// 		"client_name", concourseClient.ClientName,
+// 		"client_type", concourseClient.ClientType)
 
-	err = service.CreateClient(ctx, concourseClient)
-	if err != nil {
-		slog.Error("Failed to create Concourse OAuth2 client", "error", err, "client_id", concourseClient.ClientID)
-	} else {
-		slog.Info("Concourse OAuth2 client configured successfully",
-			"client_id", concourseClient.ClientID,
-			"client_name", concourseClient.ClientName)
-	}
+// 	err = service.CreateClient(ctx, concourseClient)
+// 	if err != nil {
+// 		slog.Error("Failed to create Concourse OAuth2 client", "error", err, "client_id", concourseClient.ClientID)
+// 	} else {
+// 		slog.Info("Concourse OAuth2 client configured successfully",
+// 			"client_id", concourseClient.ClientID,
+// 			"client_name", concourseClient.ClientName)
+// 	}
 
-	slog.Info("OAuth2 client setup completed")
-}
+// 	slog.Info("OAuth2 client setup completed")
+// }
