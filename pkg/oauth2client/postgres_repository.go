@@ -330,12 +330,6 @@ func (r *PostgresOAuth2ClientRepository) WithTx(tx interface{}) OAuth2ClientRepo
 // Helper methods
 
 func (r *PostgresOAuth2ClientRepository) convertRowToClient(id uuid.UUID, clientID, encryptedSecret, clientName, clientType string, requirePKCE bool, scopesInterface, redirectURIsInterface interface{}, createdAt, updatedAt time.Time) (*OAuth2Client, error) {
-	// Decrypt the client secret
-	decryptedSecret, err := r.encryptor.Decrypt(encryptedSecret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt client secret: %w", err)
-	}
-
 	// Convert scopes from interface{} to []string
 	scopes := r.convertInterfaceToStringSlice(scopesInterface)
 
@@ -344,7 +338,7 @@ func (r *PostgresOAuth2ClientRepository) convertRowToClient(id uuid.UUID, client
 
 	return &OAuth2Client{
 		ClientID:      clientID,
-		ClientSecret:  decryptedSecret,
+		ClientSecret:  encryptedSecret, // Store encrypted secret - will be decrypted only when needed
 		ClientName:    clientName,
 		RedirectURIs:  redirectURIs,
 		ResponseTypes: []string{DefaultResponseTypes}, // Hardcoded
