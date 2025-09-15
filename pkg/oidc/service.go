@@ -497,6 +497,7 @@ func (s *OIDCService) ProcessAuthorizationRequest(ctx context.Context, req Autho
 		req.Scope,
 	)
 	if err != nil {
+		slog.Error("Authorization request validation failed", "error", err.Error())
 		return &AuthorizationResponse{
 			Success:    false,
 			ErrorCode:  "invalid_request",
@@ -508,6 +509,7 @@ func (s *OIDCService) ProcessAuthorizationRequest(ctx context.Context, req Autho
 	// 2. Check if user is authenticated
 	userClaims, err := s.ValidateUserToken(req.AccessToken)
 	if err != nil {
+		slog.Info("User not authenticated, redirecting to login", "error", err.Error())
 		// Build the full authorization URL to redirect back to after login
 		authURL := fmt.Sprintf("%s%s", s.GetBaseURL(), req.RequestURL)
 		loginURL := s.BuildLoginRedirectURL(authURL)
@@ -522,6 +524,7 @@ func (s *OIDCService) ProcessAuthorizationRequest(ctx context.Context, req Autho
 	// 3. Extract user ID from claims
 	userID, ok := userClaims["sub"].(string)
 	if !ok || userID == "" {
+		slog.Error("Invalid or missing user ID in token", "userID", userID)
 		return &AuthorizationResponse{
 			Success:    false,
 			ErrorCode:  "invalid_token",
@@ -534,6 +537,7 @@ func (s *OIDCService) ProcessAuthorizationRequest(ctx context.Context, req Autho
 	var authCode string
 	if req.CodeChallenge != nil && *req.CodeChallenge != "" {
 		// PKCE flow
+		slog.Info("Processing PKCE authorization request")
 		codeChallenge := *req.CodeChallenge
 		codeChallengeMethod := string(pkce.ChallengeS256) // Default to S256
 		if req.CodeChallengeMethod != nil {
@@ -544,12 +548,14 @@ func (s *OIDCService) ProcessAuthorizationRequest(ctx context.Context, req Autho
 			ctx, client.ClientID, req.RedirectURI, req.Scope, req.State, userID,
 			codeChallenge, codeChallengeMethod)
 	} else {
+		slog.Info("No PKCE support, processing standard authorization request")
 		// Standard flow (backward compatibility)
 		authCode, err = s.GenerateAuthorizationCode(
 			ctx, client.ClientID, req.RedirectURI, req.Scope, req.State, userID)
 	}
 
 	if err != nil {
+		slog.Error("Failed to generate authorization code", "error", err.Error())
 		return &AuthorizationResponse{
 			Success:    false,
 			ErrorCode:  "server_error",
@@ -561,6 +567,7 @@ func (s *OIDCService) ProcessAuthorizationRequest(ctx context.Context, req Autho
 	// 5. Build callback URL and redirect
 	callbackURL, err := s.BuildCallbackURL(req.RedirectURI, authCode, req.State)
 	if err != nil {
+		slog.Error("Failed to build callback URL", "error", err.Error())
 		return &AuthorizationResponse{
 			Success:    false,
 			ErrorCode:  "server_error",
@@ -601,6 +608,7 @@ func (s *OIDCService) ProcessTokenRequest(ctx context.Context, req TokenRequest)
 	// Validate client credentials
 	client, err := s.clientService.ValidateClientCredentials(req.ClientID, req.ClientSecret)
 	if err != nil {
+		slog.Error("Client credentials validation failed", "error", err.Error())
 		return &TokenExchangeResponse{
 			Success:    false,
 			ErrorCode:  "invalid_client",
@@ -620,6 +628,7 @@ func (s *OIDCService) ProcessTokenRequest(ctx context.Context, req TokenRequest)
 	}
 
 	if err != nil {
+		slog.Error("Authorization code validation failed", "error", err.Error())
 		return &TokenExchangeResponse{
 			Success:    false,
 			ErrorCode:  "invalid_grant",
@@ -631,6 +640,7 @@ func (s *OIDCService) ProcessTokenRequest(ctx context.Context, req TokenRequest)
 	// Generate ID token
 	idToken, err := s.GenerateIDToken(ctx, authCode.UserID, client.ClientID, authCode.Scope)
 	if err != nil {
+		slog.Error("ID token generation failed", "error", err.Error())
 		return &TokenExchangeResponse{
 			Success:    false,
 			ErrorCode:  "server_error",
@@ -640,7 +650,9 @@ func (s *OIDCService) ProcessTokenRequest(ctx context.Context, req TokenRequest)
 	}
 
 	accessToken, err := s.GenerateAccessToken(ctx, authCode.UserID, client.ClientID, authCode.Scope)
-
+	if err != nil {
+		slog.Error("Access token generation failed", "error", err.Error())
+	}
 	return &TokenExchangeResponse{
 		Success:     true,
 		IDToken:     idToken,
