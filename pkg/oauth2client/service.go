@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -41,11 +42,13 @@ func (s *ClientService) ValidateAuthorizationRequest(clientID, redirectURI, resp
 
 	// Validate redirect URI
 	if !client.ValidateRedirectURI(redirectURI) {
+		slog.Error("Invalid redirect URI", "client_id", clientID, "redirect_uri", redirectURI)
 		return nil, fmt.Errorf("invalid redirect_uri")
 	}
 
 	// Validate response type
 	if !client.ValidateResponseType(responseType) {
+		slog.Error("Invalid response type", "client_id", clientID, "response_type", responseType)
 		return nil, fmt.Errorf("unsupported response_type: %s", responseType)
 	}
 
@@ -53,6 +56,7 @@ func (s *ClientService) ValidateAuthorizationRequest(clientID, redirectURI, resp
 	if scope != "" {
 		requestedScopes := strings.Split(scope, " ")
 		if !client.ValidateScope(requestedScopes) {
+			slog.Error("Invalid scope", "client_id", clientID, "scope", scope)
 			return nil, fmt.Errorf("invalid scope")
 		}
 	}
