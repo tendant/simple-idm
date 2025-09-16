@@ -10,24 +10,24 @@ import (
 	"math/big"
 )
 
-// generateRSAKeyPair generates a new RSA key pair with the specified bit size
-func generateRSAKeyPair(bits int) (*rsa.PrivateKey, error) {
+// GenerateRSAKeyPair generates a new RSA key pair with the specified bit size
+func GenerateRSAKeyPair(bits int) (*rsa.PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, bits)
 }
 
-// encodeRSAPublicKeyModulus encodes the RSA public key modulus as base64url
-func encodeRSAPublicKeyModulus(publicKey *rsa.PublicKey) string {
+// EncodeRSAPublicKeyModulus encodes the RSA public key modulus as base64url
+func EncodeRSAPublicKeyModulus(publicKey *rsa.PublicKey) string {
 	return base64.RawURLEncoding.EncodeToString(publicKey.N.Bytes())
 }
 
-// encodeRSAPublicKeyExponent encodes the RSA public key exponent as base64url
-func encodeRSAPublicKeyExponent(publicKey *rsa.PublicKey) string {
+// EncodeRSAPublicKeyExponent encodes the RSA public key exponent as base64url
+func EncodeRSAPublicKeyExponent(publicKey *rsa.PublicKey) string {
 	exponentBytes := big.NewInt(int64(publicKey.E)).Bytes()
 	return base64.RawURLEncoding.EncodeToString(exponentBytes)
 }
 
-// encodePrivateKeyToPEM encodes an RSA private key to PEM format
-func encodePrivateKeyToPEM(privateKey *rsa.PrivateKey) string {
+// EncodePrivateKeyToPEM encodes an RSA private key to PEM format
+func EncodePrivateKeyToPEM(privateKey *rsa.PrivateKey) string {
 	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PRIVATE KEY",
@@ -36,8 +36,8 @@ func encodePrivateKeyToPEM(privateKey *rsa.PrivateKey) string {
 	return string(privateKeyPEM)
 }
 
-// encodePublicKeyToPEM encodes an RSA public key to PEM format
-func encodePublicKeyToPEM(publicKey *rsa.PublicKey) string {
+// EncodePublicKeyToPEM encodes an RSA public key to PEM format
+func EncodePublicKeyToPEM(publicKey *rsa.PublicKey) string {
 	publicKeyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
 		return ""
@@ -49,8 +49,8 @@ func encodePublicKeyToPEM(publicKey *rsa.PublicKey) string {
 	return string(publicKeyPEM)
 }
 
-// decodePrivateKeyFromPEM decodes an RSA private key from PEM format
-func decodePrivateKeyFromPEM(pemData string) (*rsa.PrivateKey, error) {
+// DecodePrivateKeyFromPEM decodes an RSA private key from PEM format
+func DecodePrivateKeyFromPEM(pemData string) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(pemData))
 	if block == nil {
 		return nil, fmt.Errorf("failed to decode PEM block")
@@ -68,8 +68,8 @@ func decodePrivateKeyFromPEM(pemData string) (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// decodePublicKeyFromPEM decodes an RSA public key from PEM format
-func decodePublicKeyFromPEM(pemData string) (*rsa.PublicKey, error) {
+// DecodePublicKeyFromPEM decodes an RSA public key from PEM format
+func DecodePublicKeyFromPEM(pemData string) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode([]byte(pemData))
 	if block == nil {
 		return nil, fmt.Errorf("failed to decode PEM block")
