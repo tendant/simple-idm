@@ -538,7 +538,7 @@ func main() {
 	// Mount external provider endpoints (public, no authentication required)
 	server.R.Mount("/api/idm/external", externalProviderAPI.Handler(externalProviderHandle))
 
-	tokenAuth := jwtauth.New("RS256", activeKey.PrivateKey, nil)
+	tokenAuth := jwtauth.New("RS256", activeKey.PrivateKey, activeKey.PublicKey)
 
 	server.R.Group(func(r chi.Router) {
 		r.Use(client.Verifier(tokenAuth))
