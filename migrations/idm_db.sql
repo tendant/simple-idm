@@ -123,23 +123,6 @@ CREATE TABLE public.groups (
 ALTER TABLE public.groups OWNER TO idm;
 
 --
--- Name: jwks_keys; Type: TABLE; Schema: public; Owner: idm
---
-
-CREATE TABLE public.jwks_keys (
-    kid uuid DEFAULT gen_random_uuid() NOT NULL,
-    alg character varying(10) DEFAULT 'RS256'::character varying NOT NULL,
-    private_key_pem text NOT NULL,
-    public_key_pem text NOT NULL,
-    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
-    updated_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
-    active boolean DEFAULT false NOT NULL
-);
-
-
-ALTER TABLE public.jwks_keys OWNER TO idm;
-
---
 -- Name: login; Type: TABLE; Schema: public; Owner: idm
 --
 
@@ -448,14 +431,6 @@ ALTER TABLE ONLY public.groups
 
 
 --
--- Name: jwks_keys jwks_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
---
-
-ALTER TABLE ONLY public.jwks_keys
-    ADD CONSTRAINT jwks_keys_pkey PRIMARY KEY (kid);
-
-
---
 -- Name: login_2fa login_2fa_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
 --
 
@@ -633,20 +608,6 @@ CREATE INDEX idx_device_device_id ON public.device USING btree (device_id);
 --
 
 CREATE INDEX idx_groups_name ON public.groups USING btree (name);
-
-
---
--- Name: idx_jwks_keys_active_unique; Type: INDEX; Schema: public; Owner: idm
---
-
-CREATE UNIQUE INDEX idx_jwks_keys_active_unique ON public.jwks_keys USING btree (active) WHERE (active = true);
-
-
---
--- Name: idx_jwks_keys_created_at; Type: INDEX; Schema: public; Owner: idm
---
-
-CREATE INDEX idx_jwks_keys_created_at ON public.jwks_keys USING btree (created_at);
 
 
 --

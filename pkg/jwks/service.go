@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // JWKSService handles JWKS operations including key generation, storage, and retrieval
@@ -51,14 +50,6 @@ func NewJWKSService(repository JWKSRepository) (*JWKSService, error) {
 // NewJWKSServiceWithInMemoryStorage creates a new JWKS service with in-memory storage
 func NewJWKSServiceWithInMemoryStorage() (*JWKSService, error) {
 	repository := NewInMemoryJWKSRepository()
-	return NewJWKSService(repository)
-}
-
-func NewJWKSServiceWithPostgresStorage(db *pgxpool.Pool) (*JWKSService, error) {
-	repository, err := NewPostgresJWKSRepository(db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Postgres JWKS repository: %w", err)
-	}
 	return NewJWKSService(repository)
 }
 
