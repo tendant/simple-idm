@@ -57,6 +57,24 @@ Edit the `.env` file with your configuration. Key variables to update:
 go run main.go
 ```
 
+**⚠️ IMPORTANT - First Time Setup:**
+If the IDM server currently does not have any users, starting the server will automatically create the first admin user and display the credentials in the console. **This information only appears once, so please save it immediately.**
+
+The console output will look like this:
+```
+🔐 ADMIN USER CREATED SUCCESSFULLY
+Username:     super
+Email:        super@example.com
+Password:     SOME_PASSWORD
+User ID:      929ec4bb-4183-45c9-993b-db59f3913e79
+Login ID:     8be02f9c-58e2-4430-a232-063f6265ddce
+Admin Role:   20a09c0a-e776-4e99-9541-4fb755252ac0
+⚠️  IMPORTANT SECURITY NOTICE:
+   • Store this password securely
+   • Change the password after first login
+   • This password will not be displayed again
+```
+
 The backend API will be available at http://localhost:4000
 
 ### 2. Frontend Setup
