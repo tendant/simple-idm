@@ -278,10 +278,9 @@ func (r *InMemoryJWKSRepository) GetKeysOlderThan(ctx context.Context, cutoffTim
 	defer r.mutex.RUnlock()
 
 	var keys []*KeyPair
-	cutoffUnix := cutoffTime.Unix()
 
 	for _, keyPair := range r.keyStore.Keys {
-		if keyPair.CreatedAt < cutoffUnix {
+		if keyPair.CreatedAt.Before(cutoffTime) {
 			keyCopy := keyPair
 			keys = append(keys, &keyCopy)
 		}
@@ -303,12 +302,12 @@ func (r *InMemoryJWKSRepository) CleanupOldKeys(ctx context.Context, maxAge time
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	cutoffTime := time.Now().Add(-maxAge).Unix()
+	cutoffTime := time.Now().Add(-maxAge).UTC()
 	var keysToKeep []KeyPair
 
 	for _, keyPair := range r.keyStore.Keys {
 		// Always keep the active key, regardless of age
-		if keyPair.Active || keyPair.CreatedAt > cutoffTime {
+		if keyPair.Active || keyPair.CreatedAt.After(cutoffTime) {
 			keysToKeep = append(keysToKeep, keyPair)
 		}
 	}
