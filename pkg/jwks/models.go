@@ -3,6 +3,7 @@ package jwks
 import (
 	"crypto/rsa"
 	"encoding/json"
+	"time"
 )
 
 // JWKS represents a JSON Web Key Set as defined in RFC 7517
@@ -33,7 +34,7 @@ type JWK struct {
 
 // KeyPair represents an RSA key pair with metadata
 type KeyPair struct {
-	// Key ID - unique identifier
+	// Key ID - unique identifier (can be UUID string or custom string)
 	Kid string `json:"kid"`
 
 	// Algorithm used with this key
@@ -45,8 +46,11 @@ type KeyPair struct {
 	// RSA public key (derived from private key)
 	PublicKey *rsa.PublicKey `json:"-"`
 
-	// Creation timestamp
-	CreatedAt int64 `json:"created_at"`
+	// Creation timestamp (Unix timestamp for backward compatibility)
+	CreatedAt time.Time `json:"created_at"`
+
+	// Update timestamp (Unix timestamp)
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
 
 	// Whether this is the active signing key
 	Active bool `json:"active"`

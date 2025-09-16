@@ -227,7 +227,7 @@ func TestJWKSService(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey,
 			PublicKey:  &privateKey.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     true,
 		}
 

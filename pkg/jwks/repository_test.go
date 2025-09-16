@@ -40,7 +40,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey,
 			PublicKey:  &privateKey.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     true,
 		}
 
@@ -65,7 +65,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey,
 			PublicKey:  &privateKey.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     true,
 		}
 
@@ -90,7 +90,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey,
 			PublicKey:  &privateKey.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     true,
 		}
 
@@ -124,7 +124,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey,
 			PublicKey:  &privateKey.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     true,
 		}
 
@@ -160,7 +160,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey1,
 			PublicKey:  &privateKey1.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     true,
 		}
 
@@ -169,7 +169,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey2,
 			PublicKey:  &privateKey2.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     false,
 		}
 
@@ -216,7 +216,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey,
 			PublicKey:  &privateKey.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     false,
 		}
 
@@ -245,7 +245,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey,
 			PublicKey:  &privateKey.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     true,
 		}
 
@@ -275,7 +275,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 				Alg:        "RS256",
 				PrivateKey: privateKey,
 				PublicKey:  &privateKey.PublicKey,
-				CreatedAt:  time.Now().Unix(),
+				CreatedAt:  time.Now().UTC(),
 				Active:     i == 0, // First key is active
 			}
 
@@ -308,7 +308,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 				Alg:        "RS256",
 				PrivateKey: privateKey,
 				PublicKey:  &privateKey.PublicKey,
-				CreatedAt:  time.Now().Unix(),
+				CreatedAt:  time.Now().UTC(),
 				Active:     i == 0, // Only first key is active
 			}
 
@@ -343,7 +343,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 				Alg:        "RS256",
 				PrivateKey: privateKey,
 				PublicKey:  &privateKey.PublicKey,
-				CreatedAt:  now.Add(-time.Duration(i) * time.Hour).Unix(),
+				CreatedAt:  now.Add(-time.Duration(i) * time.Hour).UTC(),
 				Active:     i == 0,
 			}
 
@@ -373,7 +373,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 				Alg:        "RS256",
 				PrivateKey: privateKey,
 				PublicKey:  &privateKey.PublicKey,
-				CreatedAt:  now.Add(-time.Duration(i) * time.Hour).Unix(),
+				CreatedAt:  now.Add(-time.Duration(i) * time.Hour).UTC(),
 				Active:     i == 2, // Last (oldest) key is active
 			}
 
@@ -414,7 +414,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 				Alg:        "RS256",
 				PrivateKey: privateKey,
 				PublicKey:  &privateKey.PublicKey,
-				CreatedAt:  time.Now().Unix(),
+				CreatedAt:  time.Now().UTC(),
 				Active:     i == 0,
 			}
 
@@ -444,7 +444,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 			Alg:        "RS256",
 			PrivateKey: privateKey,
 			PublicKey:  &privateKey.PublicKey,
-			CreatedAt:  time.Now().Unix(),
+			CreatedAt:  time.Now().UTC(),
 			Active:     true,
 		}
 

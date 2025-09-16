@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // JWKSService handles JWKS operations including key generation, storage, and retrieval
@@ -50,6 +51,14 @@ func NewJWKSService(repository JWKSRepository) (*JWKSService, error) {
 // NewJWKSServiceWithInMemoryStorage creates a new JWKS service with in-memory storage
 func NewJWKSServiceWithInMemoryStorage() (*JWKSService, error) {
 	repository := NewInMemoryJWKSRepository()
+	return NewJWKSService(repository)
+}
+
+func NewJWKSServiceWithPostgresStorage(db *pgxpool.Pool) (*JWKSService, error) {
+	repository, err := NewPostgresJWKSRepository(db)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Postgres JWKS repository: %w", err)
+	}
 	return NewJWKSService(repository)
 }
 
@@ -115,7 +124,7 @@ func (s *JWKSService) GenerateNewKey() (*KeyPair, error) {
 		Alg:        "RS256",
 		PrivateKey: privateKey,
 		PublicKey:  &privateKey.PublicKey,
-		CreatedAt:  time.Now().Unix(),
+		CreatedAt:  time.Now().UTC(),
 		Active:     false, // New keys are not active by default
 	}
 
@@ -159,7 +168,7 @@ func (s *JWKSService) generateInitialKey() error {
 		Alg:        "RS256",
 		PrivateKey: privateKey,
 		PublicKey:  &privateKey.PublicKey,
-		CreatedAt:  time.Now().Unix(),
+		CreatedAt:  time.Now().UTC(),
 		Active:     true, // First key is active by default
 	}
 
