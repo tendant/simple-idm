@@ -490,7 +490,6 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 	}
 
 	result := h.loginFlowService.ProcessUserSwitch(r.Context(), switchRequest)
-	slog.Info("User switch result", "result", result)
 
 	// Handle error responses
 	if result.ErrorResponse != nil {
