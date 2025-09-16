@@ -59,8 +59,8 @@ func (kp *KeyPair) ToJWK() *JWK {
 		Use: "sig",
 		Kid: kp.Kid,
 		Alg: kp.Alg,
-		N:   encodeRSAPublicKeyModulus(kp.PublicKey),
-		E:   encodeRSAPublicKeyExponent(kp.PublicKey),
+		N:   EncodeRSAPublicKeyModulus(kp.PublicKey),
+		E:   EncodeRSAPublicKeyExponent(kp.PublicKey),
 	}
 }
 
@@ -78,8 +78,8 @@ func (kp *KeyPair) MarshalJSON() ([]byte, error) {
 		PublicKeyPEM  string `json:"public_key_pem"`
 	}{
 		Alias:         (*Alias)(kp),
-		PrivateKeyPEM: encodePrivateKeyToPEM(kp.PrivateKey),
-		PublicKeyPEM:  encodePublicKeyToPEM(kp.PublicKey),
+		PrivateKeyPEM: EncodePrivateKeyToPEM(kp.PrivateKey),
+		PublicKeyPEM:  EncodePublicKeyToPEM(kp.PublicKey),
 	})
 }
 
@@ -99,13 +99,13 @@ func (kp *KeyPair) UnmarshalJSON(data []byte) error {
 	}
 
 	// Decode PEM keys
-	privateKey, err := decodePrivateKeyFromPEM(aux.PrivateKeyPEM)
+	privateKey, err := DecodePrivateKeyFromPEM(aux.PrivateKeyPEM)
 	if err != nil {
 		return err
 	}
 	kp.PrivateKey = privateKey
 
-	publicKey, err := decodePublicKeyFromPEM(aux.PublicKeyPEM)
+	publicKey, err := DecodePublicKeyFromPEM(aux.PublicKeyPEM)
 	if err != nil {
 		return err
 	}

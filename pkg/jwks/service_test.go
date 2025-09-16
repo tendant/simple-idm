@@ -219,7 +219,7 @@ func TestJWKSService(t *testing.T) {
 		repo := NewInMemoryJWKSRepository()
 
 		// Add a key to the repository first
-		privateKey, err := generateRSAKeyPair(2048)
+		privateKey, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
 
 		existingKey := &KeyPair{

@@ -105,7 +105,7 @@ func (s *JWKSService) GetKeyByID(kid string) (*KeyPair, error) {
 
 // GenerateNewKey generates a new RSA key pair and adds it to the store
 func (s *JWKSService) GenerateNewKey() (*KeyPair, error) {
-	privateKey, err := generateRSAKeyPair(2048)
+	privateKey, err := GenerateRSAKeyPair(2048)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate RSA key pair: %w", err)
 	}
@@ -149,7 +149,7 @@ func (s *JWKSService) RotateKeys() (*KeyPair, error) {
 
 // generateInitialKey generates the first key pair for the service
 func (s *JWKSService) generateInitialKey() error {
-	privateKey, err := generateRSAKeyPair(2048)
+	privateKey, err := GenerateRSAKeyPair(2048)
 	if err != nil {
 		return fmt.Errorf("failed to generate initial RSA key pair: %w", err)
 	}

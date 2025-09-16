@@ -32,7 +32,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 		repo := NewInMemoryJWKSRepository()
 
 		// Generate a test key pair
-		privateKey, err := generateRSAKeyPair(2048)
+		privateKey, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
 
 		keyPair := &KeyPair{
@@ -57,7 +57,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 	t.Run("AddKey_Duplicate", func(t *testing.T) {
 		repo := NewInMemoryJWKSRepository()
 
-		privateKey, err := generateRSAKeyPair(2048)
+		privateKey, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
 
 		keyPair := &KeyPair{
@@ -82,7 +82,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 	t.Run("GetKeyByID_Success", func(t *testing.T) {
 		repo := NewInMemoryJWKSRepository()
 
-		privateKey, err := generateRSAKeyPair(2048)
+		privateKey, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
 
 		keyPair := &KeyPair{
@@ -116,7 +116,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 	t.Run("GetActiveKey_Success", func(t *testing.T) {
 		repo := NewInMemoryJWKSRepository()
 
-		privateKey, err := generateRSAKeyPair(2048)
+		privateKey, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
 
 		keyPair := &KeyPair{
@@ -150,9 +150,9 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 		repo := NewInMemoryJWKSRepository()
 
 		// Add two keys
-		privateKey1, err := generateRSAKeyPair(2048)
+		privateKey1, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
-		privateKey2, err := generateRSAKeyPair(2048)
+		privateKey2, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
 
 		keyPair1 := &KeyPair{
@@ -208,7 +208,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 	t.Run("UpdateKey_Success", func(t *testing.T) {
 		repo := NewInMemoryJWKSRepository()
 
-		privateKey, err := generateRSAKeyPair(2048)
+		privateKey, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
 
 		keyPair := &KeyPair{
@@ -237,7 +237,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 	t.Run("DeleteKey_Success", func(t *testing.T) {
 		repo := NewInMemoryJWKSRepository()
 
-		privateKey, err := generateRSAKeyPair(2048)
+		privateKey, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
 
 		keyPair := &KeyPair{
@@ -267,7 +267,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 
 		// Add multiple keys
 		for i := 0; i < 3; i++ {
-			privateKey, err := generateRSAKeyPair(2048)
+			privateKey, err := GenerateRSAKeyPair(2048)
 			require.NoError(t, err)
 
 			keyPair := &KeyPair{
@@ -300,7 +300,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 
 		// Add keys with different statuses
 		for i := 0; i < 3; i++ {
-			privateKey, err := generateRSAKeyPair(2048)
+			privateKey, err := GenerateRSAKeyPair(2048)
 			require.NoError(t, err)
 
 			keyPair := &KeyPair{
@@ -335,7 +335,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 
 		// Add keys with different creation times
 		for i := 0; i < 3; i++ {
-			privateKey, err := generateRSAKeyPair(2048)
+			privateKey, err := GenerateRSAKeyPair(2048)
 			require.NoError(t, err)
 
 			keyPair := &KeyPair{
@@ -365,7 +365,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 
 		// Add keys with different ages
 		for i := 0; i < 3; i++ {
-			privateKey, err := generateRSAKeyPair(2048)
+			privateKey, err := GenerateRSAKeyPair(2048)
 			require.NoError(t, err)
 
 			keyPair := &KeyPair{
@@ -406,7 +406,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 
 		// Add keys
 		for i := 0; i < 3; i++ {
-			privateKey, err := generateRSAKeyPair(2048)
+			privateKey, err := GenerateRSAKeyPair(2048)
 			require.NoError(t, err)
 
 			keyPair := &KeyPair{
@@ -436,7 +436,7 @@ func TestInMemoryJWKSRepository(t *testing.T) {
 		assert.False(t, exists)
 
 		// Add key
-		privateKey, err := generateRSAKeyPair(2048)
+		privateKey, err := GenerateRSAKeyPair(2048)
 		require.NoError(t, err)
 
 		keyPair := &KeyPair{
