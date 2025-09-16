@@ -123,6 +123,23 @@ CREATE TABLE public.groups (
 ALTER TABLE public.groups OWNER TO idm;
 
 --
+-- Name: jwks_keys; Type: TABLE; Schema: public; Owner: idm
+--
+
+CREATE TABLE public.jwks_keys (
+    kid uuid DEFAULT gen_random_uuid() NOT NULL,
+    alg character varying(10) DEFAULT 'RS256'::character varying NOT NULL,
+    private_key_pem text NOT NULL,
+    public_key_pem text NOT NULL,
+    created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    updated_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
+    active boolean DEFAULT false NOT NULL
+);
+
+
+ALTER TABLE public.jwks_keys OWNER TO idm;
+
+--
 -- Name: login; Type: TABLE; Schema: public; Owner: idm
 --
 
@@ -290,13 +307,12 @@ CREATE TABLE public.oauth2_clients (
     client_secret_encrypted text NOT NULL,
     client_name character varying(255) NOT NULL,
     client_type character varying(50) NOT NULL,
-    require_pkce boolean DEFAULT false NOT NULL,
+    require_pkce boolean DEFAULT true NOT NULL,
     description text,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
     updated_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text),
     created_by character varying(255),
-    deleted_at timestamp without time zone,
-    CONSTRAINT oauth2_clients_client_type_check CHECK (((client_type)::text = ANY ((ARRAY['public'::character varying, 'confidential'::character varying])::text[])))
+    deleted_at timestamp without time zone
 );
 
 
@@ -429,6 +445,14 @@ ALTER TABLE ONLY public.groups
 
 ALTER TABLE ONLY public.groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: jwks_keys jwks_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: idm
+--
+
+ALTER TABLE ONLY public.jwks_keys
+    ADD CONSTRAINT jwks_keys_pkey PRIMARY KEY (kid);
 
 
 --
@@ -612,6 +636,20 @@ CREATE INDEX idx_groups_name ON public.groups USING btree (name);
 
 
 --
+-- Name: idx_jwks_keys_active_unique; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE UNIQUE INDEX idx_jwks_keys_active_unique ON public.jwks_keys USING btree (active) WHERE (active = true);
+
+
+--
+-- Name: idx_jwks_keys_created_at; Type: INDEX; Schema: public; Owner: idm
+--
+
+CREATE INDEX idx_jwks_keys_created_at ON public.jwks_keys USING btree (created_at);
+
+
+--
 -- Name: idx_login_device_expires_at; Type: INDEX; Schema: public; Owner: idm
 --
 
@@ -757,7 +795,7 @@ ALTER TABLE ONLY public.login_password_reset_tokens
 --
 
 ALTER TABLE ONLY public.oauth2_client_redirect_uris
-    ADD CONSTRAINT oauth2_client_redirect_uris_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.oauth2_clients(id) ON DELETE CASCADE;
+    ADD CONSTRAINT oauth2_client_redirect_uris_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.oauth2_clients(id);
 
 
 --
@@ -765,7 +803,7 @@ ALTER TABLE ONLY public.oauth2_client_redirect_uris
 --
 
 ALTER TABLE ONLY public.oauth2_client_scopes
-    ADD CONSTRAINT oauth2_client_scopes_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.oauth2_clients(id) ON DELETE CASCADE;
+    ADD CONSTRAINT oauth2_client_scopes_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.oauth2_clients(id);
 
 
 --
@@ -773,7 +811,7 @@ ALTER TABLE ONLY public.oauth2_client_scopes
 --
 
 ALTER TABLE ONLY public.oauth2_client_scopes
-    ADD CONSTRAINT oauth2_client_scopes_scope_id_fkey FOREIGN KEY (scope_id) REFERENCES public.scopes(id) ON DELETE CASCADE;
+    ADD CONSTRAINT oauth2_client_scopes_scope_id_fkey FOREIGN KEY (scope_id) REFERENCES public.scopes(id);
 
 
 --
