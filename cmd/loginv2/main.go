@@ -320,7 +320,7 @@ func main() {
 	// )
 
 	// Initialize JWKS service for RSA key management with in-memory storage
-	jwksService, err := jwks.NewJWKSServiceWithPostgresStorage(pool)
+	jwksService, err := jwks.NewJWKSServiceWithInMemoryStorage()
 	if err != nil {
 		slog.Error("Failed to initialize JWKS service", "error", err)
 		os.Exit(-1)
