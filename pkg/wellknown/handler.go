@@ -4,17 +4,34 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+
+	"github.com/tendant/simple-idm/pkg/jwks"
 )
 
 // Handler provides HTTP handlers for well-known endpoints
 type Handler struct {
-	config Config
+	config      Config
+	jwksService *jwks.JWKSService
 }
 
 // NewHandler creates a new well-known endpoints handler
-func NewHandler(config Config) *Handler {
-	return &Handler{
+func NewHandler(config Config, opts ...HandlerOption) *Handler {
+	h := &Handler{
 		config: config,
+	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
+}
+
+// HandlerOption configures the Handler
+type HandlerOption func(*Handler)
+
+// WithJWKSService configures the optional JWKS service
+func WithJWKSService(js *jwks.JWKSService) HandlerOption {
+	return func(h *Handler) {
+		h.jwksService = js
 	}
 }
 
@@ -135,11 +152,56 @@ func (h *Handler) OpenIDConfiguration(w http.ResponseWriter, r *http.Request) {
 		"issuer", metadata.Issuer)
 }
 
+// JWKS handles GET /.well-known/jwks.json and /jwks
+// This endpoint provides the JSON Web Key Set for token verification
+func (h *Handler) JWKS(w http.ResponseWriter, r *http.Request) {
+	slog.Info("JWKS request received", "method", r.Method, "path", r.URL.Path)
+
+	// Only allow GET requests
+	if r.Method != http.MethodGet {
+		slog.Warn("Method not allowed for JWKS", "method", r.Method)
+		w.Header().Set("Allow", "GET")
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Check if JWKS service is configured
+	if h.jwksService == nil {
+		slog.Error("JWKS service not configured")
+		http.Error(w, "JWKS endpoint not available", http.StatusNotImplemented)
+		return
+	}
+
+	// Get JWKS from service
+	jwks, err := (*h.jwksService).GetJWKS()
+	if err != nil {
+		slog.Error("Failed to get JWKS", "error", err)
+		http.Error(w, "Failed to retrieve keys", http.StatusInternalServerError)
+		return
+	}
+
+	// Set appropriate headers
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
+	w.Header().Set("Access-Control-Allow-Origin", "*")      // Allow CORS for discovery
+
+	// Encode and send the response
+	if err := json.NewEncoder(w).Encode(jwks); err != nil {
+		slog.Error("Failed to encode JWKS", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("JWKS request successful", "keys_count", len(jwks.Keys))
+}
+
 // RegisterRoutes registers all well-known endpoint routes with the provided mux
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/.well-known/oauth-protected-resource", h.ProtectedResourceMetadata)
 	mux.HandleFunc("/.well-known/oauth-authorization-server", h.AuthorizationServerMetadata)
 	mux.HandleFunc("/.well-known/openid-configuration", h.OpenIDConfiguration)
+	mux.HandleFunc("/.well-known/jwks.json", h.JWKS)
+	mux.HandleFunc("/jwks", h.JWKS)
 }
 
 // RegisterRoutesWithPrefix registers all well-known endpoint routes with a custom handler function
@@ -148,4 +210,6 @@ func (h *Handler) RegisterRoutesWithPrefix(registerFunc func(pattern string, han
 	registerFunc("/.well-known/oauth-protected-resource", h.ProtectedResourceMetadata)
 	registerFunc("/.well-known/oauth-authorization-server", h.AuthorizationServerMetadata)
 	registerFunc("/.well-known/openid-configuration", h.OpenIDConfiguration)
+	registerFunc("/.well-known/jwks.json", h.JWKS)
+	registerFunc("/jwks", h.JWKS)
 }
