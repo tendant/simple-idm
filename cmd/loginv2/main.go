@@ -21,7 +21,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
-	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	oauth2clientapi "github.com/tendant/simple-idm/pkg/oauth2client/api"
 	"github.com/tendant/simple-idm/pkg/oidc"
@@ -39,6 +38,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/loginflow"
 
 	// loginapi "github.com/tendant/simple-idm/pkg/login/api"
+	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/login/loginapi"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/logins"
@@ -134,6 +134,17 @@ type OAuth2ClientConfig struct {
 	EncryptionKey string `env:"OAUTH2_CLIENT_ENCRYPTION_KEY"`
 }
 
+type JWKSConfig struct {
+	// Key ID for the JWKS key
+	KeyID string `env:"JWKS_KEY_ID" env-default:""`
+
+	// Algorithm (typically RS256)
+	Algorithm string `env:"JWKS_ALGORITHM" env-default:"RS256"`
+
+	// Path to RSA Private Key PEM file
+	PrivateKeyFile string `env:"JWKS_PRIVATE_KEY_FILE" env-default:"jwt-private.pem"`
+}
+
 type ExternalProviderConfig struct {
 	// Google OAuth2
 	GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
@@ -170,6 +181,7 @@ type Config struct {
 	LoginConfig              LoginConfig
 	TwilioConfig             TwilioConfig
 	OAuth2ClientConfig       OAuth2ClientConfig
+	JWKSConfig               JWKSConfig
 	ExternalProviderConfig   ExternalProviderConfig
 }
 
@@ -319,12 +331,67 @@ func main() {
 	// 	"simple-idm", // Audience
 	// )
 
-	// Initialize JWKS service for RSA key management with in-memory storage
-	jwksService, err := jwks.NewJWKSServiceWithInMemoryStorage()
-	if err != nil {
-		slog.Error("Failed to initialize JWKS service", "error", err)
+	// Initialize JWKS service with configured key from environment
+
+	// Read private key from file
+	var privateKeyPEM string
+	if config.JWKSConfig.PrivateKeyFile != "" {
+		keyFilePath := config.JWKSConfig.PrivateKeyFile
+
+		// If the path is not absolute, try to resolve it
+		if !filepath.IsAbs(keyFilePath) {
+			// First try current working directory
+			cwd, err := os.Getwd()
+			if err != nil {
+				slog.Error("Failed to get current working directory", "error", err)
+				os.Exit(-1)
+			}
+
+			cwdKeyPath := filepath.Join(cwd, keyFilePath)
+			if _, err := os.Stat(cwdKeyPath); err == nil {
+				keyFilePath = cwdKeyPath
+			} else {
+				// Fallback to executable directory
+				execPath, err := os.Executable()
+				if err == nil {
+					execDir := filepath.Dir(execPath)
+					execKeyPath := filepath.Join(execDir, keyFilePath)
+					if _, err := os.Stat(execKeyPath); err == nil {
+						keyFilePath = execKeyPath
+					} else {
+						// Use the current working directory path as final attempt
+						keyFilePath = cwdKeyPath
+					}
+				} else {
+					// Use the current working directory path as final attempt
+					keyFilePath = cwdKeyPath
+				}
+			}
+		}
+
+		slog.Info("Loading private key from file", "path", keyFilePath)
+		keyBytes, err := os.ReadFile(keyFilePath)
+		if err != nil {
+			slog.Error("Failed to read private key file", "error", err, "path", keyFilePath)
+			os.Exit(-1)
+		}
+		privateKeyPEM = string(keyBytes)
+	} else {
+		slog.Error("No private key file specified in JWKS_PRIVATE_KEY_FILE")
 		os.Exit(-1)
 	}
+
+	privateKey, err := jwks.DecodePrivateKeyFromPEM(privateKeyPEM)
+	if err != nil {
+		slog.Error("Failed to decode private key", "error", err)
+		os.Exit(-1)
+	}
+
+	jwksService, err := jwks.NewJWKSServiceWithKey(&jwks.KeyPair{
+		Kid:        config.JWKSConfig.KeyID,
+		Alg:        config.JWKSConfig.Algorithm,
+		PrivateKey: privateKey,
+	})
 
 	// Get the active signing key for RSA token generation
 	activeKey, err := jwksService.GetActiveSigningKey()
