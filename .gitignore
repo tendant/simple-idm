@@ -7,3 +7,6 @@ idm_db_all.sql
 .DS_Store
 **/.DS_Store
 *.env
+
+# PEM files (private keys, certificates, etc.)
+*.pem
