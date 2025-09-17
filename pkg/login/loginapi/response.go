@@ -53,13 +53,20 @@ func (h *DefaultResponseHandler) PrepareUserSelectionResponse(idmUsers []mapper.
 		email := mu.UserInfo.Email
 		name := mu.DisplayName
 		id := mu.UserId
-		role := mu.ExtraClaims["roles"].([]string)
+
+		// Use the Roles field directly - it's always populated and safe
+		roles := mu.Roles
+		var firstRole string
+		if len(roles) > 0 {
+			firstRole = roles[0]
+		}
 
 		apiUsers[i] = User{
 			ID:    id,
 			Email: email,
 			Name:  name,
-			Role:  role[0],
+			Role:  firstRole, // Backward compatibility
+			Roles: roles,     // New array field
 		}
 	}
 
@@ -81,10 +88,18 @@ func (h *DefaultResponseHandler) PrepareUserListResponse(users []mapper.User) *R
 			email = user.UserInfo.Email
 		}
 
+		// Use the Roles field directly - it's always populated and safe
+		roles := user.Roles
+		var firstRole string
+		if len(roles) > 0 {
+			firstRole = roles[0]
+		}
+
 		apiUsers = append(apiUsers, User{
 			ID:    user.UserId,
 			Name:  user.DisplayName,
-			Role:  user.ExtraClaims["roles"].([]string)[0],
+			Role:  firstRole, // Backward compatibility
+			Roles: roles,     // New array field
 			Email: email,
 		})
 	}
@@ -101,10 +116,18 @@ func (h *DefaultResponseHandler) PrepareUserSwitchResponse(users []mapper.User) 
 			email = user.UserInfo.Email
 		}
 
+		// Use the Roles field directly - it's always populated and safe
+		roles := user.Roles
+		var firstRole string
+		if len(roles) > 0 {
+			firstRole = roles[0]
+		}
+
 		apiUsers = append(apiUsers, User{
 			ID:    user.UserId,
 			Name:  user.DisplayName,
-			Role:  user.ExtraClaims["roles"].([]string)[0],
+			Role:  firstRole, // Backward compatibility
+			Roles: roles,     // New array field
 			Email: email,
 		})
 	}
