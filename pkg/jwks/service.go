@@ -16,41 +16,41 @@ type JWKSService struct {
 }
 
 // NewJWKSService creates a new JWKS service with the provided repository
-func NewJWKSService(repository JWKSRepository) (*JWKSService, error) {
+func NewJWKSService(repository JWKSRepository, keyPair *KeyPair) (*JWKSService, error) {
 	service := &JWKSService{
 		repository: repository,
 	}
 
-	// Load existing keys or create new ones
+	key := &KeyPair{
+		Kid:        keyPair.Kid,
+		Alg:        keyPair.Alg,
+		PrivateKey: keyPair.PrivateKey,
+		PublicKey:  &keyPair.PrivateKey.PublicKey,
+		Active:     true, // First key is active by default
+	}
+
 	ctx := context.Background()
-	keyStore, err := service.repository.GetKeyStore(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get key store: %w", err)
+	if err := service.repository.AddKey(ctx, key); err != nil {
+		return nil, fmt.Errorf("failed to add initial key: %w", err)
 	}
 
-	// Find active key
-	for _, keyPair := range keyStore.Keys {
-		if keyPair.Active {
-			service.activeKeyID = keyPair.Kid
-			break
-		}
-	}
-
-	// If no keys exist, generate initial key
-	if len(keyStore.Keys) == 0 {
-		slog.Info("No keys found, generating initial key")
-		if err := service.generateInitialKey(); err != nil {
-			return nil, fmt.Errorf("failed to generate initial key: %w", err)
-		}
-	}
+	service.activeKeyID = key.Kid
 
 	return service, nil
 }
 
 // NewJWKSServiceWithInMemoryStorage creates a new JWKS service with in-memory storage
-func NewJWKSServiceWithInMemoryStorage() (*JWKSService, error) {
+func NewJWKSServiceWithKey(keyPair *KeyPair) (*JWKSService, error) {
 	repository := NewInMemoryJWKSRepository()
-	return NewJWKSService(repository)
+	return NewJWKSService(repository, keyPair)
+}
+
+func NewJWKSServiceWithInMemoryStorage() (*JWKSService, error) {
+	service := &JWKSService{
+		repository: NewInMemoryJWKSRepository(),
+	}
+	service.generateInitialKey()
+	return service, nil
 }
 
 // GetJWKS returns the public keys in JWKS format
