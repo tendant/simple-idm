@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -226,6 +228,59 @@ func loadEnvFile() {
 	slog.Info("Configuration loaded from .env file successfully")
 }
 
+// loadPrivateKeyFromConfig loads and decodes a private key from the JWKS configuration
+func loadPrivateKeyFromConfig(config JWKSConfig) (*rsa.PrivateKey, error) {
+	if config.PrivateKeyFile == "" {
+		return nil, fmt.Errorf("no private key file specified in JWKS_PRIVATE_KEY_FILE")
+	}
+
+	keyFilePath := config.PrivateKeyFile
+
+	// If the path is not absolute, try to resolve it
+	if !filepath.IsAbs(keyFilePath) {
+		// First try current working directory
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current working directory: %w", err)
+		}
+
+		cwdKeyPath := filepath.Join(cwd, keyFilePath)
+		if _, err := os.Stat(cwdKeyPath); err == nil {
+			keyFilePath = cwdKeyPath
+		} else {
+			// Fallback to executable directory
+			execPath, err := os.Executable()
+			if err == nil {
+				execDir := filepath.Dir(execPath)
+				execKeyPath := filepath.Join(execDir, keyFilePath)
+				if _, err := os.Stat(execKeyPath); err == nil {
+					keyFilePath = execKeyPath
+				} else {
+					// Use the current working directory path as final attempt
+					keyFilePath = cwdKeyPath
+				}
+			} else {
+				// Use the current working directory path as final attempt
+				keyFilePath = cwdKeyPath
+			}
+		}
+	}
+
+	slog.Info("Loading private key from file", "path", keyFilePath)
+	keyBytes, err := os.ReadFile(keyFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read private key file %s: %w", keyFilePath, err)
+	}
+
+	privateKeyPEM := string(keyBytes)
+	privateKey, err := jwks.DecodePrivateKeyFromPEM(privateKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode private key: %w", err)
+	}
+
+	return privateKey, nil
+}
+
 func main() {
 
 	// Create a logger with source enabled
@@ -333,57 +388,10 @@ func main() {
 
 	// Initialize JWKS service with configured key from environment
 
-	// Read private key from file
-	var privateKeyPEM string
-	if config.JWKSConfig.PrivateKeyFile != "" {
-		keyFilePath := config.JWKSConfig.PrivateKeyFile
-
-		// If the path is not absolute, try to resolve it
-		if !filepath.IsAbs(keyFilePath) {
-			// First try current working directory
-			cwd, err := os.Getwd()
-			if err != nil {
-				slog.Error("Failed to get current working directory", "error", err)
-				os.Exit(-1)
-			}
-
-			cwdKeyPath := filepath.Join(cwd, keyFilePath)
-			if _, err := os.Stat(cwdKeyPath); err == nil {
-				keyFilePath = cwdKeyPath
-			} else {
-				// Fallback to executable directory
-				execPath, err := os.Executable()
-				if err == nil {
-					execDir := filepath.Dir(execPath)
-					execKeyPath := filepath.Join(execDir, keyFilePath)
-					if _, err := os.Stat(execKeyPath); err == nil {
-						keyFilePath = execKeyPath
-					} else {
-						// Use the current working directory path as final attempt
-						keyFilePath = cwdKeyPath
-					}
-				} else {
-					// Use the current working directory path as final attempt
-					keyFilePath = cwdKeyPath
-				}
-			}
-		}
-
-		slog.Info("Loading private key from file", "path", keyFilePath)
-		keyBytes, err := os.ReadFile(keyFilePath)
-		if err != nil {
-			slog.Error("Failed to read private key file", "error", err, "path", keyFilePath)
-			os.Exit(-1)
-		}
-		privateKeyPEM = string(keyBytes)
-	} else {
-		slog.Error("No private key file specified in JWKS_PRIVATE_KEY_FILE")
-		os.Exit(-1)
-	}
-
-	privateKey, err := jwks.DecodePrivateKeyFromPEM(privateKeyPEM)
+	// Load private key using helper method
+	privateKey, err := loadPrivateKeyFromConfig(config.JWKSConfig)
 	if err != nil {
-		slog.Error("Failed to decode private key", "error", err)
+		slog.Error("Failed to load private key", "error", err)
 		os.Exit(-1)
 	}
 
@@ -605,11 +613,24 @@ func main() {
 	// Mount external provider endpoints (public, no authentication required)
 	server.R.Mount("/api/idm/external", externalProviderAPI.Handler(externalProviderHandle))
 
-	tokenAuth := jwtauth.New("RS256", activeKey.PrivateKey, activeKey.PublicKey)
+	// Create both RSA and HMAC verifiers for multi-algorithm support
+	rsaAuth := jwtauth.New("RS256", activeKey.PrivateKey, activeKey.PublicKey)
+	hmacAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
 	server.R.Group(func(r chi.Router) {
-		r.Use(client.Verifier(tokenAuth))
-		r.Use(jwtauth.Authenticator(tokenAuth))
+		r.Use(client.MultiAlgorithmVerifier(
+			client.VerifierConfig{
+				Name:   "RSA256-Primary",
+				Auth:   rsaAuth,
+				Active: true,
+			},
+			client.VerifierConfig{
+				Name:   "HMAC256-Fallback",
+				Auth:   hmacAuth,
+				Active: false,
+			},
+		))
+		r.Use(jwtauth.Authenticator(rsaAuth)) // Keep existing authenticator for RSA
 		r.Use(client.AuthUserMiddleware)
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
 			authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
