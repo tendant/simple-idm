@@ -122,6 +122,15 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 		slog.Error("Failed to set to address", "err", err)
 		return err
 	}
+
+	// Add CC recipients if provided
+	if len(notification.CC) > 0 {
+		if err := msg.Cc(notification.CC...); err != nil {
+			slog.Error("Failed to set CC addresses", "err", err)
+			return err
+		}
+	}
+
 	msg.Subject(noticeTemplate.Subject)
 
 	// Set text body if available
@@ -150,6 +159,6 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 	// Close the connection
 	e.client.Close()
 
-	slog.Info("Email sent successfully", "to", notification.To, "host", e.SMTPConfig.Host, "port", e.SMTPConfig.Port)
+	slog.Info("Email sent successfully", "to", notification.To, "cc", notification.CC, "host", e.SMTPConfig.Host, "port", e.SMTPConfig.Port)
 	return nil
 }
