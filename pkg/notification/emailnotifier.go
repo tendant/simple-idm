@@ -131,6 +131,14 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 		}
 	}
 
+	// Add BCC recipients if provided
+	if len(notification.BCC) > 0 {
+		if err := msg.Bcc(notification.BCC...); err != nil {
+			slog.Error("Failed to set BCC addresses", "err", err)
+			return err
+		}
+	}
+
 	msg.Subject(noticeTemplate.Subject)
 
 	// Set text body if available
@@ -159,6 +167,6 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 	// Close the connection
 	e.client.Close()
 
-	slog.Info("Email sent successfully", "to", notification.To, "cc", notification.CC, "host", e.SMTPConfig.Host, "port", e.SMTPConfig.Port)
+	slog.Info("Email sent successfully", "to", notification.To, "cc", notification.CC, "bcc", notification.BCC, "host", e.SMTPConfig.Host, "port", e.SMTPConfig.Port)
 	return nil
 }
