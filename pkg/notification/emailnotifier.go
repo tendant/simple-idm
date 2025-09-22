@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
+	"strings"
 
 	"github.com/wneessen/go-mail"
 )
@@ -73,6 +74,23 @@ func NewEmailNotifier(config SMTPConfig) (*EmailNotifier, error) {
 	return &EmailNotifier{SMTPConfig: config, client: client, opts: opts}, nil
 }
 
+// parseEmailList parses a comma-separated string of email addresses into a slice
+func parseEmailList(emailStr string) []string {
+	if emailStr == "" {
+		return nil
+	}
+
+	emails := strings.Split(emailStr, ",")
+	var result []string
+	for _, email := range emails {
+		email = strings.TrimSpace(email)
+		if email != "" {
+			result = append(result, email)
+		}
+	}
+	return result
+}
+
 func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationData, noticeTemplate NoticeTemplate) error {
 	if notification.To == "" {
 		return fmt.Errorf("email notification requires 'To' address")
@@ -122,6 +140,31 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 		slog.Error("Failed to set to address", "err", err)
 		return err
 	}
+
+	// Add CC recipients if provided in Data map
+	var ccRecipients []string
+	if ccStr, exists := notification.Data["cc"]; exists {
+		ccRecipients = parseEmailList(ccStr)
+		if len(ccRecipients) > 0 {
+			if err := msg.Cc(ccRecipients...); err != nil {
+				slog.Error("Failed to set CC addresses", "err", err)
+				return err
+			}
+		}
+	}
+
+	// Add BCC recipients if provided in Data map
+	var bccRecipients []string
+	if bccStr, exists := notification.Data["bcc"]; exists {
+		bccRecipients = parseEmailList(bccStr)
+		if len(bccRecipients) > 0 {
+			if err := msg.Bcc(bccRecipients...); err != nil {
+				slog.Error("Failed to set BCC addresses", "err", err)
+				return err
+			}
+		}
+	}
+
 	msg.Subject(noticeTemplate.Subject)
 
 	// Set text body if available
@@ -150,6 +193,6 @@ func (e *EmailNotifier) Send(noticeType NoticeType, notification NotificationDat
 	// Close the connection
 	e.client.Close()
 
-	slog.Info("Email sent successfully", "to", notification.To, "host", e.SMTPConfig.Host, "port", e.SMTPConfig.Port)
+	slog.Info("Email sent successfully", "to", notification.To, "cc", ccRecipients, "bcc", bccRecipients, "host", e.SMTPConfig.Host, "port", e.SMTPConfig.Port)
 	return nil
 }
