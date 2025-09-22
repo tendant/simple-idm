@@ -71,9 +71,34 @@ func LoadFromMap[T any](m map[string]interface{}, c *T) error {
 func AuthUserMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract token and claims from context
-		_, claims, err := jwtauth.FromContext(r.Context())
-		if err != nil {
-			http.Error(w, fmt.Sprintf("missing or invalid JWT: %v", err), http.StatusUnauthorized)
+		// First try our custom context values for multi-algorithm support
+		var claims map[string]interface{}
+		var err error
+
+		if claimsValue := r.Context().Value("verified_claims"); claimsValue != nil {
+			if mapClaims, ok := claimsValue.(map[string]interface{}); ok {
+				claims = mapClaims
+			}
+		}
+
+		// Fallback to jwtauth context if no custom claims found
+		if claims == nil {
+			_, jwtClaims, jwtErr := jwtauth.FromContext(r.Context())
+			if jwtErr != nil {
+				http.Error(w, fmt.Sprintf("missing or invalid JWT: %v", jwtErr), http.StatusUnauthorized)
+				return
+			}
+			// Convert jwtauth claims to map[string]interface{}
+			if jwtClaims != nil {
+				claims = make(map[string]interface{})
+				for k, v := range jwtClaims {
+					claims[k] = v
+				}
+			}
+		}
+
+		if claims == nil {
+			http.Error(w, "missing JWT claims", http.StatusUnauthorized)
 			return
 		}
 
@@ -181,12 +206,99 @@ func IsAdmin(user *AuthUser) bool {
 	if user == nil || user.ExtraClaims.Roles == nil {
 		return false
 	}
-	
+
 	for _, role := range user.ExtraClaims.Roles {
 		if role == "admin" || role == "superadmin" {
 			return true
 		}
 	}
-	
+
 	return false
+}
+
+// VerifierConfig represents a single verifier configuration
+type VerifierConfig struct {
+	Name   string           // Name/identifier for this verifier
+	Auth   *jwtauth.JWTAuth // The JWTAuth instance
+	Active bool             // Whether this verifier is currently active
+}
+
+// MultiAlgorithmVerifier creates a middleware that can verify tokens using multiple JWTAuth instances
+// It tries verifiers in priority order and uses the first one that successfully verifies the token
+func MultiAlgorithmVerifier(verifiers ...VerifierConfig) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			// Extract token using existing extractors
+			tokenString, err := extractTokenFromRequest(r)
+			if err != nil {
+				slog.Error("Token extraction failed", "error", err)
+				// Set empty context values and continue
+				ctx = jwtauth.NewContext(ctx, nil, err)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			// Try each active verifier in priority order
+			var lastErr error
+			for _, config := range sortVerifiers(verifiers) {
+				slog.Info("Trying verifier", "name", config.Name)
+
+				// Try to verify with this verifier
+				token, err := jwtauth.VerifyToken(config.Auth, tokenString)
+				if err != nil {
+					slog.Error("Verifier failed", "name", config.Name, "error", err)
+					lastErr = err
+					continue
+				}
+				ctx = jwtauth.NewContext(ctx, token, err)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			// All verifiers failed
+			slog.Error("All verifiers failed", "lastError", lastErr)
+			ctx = jwtauth.NewContext(ctx, nil, lastErr)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// getActiveVerifiersByPriority returns only active verifiers sorted by priority
+func sortVerifiers(verifiers []VerifierConfig) []VerifierConfig {
+	var active []VerifierConfig
+	for _, v := range verifiers {
+		if v.Active {
+			active = append(active, v)
+		}
+	}
+
+	for _, v := range verifiers {
+		if !v.Active {
+			active = append(active, v)
+		}
+	}
+	slog.Info("all verifiers", "verifiers", active)
+
+	return active
+}
+
+// extractTokenFromRequest attempts to extract a token from the request using existing extractors
+func extractTokenFromRequest(r *http.Request) (string, error) {
+	// Try to extract token using existing extractors in order of preference
+	extractors := []func(*http.Request) string{
+		jwtauth.TokenFromHeader,
+		TokenFromCookie,
+		TempTokenFromCookie,
+		TempTokenFromHeader,
+	}
+
+	for _, extractor := range extractors {
+		if tokenString := extractor(r); tokenString != "" {
+			return tokenString, nil
+		}
+	}
+
+	return "", fmt.Errorf("no token found")
 }

@@ -796,7 +796,7 @@ type SendMagicLinkEmailParams struct {
 
 func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPasswordResetEmailParams) error {
 	resetLink := fmt.Sprintf("%s/auth/user/reset-password?token=%s", s.notificationManager.BaseUrl, param.ResetToken)
-	slog.Info("Sending password reset email", "email", param.Email, "resetLink", resetLink)
+	slog.Info("Sending password reset email", "email", param.Email)
 	data := map[string]string{
 		"Link":     resetLink,
 		"UserId":   param.UserId,
@@ -815,7 +815,7 @@ func (s *LoginService) SendMagicLinkEmail(ctx context.Context, param SendMagicLi
 	}
 
 	magicLink := fmt.Sprintf("%s/magic-link-validate?token=%s", s.notificationManager.BaseUrl, param.Token)
-	slog.Info("Sending magic link email", "email", param.Email, "magicLink", magicLink)
+	slog.Info("Sending magic link email", "email", param.Email)
 
 	data := map[string]string{
 		"Link":           magicLink,
@@ -904,7 +904,7 @@ func (s *LoginService) ValidateMagicLinkToken(ctx context.Context, token string)
 	if err != nil {
 		return LoginResult{}, fmt.Errorf("invalid or expired token: %w", err)
 	}
-	slog.Info("Magic link token validated successfully", "login_id", loginID, "token", token)
+	slog.Info("Magic link token validated successfully", "login_id", loginID)
 
 	// Mark the token as used
 	err = s.repository.MarkMagicLinkTokenUsed(ctx, token)
@@ -912,7 +912,7 @@ func (s *LoginService) ValidateMagicLinkToken(ctx context.Context, token string)
 		slog.Error("Failed to mark token as used", "error", err)
 		// Continue anyway
 	}
-	slog.Info("Magic link token marked as used", "login_id", loginID, "token", token)
+	slog.Info("Magic link token marked as used", "login_id", loginID)
 
 	// Get users associated with this login
 	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)

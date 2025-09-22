@@ -20,8 +20,14 @@ type TokenGenerator interface {
 
 // Claims struct for JWT claims
 type Claims struct {
-	ExtraClaims  interface{} `json:"extra_claims,omitempty"`
-	CustomClaims interface{} `json:"custom_claims,omitempty"`
+	ExtraClaims         interface{} `json:"extra_claims,omitempty"`
+	CustomClaims        interface{} `json:"custom_claims,omitempty"`
+	Username            string      `json:"username,omitempty"`
+	Email               string      `json:"email,omitempty"`
+	EmailVerified       bool        `json:"email_verified,omitempty"`
+	PhoneNumber         string      `json:"phone_number,omitempty"`
+	PhoneNumberVerified bool        `json:"phone_number_verified,omitempty"`
+	Groups              []string    `json:"groups,omitempty"`
 	jwt.RegisteredClaims
 }
 

@@ -2,7 +2,10 @@ package oauth2client
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -39,11 +42,13 @@ func (s *ClientService) ValidateAuthorizationRequest(clientID, redirectURI, resp
 
 	// Validate redirect URI
 	if !client.ValidateRedirectURI(redirectURI) {
+		slog.Error("Invalid redirect URI", "client_id", clientID, "redirect_uri", redirectURI)
 		return nil, fmt.Errorf("invalid redirect_uri")
 	}
 
 	// Validate response type
 	if !client.ValidateResponseType(responseType) {
+		slog.Error("Invalid response type", "client_id", clientID, "response_type", responseType)
 		return nil, fmt.Errorf("unsupported response_type: %s", responseType)
 	}
 
@@ -51,6 +56,7 @@ func (s *ClientService) ValidateAuthorizationRequest(clientID, redirectURI, resp
 	if scope != "" {
 		requestedScopes := strings.Split(scope, " ")
 		if !client.ValidateScope(requestedScopes) {
+			slog.Error("Invalid scope", "client_id", clientID, "scope", scope)
 			return nil, fmt.Errorf("invalid scope")
 		}
 	}
@@ -75,13 +81,13 @@ func (s *ClientService) ListClients() map[string]*OAuth2Client {
 	return clientMap
 }
 
-// CreateClient creates a new OAuth2 client
-func (s *ClientService) CreateClient(ctx context.Context, client *OAuth2Client) error {
+// CreateClient creates a new OAuth2 client and returns the created client
+func (s *ClientService) CreateClient(ctx context.Context, client *OAuth2Client) (*OAuth2Client, error) {
 	return s.repository.CreateClient(ctx, client)
 }
 
-// UpdateClient updates an existing OAuth2 client
-func (s *ClientService) UpdateClient(ctx context.Context, client *OAuth2Client) error {
+// UpdateClient updates an existing OAuth2 client and returns the updated client
+func (s *ClientService) UpdateClient(ctx context.Context, client *OAuth2Client) (*OAuth2Client, error) {
 	return s.repository.UpdateClient(ctx, client)
 }
 
@@ -113,4 +119,13 @@ func (s *ClientService) GetClientsByRedirectURI(ctx context.Context, redirectURI
 // GetClientsByScope finds clients that support the specified scope
 func (s *ClientService) GetClientsByScope(ctx context.Context, scope string) ([]*OAuth2Client, error) {
 	return s.repository.GetClientsByScope(ctx, scope)
+}
+
+// GenerateClientSecret generates a new client secret
+func (s *ClientService) GenerateClientSecret() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "secret_" + hex.EncodeToString(bytes), nil
 }

@@ -22,9 +22,23 @@ type IamRepository interface {
 	UpdateUserLoginID(ctx context.Context, userID uuid.UUID, loginID *uuid.UUID) (User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
 	DeleteUserRoles(ctx context.Context, userID uuid.UUID) error
+	AnyUserExists(ctx context.Context) (bool, error)
 
 	// Role operations
 	CreateUserRole(ctx context.Context, params UserRoleParams) error
+}
+
+// IamGroupRepository defines the interface for group operations
+type IamGroupRepository interface {
+	// Group operations
+	CreateGroup(ctx context.Context, params CreateGroupParams) (Group, error)
+	GetGroup(ctx context.Context, id uuid.UUID) (Group, error)
+	FindGroups(ctx context.Context) ([]Group, error)
+	UpdateGroup(ctx context.Context, params UpdateGroupParams) (Group, error)
+	DeleteGroup(ctx context.Context, id uuid.UUID) error
+	FindGroupUsers(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	CreateUserGroup(ctx context.Context, params UserGroupParams) error
+	DeleteUserGroup(ctx context.Context, userID uuid.UUID, groupID uuid.UUID) error
 }
 
 // PostgresIamRepository implements IamRepository using iamdb.Queries
@@ -399,6 +413,11 @@ func (r *PostgresIamRepository) DeleteUserRoles(ctx context.Context, userID uuid
 	return r.queries.DeleteUserRoles(ctx, userID)
 }
 
+// AnyUserExists checks if any user exists in the system
+func (r *PostgresIamRepository) AnyUserExists(ctx context.Context) (bool, error) {
+	return r.queries.AnyUserExists(ctx)
+}
+
 // CreateUserRole creates a user-role association
 func (r *PostgresIamRepository) CreateUserRole(ctx context.Context, params UserRoleParams) error {
 	// Convert domain model to iamdb model
@@ -409,9 +428,219 @@ func (r *PostgresIamRepository) CreateUserRole(ctx context.Context, params UserR
 	return err
 }
 
+// PostgresIamGroupRepository implements IamGroupRepository using iamdb.Queries
+type PostgresIamGroupRepository struct {
+	queries *iamdb.Queries
+}
+
+// NewPostgresIamGroupRepository creates a new PostgreSQL-based IAM group repository
+func NewPostgresIamGroupRepository(queries *iamdb.Queries) *PostgresIamGroupRepository {
+	return &PostgresIamGroupRepository{
+		queries: queries,
+	}
+}
+
+// CreateGroup creates a new group
+func (r *PostgresIamGroupRepository) CreateGroup(ctx context.Context, params CreateGroupParams) (Group, error) {
+	// Convert domain model to iamdb model
+	var nullDescription sql.NullString
+	if params.Description != "" {
+		nullDescription = sql.NullString{String: params.Description, Valid: true}
+	}
+
+	// Call the database
+	dbGroup, err := r.queries.CreateGroup(ctx, iamdb.CreateGroupParams{
+		Name:        params.Name,
+		Description: nullDescription,
+	})
+	if err != nil {
+		return Group{}, err
+	}
+
+	// Convert back to domain model
+	var deletedAt *time.Time
+	if dbGroup.DeletedAt.Valid {
+		dt := dbGroup.DeletedAt.Time
+		deletedAt = &dt
+	}
+
+	var description string
+	if dbGroup.Description.Valid {
+		description = dbGroup.Description.String
+	}
+
+	return Group{
+		ID:          dbGroup.ID,
+		CreatedAt:   dbGroup.CreatedAt.Time,
+		UpdatedAt:   dbGroup.UpdatedAt.Time,
+		DeletedAt:   deletedAt,
+		Name:        dbGroup.Name,
+		Description: description,
+	}, nil
+}
+
+// GetGroup gets a group by ID
+func (r *PostgresIamGroupRepository) GetGroup(ctx context.Context, id uuid.UUID) (Group, error) {
+	// Call the database
+	dbGroup, err := r.queries.GetGroupById(ctx, id)
+	if err != nil {
+		return Group{}, err
+	}
+
+	// Convert to domain model
+	var deletedAt *time.Time
+	if dbGroup.DeletedAt.Valid {
+		dt := dbGroup.DeletedAt.Time
+		deletedAt = &dt
+	}
+
+	var description string
+	if dbGroup.Description.Valid {
+		description = dbGroup.Description.String
+	}
+
+	return Group{
+		ID:          dbGroup.ID,
+		CreatedAt:   dbGroup.CreatedAt.Time,
+		UpdatedAt:   dbGroup.UpdatedAt.Time,
+		DeletedAt:   deletedAt,
+		Name:        dbGroup.Name,
+		Description: description,
+	}, nil
+}
+
+// FindGroups finds all groups
+func (r *PostgresIamGroupRepository) FindGroups(ctx context.Context) ([]Group, error) {
+	// Call the database
+	dbGroups, err := r.queries.FindGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to domain models
+	groups := make([]Group, 0, len(dbGroups))
+	for _, dbGroup := range dbGroups {
+		var description string
+		if dbGroup.Description.Valid {
+			description = dbGroup.Description.String
+		}
+
+		groups = append(groups, Group{
+			ID:          dbGroup.ID,
+			CreatedAt:   dbGroup.CreatedAt.Time,
+			UpdatedAt:   dbGroup.UpdatedAt.Time,
+			DeletedAt:   nil, // FindGroups only returns non-deleted groups
+			Name:        dbGroup.Name,
+			Description: description,
+		})
+	}
+
+	return groups, nil
+}
+
+// UpdateGroup updates a group
+func (r *PostgresIamGroupRepository) UpdateGroup(ctx context.Context, params UpdateGroupParams) (Group, error) {
+	// Convert domain model to iamdb model
+	var nullDescription sql.NullString
+	if params.Description != "" {
+		nullDescription = sql.NullString{String: params.Description, Valid: true}
+	}
+
+	// Call the database
+	dbGroup, err := r.queries.UpdateGroup(ctx, iamdb.UpdateGroupParams{
+		ID:          params.ID,
+		Name:        params.Name,
+		Description: nullDescription,
+	})
+	if err != nil {
+		return Group{}, err
+	}
+
+	// Convert back to domain model
+	var deletedAt *time.Time
+	if dbGroup.DeletedAt.Valid {
+		dt := dbGroup.DeletedAt.Time
+		deletedAt = &dt
+	}
+
+	var description string
+	if dbGroup.Description.Valid {
+		description = dbGroup.Description.String
+	}
+
+	return Group{
+		ID:          dbGroup.ID,
+		CreatedAt:   dbGroup.CreatedAt.Time,
+		UpdatedAt:   dbGroup.UpdatedAt.Time,
+		DeletedAt:   deletedAt,
+		Name:        dbGroup.Name,
+		Description: description,
+	}, nil
+}
+
+// DeleteGroup deletes a group (soft delete)
+func (r *PostgresIamGroupRepository) DeleteGroup(ctx context.Context, id uuid.UUID) error {
+	return r.queries.DeleteGroup(ctx, id)
+}
+
+// FindGroupUsers finds all users in a group
+func (r *PostgresIamGroupRepository) FindGroupUsers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+	// Call the database
+	dbUsers, err := r.queries.FindGroupUsers(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to domain models
+	users := make([]User, 0, len(dbUsers))
+	for _, dbUser := range dbUsers {
+		var name string
+		if dbUser.Name.Valid {
+			name = dbUser.Name.String
+		}
+
+		users = append(users, User{
+			ID:    dbUser.ID,
+			Email: dbUser.Email,
+			Name:  name,
+		})
+	}
+
+	return users, nil
+}
+
+// CreateUserGroup creates a user-group association
+func (r *PostgresIamGroupRepository) CreateUserGroup(ctx context.Context, params UserGroupParams) error {
+	// Convert domain model to iamdb model
+	_, err := r.queries.CreateUserGroup(ctx, iamdb.CreateUserGroupParams{
+		UserID:  params.UserID,
+		GroupID: params.GroupID,
+	})
+	return err
+}
+
+// DeleteUserGroup deletes a user-group association (soft delete)
+func (r *PostgresIamGroupRepository) DeleteUserGroup(ctx context.Context, userID uuid.UUID, groupID uuid.UUID) error {
+	return r.queries.DeleteUserGroup(ctx, iamdb.DeleteUserGroupParams{
+		UserID:  userID,
+		GroupID: groupID,
+	})
+}
+
 // IamService provides IAM operations
 type IamService struct {
-	repo IamRepository
+	repo      IamRepository
+	groupRepo IamGroupRepository
+}
+
+// IamServiceOption is a function that configures an IamService
+type IamServiceOption func(*IamService)
+
+// WithGroupRepository sets the group repository for the IamService
+func WithGroupRepository(groupRepo IamGroupRepository) IamServiceOption {
+	return func(s *IamService) {
+		s.groupRepo = groupRepo
+	}
 }
 
 // NewIamService creates a new IAM service
@@ -421,11 +650,33 @@ func NewIamService(repo IamRepository) *IamService {
 	}
 }
 
+// NewIamServiceWithOptions creates a new IAM service with the given options
+func NewIamServiceWithOptions(repo IamRepository, opts ...IamServiceOption) *IamService {
+	s := &IamService{
+		repo: repo,
+	}
+
+	// Apply all options
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
+}
+
 // NewIamServiceWithQueries creates a new IAM service with iamdb.Queries
 // This is a convenience function for backward compatibility
 func NewIamServiceWithQueries(queries *iamdb.Queries) *IamService {
 	repo := NewPostgresIamRepository(queries)
 	return NewIamService(repo)
+}
+
+// NewIamServiceWithQueriesAndGroups creates a new IAM service with iamdb.Queries and group support
+// This is a convenience function for easy setup with groups
+func NewIamServiceWithQueriesAndGroups(queries *iamdb.Queries) *IamService {
+	repo := NewPostgresIamRepository(queries)
+	groupRepo := NewPostgresIamGroupRepository(queries)
+	return NewIamServiceWithOptions(repo, WithGroupRepository(groupRepo))
 }
 
 func (s *IamService) CreateUser(ctx context.Context, email, username, name string, roleIds []uuid.UUID, loginID string) (UserWithRoles, error) {
@@ -551,4 +802,142 @@ func (s *IamService) DeleteUser(ctx context.Context, userId uuid.UUID) error {
 	}
 
 	return s.repo.DeleteUser(ctx, userId)
+}
+
+func (s *IamService) AnyUserExists(ctx context.Context) (bool, error) {
+	return s.repo.AnyUserExists(ctx)
+}
+
+// Group management methods (only available if group repository is configured)
+
+// CreateGroup creates a new group
+func (s *IamService) CreateGroup(ctx context.Context, name, description string) (Group, error) {
+	if s.groupRepo == nil {
+		return Group{}, fmt.Errorf("group operations not supported: group repository not configured")
+	}
+
+	// Validate name
+	if name == "" {
+		return Group{}, fmt.Errorf("group name is required")
+	}
+
+	// Create group with domain model
+	params := CreateGroupParams{
+		Name:        name,
+		Description: description,
+	}
+
+	group, err := s.groupRepo.CreateGroup(ctx, params)
+	if err != nil {
+		return Group{}, fmt.Errorf("failed to create group: %w", err)
+	}
+
+	return group, nil
+}
+
+// FindGroups finds all groups
+func (s *IamService) FindGroups(ctx context.Context) ([]Group, error) {
+	if s.groupRepo == nil {
+		return nil, fmt.Errorf("group operations not supported: group repository not configured")
+	}
+
+	return s.groupRepo.FindGroups(ctx)
+}
+
+// GetGroup gets a group by ID
+func (s *IamService) GetGroup(ctx context.Context, groupID uuid.UUID) (Group, error) {
+	if s.groupRepo == nil {
+		return Group{}, fmt.Errorf("group operations not supported: group repository not configured")
+	}
+
+	return s.groupRepo.GetGroup(ctx, groupID)
+}
+
+// UpdateGroup updates a group
+func (s *IamService) UpdateGroup(ctx context.Context, groupID uuid.UUID, name, description string) (Group, error) {
+	if s.groupRepo == nil {
+		return Group{}, fmt.Errorf("group operations not supported: group repository not configured")
+	}
+
+	// Validate name
+	if name == "" {
+		return Group{}, fmt.Errorf("group name is required")
+	}
+
+	// Update group with domain model
+	params := UpdateGroupParams{
+		ID:          groupID,
+		Name:        name,
+		Description: description,
+	}
+
+	group, err := s.groupRepo.UpdateGroup(ctx, params)
+	if err != nil {
+		return Group{}, fmt.Errorf("failed to update group: %w", err)
+	}
+
+	return group, nil
+}
+
+// DeleteGroup deletes a group
+func (s *IamService) DeleteGroup(ctx context.Context, groupID uuid.UUID) error {
+	if s.groupRepo == nil {
+		return fmt.Errorf("group operations not supported: group repository not configured")
+	}
+
+	// Check if group exists
+	_, err := s.groupRepo.GetGroup(ctx, groupID)
+	if err != nil {
+		return fmt.Errorf("group not found: %w", err)
+	}
+
+	return s.groupRepo.DeleteGroup(ctx, groupID)
+}
+
+// FindGroupUsers finds all users in a group
+func (s *IamService) FindGroupUsers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+	if s.groupRepo == nil {
+		return nil, fmt.Errorf("group operations not supported: group repository not configured")
+	}
+
+	return s.groupRepo.FindGroupUsers(ctx, groupID)
+}
+
+// AddUserToGroup adds a user to a group
+func (s *IamService) AddUserToGroup(ctx context.Context, userID, groupID uuid.UUID) error {
+	if s.groupRepo == nil {
+		return fmt.Errorf("group operations not supported: group repository not configured")
+	}
+
+	// Create user-group association
+	params := UserGroupParams{
+		UserID:  userID,
+		GroupID: groupID,
+	}
+
+	err := s.groupRepo.CreateUserGroup(ctx, params)
+	if err != nil {
+		return fmt.Errorf("failed to add user to group: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveUserFromGroup removes a user from a group
+func (s *IamService) RemoveUserFromGroup(ctx context.Context, userID, groupID uuid.UUID) error {
+	if s.groupRepo == nil {
+		return fmt.Errorf("group operations not supported: group repository not configured")
+	}
+
+	err := s.groupRepo.DeleteUserGroup(ctx, userID, groupID)
+	if err != nil {
+		return fmt.Errorf("failed to remove user from group: %w", err)
+	}
+
+	return nil
+}
+
+// HasGroupSupport returns true if the service has group support enabled
+func (s *IamService) HasGroupSupport() bool {
+	return s.groupRepo != nil
 }

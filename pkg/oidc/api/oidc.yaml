@@ -48,6 +48,20 @@ paths:
           schema:
             type: string
             example: "somestate"
+        - name: code_challenge
+          in: query
+          description: PKCE code challenge (RFC 7636)
+          schema:
+            type: string
+            example: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+        - name: code_challenge_method
+          in: query
+          description: PKCE code challenge method (RFC 7636)
+          schema:
+            type: string
+            enum: ["plain", "S256"]
+            default: "S256"
+            example: "S256"
       responses:
         '302':
           description: Redirect to login page or back to client with authorization code
@@ -116,6 +130,10 @@ paths:
                   format: uri
                   description: The redirect URI used in the authorization request
                   example: "http://localhost:8181/demo/callback"
+                code_verifier:
+                  type: string
+                  description: PKCE code verifier (RFC 7636)
+                  example: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
               required:
                 - grant_type
                 - code
@@ -141,15 +159,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /jwks:
+    get:
+      operationId: jwks
+      summary: JSON Web Key Set Endpoint
+      description: Returns the public keys used to verify JWT tokens (RFC 7517)
+      responses:
+        '200':
+          description: Successful JWKS response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JWKSResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /userinfo:
+    get:
+      operationId: userinfo
+      summary: OIDC UserInfo Endpoint
+      description: Returns user information for the authenticated user (RFC 6749, OpenID Connect Core 1.0)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successful userinfo response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          description: Unauthorized - invalid or missing access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - insufficient scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     TokenResponse:
       type: object
       properties:
+        id_token:
+          type: string
+          description: The ID token (JWT)
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
         access_token:
           type: string
-          description: The access token
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          description: The access token (JWT)
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
         token_type:
           type: string
           description: The token type
@@ -158,15 +235,12 @@ components:
           type: integer
           description: Token lifetime in seconds
           example: 3600
-        refresh_token:
-          type: string
-          description: The refresh token (optional)
-          example: "def50200..."
         scope:
           type: string
           description: The granted scopes
           example: "openid profile email"
       required:
+        - id_token
         - access_token
         - token_type
         - expires_in
@@ -185,3 +259,57 @@ components:
           description: URI to error documentation
       required:
         - error
+    JWKSResponse:
+      type: object
+      properties:
+        keys:
+          type: array
+          description: Array of JSON Web Keys
+          items:
+            $ref: '#/components/schemas/JWK'
+      required:
+        - keys
+    JWK:
+      type: object
+      properties:
+        kty:
+          type: string
+          description: Key type
+          example: "RSA"
+        use:
+          type: string
+          description: Public key use
+          example: "sig"
+        kid:
+          type: string
+          description: Key ID
+          example: "key-id-1"
+        alg:
+          type: string
+          description: Algorithm
+          example: "RS256"
+        "n":
+          type: string
+          description: RSA public key modulus (base64url encoded)
+        e:
+          type: string
+          description: RSA public key exponent (base64url encoded)
+          example: "AQAB"
+    UserInfoResponse:
+      type: object
+      properties:
+        sub:
+          type: string
+          description: Subject identifier (user ID)
+          example: "user-123"
+        name:
+          type: string
+          description: Full name of the user
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: Email address of the user
+          example: "john.doe@example.com"
+      required:
+        - sub

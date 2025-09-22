@@ -36,3 +36,6 @@ overrides:
   - go_type: "database/sql.NullString"
     db_type: "pg_catalog.varchar"
     nullable: true
+  - go_type: "database/sql.NullString"
+    db_type: "text"
+    nullable: true

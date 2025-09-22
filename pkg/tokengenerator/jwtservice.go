@@ -1,6 +1,7 @@
 package tokengenerator
 
 import (
+	"crypto/rsa"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -41,6 +42,7 @@ type DefaultTokenService struct {
 	tempTokenGenerator    TokenGenerator
 	logoutTokenGenerator  TokenGenerator
 	Secret                string
+	privateKey            *rsa.PrivateKey
 	// Configurable token expiry durations
 	accessTokenExpiry        time.Duration
 	refreshTokenExpiry       time.Duration
@@ -63,7 +65,6 @@ func NewDefaultTokenService(accessTokenGenerator, refreshTokenGenerator, tempTok
 		logoutTokenExpiry:        DefaultLogoutTokenExpiry,
 	}
 }
-
 
 type TokenValue struct {
 	Name   string
@@ -163,6 +164,31 @@ func (d *DefaultTokenService) GenerateLogoutToken(subject string, rootModificati
 }
 
 func (d *DefaultTokenService) ParseToken(tokenStr string) (*jwt.Token, error) {
+	// if has private key, parse token using RSA signing method
+	if d.privateKey != nil {
+		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+			// Verify the signing method is RSA
+			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+
+			// Return the public key for verification
+			return &d.privateKey.PublicKey, nil
+		})
+
+		if err != nil {
+			slog.Error("Failed to parse RSA JWT token", "err", err)
+			return token, err
+		}
+
+		if token.Valid {
+			return token, nil
+		}
+
+		slog.Error("RSA JWT token is invalid")
+		return token, fmt.Errorf("invalid token")
+	}
+	// else, parse token using HMAC signing method
 	signingKey := []byte(d.Secret)
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		return signingKey, nil

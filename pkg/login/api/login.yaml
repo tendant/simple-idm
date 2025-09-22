@@ -840,11 +840,18 @@ components:
           type: string
         role:
           type: string
+          description: "Deprecated: Use roles array instead. Contains the first role for backward compatibility."
+        roles:
+          type: array
+          items:
+            type: string
+          description: "Array of user roles"
       required:
         - id
         - name
         - email
         - role
+        - roles
     PasswordReset:
       type: object
       x-go-optional-value: true

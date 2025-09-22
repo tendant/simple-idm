@@ -1,5 +1,5 @@
 package token
 
-const (
-	ExtraClaimKey = "extra_claims"
-)
+// const (
+// 	ExtraClaimKey = "extra_claims"
+// )

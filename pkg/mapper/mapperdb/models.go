@@ -41,6 +41,15 @@ type GooseDbVersion struct {
 	Tstamp    sql.NullTime `json:"tstamp"`
 }
 
+type Group struct {
+	ID          uuid.UUID    `json:"id"`
+	Name        string       `json:"name"`
+	Description pgtype.Text  `json:"description"`
+	CreatedAt   sql.NullTime `json:"created_at"`
+	UpdatedAt   sql.NullTime `json:"updated_at"`
+	DeletedAt   sql.NullTime `json:"deleted_at"`
+}
+
 type Login struct {
 	ID                    uuid.UUID      `json:"id"`
 	CreatedAt             time.Time      `json:"created_at"`
@@ -138,6 +147,13 @@ type User struct {
 	Name           sql.NullString `json:"name"`
 	LoginID        uuid.NullUUID  `json:"login_id"`
 	Phone          sql.NullString `json:"phone"`
+}
+
+type UserGroup struct {
+	UserID     uuid.UUID    `json:"user_id"`
+	GroupID    uuid.UUID    `json:"group_id"`
+	AssignedAt sql.NullTime `json:"assigned_at"`
+	DeletedAt  sql.NullTime `json:"deleted_at"`
 }
 
 type UserRole struct {

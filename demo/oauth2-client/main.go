@@ -4,21 +4,26 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+	"github.com/tendant/simple-idm/pkg/pkce"
 	"golang.org/x/oauth2"
 )
 
 const (
 	// OAuth2 configuration
 	clientID     = "golang_app"
-	clientSecret = "BfCGGjEvIgD5EnnF3Q5EobrW95wK0tOK"
+	clientSecret = "secret_2ceb79c2e01586cbc94df03a26c0a687807a34e130b3396a2961b73d18178c9a"
 	redirectURL  = "http://localhost:8182/demo/callback"
 
 	// OIDC Provider URLs (simple-idm server)
@@ -34,7 +39,7 @@ var (
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURL:  redirectURL,
-		Scopes:       []string{"openid", "profile", "email"},
+		Scopes:       []string{"openid", "profile", "email", "groups"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  authURL,
 			TokenURL: tokenURL,
@@ -46,10 +51,22 @@ var (
 )
 
 type SessionData struct {
-	State        string
-	CodeVerifier string
-	Token        *oauth2.Token
-	UserInfo     map[string]interface{}
+	State           string
+	CodeVerifier    string
+	CodeChallenge   string
+	ChallengeMethod string
+	UsePKCE         bool
+	Token           *oauth2.Token
+	IDToken         string
+	UserInfo        map[string]interface{}
+}
+
+// IDTokenResponse represents the response from the token endpoint with ID token
+type IDTokenResponse struct {
+	IDToken   string `json:"id_token"`
+	TokenType string `json:"token_type"`
+	ExpiresIn int    `json:"expires_in"`
+	Scope     string `json:"scope,omitempty"`
 }
 
 func main() {
@@ -127,8 +144,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 		html += `
         <div class="info">
             <h3>Not authenticated</h3>
-            <p>Click the button below to start the OAuth2 flow:</p>
-            <a href="/demo/login" class="button">Login with simple-idm</a>
+            <p>Choose your OAuth2 flow:</p>
+            <a href="/demo/login" class="button">Login with PKCE (Recommended)</a>
+            <a href="/demo/login?pkce=false" class="button">Login without PKCE</a>
         </div>`
 	}
 
@@ -158,13 +176,50 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Generate state parameter for CSRF protection
 	state := generateRandomString(32)
 
-	// Store session data
-	sessions[sessionID] = &SessionData{
-		State: state,
+	// Check if PKCE should be used (default to true for security)
+	usePKCE := r.URL.Query().Get("pkce") != "false" // Use PKCE unless explicitly disabled
+
+	sessionData := &SessionData{
+		State:   state,
+		UsePKCE: usePKCE,
 	}
 
-	// Build authorization URL
-	authURL := oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	var authURL string
+	if usePKCE {
+		// Generate PKCE parameters
+		codeVerifier, err := pkce.GenerateCodeVerifier()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to generate PKCE code verifier: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		codeChallenge, err := codeVerifier.GenerateCodeChallenge(pkce.ChallengeS256)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to generate PKCE code challenge: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		// Store PKCE parameters in session
+		sessionData.CodeVerifier = codeVerifier.Value
+		sessionData.CodeChallenge = codeChallenge.Value
+		sessionData.ChallengeMethod = string(codeChallenge.Method)
+
+		// Build authorization URL with PKCE parameters
+		authURL = oauth2Config.AuthCodeURL(state,
+			oauth2.AccessTypeOffline,
+			oauth2.SetAuthURLParam("code_challenge", codeChallenge.Value),
+			oauth2.SetAuthURLParam("code_challenge_method", string(codeChallenge.Method)),
+		)
+
+		fmt.Printf("Using PKCE flow - Code Challenge: %s, Method: %s\n", codeChallenge.Value, codeChallenge.Method)
+	} else {
+		// Standard OAuth2 flow without PKCE
+		authURL = oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+		fmt.Printf("Using standard OAuth2 flow (no PKCE)\n")
+	}
+
+	// Store session data
+	sessions[sessionID] = sessionData
 
 	fmt.Printf("Redirecting to authorization URL: %s\n", authURL)
 	http.Redirect(w, r, authURL, http.StatusFound)
@@ -197,19 +252,36 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Received authorization code: %s\n", code)
 
-	// Exchange code for token
+	// Exchange code for ID token using custom function
 	ctx := context.Background()
-	token, err := oauth2Config.Exchange(ctx, code)
+	var codeVerifier string
+	if session.UsePKCE && session.CodeVerifier != "" {
+		codeVerifier = session.CodeVerifier
+		fmt.Printf("Using PKCE token exchange with code verifier\n")
+	} else {
+		fmt.Printf("Using standard token exchange\n")
+	}
+
+	idTokenResp, err := exchangeCodeForIDToken(ctx, code, codeVerifier)
 	if err != nil {
 		fmt.Printf("Token exchange failed: %v\n", err)
 		http.Error(w, fmt.Sprintf("Token exchange failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	fmt.Printf("Token exchange successful. Access token: %s...\n", token.AccessToken)
+	fmt.Printf("Token exchange successful. ID token: %s...\n", idTokenResp.IDToken[:50])
 
-	// Store token in session
+	// Create a compatible oauth2.Token structure for display purposes
+	// Note: We're storing the ID token in the AccessToken field for compatibility with existing UI
+	token := &oauth2.Token{
+		AccessToken: idTokenResp.IDToken,
+		TokenType:   idTokenResp.TokenType,
+		Expiry:      time.Now().Add(time.Duration(idTokenResp.ExpiresIn) * time.Second),
+	}
+
+	// Store both the oauth2.Token (for compatibility) and the ID token separately
 	session.Token = token
+	session.IDToken = idTokenResp.IDToken
 
 	// Redirect to home page
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -252,16 +324,31 @@ func handleProfile(w http.ResponseWriter, r *http.Request) {
         
         <div class="info success">
             <h3>Token Information</h3>
-            <p><strong>Access Token:</strong> ` + session.Token.AccessToken + `...</p>
+            <p><strong>ID Token:</strong> ` + session.IDToken[:100] + `...</p>
             <p><strong>Token Type:</strong> ` + session.Token.TokenType + `</p>
-            <p><strong>Expires:</strong> ` + session.Token.Expiry.Format(time.RFC3339) + `</p>`
+            <p><strong>Expires:</strong> ` + session.Token.Expiry.Format(time.RFC3339) + `</p>
+            <p><em>Note: This is an OIDC ID Token, not an OAuth2 Access Token</em></p>
+        </div>`
 
-	if session.Token.RefreshToken != "" {
-		html += `<p><strong>Refresh Token:</strong> ` + session.Token.RefreshToken + `...</p>`
+	// Add PKCE information if available
+	if session.UsePKCE {
+		html += `
+        <div class="info">
+            <h3>PKCE Information</h3>
+            <p><strong>Used PKCE:</strong> Yes</p>
+            <p><strong>Challenge Method:</strong> ` + session.ChallengeMethod + `</p>
+            <p><strong>Code Challenge:</strong> ` + session.CodeChallenge + `</p>
+            <p><strong>Code Verifier:</strong> ` + session.CodeVerifier + `</p>
+        </div>`
+	} else {
+		html += `
+        <div class="info">
+            <h3>PKCE Information</h3>
+            <p><strong>Used PKCE:</strong> No</p>
+        </div>`
 	}
 
 	html += `
-        </div>
         
         <div class="info">
             <h3>Raw Token Response</h3>
@@ -315,6 +402,57 @@ func getOrCreateSessionID(w http.ResponseWriter, r *http.Request) string {
 		})
 	}
 	return sessionID
+}
+
+// exchangeCodeForIDToken performs a custom token exchange that handles ID token response
+func exchangeCodeForIDToken(ctx context.Context, code, codeVerifier string) (*IDTokenResponse, error) {
+	// Prepare form data for token exchange
+	data := url.Values{}
+	data.Set("grant_type", "authorization_code")
+	data.Set("code", code)
+	data.Set("client_id", clientID)
+	data.Set("client_secret", clientSecret)
+	data.Set("redirect_uri", redirectURL)
+
+	if codeVerifier != "" {
+		data.Set("code_verifier", codeVerifier)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	// Make the request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check for HTTP errors
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token exchange failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse JSON response
+	var tokenResp IDTokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &tokenResp, nil
 }
 
 func generateRandomString(length int) string {

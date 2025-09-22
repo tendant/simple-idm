@@ -14,11 +14,11 @@ type OAuth2ClientRepository interface {
 	// GetClient retrieves an OAuth2 client by client ID
 	GetClient(ctx context.Context, clientID string) (*OAuth2Client, error)
 
-	// CreateClient creates a new OAuth2 client
-	CreateClient(ctx context.Context, client *OAuth2Client) error
+	// CreateClient creates a new OAuth2 client and returns the created client
+	CreateClient(ctx context.Context, client *OAuth2Client) (*OAuth2Client, error)
 
-	// UpdateClient updates an existing OAuth2 client
-	UpdateClient(ctx context.Context, client *OAuth2Client) error
+	// UpdateClient updates an existing OAuth2 client and returns the updated client
+	UpdateClient(ctx context.Context, client *OAuth2Client) (*OAuth2Client, error)
 
 	// DeleteClient removes an OAuth2 client by client ID
 	DeleteClient(ctx context.Context, clientID string) error
@@ -139,13 +139,13 @@ func (r *InMemoryOAuth2ClientRepository) GetClient(ctx context.Context, clientID
 	return entity.OAuth2Client, nil
 }
 
-// CreateClient creates a new OAuth2 client
-func (r *InMemoryOAuth2ClientRepository) CreateClient(ctx context.Context, client *OAuth2Client) error {
+// CreateClient creates a new OAuth2 client and returns the created client
+func (r *InMemoryOAuth2ClientRepository) CreateClient(ctx context.Context, client *OAuth2Client) (*OAuth2Client, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
 	if _, exists := r.clients[client.ClientID]; exists {
-		return fmt.Errorf("client already exists: %s", client.ClientID)
+		return nil, fmt.Errorf("client already exists: %s", client.ClientID)
 	}
 
 	now := time.Now()
@@ -172,17 +172,17 @@ func (r *InMemoryOAuth2ClientRepository) CreateClient(ctx context.Context, clien
 	copy(entity.Scopes, client.Scopes)
 
 	r.clients[client.ClientID] = entity
-	return nil
+	return entity.OAuth2Client, nil
 }
 
-// UpdateClient updates an existing OAuth2 client
-func (r *InMemoryOAuth2ClientRepository) UpdateClient(ctx context.Context, client *OAuth2Client) error {
+// UpdateClient updates an existing OAuth2 client and returns the updated client
+func (r *InMemoryOAuth2ClientRepository) UpdateClient(ctx context.Context, client *OAuth2Client) (*OAuth2Client, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
 	entity, exists := r.clients[client.ClientID]
 	if !exists {
-		return fmt.Errorf("client not found: %s", client.ClientID)
+		return nil, fmt.Errorf("client not found: %s", client.ClientID)
 	}
 
 	// Update the client data
@@ -205,7 +205,7 @@ func (r *InMemoryOAuth2ClientRepository) UpdateClient(ctx context.Context, clien
 
 	entity.UpdatedAt = time.Now()
 
-	return nil
+	return entity.OAuth2Client, nil
 }
 
 // DeleteClient removes an OAuth2 client by client ID

@@ -39,14 +39,76 @@ func (m *DefaultUserMapper) FindUsersByLoginID(ctx context.Context, loginID uuid
 		return nil, nil
 	}
 
-	users, err := m.queries.GetUsersByLoginId(ctx, uuid.NullUUID{UUID: loginID, Valid: true})
+	// Try to use the new query that includes groups, fallback to old query if not available
+	usersWithGroups, err := m.queries.GetUsersByLoginIdWithGroups(ctx, uuid.NullUUID{UUID: loginID, Valid: true})
 	if err != nil {
-		return nil, fmt.Errorf("error getting users: %w", err)
+		// Fallback to old query for backward compatibility
+		slog.Warn("Falling back to old GetUsersByLoginId query, groups will be empty", "error", err)
+		users, err := m.queries.GetUsersByLoginId(ctx, uuid.NullUUID{UUID: loginID, Valid: true})
+		if err != nil {
+			return nil, fmt.Errorf("error getting users: %w", err)
+		}
+
+		// Map users to MappedUser (without groups)
+		mappedUsers := make([]User, 0, len(users))
+		for _, user := range users {
+			// Convert roles from interface{} to []string
+			roles, ok := user.Roles.([]interface{})
+			if !ok {
+				return nil, fmt.Errorf("invalid roles format")
+			}
+
+			strRoles := make([]string, 0, len(roles))
+			for _, r := range roles {
+				if str, ok := r.(string); ok {
+					strRoles = append(strRoles, str)
+				}
+			}
+
+			// Create custom claims
+			extraClaims := map[string]interface{}{
+				"username": "", // Placeholder for username
+				"roles":    strRoles,
+				"groups":   []string{}, // Empty groups for backward compatibility
+			}
+
+			userInfo := UserInfo{
+				Email: user.Email,
+				// FIX-ME: need to add email verification flow in the future
+				EmailVerified: true,
+				PhoneNumber:   user.Phone.String,
+			}
+
+			mappedUsers = append(mappedUsers, User{
+				UserId:      user.ID.String(),
+				LoginID:     loginID.String(),
+				UserInfo:    userInfo,
+				DisplayName: user.Name.String,
+				ExtraClaims: extraClaims,
+				Roles:       strRoles,
+				Groups:      []string{}, // Empty groups for backward compatibility
+			})
+		}
+
+		return mappedUsers, nil
 	}
 
-	// Map users to MappedUser
-	mappedUsers := make([]User, 0, len(users))
-	for _, user := range users {
+	// Map users to MappedUser (with groups)
+	mappedUsers := make([]User, 0, len(usersWithGroups))
+	for _, user := range usersWithGroups {
+		// Convert groups from interface{} to []string
+		groups, ok := user.Groups.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid groups format")
+		}
+
+		strGroups := make([]string, 0, len(groups))
+		for _, g := range groups {
+			if str, ok := g.(string); ok {
+				strGroups = append(strGroups, str)
+			}
+		}
+
 		// Convert roles from interface{} to []string
 		roles, ok := user.Roles.([]interface{})
 		if !ok {
@@ -64,11 +126,14 @@ func (m *DefaultUserMapper) FindUsersByLoginID(ctx context.Context, loginID uuid
 		extraClaims := map[string]interface{}{
 			"username": "", // Placeholder for username
 			"roles":    strRoles,
+			"groups":   strGroups,
 		}
 
 		userInfo := UserInfo{
-			Email:       user.Email,
-			PhoneNumber: user.Phone.String,
+			Email: user.Email,
+			// FIX-ME: need to add email verification flow in the future
+			EmailVerified: true,
+			PhoneNumber:   user.Phone.String,
 		}
 
 		mappedUsers = append(mappedUsers, User{
@@ -78,6 +143,7 @@ func (m *DefaultUserMapper) FindUsersByLoginID(ctx context.Context, loginID uuid
 			DisplayName: user.Name.String,
 			ExtraClaims: extraClaims,
 			Roles:       strRoles,
+			Groups:      strGroups,
 		})
 	}
 
@@ -91,13 +157,67 @@ func (m *DefaultUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUI
 		return User{}, fmt.Errorf("queries not initialized")
 	}
 
-	user, err := m.queries.GetUserById(ctx, userID)
+	// Try to use the new query that includes groups, fallback to old query if not available
+	userWithGroups, err := m.queries.GetUserWithGroupsAndRoles(ctx, userID)
 	if err != nil {
-		return User{}, fmt.Errorf("error getting user: %w", err)
+		slog.Warn("Falling back to old GetUsersByLoginId query, groups will be empty", "error", err)
+		// Fallback to old query for backward compatibility
+		user, err := m.queries.GetUserById(ctx, userID)
+		if err != nil {
+			return User{}, fmt.Errorf("error getting user: %w", err)
+		}
+
+		// Convert roles from interface{} to []string
+		roles, ok := user.Roles.([]interface{})
+		if !ok {
+			return User{}, fmt.Errorf("invalid roles format")
+		}
+
+		strRoles := make([]string, 0, len(roles))
+		for _, r := range roles {
+			if str, ok := r.(string); ok {
+				strRoles = append(strRoles, str)
+			}
+		}
+
+		// Create custom claims
+		extraClaims := map[string]interface{}{
+			"username": "", // Placeholder for username
+			"roles":    strRoles,
+		}
+
+		userInfo := UserInfo{
+			Email: user.Email,
+			// FIX-ME: need to add email verification flow in the future
+			EmailVerified: true,
+		}
+
+		return User{
+			UserId:      user.ID.String(),
+			LoginID:     user.LoginID.UUID.String(),
+			DisplayName: user.Name.String,
+			ExtraClaims: extraClaims,
+			UserInfo:    userInfo,
+			Roles:       strRoles,
+			Groups:      []string{}, // Empty groups for backward compatibility
+		}, nil
+	}
+
+	// Convert groups from interface{} to []string
+	groups, ok := userWithGroups.Groups.([]interface{})
+	if !ok {
+		return User{}, fmt.Errorf("invalid groups format")
+	}
+
+	strGroups := make([]string, 0, len(groups))
+	for _, g := range groups {
+		if str, ok := g.(string); ok {
+			strGroups = append(strGroups, str)
+		}
 	}
 
 	// Convert roles from interface{} to []string
-	roles, ok := user.Roles.([]interface{})
+	roles, ok := userWithGroups.Roles.([]interface{})
 	if !ok {
 		return User{}, fmt.Errorf("invalid roles format")
 	}
@@ -113,19 +233,23 @@ func (m *DefaultUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUI
 	extraClaims := map[string]interface{}{
 		"username": "", // Placeholder for username
 		"roles":    strRoles,
+		"groups":   strGroups,
 	}
 
 	userInfo := UserInfo{
-		Email: user.Email,
+		Email: userWithGroups.Email,
+		// FIX-ME: need to add email verification flow in the future
+		EmailVerified: true,
 	}
 
 	return User{
-		UserId:      user.ID.String(),
-		LoginID:     user.LoginID.UUID.String(),
-		DisplayName: user.Name.String,
+		UserId:      userWithGroups.ID.String(),
+		LoginID:     userWithGroups.LoginID.UUID.String(),
+		DisplayName: userWithGroups.Name.String,
 		ExtraClaims: extraClaims,
 		UserInfo:    userInfo,
 		Roles:       strRoles,
+		Groups:      strGroups,
 	}, nil
 }
 
@@ -164,6 +288,7 @@ func (m *DefaultUserMapper) ToTokenClaims(user User) (rootModifications map[stri
 		"login_id":     user.LoginID,
 		"display_name": user.DisplayName,
 		"roles":        user.Roles,
+		"groups":       user.Groups,
 		"user_info":    user.UserInfo,
 	}
 

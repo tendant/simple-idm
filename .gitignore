@@ -6,4 +6,9 @@ idm_db_all.sql
 .vscode/
 .DS_Store
 **/.DS_Store
-.serena
+
+*.env
+
+# PEM files (private keys, certificates, etc.)
+*.pem
+

@@ -26,3 +26,28 @@ FROM login l
 JOIN users u ON l.id = u.login_id
 WHERE u.email = $1
 AND l.deleted_at IS NULL;
+
+-- name: GetUserWithGroupsAndRoles :one
+SELECT u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at,
+       COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL AND g.deleted_at IS NULL), '{}') as groups,
+       COALESCE(array_agg(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles,
+       u.login_id
+FROM users u
+LEFT JOIN user_groups ug ON u.id = ug.user_id AND ug.deleted_at IS NULL
+LEFT JOIN groups g ON ug.group_id = g.id AND g.deleted_at IS NULL
+LEFT JOIN user_roles ur ON u.id = ur.user_id
+LEFT JOIN roles r ON ur.role_id = r.id
+WHERE u.id = $1 AND u.deleted_at IS NULL
+GROUP BY u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at, u.login_id;
+
+-- name: GetUsersByLoginIdWithGroups :many
+SELECT u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at,
+       COALESCE(array_agg(DISTINCT g.name) FILTER (WHERE g.name IS NOT NULL AND g.deleted_at IS NULL), '{}') as groups,
+       COALESCE(array_agg(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL), '{}') as roles
+FROM users u
+LEFT JOIN user_groups ug ON u.id = ug.user_id AND ug.deleted_at IS NULL
+LEFT JOIN groups g ON ug.group_id = g.id AND g.deleted_at IS NULL
+LEFT JOIN user_roles ur ON u.id = ur.user_id
+LEFT JOIN roles r ON ur.role_id = r.id
+WHERE u.login_id = $1 AND u.deleted_at IS NULL
+GROUP BY u.id, u.name, u.email, u.phone, u.created_at, u.last_modified_at;

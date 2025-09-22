@@ -267,10 +267,10 @@ func main() {
 
 	// Create token service with options
 	tokenService := tokengenerator.NewDefaultTokenServiceWithOptions(
-		tokenGenerator, 
-		tokenGenerator, 
-		tempTokenGenerator, 
-		tokenGenerator, 
+		tokenGenerator,
+		tokenGenerator,
+		tempTokenGenerator,
+		tokenGenerator,
 		config.JwtConfig.Secret,
 		tokengenerator.WithAccessTokenExpiry(config.JwtConfig.AccessTokenExpiry),
 		tokengenerator.WithRefreshTokenExpiry(config.JwtConfig.RefreshTokenExpiry),
@@ -354,9 +354,6 @@ func main() {
 	// Initialize OAuth2 client service and OIDC handler
 	clientService := oauth2client.NewClientService(oauth2client.NewInMemoryOAuth2ClientRepository())
 
-	// Setup default OAuth2 clients through the service layer
-	setupDefaultOAuth2Clients(clientService)
-
 	// Create OIDC repository and service
 	oidcRepository := oidc.NewInMemoryOIDCRepository()
 	oidcService := oidc.NewOIDCServiceWithOptions(
@@ -367,7 +364,7 @@ func main() {
 		oidc.WithLoginURL("http://localhost:3000/login"),
 	)
 
-	oidcHandle := oidcapi.NewHandle(clientService, oidcService)
+	oidcHandle := oidcapi.NewOidcHandle(clientService, oidcService)
 
 	// Initialize External Provider repository and service
 	externalProviderRepository := externalprovider.NewInMemoryExternalProviderRepository()
@@ -649,37 +646,4 @@ func setupExternalProviders(service *externalprovider.ExternalProviderService, c
 		"microsoft", config.MicrosoftEnabled,
 		"github", config.GitHubEnabled,
 		"linkedin", config.LinkedInEnabled)
-}
-
-// setupDefaultOAuth2Clients configures default OAuth2 clients through the service layer
-func setupDefaultOAuth2Clients(service *oauth2client.ClientService) {
-	ctx := context.Background()
-
-	// Configure default Golang demo app client
-	defaultClient := &oauth2client.OAuth2Client{
-		ClientID:      "golang_app",
-		ClientSecret:  "BfCGGjEvIgD5EnnF3Q5EobrW95wK0tOK",
-		ClientName:    "Golang Demo App",
-		RedirectURIs:  []string{"http://localhost:8182/demo/callback"},
-		ResponseTypes: []string{"code"},
-		GrantTypes:    []string{"authorization_code"},
-		Scopes:        []string{"openid", "profile", "email"},
-		ClientType:    "confidential",
-	}
-
-	slog.Info("Creating default OAuth2 client",
-		"client_id", defaultClient.ClientID,
-		"client_name", defaultClient.ClientName,
-		"client_type", defaultClient.ClientType)
-
-	err := service.CreateClient(ctx, defaultClient)
-	if err != nil {
-		slog.Error("Failed to create default OAuth2 client", "error", err, "client_id", defaultClient.ClientID)
-	} else {
-		slog.Info("Default OAuth2 client configured successfully",
-			"client_id", defaultClient.ClientID,
-			"client_name", defaultClient.ClientName)
-	}
-
-	slog.Info("OAuth2 client setup completed")
 }
