@@ -318,7 +318,7 @@ func main() {
 
 	// Initialize NotificationManager and register email notifier
 	notificationManager, err := notice.NewNotificationManager(
-		config.BaseUrl,
+		config.FrontendUrl,
 		notice.WithSMTP(notification.SMTPConfig{
 			Host:     config.EmailConfig.Host,
 			Port:     int(config.EmailConfig.Port),
