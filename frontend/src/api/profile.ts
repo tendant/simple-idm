@@ -1,5 +1,6 @@
 import { fetchWithAuth } from '../lib/fetch';
 import { Device } from './device';
+import { PasswordPolicyResponse } from './login';
 
 export interface ProfileResponse {
   status: string;
@@ -278,5 +279,20 @@ export const profileApi = {
       console.error('Error unlinking device:', error);
       throw error;
     }
+  },
+
+  /**
+   * Get password policy for profile settings
+   * @returns Promise with the password policy
+   */
+  async getPasswordPolicy(): Promise<PasswordPolicyResponse> {
+    const response = await fetchWithAuth('/api/idm/profile/password/policy');
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || 'Failed to fetch password policy');
+    }
+    
+    return response.json();
   },
 };

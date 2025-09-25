@@ -1,10 +1,11 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onMount } from 'solid-js';
 import { useNavigate, useParams, useSearchParams } from '@solidjs/router';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { loginApi, PasswordPolicyResponse } from '@/api/login';
 
 const PasswordReset: Component = () => {
   const params = useParams();
@@ -13,11 +14,83 @@ const PasswordReset: Component = () => {
   const [confirmPassword, setConfirmPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal<string | null>(null);
+  const [policy, setPolicy] = createSignal<PasswordPolicyResponse | null>(null);
+  const [policyLoading, setPolicyLoading] = createSignal(true);
   const navigate = useNavigate();
   
   // Get token from either route params or query params
   const getToken = () => {
     return params.code || searchParams.token;
+  };
+
+  // Fetch password policy on component mount
+  onMount(async () => {
+    const token = getToken();
+    if (token) {
+      try {
+        // Ensure token is a string (handle array case)
+        const tokenStr = Array.isArray(token) ? token[0] : token;
+        const policyData = await loginApi.getPasswordResetPolicy(tokenStr);
+        setPolicy(policyData);
+      } catch (err) {
+        console.error('Failed to fetch password policy:', err);
+        // Don't show error to user, just continue without policy display
+      } finally {
+        setPolicyLoading(false);
+      }
+    } else {
+      setPolicyLoading(false);
+    }
+  });
+
+  // Helper function to check if passwords match
+  const passwordsMatch = () => {
+    return password() === confirmPassword() && password().length > 0;
+  };
+
+  // Helper function to check password requirements
+  const checkRequirement = (requirement: string) => {
+    const pwd = password();
+    const policyData = policy();
+    
+    switch (requirement) {
+      case 'length':
+        return policyData?.min_length ? pwd.length >= policyData.min_length : true;
+      case 'uppercase':
+        return policyData?.require_uppercase ? /[A-Z]/.test(pwd) : true;
+      case 'lowercase':
+        return policyData?.require_lowercase ? /[a-z]/.test(pwd) : true;
+      case 'digit':
+        return policyData?.require_digit ? /\d/.test(pwd) : true;
+      case 'special':
+        return policyData?.require_special_char ? /[!@#$%^&*(),.?":{}|<>]/.test(pwd) : true;
+      case 'repeated':
+        if (!policyData?.max_repeated_chars) return true;
+        const maxRepeated = policyData.max_repeated_chars;
+        const regex = new RegExp(`(.)\\1{${maxRepeated},}`);
+        return !regex.test(pwd);
+      default:
+        return true;
+    }
+  };
+
+  // Helper function to check if all password requirements are met
+  const allRequirementsMet = () => {
+    const policyData = policy();
+    if (!policyData) return true; // If no policy loaded, allow submission
+    
+    // Check all policy requirements
+    const requirements = [
+      checkRequirement('length'),
+      checkRequirement('uppercase'),
+      checkRequirement('lowercase'),
+      checkRequirement('digit'),
+      checkRequirement('special'),
+      checkRequirement('repeated'),
+      passwordsMatch()
+    ];
+    
+    return requirements.every(req => req);
   };
 
   const handleSubmit = async (e: Event) => {
@@ -101,6 +174,55 @@ const PasswordReset: Component = () => {
                 required
               />
             </div>
+            
+            {/* Password Requirements Display */}
+            {!policyLoading() && policy() && (
+              <div class="space-y-2">
+                <Label class="text-sm font-medium">Password requirements:</Label>
+                <div class="text-sm space-y-1">
+                  {policy()?.min_length && (
+                    <div class={`flex items-center space-x-2 ${checkRequirement('length') ? 'text-green-600' : 'text-gray-600'}`}>
+                      <span>{checkRequirement('length') ? '✓' : '•'}</span>
+                      <span>Must be at least {policy()?.min_length} characters.</span>
+                    </div>
+                  )}
+                  {policy()?.require_uppercase && (
+                    <div class={`flex items-center space-x-2 ${checkRequirement('uppercase') ? 'text-green-600' : 'text-gray-600'}`}>
+                      <span>{checkRequirement('uppercase') ? '✓' : '•'}</span>
+                      <span>Must contain at least one uppercase.</span>
+                    </div>
+                  )}
+                  {policy()?.require_lowercase && (
+                    <div class={`flex items-center space-x-2 ${checkRequirement('lowercase') ? 'text-green-600' : 'text-gray-600'}`}>
+                      <span>{checkRequirement('lowercase') ? '✓' : '•'}</span>
+                      <span>Must contain at least one lowercase.</span>
+                    </div>
+                  )}
+                  {policy()?.require_digit && (
+                    <div class={`flex items-center space-x-2 ${checkRequirement('digit') ? 'text-green-600' : 'text-gray-600'}`}>
+                      <span>{checkRequirement('digit') ? '✓' : '•'}</span>
+                      <span>Must contain at least one number.</span>
+                    </div>
+                  )}
+                  {policy()?.require_special_char && (
+                    <div class={`flex items-center space-x-2 ${checkRequirement('special') ? 'text-green-600' : 'text-gray-600'}`}>
+                      <span>{checkRequirement('special') ? '✓' : '•'}</span>
+                      <span>Must contain at least one special character.</span>
+                    </div>
+                  )}
+                  {policy()?.max_repeated_chars && (
+                    <div class={`flex items-center space-x-2 ${checkRequirement('repeated') ? 'text-green-600' : 'text-gray-600'}`}>
+                      <span>{checkRequirement('repeated') ? '✓' : '•'}</span>
+                      <span>At most {policy()?.max_repeated_chars} repeated characters.</span>
+                    </div>
+                  )}
+                  <div class={`flex items-center space-x-2 ${passwordsMatch() ? 'text-green-600' : 'text-gray-600'}`}>
+                    <span>{passwordsMatch() ? '✓' : '•'}</span>
+                    <span>Both passwords match.</span>
+                  </div>
+                </div>
+              </div>
+            )}
             {error() && (
               <Alert class="mt-4" variant="destructive">
                 <AlertTitle>Error</AlertTitle>
@@ -108,7 +230,11 @@ const PasswordReset: Component = () => {
               </Alert>
             )}
             <div class="space-y-2">
-              <Button type="submit" class="w-full">
+              <Button 
+                type="submit" 
+                class="w-full" 
+                disabled={!allRequirementsMet()}
+              >
                 Reset Password
               </Button>
               <Button 
