@@ -131,10 +131,47 @@ type LoginPasswordResetToken struct {
 	LoginID   uuid.UUID          `json:"login_id"`
 }
 
+type Oauth2Client struct {
+	ID                    uuid.UUID      `json:"id"`
+	ClientID              string         `json:"client_id"`
+	ClientSecretEncrypted string         `json:"client_secret_encrypted"`
+	ClientName            string         `json:"client_name"`
+	ClientType            string         `json:"client_type"`
+	RequirePkce           bool           `json:"require_pkce"`
+	Description           sql.NullString `json:"description"`
+	CreatedAt             sql.NullTime   `json:"created_at"`
+	UpdatedAt             sql.NullTime   `json:"updated_at"`
+	CreatedBy             sql.NullString `json:"created_by"`
+	DeletedAt             sql.NullTime   `json:"deleted_at"`
+}
+
+type Oauth2ClientRedirectUri struct {
+	ClientID    uuid.UUID    `json:"client_id"`
+	RedirectUri string       `json:"redirect_uri"`
+	CreatedAt   sql.NullTime `json:"created_at"`
+	DeletedAt   sql.NullTime `json:"deleted_at"`
+}
+
+type Oauth2ClientScope struct {
+	ClientID  uuid.UUID    `json:"client_id"`
+	ScopeID   uuid.UUID    `json:"scope_id"`
+	CreatedAt sql.NullTime `json:"created_at"`
+	DeletedAt sql.NullTime `json:"deleted_at"`
+}
+
 type Role struct {
 	ID          uuid.UUID      `json:"id"`
 	Name        string         `json:"name"`
 	Description sql.NullString `json:"description"`
+}
+
+type Scope struct {
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	DeletedAt   sql.NullTime   `json:"deleted_at"`
 }
 
 type User struct {
