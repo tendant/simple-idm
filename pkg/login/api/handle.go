@@ -1230,7 +1230,7 @@ func (h Handle) PostUserSwitch(w http.ResponseWriter, r *http.Request) *Response
 		slog.Error("No Temp Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			body: "Missing temp token cookie",
+			body: "Your session has expired. Please start the login process again.",
 		}
 	}
 	tokenStr := cookie.Value
@@ -1659,7 +1659,7 @@ func (h Handle) Post2faSend(w http.ResponseWriter, r *http.Request) *Response {
 		slog.Error("No Temp Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			body: "Missing temp token cookie",
+			body: "Your session has expired. Please start the login process again.",
 		}
 	}
 	tokenStr := cookie.Value
@@ -1723,7 +1723,7 @@ func (h Handle) Post2faValidate(w http.ResponseWriter, r *http.Request) *Respons
 		slog.Error("No Temp Token Cookie", "err", err)
 		return &Response{
 			Code: http.StatusUnauthorized,
-			body: "Missing temp token cookie",
+			body: "Your session has expired. Please start the login process again.",
 		}
 	}
 	tokenStr := cookie.Value
@@ -1968,7 +1968,7 @@ func (h Handle) PostMobile2faSend(w http.ResponseWriter, r *http.Request) *Respo
 		slog.Error("No temp token in request body")
 		return &Response{
 			Code: http.StatusBadRequest,
-			body: "Missing temp token in request body",
+			body: "Your session has expired. Please start the login process again.",
 		}
 	}
 	tokenStr := data.TempToken
@@ -2037,7 +2037,7 @@ func (h Handle) PostMobile2faValidate(w http.ResponseWriter, r *http.Request) *R
 		slog.Error("No temp token in request body")
 		return &Response{
 			Code: http.StatusBadRequest,
-			body: "Missing temp token in request body",
+			body: "Your session has expired. Please start the login process again.",
 		}
 	}
 	tokenStr := data.TempToken
