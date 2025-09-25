@@ -1,9 +1,10 @@
-import { Component, createSignal, Show, createEffect, For } from 'solid-js';
+import { Component, createSignal, Show, createEffect, For, onMount } from 'solid-js';
 import { useApi } from '../lib/hooks/useApi';
 import { extractErrorDetails } from '../lib/api';
 import { twoFactorApi, ProfileTwoFactorMethod } from '../api/twoFactor';
 import { profileApi } from '../api/profile';
 import { Device } from '../api/device';
+import { PasswordPolicyResponse } from '../api/login';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -53,6 +54,10 @@ const Settings: Component = () => {
   // TOTP enable verification state
   const [isVerifyingTotpEnable, setIsVerifyingTotpEnable] = createSignal(false);
   const [totpEnableCode, setTotpEnableCode] = createSignal('');
+
+  // Password policy state
+  const [policy, setPolicy] = createSignal<PasswordPolicyResponse | null>(null);
+  const [policyLoading, setPolicyLoading] = createSignal(true);
 
   const { request } = useApi();
 
@@ -219,6 +224,69 @@ const Settings: Component = () => {
     }
   };
 
+  // Helper function to check if passwords match
+  const passwordsMatch = () => {
+    return newPassword() === confirmPassword() && newPassword().length > 0;
+  };
+
+  // Helper function to check password requirements
+  const checkRequirement = (requirement: string) => {
+    const pwd = newPassword();
+    const policyData = policy();
+    
+    switch (requirement) {
+      case 'length':
+        return policyData?.min_length ? pwd.length >= policyData.min_length : true;
+      case 'uppercase':
+        return policyData?.require_uppercase ? /[A-Z]/.test(pwd) : true;
+      case 'lowercase':
+        return policyData?.require_lowercase ? /[a-z]/.test(pwd) : true;
+      case 'digit':
+        return policyData?.require_digit ? /\d/.test(pwd) : true;
+      case 'special':
+        return policyData?.require_special_char ? /[!@#$%^&*(),.?":{}|<>]/.test(pwd) : true;
+      case 'repeated':
+        if (!policyData?.max_repeated_chars) return true;
+        const maxRepeated = policyData.max_repeated_chars;
+        const regex = new RegExp(`(.)\\1{${maxRepeated},}`);
+        return !regex.test(pwd);
+      default:
+        return true;
+    }
+  };
+
+  // Helper function to check if all password requirements are met
+  const allRequirementsMet = () => {
+    const policyData = policy();
+    if (!policyData) return true; // If no policy loaded, allow submission
+    
+    // Check all policy requirements
+    const requirements = [
+      checkRequirement('length'),
+      checkRequirement('uppercase'),
+      checkRequirement('lowercase'),
+      checkRequirement('digit'),
+      checkRequirement('special'),
+      checkRequirement('repeated'),
+      passwordsMatch()
+    ];
+    
+    return requirements.every(req => req);
+  };
+
+  // Fetch password policy on component mount
+  onMount(async () => {
+    try {
+      const policyData = await profileApi.getPasswordPolicy();
+      setPolicy(policyData);
+    } catch (err) {
+      console.error('Failed to fetch password policy:', err);
+      // Don't show error to user, just continue without policy display
+    } finally {
+      setPolicyLoading(false);
+    }
+  });
+
   // Fetch 2FA methods when component mounts
   createEffect(() => {
     fetch2FAMethods();
@@ -297,7 +365,60 @@ const Settings: Component = () => {
                 />
               </div>
 
-              <Button type="submit" class="w-full">
+              {/* Password Requirements Display */}
+              <Show when={!policyLoading() && policy()}>
+                <div class="space-y-2">
+                  <Label class="text-sm font-medium">Password requirements:</Label>
+                  <div class="text-sm space-y-1">
+                    <Show when={policy()?.min_length}>
+                      <div class={`flex items-center space-x-2 ${checkRequirement('length') ? 'text-green-600' : 'text-gray-600'}`}>
+                        <span>{checkRequirement('length') ? '✓' : '•'}</span>
+                        <span>Must be at least {policy()?.min_length} characters.</span>
+                      </div>
+                    </Show>
+                    <Show when={policy()?.require_uppercase}>
+                      <div class={`flex items-center space-x-2 ${checkRequirement('uppercase') ? 'text-green-600' : 'text-gray-600'}`}>
+                        <span>{checkRequirement('uppercase') ? '✓' : '•'}</span>
+                        <span>Must contain at least one uppercase.</span>
+                      </div>
+                    </Show>
+                    <Show when={policy()?.require_lowercase}>
+                      <div class={`flex items-center space-x-2 ${checkRequirement('lowercase') ? 'text-green-600' : 'text-gray-600'}`}>
+                        <span>{checkRequirement('lowercase') ? '✓' : '•'}</span>
+                        <span>Must contain at least one lowercase.</span>
+                      </div>
+                    </Show>
+                    <Show when={policy()?.require_digit}>
+                      <div class={`flex items-center space-x-2 ${checkRequirement('digit') ? 'text-green-600' : 'text-gray-600'}`}>
+                        <span>{checkRequirement('digit') ? '✓' : '•'}</span>
+                        <span>Must contain at least one number.</span>
+                      </div>
+                    </Show>
+                    <Show when={policy()?.require_special_char}>
+                      <div class={`flex items-center space-x-2 ${checkRequirement('special') ? 'text-green-600' : 'text-gray-600'}`}>
+                        <span>{checkRequirement('special') ? '✓' : '•'}</span>
+                        <span>Must contain at least one special character.</span>
+                      </div>
+                    </Show>
+                    <Show when={policy()?.max_repeated_chars}>
+                      <div class={`flex items-center space-x-2 ${checkRequirement('repeated') ? 'text-green-600' : 'text-gray-600'}`}>
+                        <span>{checkRequirement('repeated') ? '✓' : '•'}</span>
+                        <span>At most {policy()?.max_repeated_chars} repeated characters.</span>
+                      </div>
+                    </Show>
+                    <div class={`flex items-center space-x-2 ${passwordsMatch() ? 'text-green-600' : 'text-gray-600'}`}>
+                      <span>{passwordsMatch() ? '✓' : '•'}</span>
+                      <span>Both passwords match.</span>
+                    </div>
+                  </div>
+                </div>
+              </Show>
+
+              <Button 
+                type="submit" 
+                class="w-full" 
+                disabled={!allRequirementsMet()}
+              >
                 Change Password
               </Button>
             </form>

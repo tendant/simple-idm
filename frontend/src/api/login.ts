@@ -35,6 +35,18 @@ export interface UpdateLoginRequest {
   two_factor_enabled?: boolean;
 }
 
+export interface PasswordPolicyResponse {
+  min_length?: number;
+  require_uppercase?: boolean;
+  require_lowercase?: boolean;
+  require_digit?: boolean;
+  require_special_char?: boolean;
+  disallow_common_pwds?: boolean;
+  max_repeated_chars?: number;
+  history_check_count?: number;
+  expiration_days?: number;
+}
+
 export const loginApi = {
   listLogins: async (): Promise<Login[]> => {
     const response = await apiClient.get('/api/idm/logins');
@@ -140,6 +152,15 @@ export const loginApi = {
     const response = await apiClient.get(`/api/idm/logins/${id}/2fa`);
     if (!response.ok) {
       throw new Error('Failed to fetch 2FA methods');
+    }
+    return response.json();
+  },
+
+  getPasswordResetPolicy: async (token: string): Promise<PasswordPolicyResponse> => {
+    const response = await apiClient.get(`/api/idm/auth/password/reset/policy?token=${encodeURIComponent(token)}`, { skipAuth: true });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || 'Failed to fetch password policy');
     }
     return response.json();
   }
