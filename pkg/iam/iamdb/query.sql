@@ -160,6 +160,15 @@ INSERT INTO user_groups (user_id, group_id)
 VALUES ($1, $2)
 RETURNING *;
 
+-- name: UpsertUserGroup :one
+INSERT INTO user_groups (user_id, group_id, assigned_at)
+VALUES ($1, $2, NOW() AT TIME ZONE 'UTC')
+ON CONFLICT (user_id, group_id) 
+DO UPDATE SET 
+    deleted_at = NULL,
+    assigned_at = NOW() AT TIME ZONE 'UTC'
+RETURNING *;
+
 -- name: DeleteUserGroup :exec
 UPDATE user_groups
 SET deleted_at = NOW() at time zone 'UTC'

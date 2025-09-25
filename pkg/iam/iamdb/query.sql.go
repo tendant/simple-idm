@@ -700,3 +700,30 @@ func (q *Queries) UpdateUserLoginID(ctx context.Context, arg UpdateUserLoginIDPa
 	)
 	return i, err
 }
+
+const upsertUserGroup = `-- name: UpsertUserGroup :one
+INSERT INTO user_groups (user_id, group_id, assigned_at)
+VALUES ($1, $2, NOW() AT TIME ZONE 'UTC')
+ON CONFLICT (user_id, group_id) 
+DO UPDATE SET 
+    deleted_at = NULL,
+    assigned_at = NOW() AT TIME ZONE 'UTC'
+RETURNING user_id, group_id, assigned_at, deleted_at
+`
+
+type UpsertUserGroupParams struct {
+	UserID  uuid.UUID `json:"user_id"`
+	GroupID uuid.UUID `json:"group_id"`
+}
+
+func (q *Queries) UpsertUserGroup(ctx context.Context, arg UpsertUserGroupParams) (UserGroup, error) {
+	row := q.db.QueryRow(ctx, upsertUserGroup, arg.UserID, arg.GroupID)
+	var i UserGroup
+	err := row.Scan(
+		&i.UserID,
+		&i.GroupID,
+		&i.AssignedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}

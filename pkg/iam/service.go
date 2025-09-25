@@ -38,6 +38,7 @@ type IamGroupRepository interface {
 	DeleteGroup(ctx context.Context, id uuid.UUID) error
 	FindGroupUsers(ctx context.Context, groupID uuid.UUID) ([]User, error)
 	CreateUserGroup(ctx context.Context, params UserGroupParams) error
+	UpsertUserGroup(ctx context.Context, params UserGroupParams) error
 	DeleteUserGroup(ctx context.Context, userID uuid.UUID, groupID uuid.UUID) error
 }
 
@@ -619,6 +620,16 @@ func (r *PostgresIamGroupRepository) CreateUserGroup(ctx context.Context, params
 	return err
 }
 
+// UpsertUserGroup creates or reactivates a user-group association
+func (r *PostgresIamGroupRepository) UpsertUserGroup(ctx context.Context, params UserGroupParams) error {
+	// Convert domain model to iamdb model
+	_, err := r.queries.UpsertUserGroup(ctx, iamdb.UpsertUserGroupParams{
+		UserID:  params.UserID,
+		GroupID: params.GroupID,
+	})
+	return err
+}
+
 // DeleteUserGroup deletes a user-group association (soft delete)
 func (r *PostgresIamGroupRepository) DeleteUserGroup(ctx context.Context, userID uuid.UUID, groupID uuid.UUID) error {
 	return r.queries.DeleteUserGroup(ctx, iamdb.DeleteUserGroupParams{
@@ -909,14 +920,15 @@ func (s *IamService) AddUserToGroup(ctx context.Context, userID, groupID uuid.UU
 		return fmt.Errorf("group operations not supported: group repository not configured")
 	}
 
-	// Create user-group association
+	// Create or reactivate user-group association using upsert
 	params := UserGroupParams{
 		UserID:  userID,
 		GroupID: groupID,
 	}
 
-	err := s.groupRepo.CreateUserGroup(ctx, params)
+	err := s.groupRepo.UpsertUserGroup(ctx, params)
 	if err != nil {
+		slog.Error("Failed to add user to group", "error", err, "userId", userID, "groupId", groupID)
 		return fmt.Errorf("failed to add user to group: %w", err)
 	}
 
