@@ -29,7 +29,7 @@ type TwoFactorService interface {
 	EnableTwoFactor(ctx context.Context, loginId uuid.UUID, twoFactorType string) error
 	DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID, twoFactorType string) error
 	DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error
-	SendTwofaPasscodeEmail(ctx context.Context, email, passcode string, userId uuid.UUID) error
+	SendTwofaPasscodeEmail(ctx context.Context, email, passcode, username string, userId uuid.UUID) error
 	SendTwofaPasscodeSms(ctx context.Context, phone, passcode string, userId uuid.UUID) error
 	Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error)
 	GenerateTotpQRCode(ctx context.Context, loginId uuid.UUID, issuer, accountName string) (string, string, error)
@@ -193,8 +193,18 @@ func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId, userId
 		if err != nil {
 			return fmt.Errorf("failed to get user plaintext email: %w", err)
 		}
+		// get username from user mapper
+		users, err := s.userMapper.FindUsersByLoginID(ctx, loginId)
+		if err != nil || len(users) == 0 {
+			return fmt.Errorf("failed to get user info for username: %w", err)
+		}
+		// Use DisplayName as username, fallback to email if empty
+		username := users[0].DisplayName
+		if username == "" {
+			username = users[0].UserInfo.Email
+		}
 		// send the passcode by email
-		err = s.SendTwofaPasscodeEmail(ctx, deliveryOptionToUse, passcode, userId)
+		err = s.SendTwofaPasscodeEmail(ctx, deliveryOptionToUse, passcode, username, userId)
 		if err != nil {
 			return fmt.Errorf("failed to send 2FA passcode: %w", err)
 		}
@@ -385,11 +395,12 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 	return nil
 }
 
-func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcode string, userId uuid.UUID) error {
+func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcode, username string, userId uuid.UUID) error {
 	// TODO: use userId to send email to users
 	data := map[string]string{
 		"TwofaPasscode": passcode,
 		"UserId":        userId.String(),
+		"Username":      username,
 	}
 	return s.notificationManager.Send(notice.TwofaCodeNoticeEmail, notification.NotificationData{
 		To:   email,
