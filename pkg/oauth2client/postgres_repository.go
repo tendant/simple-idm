@@ -220,13 +220,8 @@ func (r *PostgresOAuth2ClientRepository) ValidateClientCredentials(ctx context.C
 		return nil, err
 	}
 
-	// Decrypt and compare the client secret
-	decryptedSecret, err := r.encryptor.Decrypt(client.ClientSecret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt client secret: %w", err)
-	}
-
-	if decryptedSecret != clientSecret {
+	// Compare the client secret (already decrypted by GetClient)
+	if client.ClientSecret != clientSecret {
 		return nil, fmt.Errorf("invalid client credentials")
 	}
 
@@ -336,9 +331,15 @@ func (r *PostgresOAuth2ClientRepository) convertRowToClient(id uuid.UUID, client
 	// Convert redirect URIs from interface{} to []string
 	redirectURIs := r.convertInterfaceToStringSlice(redirectURIsInterface)
 
+	// Decrypt the client secret for consistent behavior
+	decryptedSecret, err := r.encryptor.Decrypt(encryptedSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt client secret: %w", err)
+	}
+
 	return &OAuth2Client{
 		ClientID:      clientID,
-		ClientSecret:  encryptedSecret, // Store encrypted secret - will be decrypted only when needed
+		ClientSecret:  decryptedSecret, // Store decrypted secret for consistent behavior
 		ClientName:    clientName,
 		RedirectURIs:  redirectURIs,
 		ResponseTypes: []string{DefaultResponseTypes}, // Hardcoded
