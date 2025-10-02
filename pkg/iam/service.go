@@ -26,6 +26,8 @@ type IamRepository interface {
 
 	// Role operations
 	CreateUserRole(ctx context.Context, params UserRoleParams) error
+	FindRoles(ctx context.Context) ([]Role, error)
+	CreateRole(ctx context.Context, name string) (uuid.UUID, error)
 }
 
 // IamGroupRepository defines the interface for group operations
@@ -429,6 +431,35 @@ func (r *PostgresIamRepository) CreateUserRole(ctx context.Context, params UserR
 	return err
 }
 
+func (r *PostgresIamRepository) FindRoles(ctx context.Context) ([]Role, error) {
+	// Call the database
+	dbRoles, err := r.queries.FindRoles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to domain models
+	roles := make([]Role, 0, len(dbRoles))
+	for _, dbRole := range dbRoles {
+		roles = append(roles, Role{
+			ID:   dbRole.ID,
+			Name: dbRole.Name,
+		})
+	}
+
+	return roles, nil
+}
+
+func (r *PostgresIamRepository) CreateRole(ctx context.Context, name string) (uuid.UUID, error) {
+	// Call the database
+	dbRole, err := r.queries.CreateRole(ctx, name)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return dbRole, nil
+}
+
 // PostgresIamGroupRepository implements IamGroupRepository using iamdb.Queries
 type PostgresIamGroupRepository struct {
 	queries *iamdb.Queries
@@ -813,6 +844,29 @@ func (s *IamService) DeleteUser(ctx context.Context, userId uuid.UUID) error {
 	}
 
 	return s.repo.DeleteUser(ctx, userId)
+}
+
+func (s *IamService) FindRoles(ctx context.Context) ([]Role, error) {
+	{
+		roles, err := s.repo.FindRoles(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find roles: %w", err)
+		}
+		return roles, nil
+	}
+}
+
+func (s *IamService) CreateRole(ctx context.Context, name string) (uuid.UUID, error) {
+	if name == "" {
+		return uuid.Nil, fmt.Errorf("role name is required")
+	}
+
+	roleID, err := s.repo.CreateRole(ctx, name)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to create role: %w", err)
+	}
+
+	return roleID, nil
 }
 
 func (s *IamService) AnyUserExists(ctx context.Context) (bool, error) {

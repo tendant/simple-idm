@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/iam"
-	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/logins"
 )
 
@@ -18,15 +17,13 @@ import (
 type UserService struct {
 	iamService    *iam.IamService
 	loginsService *logins.LoginsService
-	iamQueries    *iamdb.Queries
 }
 
 // NewUserService creates a new user service
-func NewUserService(iamService *iam.IamService, loginsService *logins.LoginsService, iamQueries *iamdb.Queries) *UserService {
+func NewUserService(iamService *iam.IamService, loginsService *logins.LoginsService) *UserService {
 	return &UserService{
 		iamService:    iamService,
 		loginsService: loginsService,
-		iamQueries:    iamQueries,
 	}
 }
 
@@ -115,7 +112,7 @@ func (s *UserService) CreateAdminUser(ctx context.Context, options CreateAdminUs
 // ensureAdminRole creates the admin role if it doesn't exist, or returns its ID if it does
 func (s *UserService) ensureAdminRole(ctx context.Context) (uuid.UUID, error) {
 	// Try to find existing admin role
-	roles, err := s.iamQueries.FindRoles(ctx)
+	roles, err := s.iamService.FindRoles(ctx)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to find existing roles: %w", err)
 	}
@@ -129,7 +126,7 @@ func (s *UserService) ensureAdminRole(ctx context.Context) (uuid.UUID, error) {
 	}
 
 	// Create admin role if it doesn't exist
-	adminRoleID, err := s.iamQueries.CreateRole(ctx, "admin")
+	adminRoleID, err := s.iamService.CreateRole(ctx, "admin")
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to create admin role: %w", err)
 	}
