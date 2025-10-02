@@ -496,7 +496,7 @@ func main() {
 	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
 	loginsHandle := logins.NewHandle(loginsService, *twoFaService)
 
-	userService := user.NewUserService(iamService, loginsService, iamQueries)
+	userService := user.NewUserService(iamService, loginsService)
 
 	if exists, err := iamService.AnyUserExists(context.Background()); err != nil {
 		slog.Error("Error checking user existence", "error", err)
