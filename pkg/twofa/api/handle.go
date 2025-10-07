@@ -2,12 +2,14 @@ package api
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
@@ -60,7 +62,6 @@ func NewHandle(twoFaService twofa.TwoFactorService, tokenService tokengenerator.
 // Create a new 2FA method
 // (POST /)
 func (h Handle) Post2faCreate(w http.ResponseWriter, r *http.Request) *Response {
-	//TODO: add permission check: who can create 2FA
 	var resp SuccessResponse
 
 	data := Post2faCreateJSONRequestBody{}
@@ -81,6 +82,14 @@ func (h Handle) Post2faCreate(w http.ResponseWriter, r *http.Request) *Response 
 		}
 	}
 
+	// Permission check: user can only manage their own 2FA unless they are admin
+	if !h.canManageTwoFactor(r, loginId) {
+		return &Response{
+			Code: http.StatusForbidden,
+			body: "forbidden: you can only manage your own 2FA",
+		}
+	}
+
 	// Create new 2FA method
 	err = h.twoFaService.EnableTwoFactor(r.Context(), loginId, string(data.TwofaType))
 	if err != nil {
@@ -98,7 +107,6 @@ func (h Handle) Post2faCreate(w http.ResponseWriter, r *http.Request) *Response 
 // Enable an existing 2FA method
 // (POST /enable)
 func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response {
-	//TODO: add permission check: who can enable 2FA
 	var resp SuccessResponse
 
 	data := Post2faEnableJSONRequestBody{}
@@ -116,6 +124,14 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "invalid login id",
+		}
+	}
+
+	// Permission check: user can only manage their own 2FA unless they are admin
+	if !h.canManageTwoFactor(r, loginId) {
+		return &Response{
+			Code: http.StatusForbidden,
+			body: "forbidden: you can only manage your own 2FA",
 		}
 	}
 
@@ -134,7 +150,6 @@ func (h Handle) Post2faEnable(w http.ResponseWriter, r *http.Request) *Response 
 // Disable an existing 2FA method
 // (POST /disable)
 func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response {
-	//TODO: add permission check: who can disable 2FA
 	var resp SuccessResponse
 
 	data := Post2faEnableJSONRequestBody{}
@@ -155,6 +170,14 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 		}
 	}
 
+	// Permission check: user can only manage their own 2FA unless they are admin
+	if !h.canManageTwoFactor(r, loginId) {
+		return &Response{
+			Code: http.StatusForbidden,
+			body: "forbidden: you can only manage your own 2FA",
+		}
+	}
+
 	err = h.twoFaService.DisableTwoFactor(r.Context(), loginId, string(data.TwofaType))
 	if err != nil {
 		return &Response{
@@ -169,7 +192,6 @@ func (h Handle) Post2faDisable(w http.ResponseWriter, r *http.Request) *Response
 // Delete a 2FA method
 // (POST /delete)
 func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
-	//TODO: add permission check: who can delete 2FA
 	var resp SuccessResponse
 
 	data := Delete2faJSONRequestBody{}
@@ -187,6 +209,14 @@ func (h Handle) Delete2fa(w http.ResponseWriter, r *http.Request) *Response {
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "invalid login id",
+		}
+	}
+
+	// Permission check: user can only manage their own 2FA unless they are admin
+	if !h.canManageTwoFactor(r, loginId) {
+		return &Response{
+			Code: http.StatusForbidden,
+			body: "forbidden: you can only manage your own 2FA",
 		}
 	}
 
@@ -242,4 +272,39 @@ func (h Handle) GetLoginIDFromClaims(claims jwt.Claims) (string, error) {
 	}
 
 	return loginIDStr, nil
+}
+
+// canManageTwoFactor checks if the authenticated user can manage 2FA for the given loginId
+// Returns true if:
+// 1. The user is managing their own 2FA (loginId matches authenticated user's loginId)
+// 2. The user has admin or superadmin role
+func (h Handle) canManageTwoFactor(r *http.Request, targetLoginId uuid.UUID) bool {
+	// Get authenticated user from context
+	authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
+	if !ok {
+		slog.Error("Failed to get authenticated user from context")
+		return false
+	}
+
+	// Check if user is managing their own 2FA
+	if authUser.LoginID == targetLoginId {
+		return true
+	}
+
+	// Check if user has admin role
+	for _, role := range authUser.ExtraClaims.Roles {
+		if role == "admin" || role == "superadmin" {
+			slog.Info("Admin user managing 2FA for another user",
+				"adminLoginId", authUser.LoginID,
+				"targetLoginId", targetLoginId,
+				"role", role)
+			return true
+		}
+	}
+
+	slog.Warn("User attempted to manage another user's 2FA without permission",
+		"userLoginId", authUser.LoginID,
+		"targetLoginId", targetLoginId,
+		"roles", authUser.ExtraClaims.Roles)
+	return false
 }
