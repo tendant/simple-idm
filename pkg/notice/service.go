@@ -38,6 +38,7 @@ const (
 	PasswordUpdateNotice    notification.NoticeType = "password_update"
 	UsernameReminderNotice  notification.NoticeType = "username_reminder"
 	PhoneVerificationNotice notification.NoticeType = "phone_verification"
+	EmailVerification       notification.NoticeType = "email_verification"
 )
 
 // NotificationManagerOption is a function that configures a NotificationManager
@@ -123,6 +124,16 @@ func WithPhoneVerificationTemplate() NotificationManagerOption {
 	}
 }
 
+// WithEmailVerificationTemplate registers the email verification template
+func WithEmailVerificationTemplate() NotificationManagerOption {
+	return func(nm *notification.NotificationManager) error {
+		return nm.RegisterNotification(EmailVerification, notification.EmailSystem, notification.NoticeTemplate{
+			Subject: "Verify Your Email Address",
+			Html:    loadTemplate("templates/email/email_verification.html"),
+		})
+	}
+}
+
 // WithDefaultTemplates registers all default notification templates
 func WithDefaultTemplates() NotificationManagerOption {
 	return func(nm *notification.NotificationManager) error {
@@ -133,6 +144,7 @@ func WithDefaultTemplates() NotificationManagerOption {
 			WithMagicLinkLoginTemplate(),
 			WithTwofaCodeSmsTemplate(),
 			WithPhoneVerificationTemplate(),
+			WithEmailVerificationTemplate(),
 		}
 
 		for _, opt := range options {

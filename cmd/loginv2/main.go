@@ -18,6 +18,8 @@ import (
 	"github.com/tendant/chi-demo/app"
 	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/pkg/client"
+	"github.com/tendant/simple-idm/pkg/emailverification"
+	emailverificationapi "github.com/tendant/simple-idm/pkg/emailverification/api"
 	"github.com/tendant/simple-idm/pkg/externalprovider"
 	externalProviderAPI "github.com/tendant/simple-idm/pkg/externalprovider/api"
 	"github.com/tendant/simple-idm/pkg/iam"
@@ -514,6 +516,17 @@ func main() {
 		}
 	}
 
+	// Initialize email verification service
+	emailVerificationRepo := emailverification.NewRepository(pool)
+	emailVerificationService := emailverification.NewEmailVerificationService(
+		emailVerificationRepo,
+		notificationManager,
+		config.BaseUrl,
+		emailverification.WithTokenExpiry(24*time.Hour),
+		emailverification.WithResendLimit(3),
+		emailverification.WithResendWindow(1*time.Hour),
+	)
+
 	signupHandle := signup.NewHandle(
 		signup.WithIamService(*iamService),
 		signup.WithRoleService(*roleService),
@@ -521,6 +534,7 @@ func main() {
 		signup.WithRegistrationEnabled(config.LoginConfig.RegistrationEnabled),
 		signup.WithDefaultRole(config.LoginConfig.RegistrationDefaultRole),
 		signup.WithLoginService(*loginService),
+		signup.WithEmailVerificationService(emailVerificationService),
 	)
 
 	// Initialize OAuth2 client service and OIDC handler
@@ -602,10 +616,19 @@ func main() {
 	server.R.Get("/.well-known/oauth-authorization-server", wellKnownHandler.AuthorizationServerMetadata)
 	server.R.Get("/.well-known/openid-configuration", wellKnownHandler.OpenIDConfiguration)
 
+	// Initialize email verification API handler
+	emailVerificationHandle := emailverificationapi.NewHandler(emailVerificationService)
+
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
 	slog.Info("MCP Well-known endpoints configured", "base_url", config.BaseUrl)
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 	server.R.Mount("/api/idm/signup", signup.Handler(signupHandle))
+
+	// Mount email verification endpoints (verify is public, resend and status require auth)
+	server.R.Route("/api/idm/email", func(r chi.Router) {
+		// Public endpoint for email verification
+		r.Post("/verify", emailVerificationHandle.VerifyEmail)
+	})
 
 	// Mount OIDC endpoints (public, no authentication required)
 	server.R.Mount("/api/idm/oauth2", oidcapi.Handler(oidcHandle))
@@ -652,6 +675,10 @@ func main() {
 		r.Get("/private", func(w http.ResponseWriter, r *http.Request) {
 			render.PlainText(w, r, http.StatusText(http.StatusOK))
 		})
+
+		// Authenticated email verification endpoints
+		r.Post("/api/idm/email/resend", emailVerificationHandle.ResendVerification)
+		r.Get("/api/idm/email/status", emailVerificationHandle.GetVerificationStatus)
 
 		profileQueries := profiledb.New(pool)
 		profileRepo := profile.NewPostgresProfileRepository(profileQueries)

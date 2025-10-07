@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/emailverification"
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/logins"
@@ -14,12 +15,13 @@ import (
 )
 
 type Handle struct {
-	iamService          iam.IamService
-	roleService         role.RoleService
-	loginService        login.LoginService
-	loginsService       logins.LoginsService
-	registrationEnabled bool
-	defaultRole         string
+	iamService               iam.IamService
+	roleService              role.RoleService
+	loginService             login.LoginService
+	loginsService            logins.LoginsService
+	emailVerificationService *emailverification.EmailVerificationService
+	registrationEnabled      bool
+	defaultRole              string
 }
 
 type Option func(*Handle)
@@ -68,6 +70,12 @@ func WithRegistrationEnabled(enabled bool) Option {
 func WithDefaultRole(role string) Option {
 	return func(h *Handle) {
 		h.defaultRole = role
+	}
+}
+
+func WithEmailVerificationService(evs *emailverification.EmailVerificationService) Option {
+	return func(h *Handle) {
+		h.emailVerificationService = evs
 	}
 }
 
@@ -182,6 +190,17 @@ func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "Failed to register user",
+		}
+	}
+
+	// Send email verification if service is configured
+	if h.emailVerificationService != nil {
+		_, err = h.emailVerificationService.CreateVerificationToken(r.Context(), user.ID, request.Fullname, request.Email)
+		if err != nil {
+			slog.Error("Failed to send verification email", "user_id", user.ID, "error", err)
+			// Don't fail registration if email sending fails - just log it
+		} else {
+			slog.Info("Verification email sent", "user_id", user.ID, "email", request.Email)
 		}
 	}
 
@@ -317,6 +336,17 @@ func (h Handle) RegisterUserPasswordless(w http.ResponseWriter, r *http.Request)
 		return &Response{
 			Code: http.StatusBadRequest,
 			body: "Failed to register user",
+		}
+	}
+
+	// Send email verification if service is configured
+	if h.emailVerificationService != nil {
+		_, err = h.emailVerificationService.CreateVerificationToken(r.Context(), user.ID, request.Fullname, request.Email)
+		if err != nil {
+			slog.Error("Failed to send verification email", "user_id", user.ID, "error", err)
+			// Don't fail registration if email sending fails - just log it
+		} else {
+			slog.Info("Verification email sent", "user_id", user.ID, "email", request.Email)
 		}
 	}
 
