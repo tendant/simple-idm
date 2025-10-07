@@ -12,3 +12,5 @@ idm_db_all.sql
 # PEM files (private keys, certificates, etc.)
 *.pem
 
+
+.claude/
