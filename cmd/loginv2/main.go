@@ -624,12 +624,6 @@ func main() {
 	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
 	server.R.Mount("/api/idm/signup", signup.Handler(signupHandle))
 
-	// Mount email verification endpoints (verify is public, resend and status require auth)
-	server.R.Route("/api/idm/email", func(r chi.Router) {
-		// Public endpoint for email verification
-		r.Post("/verify", emailVerificationHandle.VerifyEmail)
-	})
-
 	// Mount OIDC endpoints (public, no authentication required)
 	server.R.Mount("/api/idm/oauth2", oidcapi.Handler(oidcHandle))
 
@@ -639,6 +633,20 @@ func main() {
 	// Create both RSA and HMAC verifiers for multi-algorithm support
 	rsaAuth := jwtauth.New("RS256", activeKey.PrivateKey, activeKey.PublicKey)
 	hmacAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
+
+	// Mount email verification endpoints (verify is public, resend and status require auth)
+	server.R.Route("/api/idm/email", func(r chi.Router) {
+		// Public endpoint for email verification
+		r.Post("/verify", emailVerificationHandle.VerifyEmail)
+
+		// Protected endpoints requiring authentication
+		r.Group(func(r chi.Router) {
+			r.Use(jwtauth.Verifier(rsaAuth))
+			r.Use(jwtauth.Authenticator(rsaAuth))
+			r.Post("/resend", emailVerificationHandle.ResendVerification)
+			r.Get("/status", emailVerificationHandle.GetVerificationStatus)
+		})
+	})
 
 	server.R.Group(func(r chi.Router) {
 		r.Use(client.MultiAlgorithmVerifier(
