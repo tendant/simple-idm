@@ -14,7 +14,7 @@ CREATE TABLE device (
 
 -- LoginDevice table for linking devices to logins with 90-day expiration
 CREATE TABLE login_device (
-    id UUID DEFAULT uuid_generate_v4() NOT NULL,
+    id UUID DEFAULT gen_random_uuid() NOT NULL,
     login_id UUID NOT NULL,
     fingerprint VARCHAR(255) NOT NULL,
     linked_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc') NOT NULL,

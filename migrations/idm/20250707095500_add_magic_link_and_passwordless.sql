@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 -- Add login_magic_link_tokens table
 CREATE TABLE IF NOT EXISTS login_magic_link_tokens (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL PRIMARY KEY,
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     login_id uuid NOT NULL,
     token character varying(255) NOT NULL,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'UTC'::text) NOT NULL,

@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE login (
-    uuid UUID DEFAULT uuid_generate_v4() NOT NULL,
+    uuid UUID DEFAULT gen_random_uuid() NOT NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc') NOT NULL,
     updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT (now() AT TIME ZONE 'utc') NOT NULL,
     deleted_at TIMESTAMP WITHOUT TIME ZONE,

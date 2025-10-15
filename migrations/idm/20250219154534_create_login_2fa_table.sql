@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS login_2fa (
-    uuid UUID DEFAULT uuid_generate_v4() NOT NULL PRIMARY KEY,
+    uuid UUID DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     login_uuid UUID NOT NULL REFERENCES login(uuid),
     two_factor_secret TEXT,
     two_factor_enabled BOOLEAN DEFAULT FALSE,
