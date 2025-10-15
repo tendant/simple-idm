@@ -123,22 +123,38 @@ func (h *LoginsHandle) CreateLogin(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var request LoginCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		errMsg := "Invalid request body: " + err.Error()
+		slog.Error("Failed to decode create login request", "error", err, "remote_ip", r.RemoteAddr)
+		http.Error(w, errMsg, http.StatusBadRequest)
 		return
 	}
 
 	// Validate request
 	if request.Username == "" || request.Password == "" {
-		http.Error(w, "Username and password are required", http.StatusBadRequest)
+		errMsg := "Username and password are required"
+		slog.Warn("Create login validation failed", "username", request.Username, "has_password", request.Password != "", "remote_ip", r.RemoteAddr)
+		http.Error(w, errMsg, http.StatusBadRequest)
 		return
 	}
 
 	// Create login
 	login, err := h.loginService.CreateLogin(r.Context(), request, "admin")
 	if err != nil {
-		http.Error(w, "Failed to create login: "+err.Error(), http.StatusBadRequest)
+		errMsg := "Failed to create login: " + err.Error()
+		// Log different error types with appropriate levels
+		switch err.(type) {
+		case ErrUsernameAlreadyExists:
+			slog.Warn("Username already exists", "username", request.Username, "error", err, "remote_ip", r.RemoteAddr)
+		case ErrPasswordComplexity:
+			slog.Warn("Password complexity requirements not met", "username", request.Username, "error", err, "remote_ip", r.RemoteAddr)
+		default:
+			slog.Error("Failed to create login", "username", request.Username, "error", err, "remote_ip", r.RemoteAddr)
+		}
+		http.Error(w, errMsg, http.StatusBadRequest)
 		return
 	}
+
+	slog.Info("Login created successfully", "username", request.Username, "login_id", login.ID, "remote_ip", r.RemoteAddr)
 
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
