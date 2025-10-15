@@ -19,7 +19,7 @@ GOARCH ?= amd64
 GOOS ?= linux
 
 # Construct PostgreSQL connection string with schema in search_path
-PG_CONN_STRING := postgres://$(IDM_PG_USER):$(IDM_PG_PASSWORD)@$(IDM_PG_HOST):$(IDM_PG_PORT)/$(IDM_PG_DATABASE)?sslmode=disable&search_path=$(IDM_PG_SCHEMA)
+PG_CONN_STRING := postgres://$(IDM_PG_USER):$(IDM_PG_PASSWORD)@$(IDM_PG_HOST):$(IDM_PG_PORT)/$(IDM_PG_DATABASE)?sslmode=disable&search_path=$(IDM_PG_SCHEMA),public
 
 all: $(ALL)
 	@echo $@: Building Targets $^
@@ -70,10 +70,10 @@ run:
 	arelo -t . -p '**/*.go' -i '**/.*' -i '**/*_test.go' -- go run .
 
 schema-load: schema-create
-	PGPASSWORD=$(IDM_PG_PASSWORD) psql -h $(IDM_PG_HOST) -p $(IDM_PG_PORT) -U $(IDM_PG_USER) -d $(IDM_PG_DATABASE) -c "SET search_path TO $(IDM_PG_SCHEMA)" -f migrations/idm_db.sql
+	PGPASSWORD=$(IDM_PG_PASSWORD) psql -h $(IDM_PG_HOST) -p $(IDM_PG_PORT) -U $(IDM_PG_USER) -d $(IDM_PG_DATABASE) -c "SET search_path TO $(IDM_PG_SCHEMA),public" -f migrations/idm_db.sql
 
 seed:
-	PGPASSWORD=$(IDM_PG_PASSWORD) psql -h $(IDM_PG_HOST) -p $(IDM_PG_PORT) -U $(IDM_PG_USER) -d $(IDM_PG_DATABASE) -c "SET search_path TO $(IDM_PG_SCHEMA)" -f migrations/seed.sql
+	PGPASSWORD=$(IDM_PG_PASSWORD) psql -h $(IDM_PG_HOST) -p $(IDM_PG_PORT) -U $(IDM_PG_USER) -d $(IDM_PG_DATABASE) -c "SET search_path TO $(IDM_PG_SCHEMA),public" -f migrations/seed.sql
 
 migration-status:
 	goose -dir migrations/idm postgres "$(PG_CONN_STRING)" status
