@@ -15,8 +15,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/joho/godotenv"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/chi-demo/app"
-	dbutils "github.com/tendant/db-utils/db"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/emailverification"
 	emailverificationapi "github.com/tendant/simple-idm/pkg/emailverification/api"
@@ -69,16 +69,12 @@ type IdmDbConfig struct {
 	Database string `env:"IDM_PG_DATABASE" env-default:"idm_db"`
 	User     string `env:"IDM_PG_USER" env-default:"idm"`
 	Password string `env:"IDM_PG_PASSWORD" env-default:"pwd"`
+	Schema   string `env:"IDM_PG_SCHEMA" env-default:"public"`
 }
 
-func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
-	return dbutils.DbConfig{
-		Host:     d.Host,
-		Port:     d.Port,
-		Database: d.Database,
-		User:     d.User,
-		Password: d.Password,
-	}
+func (d IdmDbConfig) toDatabaseURL() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&search_path=%s,public",
+		d.User, d.Password, d.Host, d.Port, d.Database, d.Schema)
 }
 
 type JwtConfig struct {
@@ -304,10 +300,10 @@ func main() {
 	app.RoutesHealthz(server.R)
 	app.RoutesHealthzReady(server.R)
 
-	dbConfig := config.IdmDbConfig.toDbConfig()
-	pool, err := dbutils.NewDbPool(context.Background(), dbConfig)
+	dbURL := config.IdmDbConfig.toDatabaseURL()
+	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		slog.Error("Failed creating dbpool", "db", dbConfig.Database, "host", dbConfig.Host, "port", dbConfig.Port, "user", dbConfig.User)
+		slog.Error("Failed creating dbpool", "db", config.IdmDbConfig.Database, "host", config.IdmDbConfig.Host, "port", config.IdmDbConfig.Port, "user", config.IdmDbConfig.User, "schema", config.IdmDbConfig.Schema)
 		os.Exit(-1)
 	}
 
