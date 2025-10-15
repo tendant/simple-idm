@@ -91,9 +91,6 @@ const UserForm: Component<Props> = (props) => {
     if (!props.initialData && !password()) {
       setPasswordError('Password is required');
       isValid = false;
-    } else if (!props.initialData && password().length < 8) {
-      setPasswordError('Password must be at least 8 characters');
-      isValid = false;
     }
     
     return isValid;
@@ -181,7 +178,7 @@ const UserForm: Component<Props> = (props) => {
             }}
             class={`block w-full appearance-none rounded-lg border ${usernameError() ? 'border-red-500' : 'border-gray-7'} px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
             disabled={!!props.initialData}
-            placeholder="Enter username (min 3 characters)"
+            placeholder="Enter username"
           />
           {usernameError() && (
             <p class="mt-1 text-sm text-red-600">{usernameError()}</p>
@@ -247,14 +244,14 @@ const UserForm: Component<Props> = (props) => {
                 setPasswordError(null);
               }}
               class={`block w-full appearance-none rounded-lg border ${passwordError() ? 'border-red-500' : 'border-gray-7'} px-3 py-2 placeholder-gray-8 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
-              placeholder="Enter password (min 8 characters)"
+              placeholder="Enter password"
             />
             {passwordError() && (
               <p class="mt-1 text-sm text-red-600">{passwordError()}</p>
             )}
           </div>
           <p class="mt-1 text-xs text-gray-9">
-            Password should be at least 8 characters and include a mix of letters, numbers, and special characters for better security.
+            Password requirements will be validated by the server.
           </p>
         </div>
       )}
