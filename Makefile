@@ -1,9 +1,24 @@
+# Database configuration defaults (can be overridden by .env or environment variables)
+IDM_PG_HOST ?= localhost
+IDM_PG_PORT ?= 5432
+IDM_PG_DATABASE ?= idm_db
+IDM_PG_USER ?= idm
+IDM_PG_PASSWORD ?= pwd
+
+# Load .env file if it exists (search in common locations)
+# Note: Environment variables take precedence over .env file values
+-include .env
+-include cmd/loginv2/.env
+
 SOURCES := $(shell find . -mindepth 2 -name "main.go")
 DESTS := $(patsubst ./%/main.go,dist/%,$(SOURCES))
 ALL := dist/main $(DESTS)
 
 GOARCH ?= amd64
 GOOS ?= linux
+
+# Construct PostgreSQL connection string
+PG_CONN_STRING := postgres://$(IDM_PG_USER):$(IDM_PG_PASSWORD)@$(IDM_PG_HOST):$(IDM_PG_PORT)/$(IDM_PG_DATABASE)?sslmode=disable
 
 all: $(ALL)
 	@echo $@: Building Targets $^
@@ -33,19 +48,19 @@ clean:
 
 migration-create:
 # Usage: make migration-create name="migration-name"
-	goose -dir migrations/idm postgres "postgres://idm:pwd@localhost/idm_db?sslmode=disable" create $(name) sql
+	goose -dir migrations/idm postgres "$(PG_CONN_STRING)" create $(name) sql
 
 migration-up:
-	goose -dir migrations/idm postgres "postgres://idm:pwd@localhost/idm_db?sslmode=disable" up
+	goose -dir migrations/idm postgres "$(PG_CONN_STRING)" up
 
 migration-down:
-	goose -dir migrations/idm postgres "postgres://idm:pwd@localhost/idm_db?sslmode=disable" down
+	goose -dir migrations/idm postgres "$(PG_CONN_STRING)" down
 
 dump-idm:
-	pg_dump --schema-only -h localhost -p 5432 -U idm -d idm_db > migrations/idm_db.sql
+	PGPASSWORD=$(IDM_PG_PASSWORD) pg_dump --schema-only -h $(IDM_PG_HOST) -p $(IDM_PG_PORT) -U $(IDM_PG_USER) -d $(IDM_PG_DATABASE) > migrations/idm_db.sql
 
 dump-db:
-	pg_dump -h localhost -p 5432 -U idm -d idm_db > idm_db_all.sql
+	PGPASSWORD=$(IDM_PG_PASSWORD) pg_dump -h $(IDM_PG_HOST) -p $(IDM_PG_PORT) -U $(IDM_PG_USER) -d $(IDM_PG_DATABASE) > idm_db_all.sql
 
 run:
 	arelo -t . -p '**/*.go' -i '**/.*' -i '**/*_test.go' -- go run .
