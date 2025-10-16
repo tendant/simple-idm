@@ -31,10 +31,6 @@ export default defineConfig({
         target: 'http://localhost:4000',
         changeOrigin: true,
       },
-      '/idm': {
-        target: 'http://localhost:4000',
-        changeOrigin: true,
-      },
       '/api/idm/profile': {
         target: 'http://localhost:4000',
         changeOrigin: true,

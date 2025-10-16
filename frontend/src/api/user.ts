@@ -90,7 +90,7 @@ export const userApi = {
   },
 
   listUsers: async (): Promise<User[]> => {
-    const response = await apiClient.get('/idm/users');
+    const response = await apiClient.get('/api/idm/users');
 
     if (!response.ok) {
       throw new Error('Failed to fetch users');
@@ -100,7 +100,7 @@ export const userApi = {
   },
 
   getUser: async (id: string): Promise<User> => {
-    const response = await apiClient.get(`/idm/users/${id}`);
+    const response = await apiClient.get(`/api/idm/users/${id}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch user');
@@ -117,7 +117,7 @@ export const userApi = {
     };
     
     try {
-      const response = await apiClient.post('/idm/users', payload);
+      const response = await apiClient.post('/api/idm/users', payload);
 
       if (!response.ok) {
         // Try to parse the error response
@@ -160,7 +160,7 @@ export const userApi = {
   },
 
   updateUser: async (id: string, user: UpdateUserRequest): Promise<User> => {
-    const response = await apiClient.put(`/idm/users/${id}`, user);
+    const response = await apiClient.put(`/api/idm/users/${id}`, user);
 
     if (!response.ok) {
       throw new Error('Failed to update user');
@@ -170,7 +170,7 @@ export const userApi = {
   },
 
   deleteUser: async (id: string): Promise<void> => {
-    const response = await apiClient.delete(`/idm/users/${id}`);
+    const response = await apiClient.delete(`/api/idm/users/${id}`);
 
     if (!response.ok) {
       throw new Error('Failed to delete user');

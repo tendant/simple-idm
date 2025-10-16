@@ -74,7 +74,7 @@ test.describe('Login Page', () => {
 
   test('should redirect to users page after successful login', async ({ page }) => {
     // Mock the users list API response for the redirect
-    await page.route('/idm/users', async (route) => {
+    await page.route('/api/idm/users', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

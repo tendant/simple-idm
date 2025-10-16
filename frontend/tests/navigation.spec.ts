@@ -15,7 +15,7 @@ test.describe('Navigation Component', () => {
     });
     
     // Mock the users API response for the default page
-    await page.route('**/idm/users', async (route) => {
+    await page.route('**/api/idm/users', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -41,7 +41,7 @@ test.describe('Navigation Component', () => {
 
   test('should navigate to Users page', async ({ page }) => {
     // Mock the users API response
-    await page.route('**/idm/users', async (route) => {
+    await page.route('**/api/idm/users', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -55,7 +55,7 @@ test.describe('Navigation Component', () => {
 
   test('should navigate to Roles page', async ({ page }) => {
     // Mock the roles API response
-    await page.route('**/idm/roles', async (route) => {
+    await page.route('**/api/idm/roles', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -35,7 +35,7 @@ export interface RemoveUserFromGroupRequest {
 
 export const groupsApi = {
   listGroups: async (): Promise<Group[]> => {
-    const response = await apiClient.get('/idm/users/groups');
+    const response = await apiClient.get('/api/idm/users/groups');
 
     if (!response.ok) {
       throw new Error('Failed to fetch groups');
@@ -45,7 +45,7 @@ export const groupsApi = {
   },
 
   getGroup: async (id: string): Promise<Group> => {
-    const response = await apiClient.get(`/idm/users/groups/${id}`);
+    const response = await apiClient.get(`/api/idm/users/groups/${id}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch group');
@@ -56,7 +56,7 @@ export const groupsApi = {
 
   createGroup: async (group: CreateGroupRequest): Promise<Group> => {
     try {
-      const response = await apiClient.post('/idm/users/groups', group);
+      const response = await apiClient.post('/api/idm/users/groups', group);
 
       if (!response.ok) {
         // Try to parse the error response
@@ -97,7 +97,7 @@ export const groupsApi = {
   },
 
   updateGroup: async (id: string, group: UpdateGroupRequest): Promise<Group> => {
-    const response = await apiClient.put(`/idm/users/groups/${id}`, group);
+    const response = await apiClient.put(`/api/idm/users/groups/${id}`, group);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -111,7 +111,7 @@ export const groupsApi = {
   },
 
   deleteGroup: async (id: string): Promise<void> => {
-    const response = await apiClient.delete(`/idm/users/groups/${id}`);
+    const response = await apiClient.delete(`/api/idm/users/groups/${id}`);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -123,7 +123,7 @@ export const groupsApi = {
   },
 
   getGroupUsers: async (id: string): Promise<GroupUser[]> => {
-    const response = await apiClient.get(`/idm/users/groups/${id}/users`);
+    const response = await apiClient.get(`/api/idm/users/groups/${id}/users`);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null);
@@ -137,7 +137,7 @@ export const groupsApi = {
   },
 
   addUserToGroup: async (groupId: string, userId: string): Promise<void> => {
-    const response = await apiClient.post(`/idm/users/groups/${groupId}/users`, {
+    const response = await apiClient.post(`/api/idm/users/groups/${groupId}/users`, {
       user_id: userId
     });
 
@@ -151,7 +151,7 @@ export const groupsApi = {
   },
 
   removeUserFromGroup: async (groupId: string, userId: string): Promise<void> => {
-    const response = await apiClient.call(`/idm/users/groups/${groupId}/users`, {
+    const response = await apiClient.call(`/api/idm/users/groups/${groupId}/users`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json'

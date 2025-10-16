@@ -17,7 +17,7 @@ test.describe('Users Page', () => {
     });
     
     // Mock the users API response
-    await page.route('**/idm/users', async (route) => {
+    await page.route('**/api/idm/users', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -86,7 +86,7 @@ test.describe('Users Page', () => {
 
   test('should delete a user after confirmation', async ({ page }) => {
     // Mock the delete API response
-    await page.route('**/idm/users/2', async (route) => {
+    await page.route('**/api/idm/users/2', async (route) => {
       if (route.request().method() === 'DELETE') {
         await route.fulfill({
           status: 200,
@@ -112,7 +112,7 @@ test.describe('Users Page', () => {
 
   test('should show error when delete fails', async ({ page }) => {
     // Mock the delete API response to fail
-    await page.route('**/idm/users/2', async (route) => {
+    await page.route('**/api/idm/users/2', async (route) => {
       if (route.request().method() === 'DELETE') {
         await route.fulfill({
           status: 500,

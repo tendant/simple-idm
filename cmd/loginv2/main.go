@@ -698,7 +698,7 @@ func main() {
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
 
-		r.Mount("/idm/users", iamapi.SecureHandler(userHandle))
+		r.Mount("/api/idm/users", iamapi.SecureHandler(userHandle))
 
 		// Create a secure handler for roles that uses the IAM admin middleware
 		roleRouter := chi.NewRouter()
@@ -706,11 +706,11 @@ func main() {
 			r.Use(client.AdminRoleMiddleware)
 			r.Mount("/", roleapi.Handler(roleHandle))
 		})
-		r.Mount("/idm/roles", roleRouter)
+		r.Mount("/api/idm/roles", roleRouter)
 
 		// Initialize two factor authentication service and routes
 		twoFaHandle := twofaapi.NewHandle(twoFaService, tokenService, tokenCookieService, userMapper)
-		r.Mount("/idm/2fa", twofaapi.TwoFaHandler(twoFaHandle))
+		r.Mount("/api/idm/2fa", twofaapi.TwoFaHandler(twoFaHandle))
 
 		deviceHandle := deviceapi.NewDeviceHandler(deviceService)
 		r.Mount("/api/idm/device", deviceapi.Handler(deviceHandle))
