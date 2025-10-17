@@ -364,7 +364,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		return result, fmt.Errorf("invalid password", "password_hash", passwordHash)
 	}
 
-	slog.Info("password valid", "login id", login.ID, "password_hash", passwordHash)
+	slog.Info("password valid", "login id", login.ID, "username", login.Username, "password_hash", passwordHash)
 
 	// Check if password is expired
 	isExpired, err := s.passwordManager.IsPasswordExpired(ctx, login.ID.String())
