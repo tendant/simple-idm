@@ -340,6 +340,11 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
 		return result, err
 	}
+	passwordHash, err := s.passwordManager.HashPassword(password)
+	if err != nil {
+		slog.Error("Failed to hash password for logging", "err", err)
+		passwordHash = "hash_error"
+	}
 	if !valid {
 		slog.Error("invalid password from check password by login id")
 
@@ -356,13 +361,9 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 			return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
 		}
 
-		return result, fmt.Errorf("invalid password")
+		return result, fmt.Errorf("invalid password", "password_hash", passwordHash)
 	}
-	passwordHash, err := s.passwordManager.HashPassword(password)
-	if err != nil {
-		slog.Error("Failed to hash password for logging", "err", err)
-		passwordHash = "hash_error"
-	}
+
 	slog.Info("password valid", "login id", login.ID, "password_hash", passwordHash)
 
 	// Check if password is expired
