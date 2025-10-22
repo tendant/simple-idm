@@ -176,7 +176,7 @@ type FindLoginsByEmailRow struct {
 	PasswordExpiresAt   sql.NullTime   `json:"password_expires_at"`
 }
 
-// Email-based authentication queries
+// 2025-08-11: Email-based authentication queries
 func (q *Queries) FindLoginsByEmail(ctx context.Context, email string) ([]FindLoginsByEmailRow, error) {
 	rows, err := q.db.Query(ctx, findLoginsByEmail, email)
 	if err != nil {
@@ -582,8 +582,8 @@ AND created_at > $2
 `
 
 type GetRecentFailedAttemptsParams struct {
-	LoginID   uuid.UUID `json:"login_id"`
-	CreatedAt time.Time `json:"created_at"`
+	LoginID   uuid.NullUUID `json:"login_id"`
+	CreatedAt time.Time     `json:"created_at"`
 }
 
 func (q *Queries) GetRecentFailedAttempts(ctx context.Context, arg GetRecentFailedAttemptsParams) (int64, error) {
@@ -771,7 +771,7 @@ INSERT INTO login_attempt (
 
 type RecordLoginAttemptParams struct {
 	ID                uuid.UUID      `json:"id"`
-	LoginID           uuid.UUID      `json:"login_id"`
+	LoginID           uuid.NullUUID  `json:"login_id"`
 	IpAddress         sql.NullString `json:"ip_address"`
 	UserAgent         sql.NullString `json:"user_agent"`
 	Success           bool           `json:"success"`

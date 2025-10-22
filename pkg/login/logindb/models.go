@@ -41,6 +41,15 @@ type GooseDbVersion struct {
 	Tstamp    sql.NullTime `json:"tstamp"`
 }
 
+type Group struct {
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	DeletedAt   sql.NullTime   `json:"deleted_at"`
+}
+
 type Login struct {
 	ID                    uuid.UUID      `json:"id"`
 	CreatedAt             time.Time      `json:"created_at"`
@@ -73,7 +82,7 @@ type Login2fa struct {
 
 type LoginAttempt struct {
 	ID                uuid.UUID      `json:"id"`
-	LoginID           uuid.UUID      `json:"login_id"`
+	LoginID           uuid.NullUUID  `json:"login_id"`
 	CreatedAt         time.Time      `json:"created_at"`
 	IpAddress         sql.NullString `json:"ip_address"`
 	UserAgent         sql.NullString `json:"user_agent"`
@@ -122,10 +131,47 @@ type LoginPasswordResetToken struct {
 	LoginID   uuid.UUID          `json:"login_id"`
 }
 
+type Oauth2Client struct {
+	ID                    uuid.UUID      `json:"id"`
+	ClientID              string         `json:"client_id"`
+	ClientSecretEncrypted string         `json:"client_secret_encrypted"`
+	ClientName            string         `json:"client_name"`
+	ClientType            string         `json:"client_type"`
+	RequirePkce           bool           `json:"require_pkce"`
+	Description           sql.NullString `json:"description"`
+	CreatedAt             sql.NullTime   `json:"created_at"`
+	UpdatedAt             sql.NullTime   `json:"updated_at"`
+	CreatedBy             sql.NullString `json:"created_by"`
+	DeletedAt             sql.NullTime   `json:"deleted_at"`
+}
+
+type Oauth2ClientRedirectUri struct {
+	ClientID    uuid.UUID    `json:"client_id"`
+	RedirectUri string       `json:"redirect_uri"`
+	CreatedAt   sql.NullTime `json:"created_at"`
+	DeletedAt   sql.NullTime `json:"deleted_at"`
+}
+
+type Oauth2ClientScope struct {
+	ClientID  uuid.UUID    `json:"client_id"`
+	ScopeID   uuid.UUID    `json:"scope_id"`
+	CreatedAt sql.NullTime `json:"created_at"`
+	DeletedAt sql.NullTime `json:"deleted_at"`
+}
+
 type Role struct {
 	ID          uuid.UUID      `json:"id"`
 	Name        string         `json:"name"`
 	Description sql.NullString `json:"description"`
+}
+
+type Scope struct {
+	ID          uuid.UUID      `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	CreatedAt   sql.NullTime   `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+	DeletedAt   sql.NullTime   `json:"deleted_at"`
 }
 
 type User struct {
@@ -138,6 +184,13 @@ type User struct {
 	Name           sql.NullString `json:"name"`
 	LoginID        uuid.NullUUID  `json:"login_id"`
 	Phone          sql.NullString `json:"phone"`
+}
+
+type UserGroup struct {
+	UserID     uuid.UUID    `json:"user_id"`
+	GroupID    uuid.UUID    `json:"group_id"`
+	AssignedAt sql.NullTime `json:"assigned_at"`
+	DeletedAt  sql.NullTime `json:"deleted_at"`
 }
 
 type UserRole struct {
