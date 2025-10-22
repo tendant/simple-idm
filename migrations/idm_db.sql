@@ -17,17 +17,19 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
+-- Name: public; Type: SCHEMA; Schema: -; Owner: charlenewu
 --
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+CREATE SCHEMA public;
 
+
+ALTER SCHEMA public OWNER TO charlenewu;
 
 --
--- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: 
+-- Name: SCHEMA public; Type: COMMENT; Schema: -; Owner: charlenewu
 --
 
-COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+COMMENT ON SCHEMA public IS 'standard public schema';
 
 
 SET default_tablespace = '';
@@ -97,7 +99,7 @@ CREATE SEQUENCE public.goose_db_version_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.goose_db_version_id_seq OWNER TO idm;
+ALTER SEQUENCE public.goose_db_version_id_seq OWNER TO idm;
 
 --
 -- Name: goose_db_version_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: idm
@@ -172,7 +174,7 @@ ALTER TABLE public.login_2fa OWNER TO idm;
 
 CREATE TABLE public.login_attempt (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    login_id uuid NOT NULL,
+    login_id uuid,
     created_at timestamp without time zone DEFAULT (now() AT TIME ZONE 'utc'::text) NOT NULL,
     ip_address character varying(45),
     user_agent text,
@@ -813,6 +815,14 @@ ALTER TABLE ONLY public.user_roles
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_login_id_fkey FOREIGN KEY (login_id) REFERENCES public.login(id);
+
+
+--
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: charlenewu
+--
+
+REVOKE USAGE ON SCHEMA public FROM PUBLIC;
+GRANT ALL ON SCHEMA public TO PUBLIC;
 
 
 --
