@@ -421,13 +421,7 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Log username and hashed password
-	passwordHash, err := h.loginService.GetPasswordManager().HashPassword(data.Password)
-	if err != nil {
-		slog.Error("Failed to hash password for logging", "err", err)
-		passwordHash = "hash_error"
-	}
-	slog.Info("Login request", "username", data.Username, "password_hash", passwordHash)
+	slog.Info("Login request", "username", data.Username)
 
 	// Get IP address and user agent for login attempt recording
 	ipAddress := getIPAddressFromRequest(r)
@@ -633,13 +627,7 @@ func (h Handle) LoginByEmail(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Log email and hashed password
-	passwordHash, err := h.loginService.GetPasswordManager().HashPassword(data.Password)
-	if err != nil {
-		slog.Error("Failed to hash password for logging", "err", err)
-		passwordHash = "hash_error"
-	}
-	slog.Info("Email login request", "email", data.Email, "password_hash", passwordHash)
+	slog.Info("Email login request", "email", data.Email)
 
 	// Get IP address and user agent for login attempt recording
 	ipAddress := getIPAddressFromRequest(r)
