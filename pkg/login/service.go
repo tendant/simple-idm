@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"log/slog"
@@ -197,6 +198,7 @@ type LoginResult struct {
 
 const (
 	FAILURE_REASON_INTERNAL_ERROR        = "internal_error"
+	FAILURE_REASON_INVALID_USERNAME      = "invalid_username"
 	FAILURE_REASON_ACCOUNT_LOCKED        = "account_locked"
 	FAILURE_REASON_PASSWORD_EXPIRED      = "password_expired"
 	FAILURE_REASON_INVALID_CREDENTIALS   = "invalid_credentials"
@@ -249,7 +251,7 @@ func (s *LoginService) FindLoginByUsername(ctx context.Context, username string)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			slog.Error("no login found with username", "err", err, "username", username)
-			return LoginEntity{}, fmt.Errorf("invalid username or password")
+			return LoginEntity{}, fmt.Errorf("no login found with username")
 		}
 		slog.Error("error finding login with username", "err", err, "username", username)
 		return LoginEntity{}, fmt.Errorf("error finding user: %w", err)
@@ -289,7 +291,12 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 	// Find user by username
 	login, err := s.FindLoginByUsername(ctx, username)
 	if err != nil {
-		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		if strings.Contains(err.Error(), "no login found with username") {
+			result.FailureReason = FAILURE_REASON_INVALID_USERNAME
+			result.LoginID = uuid.Nil // Explicitly set to nil for non-existent users
+		} else {
+			result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
+		}
 		return result, fmt.Errorf("error finding login: %w", err)
 	}
 
@@ -340,11 +347,7 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 		result.FailureReason = FAILURE_REASON_INTERNAL_ERROR
 		return result, err
 	}
-	passwordHash, err := s.passwordManager.HashPassword(password)
-	if err != nil {
-		slog.Error("Failed to hash password for logging", "err", err)
-		passwordHash = "hash_error"
-	}
+
 	if !valid {
 		slog.Error("invalid password from check password by login id")
 
@@ -361,10 +364,10 @@ func (s *LoginService) Login(ctx context.Context, username, password string) (Lo
 			return result, &AccountLockedError{LoginID: login.ID, LockedUntil: lockedUntil}
 		}
 
-		return result, fmt.Errorf("invalid password", "password_hash", passwordHash)
+		return result, fmt.Errorf("invalid password")
 	}
 
-	slog.Info("password valid", "login id", login.ID, "username", login.Username, "password_hash", passwordHash)
+	slog.Info("password valid", "login id", login.ID, "username", login.Username)
 
 	// Check if password is expired
 	isExpired, err := s.passwordManager.IsPasswordExpired(ctx, login.ID.String())
@@ -1132,7 +1135,7 @@ func (s *LoginService) FindUsernameByEmail(ctx context.Context, email string) (s
 func (s *LoginService) RecordLoginAttempt(ctx context.Context, loginID uuid.UUID, ipAddress, userAgent, deviceFingerprint string, success bool, failureReason string) error {
 	// Record the login attempt in the repository
 	err := s.repository.RecordLoginAttempt(ctx, LoginAttempt{
-		LoginID:           loginID,
+		LoginID:           utils.ToNullUUID(loginID),
 		IPAddress:         ipAddress,
 		UserAgent:         userAgent,
 		DeviceFingerprint: deviceFingerprint,

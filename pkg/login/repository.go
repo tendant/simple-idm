@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 // Domain models for the login repository
@@ -111,7 +112,7 @@ type PasswordToHistoryParams struct {
 // LoginAttempt represents a login attempt record
 type LoginAttempt struct {
 	ID                uuid.UUID
-	LoginID           uuid.UUID
+	LoginID           uuid.NullUUID
 	IPAddress         string
 	UserAgent         string
 	Success           bool
@@ -558,7 +559,7 @@ func (r *PostgresLoginRepository) RecordLoginAttempt(ctx context.Context, attemp
 // GetRecentFailedAttempts returns the number of failed login attempts since the given time
 func (r *PostgresLoginRepository) GetRecentFailedAttempts(ctx context.Context, loginID uuid.UUID, since time.Time) (int, error) {
 	count, err := r.queries.GetRecentFailedAttempts(ctx, logindb.GetRecentFailedAttemptsParams{
-		LoginID:   loginID,
+		LoginID:   utils.ToNullUUID(loginID),
 		CreatedAt: since,
 	})
 
