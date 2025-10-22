@@ -18,7 +18,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/jwks"
-	"github.com/tendant/simple-idm/pkg/mapper"
+
+	// "github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	"github.com/tendant/simple-idm/pkg/oidc"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -64,25 +65,25 @@ var (
 )
 
 // Simple user mapper implementation
-type SimpleUserMapper struct{}
+// type SimpleUserMapper struct{}
 
-func (m *SimpleUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUID) (*mapper.UserWithGroups, error) {
-	// Find user by UUID
-	for _, user := range users {
-		if user.ID == userID.String() {
-			return &mapper.UserWithGroups{
-				UserID:      userID,
-				DisplayName: user.Name,
-				UserInfo: mapper.UserInfo{
-					Email:         user.Email,
-					EmailVerified: true,
-				},
-				Groups: []string{"users", "demo"},
-			}, nil
-		}
-	}
-	return nil, fmt.Errorf("user not found")
-}
+// func (m *SimpleUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUID) (*mapper.UserWithGroups, error) {
+// 	// Find user by UUID
+// 	for _, user := range users {
+// 		if user.ID == userID.String() {
+// 			return &mapper.UserWithGroups{
+// 				UserID:      userID,
+// 				DisplayName: user.Name,
+// 				UserInfo: mapper.UserInfo{
+// 					Email:         user.Email,
+// 					EmailVerified: true,
+// 				},
+// 				Groups: []string{"users", "demo"},
+// 			}, nil
+// 		}
+// 	}
+// 	return nil, fmt.Errorf("user not found")
+// }
 
 func main() {
 	slog.Info("Starting OIDC Server Demo")
@@ -113,8 +114,8 @@ func main() {
 	tokenGenerator := tokengenerator.NewRSATokenGenerator(
 		activeKey.PrivateKey,
 		activeKey.Kid,
-		"http://localhost:4001",      // issuer
-		"http://localhost:4001",      // audience
+		"http://localhost:4001", // issuer
+		"http://localhost:4001", // audience
 	)
 
 	// Create in-memory OAuth2 client repository
@@ -128,13 +129,13 @@ func main() {
 			"http://localhost:4002/callback",
 			"http://localhost:5173/callback",
 		},
-		GrantTypes:    []string{"authorization_code", "refresh_token"},
-		Scopes:        []string{"openid", "profile", "email", "groups"},
-		Name:          "Demo Client Application",
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		GrantTypes: []string{"authorization_code", "refresh_token"},
+		Scopes:     []string{"openid", "profile", "email", "groups"},
+		ClientName: "Demo Client Application",
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
-	if err := clientRepo.CreateClient(context.Background(), demoClient); err != nil {
+	if _, err := clientRepo.CreateClient(context.Background(), demoClient); err != nil {
 		log.Fatal("Failed to create demo client:", err)
 	}
 
@@ -142,7 +143,7 @@ func main() {
 
 	// Create OIDC service
 	oidcRepository := oidc.NewInMemoryOIDCRepository()
-	userMapper := &SimpleUserMapper{}
+	// userMapper := &SimpleUserMapper{}
 
 	oidcService := oidc.NewOIDCServiceWithOptions(
 		oidcRepository,
@@ -150,7 +151,7 @@ func main() {
 		oidc.WithTokenGenerator(tokenGenerator),
 		oidc.WithBaseURL("http://localhost:4001"),
 		oidc.WithLoginURL("http://localhost:4001/login"),
-		oidc.WithUserMapper(userMapper),
+		// oidc.WithUserMapper(userMapper),
 		oidc.WithIssuer("http://localhost:4001"),
 		oidc.WithTokenExpiration(1*time.Hour),
 		oidc.WithCodeExpiration(10*time.Minute),
@@ -186,7 +187,7 @@ func main() {
 			handleAuthorize(w, r, oidcService)
 		})
 		r.Post("/token", func(w http.ResponseWriter, r *http.Request) {
-			handleToken(w, r, oidcService)
+			handleToken(w, r)
 		})
 		r.Get("/userinfo", func(w http.ResponseWriter, r *http.Request) {
 			handleUserInfo(w, r, oidcService)
@@ -353,7 +354,6 @@ func handleAuthorize(w http.ResponseWriter, r *http.Request, oidcService *oidc.O
 	// Get authorization request parameters
 	clientID := r.URL.Query().Get("client_id")
 	redirectURI := r.URL.Query().Get("redirect_uri")
-	responseType := r.URL.Query().Get("response_type")
 	scope := r.URL.Query().Get("scope")
 	state := r.URL.Query().Get("state")
 
@@ -417,10 +417,8 @@ func handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	grantType := r.FormValue("grant_type")
-	code := r.FormValue("code")
 	clientID := r.FormValue("client_id")
 	clientSecret := r.FormValue("client_secret")
-	redirectURI := r.FormValue("redirect_uri")
 
 	if grantType != "authorization_code" {
 		w.Header().Set("Content-Type", "application/json")

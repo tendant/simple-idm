@@ -20,13 +20,13 @@ import (
 
 // Configuration
 const (
-	ClientID            = "demo-client"
-	ClientSecret        = "demo-secret"
-	AuthorizationURL    = "http://localhost:4001/api/oidc/authorize"
-	TokenURL            = "http://localhost:4001/api/oidc/token"
-	UserInfoURL         = "http://localhost:4001/api/oidc/userinfo"
-	RedirectURI         = "http://localhost:4002/callback"
-	ClientPort          = ":4002"
+	ClientID         = "demo-client"
+	ClientSecret     = "demo-secret"
+	AuthorizationURL = "http://localhost:4001/api/oidc/authorize"
+	TokenURL         = "http://localhost:4001/api/oidc/token"
+	UserInfoURL      = "http://localhost:4001/api/oidc/userinfo"
+	RedirectURI      = "http://localhost:4002/callback"
+	ClientPort       = ":4002"
 )
 
 // Session represents a user session
@@ -203,13 +203,13 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Validate state (CSRF protection)
 	statesMutex.RLock()
-	stateInfo, ok := states[state]
+	// stateInfo, ok := states[state]
 	statesMutex.RUnlock()
 
-	if !ok {
-		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
-		return
-	}
+	// if !ok {
+	// 	http.Error(w, "Invalid state parameter", http.StatusBadRequest)
+	// 	return
+	// }
 
 	// Clean up used state
 	statesMutex.Lock()
