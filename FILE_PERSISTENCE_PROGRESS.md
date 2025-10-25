@@ -20,6 +20,36 @@
 3. Created `FileLoginsRepository` storing data in JSON files
 4. Service now depends on interface, not concrete implementation
 
+### Phase 2: Adapted In-Memory Repositories to File-Based ✅
+
+**Quick Wins - Adapted 4 existing in-memory implementations:**
+
+1. **`pkg/oidc/file_repository.go`** ✅
+   - Stores authorization codes and sessions in `oidc.json`
+   - 5 interface methods
+   - Handles PKCE fields and expiration checks
+   - ~280 lines
+
+2. **`pkg/oauth2client/file_repository.go`** ✅
+   - Stores OAuth2 clients with metadata in `oauth2_clients.json`
+   - 12 interface methods (Get, Create, Update, Delete, List, Validate, Query operations)
+   - Includes active/inactive status filtering
+   - ~340 lines
+
+3. **`pkg/jwks/file_repository.go`** ✅
+   - Stores JWKS KeyStore with key pairs in `jwks.json`
+   - 15 interface methods (key management, query, cleanup)
+   - Handles key rotation and expiration
+   - ~330 lines
+
+4. **`pkg/externalprovider/file_repository.go`** ✅
+   - Stores external providers and OAuth2 states in `external_providers.json`
+   - 14 interface methods (provider management, state operations)
+   - Handles state expiration cleanup
+   - ~350 lines
+
+**Total: 4 packages adapted, ~1,300 lines of file-based implementation**
+
 ### Pattern Established
 
 **Repository Interface Structure:**
@@ -79,18 +109,18 @@ type XRepository interface {
    - `cmd/quick/main.go`
    - Any test files
 
-### Phase 2: File-Based Implementations (15 packages)
+### Phase 2: File-Based Implementations (Partially Complete)
 
 **Packages with existing repository interfaces:**
 1. ✅ `pkg/logins` - DONE
-2. `pkg/login` - Credentials
-3. `pkg/device` - Device tracking
-4. `pkg/oidc` - OIDC authorization codes (already has in-memory!)
-5. `pkg/oauth2client` - OAuth2 clients (already has in-memory!)
-6. `pkg/jwks` - JWKS keys (already has in-memory!)
-7. `pkg/externalprovider` - External providers (already has in-memory!)
-8. `pkg/delegate` - Delegation
-9. `pkg/emailverification` - Email verification
+2. ✅ `pkg/oidc` - DONE (adapted from in-memory)
+3. ✅ `pkg/oauth2client` - DONE (adapted from in-memory)
+4. ✅ `pkg/jwks` - DONE (adapted from in-memory)
+5. ✅ `pkg/externalprovider` - DONE (adapted from in-memory)
+6. `pkg/login` - Credentials (needs file implementation)
+7. `pkg/device` - Device tracking (needs file implementation)
+8. `pkg/delegate` - Delegation (needs file implementation)
+9. `pkg/emailverification` - Email verification (needs file implementation)
 
 **Packages needing both interface + file implementation:**
 10. `pkg/twofa`
@@ -98,8 +128,6 @@ type XRepository interface {
 12. `pkg/mapper`
 13. `pkg/iam`
 14. `pkg/profile`
-
-**Note:** Packages 4-7 already have in-memory implementations that could be adapted to file-based storage!
 
 ### Phase 3: Factory Pattern
 
