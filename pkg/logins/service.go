@@ -5,16 +5,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
-	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
-	"github.com/tendant/simple-idm/pkg/utils"
 )
 
 // LoginsService provides methods for managing logins
 type LoginsService struct {
-	loginsRepo      *loginsdb.Queries
+	loginsRepo      LoginsRepository
 	passwordManager *login.PasswordManager
 }
 
@@ -24,7 +21,7 @@ type LoginsServiceOptions struct {
 }
 
 // NewLoginsService creates a new logins service
-func NewLoginsService(loginsRepo *loginsdb.Queries, loginQueries *logindb.Queries, options *LoginsServiceOptions) *LoginsService {
+func NewLoginsService(loginsRepo LoginsRepository, loginQueries *logindb.Queries, options *LoginsServiceOptions) *LoginsService {
 	// Use provided policy or default
 	var passwordManager *login.PasswordManager
 	if options != nil && options.PasswordManager != nil {
@@ -46,17 +43,17 @@ func (s *LoginsService) WithPasswordManager(passwordManager *login.PasswordManag
 
 // GetLogin retrieves a login by ID
 func (s *LoginsService) GetLogin(ctx context.Context, id uuid.UUID) (*LoginModel, error) {
-	login, err := s.loginsRepo.GetLogin(ctx, id)
+	loginEntity, err := s.loginsRepo.GetLogin(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get login: %w", err)
 	}
-	result := FromDBLogin(&login)
+	result := FromLoginEntity(&loginEntity)
 	return &result, nil
 }
 
 // ListLogins retrieves a list of logins with pagination
 func (s *LoginsService) ListLogins(ctx context.Context, limit, offset int32) ([]LoginModel, int64, error) {
-	logins, err := s.loginsRepo.ListLogins(ctx, loginsdb.ListLoginsParams{
+	loginEntities, err := s.loginsRepo.ListLogins(ctx, ListLoginsParams{
 		Limit:  limit,
 		Offset: offset,
 	})
@@ -69,37 +66,28 @@ func (s *LoginsService) ListLogins(ctx context.Context, limit, offset int32) ([]
 		return nil, 0, fmt.Errorf("failed to count logins: %w", err)
 	}
 
-	result := FromDBLogins(logins)
+	result := FromLoginEntities(loginEntities)
 	return result, count, nil
 }
 
 // SearchLogins searches for logins by username
 func (s *LoginsService) SearchLogins(ctx context.Context, search string, limit, offset int32) ([]LoginModel, error) {
-	// Convert string to pgtype.Text
-	var searchText pgtype.Text
-	searchText.String = search
-	searchText.Valid = true
-
-	logins, err := s.loginsRepo.SearchLogins(ctx, loginsdb.SearchLoginsParams{
-		Column1: searchText,
-		Limit:   limit,
-		Offset:  offset,
+	loginEntities, err := s.loginsRepo.SearchLogins(ctx, SearchLoginsParams{
+		Query:  search,
+		Limit:  limit,
+		Offset: offset,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search logins: %w", err)
 	}
-	result := FromDBLogins(logins)
+	result := FromLoginEntities(loginEntities)
 	return result, nil
 }
 
 // CreateLogin creates a new login
 func (s *LoginsService) CreateLogin(ctx context.Context, request LoginCreateRequest, createdBy string) (*LoginModel, error) {
-	// Convert username to sql.NullString
-	usernameSQL := utils.ToNullString(request.Username)
-	createdBySQL := utils.ToNullString(createdBy)
-
 	// Check if username already exists
-	_, err := s.loginsRepo.GetLoginByUsername(ctx, usernameSQL)
+	_, err := s.loginsRepo.GetLoginByUsername(ctx, request.Username, request.Username != "")
 	if err == nil {
 		return nil, ErrUsernameAlreadyExists{Username: request.Username}
 	}
@@ -114,42 +102,40 @@ func (s *LoginsService) CreateLogin(ctx context.Context, request LoginCreateRequ
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	login, err := s.loginsRepo.CreateLogin(ctx, loginsdb.CreateLoginParams{
-		Username:  usernameSQL,
-		Password:  []byte(hashedPassword),
-		CreatedBy: createdBySQL,
+	loginEntity, err := s.loginsRepo.CreateLogin(ctx, CreateLoginParams{
+		Username:       request.Username,
+		UsernameValid:  request.Username != "",
+		Password:       []byte(hashedPassword),
+		CreatedBy:      createdBy,
+		CreatedByValid: createdBy != "",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create login: %w", err)
 	}
 
-	result := FromDBLogin(&login)
+	result := FromLoginEntity(&loginEntity)
 	return &result, nil
 }
 
 // UpdateLogin updates a login's username
 func (s *LoginsService) UpdateLogin(ctx context.Context, id uuid.UUID, request LoginUpdateRequest) (*LoginModel, error) {
-	// Convert username to sql.NullString
-	usernameSQL := utils.ToNullString(request.Username)
 	// Check if username already exists
-	_, err := s.loginsRepo.GetLoginByUsername(ctx, usernameSQL)
+	_, err := s.loginsRepo.GetLoginByUsername(ctx, request.Username, request.Username != "")
 	if err == nil {
 		return nil, fmt.Errorf("username already exists")
 	}
 
-	// Prepare update parameters
-	params := loginsdb.UpdateLoginParams{
-		ID:       id,
-		Username: usernameSQL,
-	}
-
 	// Update username
-	login, err := s.loginsRepo.UpdateLogin(ctx, params)
+	loginEntity, err := s.loginsRepo.UpdateLogin(ctx, UpdateLoginParams{
+		ID:            id,
+		Username:      request.Username,
+		UsernameValid: request.Username != "",
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update login: %w", err)
 	}
 
-	result := FromDBLogin(&login)
+	result := FromLoginEntity(&loginEntity)
 	return &result, nil
 }
 
@@ -165,26 +151,24 @@ func (s *LoginsService) DeleteLogin(ctx context.Context, id uuid.UUID) error {
 // CreateLoginWithoutPassword creates a new login without a password
 // This is useful for passwordless accounts where authentication is done via magic links
 func (s *LoginsService) CreateLoginWithoutPassword(ctx context.Context, username string, createdBy string) (*LoginModel, error) {
-	// Convert username to sql.NullString
-	usernameSQL := utils.ToNullString(username)
-	createdBySQL := utils.ToNullString(createdBy)
-
 	// Check if username already exists
-	_, err := s.loginsRepo.GetLoginByUsername(ctx, usernameSQL)
+	_, err := s.loginsRepo.GetLoginByUsername(ctx, username, username != "")
 	if err == nil {
 		return nil, ErrUsernameAlreadyExists{Username: username}
 	}
 
 	// Create login with empty password
-	login, err := s.loginsRepo.CreateLogin(ctx, loginsdb.CreateLoginParams{
-		Username:  usernameSQL,
-		Password:  []byte{}, // Empty password
-		CreatedBy: createdBySQL,
+	loginEntity, err := s.loginsRepo.CreateLogin(ctx, CreateLoginParams{
+		Username:       username,
+		UsernameValid:  username != "",
+		Password:       []byte{}, // Empty password
+		CreatedBy:      createdBy,
+		CreatedByValid: createdBy != "",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create login: %w", err)
 	}
 
-	result := FromDBLogin(&login)
+	result := FromLoginEntity(&loginEntity)
 	return &result, nil
 }

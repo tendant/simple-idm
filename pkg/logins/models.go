@@ -87,3 +87,37 @@ func FromDBLogins(dbLogins []loginsdb.Login) []LoginModel {
 	}
 	return logins
 }
+
+// FromLoginEntity converts a LoginEntity to a service login model
+func FromLoginEntity(entity *LoginEntity) LoginModel {
+	login := LoginModel{
+		ID:              entity.ID.String(),
+		CreatedAt:       entity.CreatedAt,
+		UpdatedAt:       entity.UpdatedAt,
+		PasswordVersion: int(entity.PasswordVersion),
+	}
+
+	if entity.UsernameValid {
+		login.Username = entity.Username
+	}
+
+	if entity.CreatedByValid {
+		login.CreatedBy = entity.CreatedBy
+	}
+
+	if entity.DeletedAtValid {
+		deletedAt := entity.DeletedAt
+		login.DeletedAt = &deletedAt
+	}
+
+	return login
+}
+
+// FromLoginEntities converts a slice of LoginEntity to service login models
+func FromLoginEntities(entities []LoginEntity) []LoginModel {
+	logins := make([]LoginModel, len(entities))
+	for i, entity := range entities {
+		logins[i] = FromLoginEntity(&entity)
+	}
+	return logins
+}

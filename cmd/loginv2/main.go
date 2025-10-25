@@ -488,10 +488,11 @@ func main() {
 
 	// Initialize logins management service and routes
 	loginsQueries := loginsdb.New(pool)
+	loginsRepo := logins.NewPostgresLoginsRepository(loginsQueries)
 	loginsServiceOptions := &logins.LoginsServiceOptions{
 		PasswordManager: passwordManager,
 	}
-	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
+	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, loginsServiceOptions) // Pass nil for default options
 	loginsHandle := logins.NewHandle(loginsService, *twoFaService)
 
 	userService := user.NewUserService(iamService, loginsService)
