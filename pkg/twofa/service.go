@@ -10,14 +10,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/skip2/go-qrcode"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
-	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 	"github.com/tendant/simple-idm/pkg/utils"
 )
 
@@ -36,7 +34,7 @@ type TwoFactorService interface {
 }
 
 type TwoFaService struct {
-	queries             *twofadb.Queries
+	repo                TwoFARepository
 	notificationManager *notification.NotificationManager
 	userMapper          mapper.UserMapper
 	totpPeriod          uint
@@ -82,10 +80,10 @@ func WithEmailPeriod(period uint) TwoFaServiceOption {
 	}
 }
 
-// NewTwoFaService creates a new TwoFaService with the given queries and options
-func NewTwoFaService(queries *twofadb.Queries, opts ...TwoFaServiceOption) *TwoFaService {
+// NewTwoFaService creates a new TwoFaService with the given repository and options
+func NewTwoFaService(repo TwoFARepository, opts ...TwoFaServiceOption) *TwoFaService {
 	service := &TwoFaService{
-		queries:     queries,
+		repo:        repo,
 		totpPeriod:  30,  // Default TOTP period: 30 seconds
 		smsPeriod:   300, // Default SMS period: 300 seconds (5 minutes)
 		emailPeriod: 300, // Default Email period: 300 seconds (5 minutes)
@@ -136,14 +134,13 @@ func (s TwoFaService) GetTwoFactorSecretByLoginId(ctx context.Context, loginUuid
 	}
 
 	// Try to get existing 2FA record
-	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
-		LoginID: loginUuid,
-		// FIXME: hardcoded
-		TwoFactorType: utils.ToNullString(twoFactorType),
+	entity, err := s.repo.Get2FAByLoginID(ctx, Get2FAByLoginIDParams{
+		LoginID:       loginUuid,
+		TwoFactorType: twoFactorType,
 	})
 
-	if err == nil && secret.TwoFactorSecret.String != "" {
-		return secret.TwoFactorSecret.String, nil
+	if err == nil && entity.SecretValid && entity.TwoFactorSecret != "" {
+		return entity.TwoFactorSecret, nil
 	}
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -231,33 +228,40 @@ func (s TwoFaService) SendTwoFaNotification(ctx context.Context, loginId, userId
 }
 
 func (s TwoFaService) FindEnabledTwoFAs(ctx context.Context, loginId uuid.UUID) ([]string, error) {
-	enabled2fas, err := s.queries.FindEnabledTwoFAs(ctx, loginId)
+	entities, err := s.repo.FindEnabledTwoFAs(ctx, loginId)
 	if err != nil {
 		slog.Error("Failed to find enabled 2FA", "loginUuid", loginId, "error", err)
 		return nil, fmt.Errorf("failed to find enabled 2FA: %w", err)
 	}
 
 	res := []string{}
-	for _, e := range enabled2fas {
-		res = append(res, e.TwoFactorType.String)
+	for _, e := range entities {
+		if e.TypeValid {
+			res = append(res, e.TwoFactorType)
+		}
 	}
 	return res, nil
 }
 
 func (s TwoFaService) FindTwoFAsByLoginId(ctx context.Context, loginId uuid.UUID) ([]TwoFA, error) {
 	var res []TwoFA
-	twofas, err := s.queries.FindTwoFAsByLoginId(ctx, loginId)
+	entities, err := s.repo.FindTwoFAsByLoginID(ctx, loginId)
 	if err != nil {
 		slog.Error("Failed to find 2FA by login ID", "loginUuid", loginId, "error", err)
 		return nil, fmt.Errorf("failed to find 2FA by login ID: %w", err)
 	}
 
-	for _, t := range twofas {
+	for _, e := range entities {
+		twoFactorType := ""
+		if e.TypeValid {
+			twoFactorType = e.TwoFactorType
+		}
+
 		res = append(res, TwoFA{
-			TwoFactorId:      t.ID,
-			TwoFactorType:    t.TwoFactorType.String,
-			TwoFactorEnabled: t.TwoFactorEnabled.Bool,
-			CreatedAt:        t.CreatedAt,
+			TwoFactorId:      e.ID,
+			TwoFactorType:    twoFactorType,
+			TwoFactorEnabled: e.TwoFactorEnabled,
+			CreatedAt:        e.CreatedAt,
 		})
 	}
 
@@ -273,9 +277,9 @@ func (s TwoFaService) CreateTwoFactor(ctx context.Context, loginId uuid.UUID, tw
 	}
 
 	// Check if 2FA record exists and is enabled
-	_, err = s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
+	_, err = s.repo.Get2FAByLoginID(ctx, Get2FAByLoginIDParams{
 		LoginID:       loginId,
-		TwoFactorType: utils.ToNullString(twoFactorType),
+		TwoFactorType: twoFactorType,
 	})
 
 	// If no record exists, process create 2fa init
@@ -292,11 +296,14 @@ func (s TwoFaService) CreateTwoFactor(ctx context.Context, loginId uuid.UUID, tw
 		enabled := twoFactorType != TWO_FACTOR_TYPE_TOTP
 
 		// Create 2fa record with configurable enabled state
-		_, err = s.queries.Create2FAInit(ctx, twofadb.Create2FAInitParams{
+		_, err = s.repo.Create2FAInit(ctx, Create2FAParams{
 			LoginID:              loginId,
-			TwoFactorSecret:      pgtype.Text{String: newSecret, Valid: true},
-			TwoFactorEnabled:     pgtype.Bool{Bool: enabled, Valid: true},
-			TwoFactorType:        utils.ToNullString(twoFactorType),
+			TwoFactorSecret:      newSecret,
+			SecretValid:          true,
+			TwoFactorEnabled:     enabled,
+			EnabledValid:         true,
+			TwoFactorType:        twoFactorType,
+			TypeValid:            true,
 			TwoFactorBackupCodes: []string{},
 		})
 		if err != nil {
@@ -321,10 +328,9 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginId uuid.UUID, tw
 	}
 
 	// Check if 2FA record exists and is enabled
-	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
-		LoginID: loginId,
-		// FIXME: hardcoded
-		TwoFactorType: utils.ToNullString(twoFactorType),
+	entity, err := s.repo.Get2FAByLoginID(ctx, Get2FAByLoginIDParams{
+		LoginID:       loginId,
+		TwoFactorType: twoFactorType,
 	})
 
 	// If no record exists, return error
@@ -338,14 +344,14 @@ func (s TwoFaService) EnableTwoFactor(ctx context.Context, loginId uuid.UUID, tw
 	}
 
 	// Check if already enabled
-	if secret.TwoFactorEnabled.Bool {
+	if entity.EnabledValid && entity.TwoFactorEnabled {
 		return fmt.Errorf("2FA is already enabled for the user")
 	}
 
 	// Enable 2FA
-	err = s.queries.Enable2FA(ctx, twofadb.Enable2FAParams{
+	err = s.repo.Enable2FA(ctx, Enable2FAParams{
 		LoginID:       loginId,
-		TwoFactorType: utils.ToNullString(twoFactorType),
+		TwoFactorType: twoFactorType,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to enable 2FA: %w", err)
@@ -362,10 +368,9 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 	}
 
 	// Check if 2FA record exists and is enabled
-	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
-		LoginID: loginUuid,
-		// FIXME: hardcoded
-		TwoFactorType: utils.ToNullString(twoFactorType),
+	entity, err := s.repo.Get2FAByLoginID(ctx, Get2FAByLoginIDParams{
+		LoginID:       loginUuid,
+		TwoFactorType: twoFactorType,
 	})
 
 	// If no record exists, return error
@@ -379,14 +384,14 @@ func (s TwoFaService) DisableTwoFactor(ctx context.Context, loginUuid uuid.UUID,
 	}
 
 	// Check if already disabled
-	if !secret.TwoFactorEnabled.Bool {
+	if entity.EnabledValid && !entity.TwoFactorEnabled {
 		return fmt.Errorf("2FA is already disabled for the user")
 	}
 
 	// Disable 2FA
-	err = s.queries.Disable2FA(ctx, twofadb.Disable2FAParams{
+	err = s.repo.Disable2FA(ctx, Disable2FAParams{
 		LoginID:       loginUuid,
-		TwoFactorType: utils.ToNullString(twoFactorType),
+		TwoFactorType: twoFactorType,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to disable 2FA: %w", err)
@@ -435,10 +440,10 @@ func (s TwoFaService) SendPhoneVerificationCode(ctx context.Context, phone, pass
 func (s TwoFaService) DeleteTwoFactor(ctx context.Context, params DeleteTwoFactorParams) error {
 	// TODO: add logic to check if 2FA is enabled before deleting
 
-	_, err := s.queries.Get2FAById(ctx, twofadb.Get2FAByIdParams{
+	_, err := s.repo.Get2FAByID(ctx, Get2FAByIDParams{
 		ID:            params.TwoFactorId,
 		LoginID:       params.LoginId,
-		TwoFactorType: utils.ToNullString(params.TwoFactorType),
+		TwoFactorType: params.TwoFactorType,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -447,10 +452,10 @@ func (s TwoFaService) DeleteTwoFactor(ctx context.Context, params DeleteTwoFacto
 		return fmt.Errorf("failed to get 2FA: %w", err)
 	}
 
-	err = s.queries.Delete2FA(ctx, twofadb.Delete2FAParams{
+	err = s.repo.Delete2FA(ctx, Delete2FAParams{
 		ID:            params.TwoFactorId,
 		LoginID:       params.LoginId,
-		TwoFactorType: utils.ToNullString(params.TwoFactorType),
+		TwoFactorType: params.TwoFactorType,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete 2FA: %w", err)
@@ -460,10 +465,9 @@ func (s TwoFaService) DeleteTwoFactor(ctx context.Context, params DeleteTwoFacto
 }
 
 func (s TwoFaService) Validate2faPasscode(ctx context.Context, loginId uuid.UUID, twoFactorType, passcode string) (bool, error) {
-	secret, err := s.queries.Get2FAByLoginId(ctx, twofadb.Get2FAByLoginIdParams{
-		LoginID: loginId,
-		// FIXME: hardcoded
-		TwoFactorType: utils.ToNullString(twoFactorType),
+	entity, err := s.repo.Get2FAByLoginID(ctx, Get2FAByLoginIDParams{
+		LoginID:       loginId,
+		TwoFactorType: twoFactorType,
 	})
 
 	if err != nil {
@@ -472,6 +476,10 @@ func (s TwoFaService) Validate2faPasscode(ctx context.Context, loginId uuid.UUID
 			return false, fmt.Errorf("no 2FA record found for user")
 		}
 		return false, fmt.Errorf("failed to get 2FA record: %w", err)
+	}
+
+	if !entity.SecretValid || entity.TwoFactorSecret == "" {
+		return false, fmt.Errorf("2FA secret not found")
 	}
 
 	// Use appropriate period for the 2FA type
@@ -487,7 +495,7 @@ func (s TwoFaService) Validate2faPasscode(ctx context.Context, loginId uuid.UUID
 		period = PERIOD // fallback to default
 	}
 
-	res, err := s.ValidateTotpPasscodeWithPeriod(secret.TwoFactorSecret.String, passcode, period)
+	res, err := s.ValidateTotpPasscodeWithPeriod(entity.TwoFactorSecret, passcode, period)
 	if err != nil {
 		return false, fmt.Errorf("failed to validate 2FA passcode: %w", err)
 	}

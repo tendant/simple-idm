@@ -187,6 +187,7 @@ func main() {
 	iamQueries := iamdb.New(pool)
 	loginQueries := logindb.New(pool)
 	twofaQueries := twofadb.New(pool)
+	twofaRepo := twofa.NewPostgresTwoFARepository(twofaQueries)
 	mapperQueries := mapperdb.New(pool)
 	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
 
@@ -309,7 +310,7 @@ func main() {
 	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
 
 	twoFaService := twofa.NewTwoFaService(
-		twofaQueries,
+		twofaRepo,
 		twofa.WithNotificationManager(notificationManager),
 		twofa.WithUserMapper(userMapper),
 	)
@@ -337,10 +338,11 @@ func main() {
 
 	// Initialize logins management service and routes
 	loginsQueries := loginsdb.New(pool)
+	loginsRepo := logins.NewPostgresLoginsRepository(loginsQueries)
 	loginsServiceOptions := &logins.LoginsServiceOptions{
 		PasswordManager: passwordManager,
 	}
-	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions) // Pass nil for default options
+	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, loginsServiceOptions) // Pass nil for default options
 	loginsHandle := logins.NewHandle(loginsService, *twoFaService)
 
 	signupHandle := signup.NewHandle(

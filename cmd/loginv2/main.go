@@ -312,6 +312,7 @@ func main() {
 	iamQueries := iamdb.New(pool)
 	loginQueries := logindb.New(pool)
 	twofaQueries := twofadb.New(pool)
+	twofaRepo := twofa.NewPostgresTwoFARepository(twofaQueries)
 	mapperQueries := mapperdb.New(pool)
 	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
 
@@ -465,7 +466,7 @@ func main() {
 	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
 
 	twoFaService := twofa.NewTwoFaService(
-		twofaQueries,
+		twofaRepo,
 		twofa.WithNotificationManager(notificationManager),
 		twofa.WithUserMapper(userMapper),
 	)
