@@ -174,6 +174,7 @@ func main() {
 	loginQueries := logindb.New(pool)
 	twofaQueries := twofadb.New(pool)
 	mapperQueries := mapperdb.New(pool)
+	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
 
 	// Initialize NotificationManager and register email notifier
 	notificationManager, err := notice.NewNotificationManager(
@@ -197,7 +198,7 @@ func main() {
 		slog.Error("Failed initialize notification manager", "err", err)
 	}
 
-	userMapper := mapper.NewDefaultUserMapper(mapperQueries)
+	userMapper := mapper.NewDefaultUserMapper(mapperRepo)
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Create a password policy based on the environment

@@ -195,6 +195,7 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	loginsQueries := loginsdb.New(pool)
 	roleQueries := roledb.New(pool)
 	mapperQueries := mapperdb.New(pool)
+	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
 
 	// Notification manager
 	notificationManager, err := notice.NewNotificationManager(
@@ -214,7 +215,7 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	}
 
 	// User mapper
-	userMapper := mapper.NewDefaultUserMapper(mapperQueries)
+	userMapper := mapper.NewDefaultUserMapper(mapperRepo)
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Password management (lenient policy for quick start)
