@@ -1,441 +1,522 @@
-# Login Flow Architecture Documentation
-
-This package provides a pluggable, orderable login flow system that allows for flexible authentication workflows. The architecture is built around the concept of discrete steps that can be composed into different flow types.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Core Components](#core-components)
-- [Flow Architecture](#flow-architecture)
-- [Builder Pattern](#builder-pattern)
-- [Pre-configured Flows](#pre-configured-flows)
-- [Creating Custom Flows](#creating-custom-flows)
-- [Step Implementation](#step-implementation)
-- [Usage Examples](#usage-examples)
-- [Testing](#testing)
+# Login Flow Package
 
 ## Overview
 
-The login flow system transforms the traditional monolithic login process into a series of discrete, ordered steps. This approach provides:
+The `loginflow` package provides a simplified, type-safe login flow implementation for the Simple IDM system. It handles various authentication scenarios including password-based login, magic link validation, 2FA, device recognition, and multi-user selection.
 
-- **Pluggability**: Easy addition/removal of authentication steps
-- **Orderability**: Configurable execution sequence with predefined priorities
-- **Reusability**: Steps can be shared across different flow types
-- **Testability**: Each component can be tested in isolation
-- **Flexibility**: Support for different authentication methods and requirements
+**Key Features:**
+- **Direct function calls** - No complex flow abstraction
+- **Type-safe** - Compile-time error checking
+- **Modular** - Optional features (2FA, device tracking) can use no-op implementations
+- **Clear control flow** - Read authentication logic top-to-bottom
+- **Easy to customize** - Copy and modify `Process*` methods for custom flows
 
-## Core Components
+## Architecture
 
-### 1. LoginFlowStep Interface
+### Core Components
 
-The foundation of the system. Every step must implement this interface:
-
+**LoginFlowService** - Main service that orchestrates login flows
 ```go
-type LoginFlowStep interface {
-    Name() string                                                    // Unique identifier
-    Order() int                                                      // Execution priority (lower = earlier)
-    Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error)  // Main logic
-    ShouldSkip(ctx context.Context, flowContext *FlowContext) bool   // Conditional execution
+type LoginFlowService struct {
+    loginService     *login.LoginService
+    twoFactorService twofa.TwoFactorService
+    deviceService    *device.DeviceService
+    tokenService     tg.TokenService
+    userMapper       mapper.UserMapper
 }
 ```
 
-### 2. FlowContext
-
-Carries state and data between steps:
-
+**Request** - Unified request structure for all login flows
 ```go
-type FlowContext struct {
-    Request          Request                    // Input data (username, password, etc.)
-    Result           *Result                    // Output data (tokens, user info, etc.)
-    LoginID          uuid.UUID                  // Parsed login identifier
-    Users            []mapper.User              // Associated user accounts
-    DeviceRecognized bool                       // Device recognition status
-    StepData         map[string]interface{}     // Inter-step data storage
-    Services         *ServiceDependencies       // Injected services
+type Request struct {
+    Username             string
+    Password             string
+    MagicLinkToken       string
+    IPAddress            string
+    UserAgent            string
+    DeviceFingerprint    device.FingerprintData
+    DeviceFingerprintStr string
+
+    // Resumption fields (for multi-step flows)
+    IsResumption   bool
+    TempToken      string
+    TwoFACode      string
+    TwoFAType      string
+    DeliveryOption string
+    RememberDevice bool
+
+    FlowType string // "web", "mobile", "email", "magic_link"
 }
 ```
 
-### 3. StepResult
-
-Defines the outcome of step execution:
-
+**Result** - Unified result structure
 ```go
-type StepResult struct {
-    Continue    bool                        // Whether to proceed to next step
-    EarlyReturn bool                        // Whether to return immediately
-    Error       *Error                      // Step-specific error
-    Data        map[string]interface{}      // Data to store in FlowContext
+type Result struct {
+    Success                 bool
+    RequiresTwoFA           bool
+    RequiresUserSelection   bool
+    RequiresUserAssociation bool
+    Users                   []mapper.User
+    LoginID                 uuid.UUID
+    TwoFactorMethods        []TwoFactorMethod
+    Tokens                  map[string]tg.TokenValue
+    DeviceRecognized        bool
+    ErrorResponse           *Error
 }
 ```
 
-## Flow Architecture
+## Usage
 
-### Step Registry
-
-The `StepRegistry` manages and orders steps:
+### Initialization
 
 ```go
-registry := NewStepRegistry()
-registry.AddStep(step1).AddStep(step2).AddStep(step3)
+import (
+    "github.com/tendant/simple-idm/pkg/loginflow"
+    "github.com/tendant/simple-idm/pkg/login"
+    "github.com/tendant/simple-idm/pkg/twofa"
+    "github.com/tendant/simple-idm/pkg/device"
+    "github.com/tendant/simple-idm/pkg/mapper"
+    tg "github.com/tendant/simple-idm/pkg/tokengenerator"
+)
 
-// Steps are automatically sorted by their Order() value
-orderedSteps := registry.GetOrderedSteps()
+// Initialize all required services
+loginService := login.NewLoginService(...)
+tokenService := tg.NewTokenService(...)
+userMapper := mapper.NewUserMapper(...)
+
+// Optional: Use real 2FA service
+twoFaService := twofa.NewTwoFaService(...)
+
+// Optional: Use no-op 2FA service (skips 2FA)
+// twoFaService := twofa.NewNoOpTwoFactorService()
+
+// Optional: Use real device service
+deviceRepository := device.NewPostgresDeviceRepository(...)
+deviceService := device.NewDeviceService(deviceRepository, loginRepository)
+
+// Optional: Use no-op device service (skips device tracking)
+// deviceRepository := device.NewNoOpDeviceRepository()
+// deviceService := device.NewDeviceService(deviceRepository, loginRepository)
+
+// Create login flow service
+loginFlowService := loginflow.NewLoginFlowService(
+    loginService,
+    twoFaService,
+    deviceService,
+    tokenService,
+    nil, // tokenCookieService (not currently stored)
+    userMapper,
+)
 ```
 
-### Flow Executor
+### Basic Login Flows
 
-The `FlowExecutor` orchestrates step execution:
-
+#### 1. Web Login (Username/Password)
 ```go
-executor := NewFlowExecutor(registry, services)
-result := executor.Execute(ctx, request)
+result := loginFlowService.ProcessLogin(ctx, loginflow.Request{
+    Username:             "user@example.com",
+    Password:             "password123",
+    IPAddress:            "192.168.1.1",
+    UserAgent:            "Mozilla/5.0...",
+    DeviceFingerprint:    fingerprintData,
+    DeviceFingerprintStr: device.GenerateFingerprint(fingerprintData),
+    FlowType:             "web",
+})
+
+if result.Success {
+    // Login successful, tokens available in result.Tokens
+    accessToken := result.Tokens["access_token"]
+    refreshToken := result.Tokens["refresh_token"]
+}
+
+if result.RequiresTwoFA {
+    // 2FA required, present 2FA methods to user
+    methods := result.TwoFactorMethods
+    tempToken := result.Tokens["temp_token"]
+    // Prompt user for 2FA code, then call Process2FAValidation
+}
+
+if result.RequiresUserSelection {
+    // Multiple users associated with login, present options
+    users := result.Users
+    tempToken := result.Tokens["temp_token"]
+    // Prompt user to select, then call ProcessUserSwitch
+}
 ```
 
-**Execution Flow:**
-1. Initialize `FlowContext` with request data and services
-2. Get ordered steps from registry
-3. For each step:
-   - Check if step should be skipped (`ShouldSkip()`)
-   - Execute step logic (`Execute()`)
-   - Handle result (continue, early return, or error)
-   - Store step data in context
-4. Return final result
+#### 2. Mobile Login
+```go
+result := loginFlowService.ProcessMobileLogin(ctx, loginflow.Request{
+    Username:             "user@example.com",
+    Password:             "password123",
+    DeviceFingerprint:    fingerprintData,
+    DeviceFingerprintStr: device.GenerateFingerprint(fingerprintData),
+    FlowType:             "mobile",
+})
+```
 
-### Predefined Step Orders
+#### 3. Email-Based Login
+```go
+result := loginFlowService.ProcessLoginByEmail(
+    ctx,
+    "user@example.com",  // email
+    "password123",        // password
+    "192.168.1.1",       // ipAddress
+    "Mozilla/5.0...",    // userAgent
+    fingerprintData,     // device fingerprint
+)
+```
 
-The system defines standard execution priorities:
+#### 4. Magic Link Validation
+```go
+result := loginFlowService.ProcessMagicLinkValidation(
+    ctx,
+    "magic-link-token",  // token from email link
+    "192.168.1.1",       // ipAddress
+    "Mozilla/5.0...",    // userAgent
+    fingerprintData,     // device fingerprint
+)
+```
+
+### Multi-Step Flows (Resumption)
+
+#### 2FA Validation
+```go
+// After receiving temp token from initial login
+result := loginFlowService.Process2FAValidation(ctx, loginflow.TwoFAValidationRequest{
+    TokenString:          tempToken,
+    TwoFAType:            "totp", // or "sms", "email"
+    Passcode:             "123456",
+    RememberDevice:       true, // Optional: remember this device
+    IPAddress:            "192.168.1.1",
+    UserAgent:            "Mozilla/5.0...",
+    DeviceFingerprint:    fingerprintData,
+    DeviceFingerprintStr: device.GenerateFingerprint(fingerprintData),
+})
+```
+
+#### User Selection
+```go
+// After receiving temp token and user list from initial login
+result := loginFlowService.ProcessUserSwitch(ctx, loginflow.UserSwitchRequest{
+    TokenString:          tempToken,
+    TargetUserID:         "selected-user-uuid",
+    IPAddress:            "192.168.1.1",
+    UserAgent:            "Mozilla/5.0...",
+    DeviceFingerprint:    fingerprintData,
+    DeviceFingerprintStr: device.GenerateFingerprint(fingerprintData),
+})
+```
+
+#### 2FA Code Sending
+```go
+// Send 2FA code to user's email or phone
+result := loginFlowService.Process2FASend(ctx, loginflow.TwoFASendRequest{
+    TokenString:    tempToken,
+    UserID:         "user-uuid",
+    TwoFAType:      "sms", // or "email"
+    DeliveryOption: "hashed-phone-or-email",
+})
+```
+
+### Token Management
+
+#### Refresh Tokens
+```go
+result := loginFlowService.ProcessTokenRefresh(ctx, loginflow.TokenRefreshRequest{
+    RefreshToken: refreshToken,
+})
+
+// For mobile clients
+result := loginFlowService.ProcessMobileTokenRefresh(ctx, loginflow.TokenRefreshRequest{
+    RefreshToken: refreshToken,
+})
+```
+
+#### Logout
+```go
+result := loginFlowService.ProcessLogout(ctx)
+// Returns logout tokens with immediate expiry
+```
+
+## Authentication Flow Details
+
+### Standard Login Flow
+
+1. **Credential Authentication** - Validate username/password (or magic link)
+2. **User Validation** - Ensure user account is active
+3. **Device Recognition** - Check if device is recognized (skip if no fingerprint)
+4. **2FA Requirement Check** - Skip if device is recognized or 2FA not enabled
+   - If 2FA required: return `RequiresTwoFA=true` with temp token
+5. **Multiple User Check** - If login has multiple associated users
+   - If multiple users: return `RequiresUserSelection=true` with temp token
+6. **Token Generation** - Create access/refresh tokens
+7. **Success Recording** - Log successful login attempt
+
+### 2FA Validation Flow
+
+1. **Temp Token Validation** - Verify temp token from initial login
+2. **2FA Code Validation** - Verify the provided passcode
+3. **Device Remembering** - Optionally link device to login
+4. **Multiple User Check** - Check if user selection needed
+5. **Token Generation** - Create access/refresh tokens
+6. **Success Recording** - Log successful login
+
+### Magic Link Flow
+
+1. **Magic Link Validation** - Validate token from email
+2. **User Validation** - Ensure account is active
+3. **Multiple User Check** - Skip device recognition and 2FA
+4. **Token Generation** - Create tokens
+5. **Success Recording** - Log successful login
+
+## Customization
+
+### Creating Custom Flows
+
+You can customize authentication flows by:
+
+1. **Copying and modifying Process* methods** - Create your own flow logic
+2. **Using helper functions** - Reuse existing building blocks
+3. **Implementing custom validation** - Add your own checks
+
+Example: Custom login with additional verification
+```go
+func (s *LoginFlowService) ProcessCustomLogin(ctx context.Context, request Request) Result {
+    // 1. Standard authentication
+    loginResult, err := s.authenticateCredentials(ctx, request)
+    if err != nil {
+        return s.errorResult(ErrorTypeInvalidCredentials, err.Error())
+    }
+
+    // 2. Custom validation
+    if err := s.myCustomValidation(ctx, loginResult); err != nil {
+        return s.errorResult("custom_error", err.Error())
+    }
+
+    // 3. Standard user validation
+    if err := s.validateUserAccount(ctx, loginResult, request); err != nil {
+        return s.errorResult(ErrorTypeNoUserFound, "Account not active")
+    }
+
+    // 4. Skip device recognition and 2FA for your use case
+
+    // 5. Generate tokens
+    tokens, err := s.generateLoginTokensInternal(ctx, loginResult.Users[0], "web")
+    if err != nil {
+        return s.errorResult(ErrorTypeInternalError, "Failed to create tokens")
+    }
+
+    return s.successResult(tokens)
+}
+```
+
+### Available Helper Functions
+
+**Authentication:**
+- `authenticateCredentials(ctx, req)` - Validate credentials (password, email, magic link)
+- `validateUserAccount(ctx, loginResult, req)` - Check account is active
+- `recordLoginAttempt(ctx, loginID, req, success, failureReason)` - Log attempt
+
+**Device & 2FA:**
+- `checkDeviceRecognition(ctx, loginID, fingerprintStr)` - Check if device recognized
+- `check2FARequirement(ctx, loginID)` - Check if 2FA enabled
+- `validate2FACode(ctx, loginID, twoFAType, passcode)` - Validate 2FA code
+- `rememberDevice(ctx, loginID, fingerprintStr)` - Link device to login
+- `send2FACode(ctx, loginID, userID, twoFAType, deliveryOption)` - Send 2FA code
+
+**User Management:**
+- `getMultipleUsers(ctx, loginID)` - Get all users for a login
+- `hasMultipleUsers(ctx, loginID)` - Check if multiple users exist
+- `getUserByID(ctx, userID)` - Get specific user
+- `getUserFromLoginID(ctx, loginID)` - Get first user for login
+
+**Tokens:**
+- `generateLoginTokensInternal(ctx, user, tokenType)` - Create access/refresh tokens
+- `generateTempTokenInternal(ctx, userID, extraClaims)` - Create temp token
+- `validateTempTokenInternal(ctx, tokenString)` - Validate temp token
+
+**Results:**
+- `errorResult(errorType, message)` - Create error result
+- `require2FAResult(loginID, methods, tempToken)` - Create 2FA required result
+- `requireUserSelectionResult(loginID, users, tempToken)` - Create user selection result
+- `successResult(tokens)` - Create success result
+
+## Error Handling
+
+### Error Types
 
 ```go
 const (
-    OrderCredentialAuthentication = 100    // Validate credentials
-    OrderUserValidation          = 200    // Ensure user exists
-    OrderLoginIDParsing          = 300    // Parse login identifier
-    OrderDeviceRecognition       = 400    // Check device status
-    OrderTwoFARequirement        = 500    // Handle 2FA requirements
-    OrderMultipleUsers           = 600    // Handle multiple user accounts
-    OrderTokenGeneration         = 700    // Generate JWT tokens
-    OrderSuccessRecording        = 800    // Record successful login
+    ErrorTypeAccountLocked      = "account_locked"
+    ErrorTypePasswordExpired    = "password_expired"
+    ErrorTypeInvalidCredentials = "invalid_credentials"
+    ErrorTypeNoUserFound        = "no_user_found"
+    ErrorTypeInternalError      = "internal_error"
 )
 ```
 
-## Builder Pattern
-
-### FlowBuilder
-
-Provides a fluent interface for constructing flows:
+### Checking Errors
 
 ```go
-builder := NewFlowBuilder()
-executor := builder.
-    AddStep(NewCredentialAuthenticationStep("username")).
-    AddStep(NewUserValidationStep()).
-    AddStep(NewTokenGenerationStep("web")).
-    Build(services)
+result := loginFlowService.ProcessLogin(ctx, request)
+
+if !result.Success && result.ErrorResponse != nil {
+    switch result.ErrorResponse.Type {
+    case loginflow.ErrorTypeAccountLocked:
+        // Account is temporarily locked
+        message := result.ErrorResponse.Message // "Your account has been temporarily locked..."
+
+    case loginflow.ErrorTypeInvalidCredentials:
+        // Wrong username or password
+
+    case loginflow.ErrorTypePasswordExpired:
+        // Password needs reset
+
+    case loginflow.ErrorTypeNoUserFound:
+        // Account not active
+
+    case loginflow.ErrorTypeInternalError:
+        // System error
+    }
+}
 ```
 
-### LoginFlowBuilders
+## Optional Features
 
-Pre-configured builders for common flow types:
+### No-Op Services
+
+If you don't need certain features, use no-op implementations:
+
+#### Disable 2FA
+```go
+twoFaService := twofa.NewNoOpTwoFactorService()
+```
+- All 2FA checks return "not enabled"
+- No 2FA prompts
+- No database tables needed
+
+#### Disable Device Tracking
+```go
+deviceRepository := device.NewNoOpDeviceRepository()
+deviceService := device.NewDeviceService(deviceRepository, loginRepository)
+```
+- Device recognition always returns false
+- "Remember me" silently succeeds but doesn't persist
+- No device tracking tables needed
+
+### Progressive Enhancement
+
+Start with minimal features and add as needed:
 
 ```go
-builders := NewLoginFlowBuilders(
+// 1. Start minimal (password-only)
+services := loginflow.NewLoginFlowService(
     loginService,
-    twoFactorService,
-    deviceService,
+    twofa.NewNoOpTwoFactorService(),      // No 2FA
+    device.NewDeviceService(device.NewNoOpDeviceRepository(), loginRepo), // No device tracking
     tokenService,
+    nil,
     userMapper,
 )
 
-// Use pre-configured flows
-webFlow := builders.BuildWebLoginFlow()
-mobileFlow := builders.BuildMobileLoginFlow()
-customFlow := builders.BuildCustomFlow(customSteps)
-```
-
-## Pre-configured Flows
-
-### 1. Web Login Flow
-**Steps:** Credential Auth → User Validation → Login ID Parsing → Device Recognition → 2FA → Multiple Users → Token Generation → Success Recording
-
-**Use Case:** Standard web application login with full security features
-
-### 2. Mobile Login Flow
-**Steps:** Same as web flow but with mobile-specific token generation
-
-**Use Case:** Mobile applications requiring device-specific tokens
-
-### 3. Email Login Flow
-**Steps:** Email-based credential authentication with standard flow
-
-**Use Case:** Email/password authentication
-
-### 4. Magic Link Flow
-**Steps:** Magic link validation → User Validation → Login ID Parsing → Multiple Users → Token Generation → Success Recording
-
-**Use Case:** Passwordless authentication via email links (skips device recognition and 2FA)
-
-### 5. Minimal Flow
-**Steps:** Credential Auth → User Validation → Login ID Parsing → Token Generation → Success Recording
-
-**Use Case:** Simple authentication without advanced security features
-
-### 6. Passwordless Flow
-**Steps:** Credential Auth → User Validation → Login ID Parsing → Device Recognition → Multiple Users → Token Generation → Success Recording
-
-**Use Case:** Passwordless authentication with device recognition (skips 2FA)
-
-## Creating Custom Flows
-
-### Method 1: Using FlowBuilder
-
-```go
-customFlow := NewFlowBuilder().
-    AddStep(NewCredentialAuthenticationStep("username")).
-    AddStep(NewUserValidationStep()).
-    AddStep(NewCustomSecurityStep()).  // Your custom step
-    AddStep(NewTokenGenerationStep("web")).
-    Build(services)
-```
-
-### Method 2: Using LoginFlowBuilders
-
-```go
-customSteps := []LoginFlowStep{
-    NewCredentialAuthenticationStep("email"),
-    NewCustomValidationStep(),
-    NewTokenGenerationStep("api"),
-}
-
-executor := builders.BuildCustomFlow(customSteps)
-```
-
-### Method 3: Dynamic Flow Selection
-
-```go
-flowType := FlowType("custom_flow")
-executor := builders.BuildFlowByType(flowType)
-```
-
-## Step Implementation
-
-### Creating a Custom Step
-
-```go
-type CustomValidationStep struct {
-    config CustomConfig
-}
-
-func NewCustomValidationStep(config CustomConfig) *CustomValidationStep {
-    return &CustomValidationStep{config: config}
-}
-
-func (s *CustomValidationStep) Name() string {
-    return "custom_validation"
-}
-
-func (s *CustomValidationStep) Order() int {
-    return 250  // Between user validation (200) and login ID parsing (300)
-}
-
-func (s *CustomValidationStep) ShouldSkip(ctx context.Context, flowContext *FlowContext) bool {
-    // Skip if custom validation is disabled
-    return !s.config.Enabled
-}
-
-func (s *CustomValidationStep) Execute(ctx context.Context, flowContext *FlowContext) (*StepResult, error) {
-    // Perform custom validation logic
-    if !s.validateCustomRules(flowContext.Result.Users) {
-        return &StepResult{
-            Error: &Error{
-                Type:    "custom_validation_failed",
-                Message: "Custom validation rules not met",
-            },
-        }, nil
-    }
-
-    // Store validation result
-    return &StepResult{
-        Continue: true,
-        Data: map[string]interface{}{
-            "custom_validation_passed": true,
-            "validation_timestamp":     time.Now(),
-        },
-    }, nil
-}
-
-func (s *CustomValidationStep) validateCustomRules(users []mapper.User) bool {
-    // Your custom validation logic here
-    return true
-}
-```
-
-## Usage Examples
-
-### Basic Usage
-
-```go
-// Initialize services
-services := &ServiceDependencies{
-    LoginService:     loginSvc,
-    TwoFactorService: twoFASvc,
-    DeviceService:    deviceSvc,
-    TokenService:     tokenSvc,
-    UserMapper:       userMapper,
-}
-
-// Create flow builders
-builders := NewLoginFlowBuilders(
-    services.LoginService,
-    services.TwoFactorService,
-    services.DeviceService,
-    services.TokenService,
-    services.UserMapper,
+// 2. Add 2FA later
+twoFaService := twofa.NewTwoFaService(twofaQueries, ...)
+services = loginflow.NewLoginFlowService(
+    loginService,
+    twoFaService,  // Real 2FA
+    deviceService,
+    tokenService,
+    nil,
+    userMapper,
 )
 
-// Execute web login flow
-request := Request{
-    Username:          "user@example.com",
-    Password:          "password123",
-    IPAddress:         "192.168.1.1",
-    UserAgent:         "Mozilla/5.0...",
-    DeviceFingerprint: "device123",
-}
-
-executor := builders.BuildWebLoginFlow()
-result := executor.Execute(ctx, request)
-
-if result.ErrorResponse != nil {
-    // Handle error
-    log.Printf("Login failed: %s", result.ErrorResponse.Message)
-} else if result.RequiresTwoFA {
-    // Handle 2FA requirement
-    log.Printf("2FA required, temp token: %s", result.Tokens["temp_token"].Token)
-} else if result.Success {
-    // Handle successful login
-    log.Printf("Login successful, access token: %s", result.Tokens["access_token"].Token)
-}
+// 3. Add device tracking later
+deviceRepo := device.NewPostgresDeviceRepository(pool, ...)
+deviceService = device.NewDeviceService(deviceRepo, loginRepo)
 ```
 
-### Advanced Custom Flow
+## Migration from Old Flow System
 
-```go
-// Create a custom enterprise flow
-enterpriseFlow := NewFlowBuilder().
-    AddStep(NewCredentialAuthenticationStep("username")).
-    AddStep(NewUserValidationStep()).
-    AddStep(NewLoginIDParsingStep()).
-    AddStep(NewEnterpriseSecurityStep()).      // Custom step
-    AddStep(NewComplianceCheckStep()).         // Custom step
-    AddStep(NewDeviceRecognitionStep()).
-    AddStep(NewTwoFARequirementStep()).
-    AddStep(NewAuditLoggingStep()).           // Custom step
-    AddStep(NewTokenGenerationStep("enterprise")).
-    AddStep(NewSuccessRecordingStep()).
-    Build(services)
+### What Changed
 
-result := enterpriseFlow.Execute(ctx, request)
-```
+**Removed:**
+- FlowExecutor, FlowBuilder, StepRegistry (flow abstraction)
+- 13 step implementations (CredentialAuthenticationStep, etc.)
+- Flow builders (BuildWebLoginFlow, BuildMobileLoginFlow, etc.)
+- ServiceDependencies wrapper
 
-### Conditional Flow Building
+**Kept:**
+- All public API methods (`Process*` methods) - **zero breaking changes**
+- Request and Result structures
+- Error types and handling
 
-```go
-func buildFlowForUser(userType string, services *ServiceDependencies) *FlowExecutor {
-    builder := NewFlowBuilder().
-        AddStep(NewCredentialAuthenticationStep("username")).
-        AddStep(NewUserValidationStep()).
-        AddStep(NewLoginIDParsingStep())
+### Public API (Unchanged)
 
-    // Add steps based on user type
-    switch userType {
-    case "admin":
-        builder.AddStep(NewAdminValidationStep()).
-                AddStep(NewTwoFARequirementStep())
-    case "enterprise":
-        builder.AddStep(NewEnterpriseSecurityStep()).
-                AddStep(NewComplianceCheckStep())
-    }
+All these methods have the **exact same signatures**:
+- `ProcessLogin(ctx, Request)`
+- `ProcessMobileLogin(ctx, Request)`
+- `ProcessLoginByEmail(...)`
+- `ProcessMagicLinkValidation(...)`
+- `Process2FAValidation(ctx, TwoFAValidationRequest)`
+- `ProcessMobile2FAValidation(ctx, TwoFAValidationRequest)`
+- `ProcessUserSwitch(ctx, UserSwitchRequest)`
+- `ProcessMobileUserLookup(ctx, MobileUserLookupRequest)`
+- `Process2FASend(ctx, TwoFASendRequest)`
+- `ProcessTokenRefresh(ctx, TokenRefreshRequest)`
+- `ProcessMobileTokenRefresh(ctx, TokenRefreshRequest)`
+- `ProcessLogout(ctx)`
 
-    return builder.
-        AddStep(NewTokenGenerationStep("web")).
-        AddStep(NewSuccessRecordingStep()).
-        Build(services)
-}
-```
+### Benefits of New Architecture
+
+**Simpler:**
+- ~600 lines of code removed
+- No flow abstraction to learn
+- Direct function calls
+
+**More Maintainable:**
+- Type-safe (no string-keyed maps)
+- Clear control flow (read top-to-bottom)
+- Easier debugging
+
+**More Flexible:**
+- Copy and modify `Process*` methods for custom flows
+- Reuse helper functions as building blocks
+- No need to understand step ordering or flow execution
 
 ## Testing
 
-The architecture supports comprehensive testing at multiple levels:
-
-### Unit Testing Steps
+### Unit Testing Helper Functions
 
 ```go
-func TestCustomValidationStep(t *testing.T) {
-    step := NewCustomValidationStep(CustomConfig{Enabled: true})
-    
-    flowContext := &FlowContext{
-        Result: &Result{
-            Users: []mapper.User{{UserId: "user123"}},
-        },
-        StepData: make(map[string]interface{}),
+func TestCheckDeviceRecognition(t *testing.T) {
+    // Mock device service
+    mockDevice := &MockDeviceService{}
+
+    service := &LoginFlowService{
+        deviceService: mockDevice,
     }
 
-    result, err := step.Execute(context.Background(), flowContext)
-    
-    assert.NoError(t, err)
-    assert.True(t, result.Continue)
-    assert.True(t, result.Data["custom_validation_passed"].(bool))
+    result := service.checkDeviceRecognition(ctx, loginID, "fingerprint")
+
+    assert.True(t, result)
 }
 ```
 
-### Integration Testing Flows
+### Integration Testing
 
-```go
-func TestWebLoginFlow(t *testing.T) {
-    // Setup mock services
-    services := setupMockServices()
-    
-    builders := NewLoginFlowBuilders(/* services */)
-    executor := builders.BuildWebLoginFlow()
-    
-    request := Request{
-        Username: "testuser",
-        Password: "password",
-    }
-    
-    result := executor.Execute(context.Background(), request)
-    
-    assert.Nil(t, result.ErrorResponse)
-    assert.True(t, result.Success)
-}
+The `service_test.go` file contains integration tests using testcontainers:
+
+```bash
+go test -v ./pkg/loginflow/...
 ```
 
-### Testing Flow Composition
+## Examples
 
-```go
-func TestFlowStepOrdering(t *testing.T) {
-    builder := NewFlowBuilder().
-        AddStep(NewMockStep("step3", 300)).
-        AddStep(NewMockStep("step1", 100)).
-        AddStep(NewMockStep("step2", 200))
-    
-    executor := builder.Build(services)
-    steps := executor.registry.GetOrderedSteps()
-    
-    assert.Equal(t, "step1", steps[0].Name())
-    assert.Equal(t, "step2", steps[1].Name())
-    assert.Equal(t, "step3", steps[2].Name())
-}
-```
+See the following implementations for complete examples:
+- `cmd/loginv2/main.go` - Full-featured implementation with all services
+- `cmd/quick/main.go` - Minimal implementation with no-op services
 
-## Best Practices
+## Support
 
-1. **Step Naming**: Use descriptive, consistent names for steps
-2. **Order Values**: Leave gaps between order values (100, 200, 300) for future insertions
-3. **Error Handling**: Always return structured errors with meaningful messages
-4. **Data Storage**: Use the StepData map for sharing information between steps
-5. **Skip Logic**: Implement ShouldSkip() for conditional step execution
-6. **Testing**: Write unit tests for individual steps and integration tests for complete flows
-7. **Documentation**: Document custom steps and their purpose
-8. **Service Injection**: Use the ServiceDependencies pattern for accessing external services
-
-This architecture provides a robust foundation for building flexible, maintainable authentication flows that can adapt to changing requirements while maintaining clean separation of concerns.
+For issues, questions, or contributions, please refer to the main Simple IDM repository.
