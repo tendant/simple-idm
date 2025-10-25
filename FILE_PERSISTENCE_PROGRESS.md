@@ -50,6 +50,63 @@
 
 **Total: 4 packages adapted, ~1,300 lines of file-based implementation**
 
+### Phase 2.5: File-Based Implementations for Remaining Packages ✅
+
+**Created file-based implementations for 4 more packages with existing interfaces:**
+
+5. **`pkg/login/file_repository.go`** ✅
+   - Stores credentials, password reset tokens, password history, login attempts, magic links in `login.json`
+   - 46 interface methods (comprehensive authentication data)
+   - Handles complex operations: password history, account locking, magic links
+   - ~680 lines
+
+6. **`pkg/device/file_repository.go`** ✅
+   - Stores devices and login-device links in `devices.json`
+   - 14 interface methods (device tracking and linking)
+   - Configurable expiry duration for "remember me" feature
+   - ~320 lines
+
+7. **`pkg/delegate/file_repository.go`** ✅
+   - Stores delegation relationships in `delegations.json`
+   - 1 interface method (FindDelegators) + 2 helper methods
+   - Supports user delegation/impersonation
+   - ~170 lines
+
+8. **`pkg/emailverification/file_repository.go`** ✅
+   - Stores verification tokens and user email status in `email_verification.json`
+   - 11 interface methods (token management, verification status)
+   - Handles token expiration and cleanup
+   - ~340 lines
+   - Also created `EmailVerificationRepository` interface (was concrete before)
+
+**Total Phase 2 + 2.5: 9 packages with file-based storage, ~3,110 lines of implementation**
+
+### Phase 3: Repository Interface Extraction for Remaining Packages ✅
+
+**Completed repository interface extraction:**
+
+9. **`pkg/mapper/repository.go`** ✅
+   - Extracted `MapperRepository` interface with 3 methods
+   - Created domain entity `UserEntity` without database types
+   - Implemented `PostgresMapperRepository` wrapping mapperdb.Queries
+   - Added conversion helpers for arrays (roles, groups)
+   - Updated `DefaultUserMapper` to use repository interface
+   - Updated callers in cmd/loginv2, cmd/quick, cmd/login, cmd/passwordless-auth
+   - ~210 lines
+
+**Key changes:**
+- Repository handles database operations (GetUsersByLoginID, GetUserByUserID, FindUsernamesByEmail)
+- UserMapper focuses on business logic and token claims conversion
+- Clean separation of concerns between data access and domain logic
+
+10. **`pkg/auth/repository.go`** ✅
+   - Extracted `AuthRepository` interface with 2 methods
+   - Created domain entity `UserAuthEntity` without database types
+   - Implemented `PostgresAuthRepository` wrapping auth/db.Queries
+   - Updated `AuthLoginService` to use repository interface
+   - ~77 lines
+   - Note: AuthLoginService not currently used in main applications (legacy/unused)
+
 ### Pattern Established
 
 **Repository Interface Structure:**
@@ -87,9 +144,9 @@ type XRepository interface {
 **Packages needing repository abstraction:**
 1. `pkg/twofa` - Two-factor authentication settings
 2. `pkg/role` - Role definitions (DONE - already has repository)
-3. `pkg/auth` - Auth tokens
-4. `pkg/mapper` - User-login mappings
-5. `pkg/iam` - Users and groups
+3. ✅ `pkg/auth` - Auth tokens (DONE)
+4. ✅ `pkg/mapper` - User-login mappings (DONE)
+5. ✅ `pkg/iam` - Users and groups (DONE - already has repository)
 6. `pkg/profile` - User profiles
 
 **For each package:**

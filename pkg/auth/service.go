@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"regexp"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/tendant/simple-idm/pkg/auth/db"
 	"github.com/tendant/simple-idm/pkg/login"
 )
 
@@ -45,14 +43,14 @@ type (
 )
 
 type AuthLoginService struct {
-	queries      *db.Queries
+	repo         AuthRepository
 	loginService *login.LoginService
 	pwdComplex   PasswordComplexity
 }
 
-func NewAuthLoginService(queries *db.Queries, loginService *login.LoginService) *AuthLoginService {
+func NewAuthLoginService(repo AuthRepository, loginService *login.LoginService) *AuthLoginService {
 	return &AuthLoginService{
-		queries:      queries,
+		repo:         repo,
 		loginService: loginService,
 	}
 }
@@ -94,7 +92,7 @@ func (authSvc AuthLoginService) VerifyPasswordComplexity(ctx context.Context, pa
 }
 
 func (authSvc AuthLoginService) MatchPasswordByUuids(ctx context.Context, param MatchPassParam) (bool, error) {
-	loginRecord, err := authSvc.queries.FindUserByUserUuid(ctx, param.UserUuid)
+	userAuthEntity, err := authSvc.repo.FindUserByUserUUID(ctx, param.UserUuid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		slog.Error("User not found", "user uuid", param.UserUuid)
 		return false, errors.New("user not found")
@@ -102,7 +100,13 @@ func (authSvc AuthLoginService) MatchPasswordByUuids(ctx context.Context, param 
 		slog.Error("Failed to find user record", "user uuid", param.UserUuid, "err", err)
 		return false, err
 	}
-	return authSvc.loginService.CheckPasswordHash(param.Password, loginRecord.Password.String, login.PasswordV1)
+
+	if !userAuthEntity.PasswordValid {
+		slog.Error("User has no password set", "user uuid", param.UserUuid)
+		return false, errors.New("user has no password set")
+	}
+
+	return authSvc.loginService.CheckPasswordHash(param.Password, userAuthEntity.Password, login.PasswordV1)
 }
 
 func (authSvc AuthLoginService) UpdatePassword(ctx context.Context, param UpdatePassParam) error {
@@ -113,10 +117,10 @@ func (authSvc AuthLoginService) UpdatePassword(ctx context.Context, param Update
 		return err
 	}
 
-	err = authSvc.queries.UpdatePassowrd(ctx, db.UpdatePassowrdParams{
-		Password:       sql.NullString{Valid: true, String: hashedPassword},
+	err = authSvc.repo.UpdatePassword(ctx, UpdatePasswordParams{
+		UserID:         param.UserUuid,
+		Password:       hashedPassword,
 		LastModifiedAt: time.Now().UTC(),
-		Uuid:           param.UserUuid,
 	})
 	if err != nil {
 		slog.Error("Failed to update password", "err", err)
