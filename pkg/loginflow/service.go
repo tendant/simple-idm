@@ -28,19 +28,13 @@ const (
 	ErrorTypeInternalError      = "internal_error"
 )
 
-// ServiceDependencies holds all the services required by the login flow
-type ServiceDependencies struct {
-	LoginService     *login.LoginService
-	TwoFactorService twofa.TwoFactorService
-	DeviceService    *device.DeviceService
-	TokenService     tg.TokenService
-	UserMapper       mapper.UserMapper
-}
-
 // Service orchestrates the complete login flow business logic
 type LoginFlowService struct {
-	// Direct service dependencies (no longer using flow builders)
-	services *ServiceDependencies
+	loginService     *login.LoginService
+	twoFactorService twofa.TwoFactorService
+	deviceService    *device.DeviceService
+	tokenService     tg.TokenService
+	userMapper       mapper.UserMapper
 }
 
 // Request contains all the data needed for a login flow
@@ -112,7 +106,7 @@ type TwoFactorMethod struct {
 // Required services:
 //   - loginService: handles authentication logic
 //   - tokenService: generates JWT tokens
-//   - tokenCookieService: manages token cookies
+//   - tokenCookieService: manages token cookies (not stored, only used for validation)
 //   - userMapper: maps between user types
 //
 // Optional services (can use no-op implementations):
@@ -128,17 +122,12 @@ func NewLoginFlowService(
 	tokenCookieService *tg.TokenCookieService,
 	userMapper mapper.UserMapper,
 ) *LoginFlowService {
-	// Store service dependencies directly
-	serviceDependencies := &ServiceDependencies{
-		LoginService:     loginService,
-		TwoFactorService: twoFactorService,
-		DeviceService:    deviceService,
-		TokenService:     tokenService,
-		UserMapper:       userMapper,
-	}
-
 	return &LoginFlowService{
-		services: serviceDependencies,
+		loginService:     loginService,
+		twoFactorService: twoFactorService,
+		deviceService:    deviceService,
+		tokenService:     tokenService,
+		userMapper:       userMapper,
 	}
 }
 
@@ -155,9 +144,9 @@ func (s *LoginFlowService) ProcessLogin(ctx context.Context, request Request) Re
 // GenerateLoginTokens generates JWT tokens for a successful login
 func (s *LoginFlowService) GenerateLoginTokens(ctx context.Context, user mapper.User) (map[string]tg.TokenValue, error) {
 	// Create JWT tokens using the JwtService
-	rootModifications, extraClaims := s.services.UserMapper.ToTokenClaims(user)
+	rootModifications, extraClaims := s.userMapper.ToTokenClaims(user)
 
-	tokens, err := s.services.TokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
+	tokens, err := s.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate tokens", "err", err)
 		return nil, fmt.Errorf("failed to generate tokens: %w", err)
@@ -179,9 +168,9 @@ func (s *LoginFlowService) ProcessMobileLogin(ctx context.Context, request Reque
 // GenerateMobileLoginTokens generates mobile JWT tokens for a successful login
 func (s *LoginFlowService) GenerateMobileLoginTokens(ctx context.Context, user mapper.User) (map[string]tg.TokenValue, error) {
 	// Create mobile JWT tokens using the JwtService
-	rootModifications, extraClaims := s.services.UserMapper.ToTokenClaims(user)
+	rootModifications, extraClaims := s.userMapper.ToTokenClaims(user)
 
-	tokens, err := s.services.TokenService.GenerateMobileTokens(user.UserId, rootModifications, extraClaims)
+	tokens, err := s.tokenService.GenerateMobileTokens(user.UserId, rootModifications, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate mobile tokens", "err", err)
 		return nil, fmt.Errorf("failed to generate mobile tokens: %w", err)
@@ -219,7 +208,7 @@ func (s *LoginFlowService) ProcessMagicLinkValidation(ctx context.Context, token
 	}
 
 	// 1. Validate magic link token
-	loginResult, err := s.services.LoginService.ValidateMagicLinkToken(ctx, token)
+	loginResult, err := s.loginService.ValidateMagicLinkToken(ctx, token)
 	if err != nil {
 		slog.Error("Magic link validation failed", "err", err)
 		if loginResult.LoginID != uuid.Nil {
@@ -561,7 +550,7 @@ func (s *LoginFlowService) ProcessMobileTokenRefresh(ctx context.Context, reques
 // validateRefreshToken validates a refresh token and returns the parsed token
 func (s *LoginFlowService) validateRefreshToken(tokenString string) (*jwt.Token, error) {
 	// Parse and validate the refresh token
-	token, err := s.services.TokenService.ParseToken(tokenString)
+	token, err := s.tokenService.ParseToken(tokenString)
 	if err != nil {
 		slog.Error("Invalid refresh token", "err", err)
 		return nil, fmt.Errorf("invalid refresh token: %w", err)
@@ -611,14 +600,14 @@ func (s *LoginFlowService) getUserFromToken(ctx context.Context, token *jwt.Toke
 		return "", mapper.User{}, fmt.Errorf("failed to parse user ID: %w", err)
 	}
 
-	tokenUser, err := s.services.UserMapper.GetUserByUserID(ctx, userUuid)
+	tokenUser, err := s.userMapper.GetUserByUserID(ctx, userUuid)
 	if err != nil {
 		slog.Error("Failed to get user by user ID", "err", err, "user_id", userIdStr)
 		return "", mapper.User{}, fmt.Errorf("failed to get user by user ID: %w", err)
 	}
 
 	// Extract claims from token and add them to the user's extra claims
-	tokenUser = s.services.UserMapper.ExtractTokenClaims(tokenUser, mapClaims)
+	tokenUser = s.userMapper.ExtractTokenClaims(tokenUser, mapClaims)
 
 	return userIdStr, tokenUser, nil
 }
@@ -634,13 +623,13 @@ func (s *LoginFlowService) authenticateCredentials(ctx context.Context, req Requ
 
 	if req.MagicLinkToken != "" {
 		// Magic link authentication
-		loginResult, err = s.services.LoginService.ValidateMagicLinkToken(ctx, req.MagicLinkToken)
+		loginResult, err = s.loginService.ValidateMagicLinkToken(ctx, req.MagicLinkToken)
 	} else if req.FlowType == "email" {
 		// Email-based authentication
-		loginResult, err = s.services.LoginService.LoginByEmail(ctx, req.Username, req.Password)
+		loginResult, err = s.loginService.LoginByEmail(ctx, req.Username, req.Password)
 	} else {
 		// Username-based authentication
-		loginResult, err = s.services.LoginService.Login(ctx, req.Username, req.Password)
+		loginResult, err = s.loginService.Login(ctx, req.Username, req.Password)
 	}
 
 	return loginResult, err
@@ -650,7 +639,7 @@ func (s *LoginFlowService) authenticateCredentials(ctx context.Context, req Requ
 func (s *LoginFlowService) validateUserAccount(ctx context.Context, loginResult login.LoginResult, req Request) error {
 	if len(loginResult.Users) == 0 {
 		slog.Error("No user found after login")
-		s.services.LoginService.RecordLoginAttempt(ctx, loginResult.LoginID, req.IPAddress, req.UserAgent, req.DeviceFingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
+		s.loginService.RecordLoginAttempt(ctx, loginResult.LoginID, req.IPAddress, req.UserAgent, req.DeviceFingerprintStr, false, login.FAILURE_REASON_NO_USER_FOUND)
 		return fmt.Errorf("account not active")
 	}
 	return nil
@@ -658,7 +647,7 @@ func (s *LoginFlowService) validateUserAccount(ctx context.Context, loginResult 
 
 // recordLoginAttempt logs login attempt to database
 func (s *LoginFlowService) recordLoginAttempt(ctx context.Context, loginID uuid.UUID, req Request, success bool, failureReason string) {
-	s.services.LoginService.RecordLoginAttempt(ctx, loginID, req.IPAddress, req.UserAgent, req.DeviceFingerprintStr, success, failureReason)
+	s.loginService.RecordLoginAttempt(ctx, loginID, req.IPAddress, req.UserAgent, req.DeviceFingerprintStr, success, failureReason)
 }
 
 // checkDeviceRecognition checks if device is recognized for the login
@@ -667,7 +656,7 @@ func (s *LoginFlowService) checkDeviceRecognition(ctx context.Context, loginID u
 		return false
 	}
 
-	loginDevice, err := s.services.DeviceService.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprintStr, loginID)
+	loginDevice, err := s.deviceService.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprintStr, loginID)
 	if err != nil {
 		return false
 	}
@@ -682,7 +671,7 @@ func (s *LoginFlowService) checkDeviceRecognition(ctx context.Context, loginID u
 
 // check2FARequirement returns whether 2FA is required and available methods
 func (s *LoginFlowService) check2FARequirement(ctx context.Context, loginID uuid.UUID) (bool, []TwoFactorMethod, error) {
-	enabledTwoFAs, err := s.services.TwoFactorService.FindEnabledTwoFAs(ctx, loginID)
+	enabledTwoFAs, err := s.twoFactorService.FindEnabledTwoFAs(ctx, loginID)
 	if err != nil {
 		slog.Error("Failed to find enabled 2FA", "loginID", loginID, "error", err)
 		return false, nil, fmt.Errorf("failed to find enabled 2FA: %w", err)
@@ -723,7 +712,7 @@ func (s *LoginFlowService) convertToTwoFactorMethods(ctx context.Context, loginI
 // getDeliveryOptions retrieves delivery options for SMS/email 2FA
 func (s *LoginFlowService) getDeliveryOptions(ctx context.Context, loginID uuid.UUID, twoFAType string) []DeliveryOption {
 	// Get users for this login
-	users, err := s.services.UserMapper.FindUsersByLoginID(ctx, loginID)
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
 	if err != nil {
 		slog.Error("Failed to get users for delivery options", "loginID", loginID, "err", err)
 		return []DeliveryOption{}
@@ -759,7 +748,7 @@ func (s *LoginFlowService) rememberDevice(ctx context.Context, loginID uuid.UUID
 		return nil
 	}
 
-	err := s.services.DeviceService.LinkDeviceToLogin(ctx, loginID, fingerprintStr)
+	err := s.deviceService.LinkDeviceToLogin(ctx, loginID, fingerprintStr)
 	if err != nil {
 		slog.Error("Failed to link device to login", "loginID", loginID, "err", err)
 		return err
@@ -771,7 +760,7 @@ func (s *LoginFlowService) rememberDevice(ctx context.Context, loginID uuid.UUID
 
 // validate2FACode validates the provided 2FA passcode
 func (s *LoginFlowService) validate2FACode(ctx context.Context, loginID uuid.UUID, twoFAType, passcode string) error {
-	valid, err := s.services.TwoFactorService.Validate2faPasscode(ctx, loginID, twoFAType, passcode)
+	valid, err := s.twoFactorService.Validate2faPasscode(ctx, loginID, twoFAType, passcode)
 	if err != nil {
 		slog.Error("2FA validation error", "loginID", loginID, "err", err)
 		return fmt.Errorf("2FA validation failed: %w", err)
@@ -787,7 +776,7 @@ func (s *LoginFlowService) validate2FACode(ctx context.Context, loginID uuid.UUI
 
 // send2FACode sends 2FA code via email/SMS
 func (s *LoginFlowService) send2FACode(ctx context.Context, loginID, userID uuid.UUID, twoFAType, deliveryOption string) error {
-	err := s.services.TwoFactorService.SendTwoFaNotification(ctx, loginID, userID, twoFAType, deliveryOption)
+	err := s.twoFactorService.SendTwoFaNotification(ctx, loginID, userID, twoFAType, deliveryOption)
 	if err != nil {
 		slog.Error("Failed to send 2FA code", "loginID", loginID, "err", err)
 		return fmt.Errorf("failed to send verification code: %w", err)
@@ -799,7 +788,7 @@ func (s *LoginFlowService) send2FACode(ctx context.Context, loginID, userID uuid
 
 // getMultipleUsers returns all users associated with a login
 func (s *LoginFlowService) getMultipleUsers(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
-	users, err := s.services.UserMapper.FindUsersByLoginID(ctx, loginID)
+	users, err := s.userMapper.FindUsersByLoginID(ctx, loginID)
 	if err != nil {
 		slog.Error("Failed to get users", "loginID", loginID, "err", err)
 		return nil, fmt.Errorf("failed to get users: %w", err)
@@ -818,7 +807,7 @@ func (s *LoginFlowService) hasMultipleUsers(ctx context.Context, loginID uuid.UU
 
 // getUserByID retrieves a specific user by ID
 func (s *LoginFlowService) getUserByID(ctx context.Context, userID uuid.UUID) (mapper.User, error) {
-	user, err := s.services.UserMapper.GetUserByUserID(ctx, userID)
+	user, err := s.userMapper.GetUserByUserID(ctx, userID)
 	if err != nil {
 		slog.Error("Failed to get user by ID", "userID", userID, "err", err)
 		return mapper.User{}, fmt.Errorf("failed to get user: %w", err)
@@ -840,15 +829,15 @@ func (s *LoginFlowService) getUserFromLoginID(ctx context.Context, loginID uuid.
 
 // generateLoginTokensInternal creates JWT tokens for successful login (web or mobile)
 func (s *LoginFlowService) generateLoginTokensInternal(ctx context.Context, user mapper.User, tokenType string) (map[string]tg.TokenValue, error) {
-	rootModifications, extraClaims := s.services.UserMapper.ToTokenClaims(user)
+	rootModifications, extraClaims := s.userMapper.ToTokenClaims(user)
 
 	var tokens map[string]tg.TokenValue
 	var err error
 
 	if tokenType == "mobile" {
-		tokens, err = s.services.TokenService.GenerateMobileTokens(user.UserId, rootModifications, extraClaims)
+		tokens, err = s.tokenService.GenerateMobileTokens(user.UserId, rootModifications, extraClaims)
 	} else {
-		tokens, err = s.services.TokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
+		tokens, err = s.tokenService.GenerateTokens(user.UserId, rootModifications, extraClaims)
 	}
 
 	if err != nil {
@@ -861,7 +850,7 @@ func (s *LoginFlowService) generateLoginTokensInternal(ctx context.Context, user
 
 // generateTempTokenInternal creates temporary token for multi-step flows
 func (s *LoginFlowService) generateTempTokenInternal(ctx context.Context, userID string, extraClaims map[string]interface{}) (map[string]tg.TokenValue, error) {
-	tempTokenMap, err := s.services.TokenService.GenerateTempToken(userID, nil, extraClaims)
+	tempTokenMap, err := s.tokenService.GenerateTempToken(userID, nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate temp token", "err", err)
 		return nil, fmt.Errorf("failed to generate temp token: %w", err)
@@ -872,7 +861,7 @@ func (s *LoginFlowService) generateTempTokenInternal(ctx context.Context, userID
 // validateTempTokenInternal validates and extracts claims from temporary token
 func (s *LoginFlowService) validateTempTokenInternal(ctx context.Context, tokenString string) (loginID uuid.UUID, claims map[string]interface{}, user mapper.User, err error) {
 	// Parse and validate the temp token
-	token, parseErr := s.services.TokenService.ParseToken(tokenString)
+	token, parseErr := s.tokenService.ParseToken(tokenString)
 	if parseErr != nil {
 		slog.Error("Invalid temp token", "err", parseErr)
 		return uuid.Nil, nil, mapper.User{}, fmt.Errorf("invalid temp token: %w", parseErr)
@@ -970,7 +959,7 @@ func (s *LoginFlowService) processCredentialLogin(ctx context.Context, req Reque
 
 		// Handle specific error types
 		if login.IsAccountLockedError(err) {
-			lockoutDuration := s.services.LoginService.GetLockoutDuration()
+			lockoutDuration := s.loginService.GetLockoutDuration()
 			lockoutMinutes := int(lockoutDuration / time.Minute)
 			return s.errorResult(ErrorTypeAccountLocked,
 				"Your account has been temporarily locked. Please try again in "+strconv.Itoa(lockoutMinutes)+" minutes.")
@@ -1083,7 +1072,7 @@ func (s *LoginFlowService) ProcessLogout(ctx context.Context) Result {
 	result := Result{}
 
 	// Generate logout token
-	tokenMap, err := s.services.TokenService.GenerateLogoutToken("", nil, nil)
+	tokenMap, err := s.tokenService.GenerateLogoutToken("", nil, nil)
 	if err != nil {
 		slog.Error("Failed to generate logout token", "err", err)
 		result.ErrorResponse = &Error{
@@ -1100,7 +1089,7 @@ func (s *LoginFlowService) ProcessLogout(ctx context.Context) Result {
 
 // GetDeviceExpiration returns the device expiration duration from the device service
 func (s *LoginFlowService) GetDeviceExpiration() time.Duration {
-	return s.services.DeviceService.GetDeviceExpiration()
+	return s.deviceService.GetDeviceExpiration()
 }
 
 func (s *LoginFlowService) checkUserAssociationFlow(claims jwt.Claims) (bool, string) {
@@ -1140,7 +1129,7 @@ func (s *LoginFlowService) GenerateUserAssociationToken(loginID, userID string, 
 	}
 
 	// Generate a temporary token with the necessary claims
-	tempTokenMap, err := s.services.TokenService.GenerateTempToken(userID, nil, extraClaims)
+	tempTokenMap, err := s.tokenService.GenerateTempToken(userID, nil, extraClaims)
 	if err != nil {
 		slog.Error("Failed to generate temp token", "err", err)
 		return nil, fmt.Errorf("failed to generate temp token: %w", err)
