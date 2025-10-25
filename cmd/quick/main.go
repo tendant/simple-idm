@@ -323,10 +323,11 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	roleService := role.NewRoleService(roleRepo)
 
 	// Logins service
+	loginsRepo := logins.NewPostgresLoginsRepository(loginsQueries)
 	loginsServiceOptions := &logins.LoginsServiceOptions{
 		PasswordManager: passwordManager,
 	}
-	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, loginsServiceOptions)
+	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, loginsServiceOptions)
 
 	// User service
 	userService := user.NewUserService(iamService, loginsService)
