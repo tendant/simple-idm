@@ -46,7 +46,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/signup"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
-	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 	"github.com/tendant/simple-idm/pkg/user"
 	"github.com/tendant/simple-idm/pkg/wellknown"
 )
@@ -196,7 +195,6 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	loginsQueries := loginsdb.New(pool)
 	roleQueries := roledb.New(pool)
 	mapperQueries := mapperdb.New(pool)
-	twofaQueries := twofadb.New(pool)
 
 	// Notification manager
 	notificationManager, err := notice.NewNotificationManager(
@@ -298,22 +296,16 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 		http.SameSiteLaxMode,
 	)
 
-	// Device service (for magic link validation)
-	deviceExpiryDuration := 90 * 24 * time.Hour // 90 days
-	deviceRepositoryOptions := device.DeviceRepositoryOptions{
-		ExpiryDuration: deviceExpiryDuration,
-	}
-	deviceRepository := device.NewPostgresDeviceRepositoryWithOptions(pool, deviceRepositoryOptions)
+	// Use no-op services for features not needed in quick mode
+	// This eliminates the need for twofa/device database tables and initialization
+	twoFaService := twofa.NewNoOpTwoFactorService()
+
+	// For DeviceService, we'll create a minimal instance with no-op repository
+	// This is simpler than modifying loginflow to accept nil
+	deviceRepository := device.NewNoOpDeviceRepository()
 	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
 
-	// TwoFa service (required for loginflow, but not used in quick mode)
-	twoFaService := twofa.NewTwoFaService(
-		twofaQueries,
-		twofa.WithNotificationManager(notificationManager),
-		twofa.WithUserMapper(userMapper),
-	)
-
-	// LoginFlow service (required by loginapi)
+	// LoginFlow service (with no-op 2FA and minimal device service)
 	loginFlowService := loginflow.NewLoginFlowService(
 		loginService,
 		twoFaService,

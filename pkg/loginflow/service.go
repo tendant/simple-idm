@@ -95,7 +95,19 @@ type TwoFactorMethod struct {
 	DeliveryOptions []DeliveryOption `json:"delivery_options,omitempty"`
 }
 
-// NewService creates a new login flow service
+// NewLoginFlowService creates a new login flow service.
+//
+// Required services:
+//   - loginService: handles authentication logic
+//   - tokenService: generates JWT tokens
+//   - tokenCookieService: manages token cookies
+//   - userMapper: maps between user types
+//
+// Optional services (can use no-op implementations):
+//   - twoFactorService: use twofa.NewNoOpTwoFactorService() if 2FA not needed
+//   - deviceService: use device.NewNoOpDeviceService() if device tracking not needed
+//
+// When using no-op services, related flow steps will be automatically skipped.
 func NewLoginFlowService(
 	loginService *login.LoginService,
 	twoFactorService twofa.TwoFactorService,
