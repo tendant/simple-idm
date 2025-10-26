@@ -102,11 +102,13 @@ func setupTestServices(t *testing.T) (*pgxpool.Pool, *login.LoginService, *login
 
 	// Create repository and services
 	repository := login.NewPostgresLoginRepository(loginQueries)
-	userMapper := mapper.NewDefaultUserMapper(mapperQueries)
+	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
+	userMapper := mapper.NewDefaultUserMapper(mapperRepo)
 	passwordManager := login.NewPasswordManager(loginQueries)
 
 	// Create logins service for creating login
-	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, nil)
+	loginsRepo := logins.NewPostgresLoginsRepository(loginsQueries)
+	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, nil)
 
 	// Create login service with all necessary components
 	loginService := login.NewLoginServiceWithOptions(
