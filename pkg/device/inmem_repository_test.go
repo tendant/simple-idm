@@ -384,17 +384,16 @@ func TestInMemDeviceRepository_UnlinkLoginToDevice(t *testing.T) {
 	// Verify the link exists
 	loginDevice, err := repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
 	require.NoError(t, err)
-	assert.NotNil(t, loginDevice)
-	assert.Nil(t, loginDevice.DeletedAt)
+	assert.NotEqual(t, uuid.Nil, loginDevice.ID)
+	assert.True(t, loginDevice.DeletedAt.IsZero())
 
 	// Unlink the device
 	err = repo.UnlinkLoginToDevice(ctx, loginID, fingerprint)
 	require.NoError(t, err)
 
 	// Verify the link is marked as deleted
-	loginDevice, err = repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
+	_, err = repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
 	assert.Error(t, err)
-	assert.Nil(t, loginDevice)
 	assert.Contains(t, err.Error(), "not found")
 
 	// Test unlinking a non-existent link
@@ -437,17 +436,15 @@ func TestInMemDeviceRepository_FindLoginDeviceByFingerprintAndLoginID(t *testing
 
 	// Test finding a non-existent link
 	nonExistentLoginID := uuid.New()
-	loginDevice, err = repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, nonExistentLoginID)
+	_, err = repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, nonExistentLoginID)
 	assert.Error(t, err)
-	assert.Nil(t, loginDevice)
 
 	// Test that deleted links are not found
 	err = repo.UnlinkLoginToDevice(ctx, loginID, fingerprint)
 	require.NoError(t, err)
 
-	loginDevice, err = repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
+	_, err = repo.FindLoginDeviceByFingerprintAndLoginID(ctx, fingerprint, loginID)
 	assert.Error(t, err)
-	assert.Nil(t, loginDevice)
 	assert.Contains(t, err.Error(), "not found")
 }
 

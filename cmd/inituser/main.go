@@ -112,7 +112,8 @@ func main() {
 	passwordManager.WithPolicyChecker(policyChecker)
 
 	// Create services
-	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, &logins.LoginsServiceOptions{
+	loginsRepo := logins.NewPostgresLoginsRepository(loginsQueries)
+	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, &logins.LoginsServiceOptions{
 		PasswordManager: passwordManager,
 	})
 	roleRepo := role.NewPostgresRoleRepository(roleQueries)

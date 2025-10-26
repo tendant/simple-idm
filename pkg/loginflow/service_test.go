@@ -83,12 +83,14 @@ func setupTestServices(pool *pgxpool.Pool) *LoginFlowService {
 
 	// Create repository and services
 	loginRepository := login.NewPostgresLoginRepository(loginQueries)
-	userMapper := mapper.NewDefaultUserMapper(mapperQueries)
+	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
+	userMapper := mapper.NewDefaultUserMapper(mapperRepo)
 	passwordManager := login.NewPasswordManager(loginQueries)
 
 	// Create TwoFA queries and service
 	twofaQueries := twofadb.New(pool)
-	twoFaService := twofa.NewTwoFaService(twofaQueries)
+	twofaRepo := twofa.NewPostgresTwoFARepository(twofaQueries)
+	twoFaService := twofa.NewTwoFaService(twofaRepo)
 
 	// Create device service with proper repository
 	deviceRepository := device.NewPostgresDeviceRepository(pool)
@@ -130,7 +132,8 @@ func setupTestUser(t *testing.T, pool *pgxpool.Pool, username, password string) 
 	iamQueries := iamdb.New(pool)
 
 	// Create logins service
-	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, nil)
+	loginsRepo := logins.NewPostgresLoginsRepository(loginsQueries)
+	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, nil)
 	iamService := iam.NewIamServiceWithQueries(iamQueries)
 
 	// Create login request

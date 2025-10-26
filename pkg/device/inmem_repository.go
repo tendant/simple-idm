@@ -42,9 +42,8 @@ func (r *InMemDeviceRepository) CreateDevice(ctx context.Context, device Device)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Check if device already exists
-	_, err := r.GetDeviceByFingerprint(ctx, device.Fingerprint)
-	if err == nil {
+	// Check if device already exists (don't call GetDeviceByFingerprint to avoid deadlock)
+	if _, exists := r.devices[device.Fingerprint]; exists {
 		return Device{}, errors.New("device already exists")
 	}
 

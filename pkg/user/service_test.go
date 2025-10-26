@@ -80,12 +80,13 @@ func setupUserService(pool *pgxpool.Pool) *UserService {
 	// Create services
 	iamService := iam.NewIamServiceWithQueries(iamQueries)
 	passwordManager := login.NewPasswordManager(loginQueries)
-	loginsService := logins.NewLoginsService(loginsQueries, loginQueries, &logins.LoginsServiceOptions{
+	loginsRepo := logins.NewPostgresLoginsRepository(loginsQueries)
+	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, &logins.LoginsServiceOptions{
 		PasswordManager: passwordManager,
 	})
 
 	// Create user service
-	return NewUserService(iamService, loginsService, iamQueries)
+	return NewUserService(iamService, loginsService)
 }
 
 func TestUserService_CreateAdminUser(t *testing.T) {
