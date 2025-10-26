@@ -134,3 +134,34 @@ func countCreatedRoles(roles []AdminRoleInfo) int {
 	}
 	return count
 }
+
+// PrintAdminUserResult displays the admin user creation result
+func PrintAdminUserResult(result *AdminUserResult) {
+	if result == nil || !result.UserCreated {
+		return
+	}
+
+	// Print section header
+	printSectionHeader("ADMIN USER CREATED")
+
+	// Print user information
+	fmt.Println("\n👤 Admin User:")
+	fmt.Println(strings.Repeat("-", 80))
+	fmt.Printf("  Username:  %s\n", result.Username)
+	fmt.Printf("  Email:     %s\n", result.Email)
+	fmt.Printf("  User ID:   %s\n", result.UserID)
+	fmt.Printf("  Login ID:  %s\n", result.LoginID)
+
+	// Only display password if it was auto-generated (not from environment)
+	if !result.PasswordFromEnv {
+		fmt.Printf("  Password:  %s\n", result.Password)
+	} else {
+		fmt.Printf("  Password:  (configured via ADMIN_PASSWORD environment variable)\n")
+	}
+
+	// Print security warnings
+	printSecurityWarnings(result.PasswordFromEnv)
+
+	// Print section footer
+	printSectionFooter()
+}
