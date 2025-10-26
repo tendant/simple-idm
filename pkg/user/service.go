@@ -82,15 +82,33 @@ func (s *UserService) CreateAdminUser(ctx context.Context, options CreateAdminUs
 		}
 	}
 
-	// Step 3: Create login record
-	loginModel, err := s.loginsService.CreateLogin(ctx, logins.LoginCreateRequest{
-		Username: username,
-		Password: password,
-	}, "system")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create login: %w", err)
+	// Step 3: Create or find login record
+	// Check if login with this username already exists (orphaned from deleted user)
+	existingLogin, err := s.loginsService.GetLoginByUsername(ctx, username)
+	var loginModel *logins.LoginModel
+
+	if err == nil {
+		// Login exists - must be orphaned since AnyUserExists returned false
+		// Reuse the orphaned login for the new admin user
+		slog.Info("Found orphaned login from deleted user, reusing for new admin",
+			"login_id", existingLogin.ID,
+			"username", username,
+			"note", "Using existing login record - password unchanged")
+		loginModel = &logins.LoginModel{
+			ID:       existingLogin.ID.String(),
+			Username: existingLogin.Username,
+		}
+	} else {
+		// Login doesn't exist - create new one
+		loginModel, err = s.loginsService.CreateLogin(ctx, logins.LoginCreateRequest{
+			Username: username,
+			Password: password,
+		}, "system")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create login: %w", err)
+		}
+		slog.Info("Login created", "login_id", loginModel.ID, "username", username)
 	}
-	slog.Info("Login created", "login_id", loginModel.ID, "username", username)
 
 	// Step 4: Create user record with admin role
 	userWithRoles, err := s.iamService.CreateUser(ctx, email, username, "", []uuid.UUID{adminRoleID}, loginModel.ID)
