@@ -21,6 +21,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/tendant/chi-demo/app"
 	"github.com/tendant/simple-idm/pkg/client"
+	"github.com/tendant/simple-idm/pkg/config"
 	"github.com/tendant/simple-idm/pkg/device"
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
@@ -96,6 +97,9 @@ type Config struct {
 	AdminUsername string `env:"ADMIN_USERNAME" env-default:""`
 	AdminPassword string `env:"ADMIN_PASSWORD" env-default:""`
 	AdminEmail    string `env:"ADMIN_EMAIL" env-default:""`
+
+	// Admin Roles
+	AdminRoleNames string `env:"ADMIN_ROLE_NAMES" env-default:"admin,superadmin"`
 
 	// Server
 	AppConfig app.AppConfig
@@ -359,18 +363,22 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	}
 }
 
-func setupRoutes(r *chi.Mux, services *Services, config *Config) {
+func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
+	// Parse admin role names from config
+	adminRoles := config.ParseAdminRoleNames(appConfig.AdminRoleNames)
+	slog.Info("Configuring admin role middleware", "admin_roles", adminRoles)
+
 	// Health check endpoints
 	app.RoutesHealthz(r)
 	app.RoutesHealthzReady(r)
 
 	// Well-known endpoints (OIDC/OAuth2 discovery)
 	wellKnownConfig := wellknown.Config{
-		ResourceURI:            config.BaseURL,
-		AuthorizationServerURI: config.BaseURL,
-		BaseURL:                config.BaseURL,
+		ResourceURI:            appConfig.BaseURL,
+		AuthorizationServerURI: appConfig.BaseURL,
+		BaseURL:                appConfig.BaseURL,
 		Scopes:                 []string{"openid", "profile", "email"},
-		ResourceDocumentation:  config.BaseURL + "/docs",
+		ResourceDocumentation:  appConfig.BaseURL + "/docs",
 	}
 	wellKnownHandler := wellknown.NewHandler(wellKnownConfig)
 	r.Get("/.well-known/oauth-protected-resource", wellKnownHandler.ProtectedResourceMetadata)
@@ -390,8 +398,8 @@ func setupRoutes(r *chi.Mux, services *Services, config *Config) {
 		signup.WithIamService(*services.iamService),
 		signup.WithRoleService(*services.roleService),
 		signup.WithLoginsService(*services.loginsService),
-		signup.WithRegistrationEnabled(config.RegistrationEnabled),
-		signup.WithDefaultRole(config.RegistrationDefaultRole),
+		signup.WithRegistrationEnabled(appConfig.RegistrationEnabled),
+		signup.WithDefaultRole(appConfig.RegistrationDefaultRole),
 		signup.WithLoginService(*services.loginService),
 	)
 
@@ -500,7 +508,7 @@ func setupRoutes(r *chi.Mux, services *Services, config *Config) {
 		roleHandle := roleapi.NewHandle(services.roleService)
 		roleRouter := chi.NewRouter()
 		roleRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
+			r.Use(client.NewAdminRoleMiddleware(adminRoles))
 			r.Mount("/", roleapi.Handler(roleHandle))
 		})
 		r.Mount("/api/roles", roleRouter)
@@ -509,14 +517,14 @@ func setupRoutes(r *chi.Mux, services *Services, config *Config) {
 		oauth2ClientHandle := oauth2clientapi.NewHandle(services.oauth2ClientService)
 		oauth2ClientRouter := chi.NewRouter()
 		oauth2ClientRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
+			r.Use(client.NewAdminRoleMiddleware(adminRoles))
 			r.Mount("/", oauth2clientapi.Handler(oauth2ClientHandle))
 		})
 		r.Mount("/api/oauth2-clients", oauth2ClientRouter)
 	})
 }
 
-func createInitialAdminUser(iamService *iam.IamService, userService *user.UserService, config *Config) {
+func createInitialAdminUser(iamService *iam.IamService, userService *user.UserService, appConfig *Config) {
 	ctx := context.Background()
 	exists, err := iamService.AnyUserExists(ctx)
 	if err != nil {
@@ -525,23 +533,32 @@ func createInitialAdminUser(iamService *iam.IamService, userService *user.UserSe
 	}
 
 	if !exists {
-		slog.Info("No users exist - creating first admin user")
+		// Parse admin role names from config
+		adminRoles := config.ParseAdminRoleNames(appConfig.AdminRoleNames)
+		primaryAdminRole := config.GetPrimaryAdminRole(adminRoles)
+
+		slog.Info("No users exist - creating first admin user",
+			"admin_role", primaryAdminRole,
+			"all_admin_roles", adminRoles)
 
 		// Build admin user options from environment variables
 		options := user.CreateAdminUserOptions{}
 
 		// Use environment variables if provided, otherwise use defaults
-		if config.AdminUsername != "" {
-			options.Username = config.AdminUsername
+		if appConfig.AdminUsername != "" {
+			options.Username = appConfig.AdminUsername
 		}
 
-		if config.AdminEmail != "" {
-			options.Email = config.AdminEmail
+		if appConfig.AdminEmail != "" {
+			options.Email = appConfig.AdminEmail
 		}
 
-		if config.AdminPassword != "" {
-			options.Password = config.AdminPassword
+		if appConfig.AdminPassword != "" {
+			options.Password = appConfig.AdminPassword
 		}
+
+		// Set the admin role name to use
+		options.AdminRoleName = primaryAdminRole
 
 		res, err := userService.CreateAdminUser(ctx, options)
 		if err != nil {
@@ -555,7 +572,7 @@ func createInitialAdminUser(iamService *iam.IamService, userService *user.UserSe
 		slog.Info("Email: " + res.Email)
 
 		// Only display password if it was auto-generated
-		if config.AdminPassword == "" {
+		if appConfig.AdminPassword == "" {
 			slog.Info("Password: " + res.Password)
 			slog.Info("SAVE THESE CREDENTIALS - THEY WILL NOT BE SHOWN AGAIN")
 		} else {
