@@ -291,15 +291,14 @@ func (h Handle) canManageTwoFactor(r *http.Request, targetLoginId uuid.UUID) boo
 		return true
 	}
 
-	// Check if user has admin role
-	for _, role := range authUser.ExtraClaims.Roles {
-		if role == "admin" || role == "superadmin" {
-			slog.Info("Admin user managing 2FA for another user",
-				"adminLoginId", authUser.LoginID,
-				"targetLoginId", targetLoginId,
-				"role", role)
-			return true
-		}
+	// Check if user has admin role using client.IsAdmin()
+	// This will check for "admin" or "superadmin" roles (backward compatible)
+	if client.IsAdmin(authUser) {
+		slog.Info("Admin user managing 2FA for another user",
+			"adminLoginId", authUser.LoginID,
+			"targetLoginId", targetLoginId,
+			"roles", authUser.ExtraClaims.Roles)
+		return true
 	}
 
 	slog.Warn("User attempted to manage another user's 2FA without permission",

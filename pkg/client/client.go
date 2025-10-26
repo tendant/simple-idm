@@ -202,14 +202,23 @@ func TempTokenFromHeader(r *http.Request) string {
 }
 
 // IsAdmin checks if the user has admin privileges
+// IsAdmin checks if the user has hardcoded "admin" or "superadmin" role
+// DEPRECATED: Use IsAdminWithRoles for configurable admin role checking
 func IsAdmin(user *AuthUser) bool {
+	return IsAdminWithRoles(user, []string{"admin", "superadmin"})
+}
+
+// IsAdminWithRoles checks if the user has any of the specified admin roles
+func IsAdminWithRoles(user *AuthUser, adminRoles []string) bool {
 	if user == nil || user.ExtraClaims.Roles == nil {
 		return false
 	}
 
-	for _, role := range user.ExtraClaims.Roles {
-		if role == "admin" || role == "superadmin" {
-			return true
+	for _, userRole := range user.ExtraClaims.Roles {
+		for _, adminRole := range adminRoles {
+			if userRole == adminRole {
+				return true
+			}
 		}
 	}
 
