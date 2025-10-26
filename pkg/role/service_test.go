@@ -149,6 +149,16 @@ func (m *MockRoleRepository) GetRoleById(ctx context.Context, id uuid.UUID) (Rol
 	return Role{}, ErrRoleNotFound
 }
 
+// GetRoleIdByName retrieves a role ID by name
+func (m *MockRoleRepository) GetRoleIdByName(ctx context.Context, name string) (uuid.UUID, error) {
+	for _, role := range m.roles {
+		if role.Name == name {
+			return role.ID, nil
+		}
+	}
+	return uuid.Nil, ErrRoleNotFound
+}
+
 // GetRoleUsers retrieves users assigned to a role
 func (m *MockRoleRepository) GetRoleUsers(ctx context.Context, roleID uuid.UUID) ([]RoleUser, error) {
 	users, exists := m.roleUsers[roleID]
