@@ -203,12 +203,19 @@ type Services struct {
 }
 
 func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.PrivateKey, keyID string) *Services {
-	// Database queries
+	// Initialize database queries (sqlc generated)
 	iamQueries := iamdb.New(pool)
 	loginQueries := logindb.New(pool)
 	loginsQueries := loginsdb.New(pool)
 	roleQueries := roledb.New(pool)
 	mapperQueries := mapperdb.New(pool)
+
+	// Create repositories (following repository pattern)
+	iamRepo := iam.NewPostgresIamRepository(iamQueries)
+	iamGroupRepo := iam.NewPostgresIamGroupRepository(iamQueries)
+	loginRepository := login.NewPostgresLoginRepository(loginQueries)
+	loginsRepo := logins.NewPostgresLoginsRepository(loginsQueries)
+	roleRepo := role.NewPostgresRoleRepository(roleQueries)
 	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
 
 	// Notification manager
@@ -238,12 +245,11 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	// To enable password validation, set PASSWORD_POLICY_ENABLED=true in environment
 	passwordPolicy := login.NoOpPasswordPolicy()
 
-	passwordManager := login.NewPasswordManager(loginQueries)
+	passwordManager := login.NewPasswordManagerWithRepository(loginRepository)
 	policyChecker := login.NewDefaultPasswordPolicyChecker(passwordPolicy, nil)
 	passwordManager.WithPolicyChecker(policyChecker)
 
 	// Login service
-	loginRepository := login.NewPostgresLoginRepository(loginQueries)
 	magicLinkExpiration := 1 * time.Hour
 	loginService := login.NewLoginServiceWithOptions(
 		loginRepository,
@@ -322,19 +328,20 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 		userMapper,
 	)
 
-	// IAM service
-	iamService := iam.NewIamServiceWithQueriesAndGroups(iamQueries)
+	// IAM service (with repository pattern)
+	iamService := iam.NewIamServiceWithOptions(
+		iamRepo,
+		iam.WithGroupRepository(iamGroupRepo),
+	)
 
 	// Role service
-	roleRepo := role.NewPostgresRoleRepository(roleQueries)
 	roleService := role.NewRoleService(roleRepo)
 
 	// Logins service
-	loginsRepo := logins.NewPostgresLoginsRepository(loginsQueries)
 	loginsServiceOptions := &logins.LoginsServiceOptions{
 		PasswordManager: passwordManager,
 	}
-	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, loginsServiceOptions)
+	loginsService := logins.NewLoginsService(loginsRepo, nil, loginsServiceOptions)
 
 	// User service
 	userService := user.NewUserService(iamService, loginsService)
