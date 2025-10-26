@@ -172,3 +172,8 @@ func (s *LoginsService) CreateLoginWithoutPassword(ctx context.Context, username
 	result := FromLoginEntity(&loginEntity)
 	return &result, nil
 }
+
+// GetLoginByUsername retrieves a login by username
+func (s *LoginsService) GetLoginByUsername(ctx context.Context, username string) (LoginEntity, error) {
+	return s.loginsRepo.GetLoginByUsername(ctx, username, username != "")
+}
