@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ilyakaznacheev/cleanenv"
-	"github.com/sosodev/duration"
 	dbutils "github.com/tendant/db-utils/db"
+	"github.com/tendant/simple-idm/pkg/config"
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/login"
@@ -39,19 +39,8 @@ func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
 	}
 }
 
-type PasswordComplexityConfig struct {
-	Enabled                 bool   `env:"PASSWORD_POLICY_ENABLED" env-default:"true"`
-	RequiredDigit           bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
-	RequiredLowercase       bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
-	RequiredNonAlphanumeric bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
-	RequiredUppercase       bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_UPPERCASE" env-default:"true"`
-	RequiredLength          int    `env:"PASSWORD_COMPLEXITY_REQUIRED_LENGTH" env-default:"8"`
-	DisallowCommonPwds      bool   `env:"PASSWORD_COMPLEXITY_DISALLOW_COMMON_PWDS" env-default:"true"`
-	MaxRepeatedChars        int    `env:"PASSWORD_COMPLEXITY_MAX_REPEATED_CHARS" env-default:"3"`
-	HistoryCheckCount       int    `env:"PASSWORD_COMPLEXITY_HISTORY_CHECK_COUNT" env-default:"5"`
-	ExpirationPeriod        string `env:"PASSWORD_COMPLEXITY_EXPIRATION_PERIOD" env-default:"P90D"`      // 90 days
-	MinPasswordAgePeriod    string `env:"PASSWORD_COMPLEXITY_MIN_PASSWORD_AGE_PERIOD" env-default:"P1D"` // 1 day
-}
+// PasswordComplexityConfig is now defined in pkg/config package
+type PasswordComplexityConfig = config.PasswordComplexityConfig
 
 type Config struct {
 	IdmDbConfig              IdmDbConfig
@@ -201,39 +190,7 @@ func main() {
 	slog.Info("User created successfully", "username", *username, "email", *email, "role", *roleName, "login_id", login.ID, "user_id", userWithRoles.ID)
 }
 
-func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolicy {
-	// If no config is provided, use the default policy
-	if config == nil {
-		return login.DefaultPasswordPolicy()
-	}
-
-	// If policy is disabled, return no-op policy
-	if !config.Enabled {
-		return login.NoOpPasswordPolicy()
-	}
-
-	expirationPeriod, err := duration.Parse(config.ExpirationPeriod)
-	if err != nil {
-		slog.Error("Failed to parse expiration period", "err", err)
-	}
-
-	minPasswordAgePeriod, err := duration.Parse(config.MinPasswordAgePeriod)
-	if err != nil {
-		slog.Error("Failed to parse min password age period", "err", err)
-	}
-
-	// Create a policy based on the configuration
-	return &login.PasswordPolicy{
-		MinLength:            config.RequiredLength,
-		RequireUppercase:     config.RequiredUppercase,
-		RequireLowercase:     config.RequiredLowercase,
-		RequireDigit:         config.RequiredDigit,
-		RequireSpecialChar:   config.RequiredNonAlphanumeric,
-		DisallowCommonPwds:   config.DisallowCommonPwds,
-		MaxRepeatedChars:     config.MaxRepeatedChars,
-		HistoryCheckCount:    config.HistoryCheckCount,
-		ExpirationPeriod:     expirationPeriod.ToTimeDuration(),
-		CommonPasswordsPath:  "",
-		MinPasswordAgePeriod: minPasswordAgePeriod.ToTimeDuration(),
-	}
+// createPasswordPolicy now delegates to the shared config.ToPasswordPolicy method
+func createPasswordPolicy(cfg *PasswordComplexityConfig) *login.PasswordPolicy {
+	return cfg.ToPasswordPolicy()
 }
