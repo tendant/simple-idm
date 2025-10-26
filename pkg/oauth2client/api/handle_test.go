@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/render"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 )
 
@@ -121,12 +122,10 @@ func TestRegisterClient(t *testing.T) {
 			// Call handler
 			response := handle.RegisterClient(w, req)
 
-			// Render the response to the writer
+			// Render the response to the writer using the chi render package
 			if response != nil {
-				if response.body != nil {
-					response.Render(w, req)
-				} else {
-					w.WriteHeader(response.Code)
+				if err := render.Render(w, req, response); err != nil {
+					t.Fatalf("Failed to render response: %v", err)
 				}
 			}
 
@@ -239,12 +238,10 @@ func TestListClients(t *testing.T) {
 
 			response := handle.ListClients(w, req, tt.params)
 
-			// Render the response to the writer
+			// Render the response to the writer using the chi render package
 			if response != nil {
-				if response.body != nil {
-					response.Render(w, req)
-				} else {
-					w.WriteHeader(response.Code)
+				if err := render.Render(w, req, response); err != nil {
+					t.Fatalf("Failed to render response: %v", err)
 				}
 			}
 
@@ -311,12 +308,10 @@ func TestGetClient(t *testing.T) {
 
 			response := handle.GetClient(w, req, tt.clientID)
 
-			// Render the response to the writer
+			// Render the response to the writer using the chi render package
 			if response != nil {
-				if response.body != nil {
-					response.Render(w, req)
-				} else {
-					w.WriteHeader(response.Code)
+				if err := render.Render(w, req, response); err != nil {
+					t.Fatalf("Failed to render response: %v", err)
 				}
 			}
 
@@ -405,12 +400,10 @@ func TestUpdateClient(t *testing.T) {
 
 			response := handle.UpdateClient(w, req, tt.clientID)
 
-			// Render the response to the writer
+			// Render the response to the writer using the chi render package
 			if response != nil {
-				if response.body != nil {
-					response.Render(w, req)
-				} else {
-					w.WriteHeader(response.Code)
+				if err := render.Render(w, req, response); err != nil {
+					t.Fatalf("Failed to render response: %v", err)
 				}
 			}
 
@@ -474,12 +467,10 @@ func TestDeleteClient(t *testing.T) {
 
 			response := handle.DeleteClient(w, req, tt.clientID)
 
-			// Render the response to the writer
+			// Render the response to the writer using the chi render package
 			if response != nil {
-				if response.body != nil {
-					response.Render(w, req)
-				} else {
-					w.WriteHeader(response.Code)
+				if err := render.Render(w, req, response); err != nil {
+					t.Fatalf("Failed to render response: %v", err)
 				}
 			}
 
@@ -533,12 +524,10 @@ func TestRegenerateClientSecret(t *testing.T) {
 
 			response := handle.RegenerateClientSecret(w, req, tt.clientID)
 
-			// Render the response to the writer
+			// Render the response to the writer using the chi render package
 			if response != nil {
-				if response.body != nil {
-					response.Render(w, req)
-				} else {
-					w.WriteHeader(response.Code)
+				if err := render.Render(w, req, response); err != nil {
+					t.Fatalf("Failed to render response: %v", err)
 				}
 			}
 

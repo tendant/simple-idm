@@ -6,9 +6,59 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
 )
+
+// mockUserMapper is a simple mock implementation of mapper.UserMapper for testing
+type mockUserMapper struct{}
+
+func (m *mockUserMapper) FindUsersByLoginID(ctx context.Context, loginID uuid.UUID) ([]mapper.User, error) {
+	return []mapper.User{{
+		UserId:      loginID.String(),
+		LoginID:     loginID.String(),
+		DisplayName: "Test User",
+		UserInfo: mapper.UserInfo{
+			Sub:               loginID.String(),
+			Name:              "Test User",
+			PreferredUsername: "testuser",
+			Email:             "test@example.com",
+		},
+	}}, nil
+}
+
+func (m *mockUserMapper) GetUserByUserID(ctx context.Context, userID uuid.UUID) (mapper.User, error) {
+	return mapper.User{
+		UserId:      userID.String(),
+		DisplayName: "Test User",
+		UserInfo: mapper.UserInfo{
+			Sub:               userID.String(),
+			Name:              "Test User",
+			PreferredUsername: "testuser",
+			Email:             "test@example.com",
+		},
+	}, nil
+}
+
+func (m *mockUserMapper) FindUsernamesByEmail(ctx context.Context, email string) ([]string, error) {
+	return []string{"testuser"}, nil
+}
+
+func (m *mockUserMapper) ToTokenClaims(user mapper.User) (rootModifications map[string]interface{}, extraClaims map[string]interface{}) {
+	return map[string]interface{}{
+			"user_id": user.UserId,
+			"email":   user.UserInfo.Email,
+		}, map[string]interface{}{
+			"username": user.UserInfo.PreferredUsername,
+			"name":     user.UserInfo.Name,
+		}
+}
+
+func (m *mockUserMapper) ExtractTokenClaims(user mapper.User, claims map[string]interface{}) mapper.User {
+	return user
+}
 
 func TestOIDCService_GenerateAuthorizationCode(t *testing.T) {
 	// Setup
@@ -68,6 +118,7 @@ func TestOIDCService_ValidateAndConsumeAuthorizationCode(t *testing.T) {
 		WithTokenExpiration(time.Hour),
 		WithBaseURL("http://localhost:4000"),
 		WithLoginURL("http://localhost:3000/login"),
+		WithUserMapper(&mockUserMapper{}),
 	)
 	ctx := context.Background()
 
@@ -118,6 +169,7 @@ func TestOIDCService_ValidateAndConsumeAuthorizationCode_WrongClient(t *testing.
 		WithTokenExpiration(time.Hour),
 		WithBaseURL("http://localhost:4000"),
 		WithLoginURL("http://localhost:3000/login"),
+		WithUserMapper(&mockUserMapper{}),
 	)
 	ctx := context.Background()
 
@@ -150,6 +202,7 @@ func TestOIDCService_GenerateAccessToken(t *testing.T) {
 		WithTokenExpiration(time.Hour),
 		WithBaseURL("http://localhost:4000"),
 		WithLoginURL("http://localhost:3000/login"),
+		WithUserMapper(&mockUserMapper{}),
 	)
 
 	ctx := context.Background()
@@ -373,6 +426,7 @@ func TestOIDCService_GenerateIDToken(t *testing.T) {
 		WithTokenExpiration(time.Hour),
 		WithBaseURL("http://localhost:4000"),
 		WithLoginURL("http://localhost:3000/login"),
+		WithUserMapper(&mockUserMapper{}),
 	)
 
 	ctx := context.Background()
@@ -444,6 +498,7 @@ func TestOIDCService_ValidateUserToken(t *testing.T) {
 		WithTokenExpiration(time.Hour),
 		WithBaseURL("http://localhost:4000"),
 		WithLoginURL("http://localhost:3000/login"),
+		WithUserMapper(&mockUserMapper{}),
 	)
 
 	// Generate an access token first (not ID token for validation)
@@ -609,6 +664,7 @@ func TestOIDCService_ProcessTokenRequest(t *testing.T) {
 		WithTokenExpiration(time.Hour),
 		WithBaseURL("http://localhost:4000"),
 		WithLoginURL("http://localhost:3000/login"),
+		WithUserMapper(&mockUserMapper{}),
 	)
 
 	ctx := context.Background()
