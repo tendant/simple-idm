@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -240,17 +239,16 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Login service
-	// Note: Uses default password policy (reasonable security settings)
-	// For production, consider customizing via environment variables
-	magicLinkExpiration := 1 * time.Hour
+	// Uses sensible defaults:
+	// - Password policy: min 8 chars, requires uppercase/lowercase/digit/special
+	// - Max failed attempts: 5
+	// - Lockout duration: 30 minutes
+	// - Magic link expiration: 15 minutes
 	loginService := login.NewLoginServiceWithOptions(
 		loginRepository,
 		login.WithNotificationManager(notificationManager),
 		login.WithUserMapper(userMapper),
 		login.WithDelegatedUserMapper(delegatedUserMapper),
-		login.WithMaxFailedAttempts(10),
-		login.WithLockoutDuration(5*time.Minute),
-		login.WithMagicLinkTokenExpiration(magicLinkExpiration),
 	)
 
 	// JWKS service
