@@ -531,28 +531,43 @@ func bootstrapAdminRolesAndUser(iamService *iam.IamService, userService *user.Us
 	// Parse admin role names from configuration
 	adminRoles := config.ParseAdminRoleNames(appConfig.AdminRoleNames)
 
-	// Build bootstrap configuration
-	bootstrapConfig := bootstrap.AdminBootstrapConfig{
-		AdminRoleNames: adminRoles,
-		AdminUsername:  appConfig.AdminUsername,
-		AdminEmail:     appConfig.AdminEmail,
-		AdminPassword:  appConfig.AdminPassword,
-		IamService:     iamService,
-		UserService:    userService,
+	// Step 1: Bootstrap admin roles (always safe to run)
+	rolesResult, err := bootstrap.BootstrapAdminRoles(ctx, iamService, adminRoles)
+	if err != nil {
+		slog.Error("Failed to bootstrap admin roles", "error", err)
+		return
 	}
 
-	// Execute bootstrap
-	result, err := bootstrap.BootstrapAdminRolesAndUser(ctx, bootstrapConfig)
+	if len(rolesResult.Roles) > 0 {
+		createdCount := 0
+		for _, role := range rolesResult.Roles {
+			if role.Created {
+				createdCount++
+			}
+		}
+		slog.Info("Admin roles ready",
+			"total_roles", len(rolesResult.Roles),
+			"created", createdCount,
+			"already_existed", len(rolesResult.Roles)-createdCount)
+	}
+
+	// Step 2: Bootstrap admin user (only if no users exist)
+	userResult, err := bootstrap.BootstrapAdminUser(ctx, iamService, userService, bootstrap.AdminUserConfig{
+		Username:       appConfig.AdminUsername,
+		Email:          appConfig.AdminEmail,
+		Password:       appConfig.AdminPassword,
+		AdminRoleName:  rolesResult.PrimaryRole.Name,
+		AdminRoleID:    rolesResult.PrimaryRole.ID,
+	})
 	if err != nil {
-		slog.Error("Failed to bootstrap admin roles and user", "error", err)
+		slog.Error("Failed to bootstrap admin user", "error", err)
 		// Don't exit - allow service to continue (admin can be created via API)
 		return
 	}
 
 	// Display results if admin was created
-	if result.UserCreated {
-		bootstrap.PrintBootstrapResult(result)
-		bootstrap.LogBootstrapSummary(result)
+	if userResult.UserCreated {
+		bootstrap.PrintAdminUserResult(userResult)
 	}
 }
 
