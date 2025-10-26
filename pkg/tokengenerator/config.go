@@ -156,3 +156,57 @@ func NewTokenServiceWithOptions(accessTokenGenerator, refreshTokenGenerator, tem
 		"using secret", service.Secret != "")
 	return service
 }
+
+// WithTempTokenGenerator overrides the temporary token generator
+// Use this when you need different behavior for temp tokens (e.g., claim filtering)
+func WithTempTokenGenerator(generator TokenGenerator) Option {
+	return func(s *DefaultTokenService) {
+		s.tempTokenGenerator = generator
+	}
+}
+
+// NewTokenServiceFromGenerator creates a TokenService from a single generator
+// The same generator is used for access, refresh, temp, and logout tokens
+// Use WithTempTokenGenerator() option to override temp token behavior if needed
+//
+// Example:
+//
+//	tokenService := tokengenerator.NewTokenServiceFromGenerator(
+//	    tokengenerator.NewRSATokenGenerator(privateKey, keyID, issuer, audience),
+//	    tokengenerator.WithAccessTokenExpiry("15m"),
+//	    tokengenerator.WithTempTokenGenerator(customTempGenerator),
+//	)
+func NewTokenServiceFromGenerator(generator TokenGenerator, opts ...Option) TokenService {
+	service := &DefaultTokenService{
+		accessTokenGenerator:     generator,
+		refreshTokenGenerator:    generator,
+		tempTokenGenerator:       generator,
+		logoutTokenGenerator:     generator,
+		accessTokenExpiry:        DefaultAccessTokenExpiry,
+		refreshTokenExpiry:       DefaultRefreshTokenExpiry,
+		mobileRefreshTokenExpiry: DefaultMobileRefreshTokenExpiry,
+		tempTokenExpiry:          DefaultTempTokenExpiry,
+		logoutTokenExpiry:        DefaultLogoutTokenExpiry,
+	}
+
+	// Extract private key from RSA generator if available
+	if rsaGen, ok := generator.(*RSATokenGenerator); ok {
+		service.privateKey = rsaGen.privateKey
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(service)
+	}
+
+	slog.Info("Token service configured (from single generator)",
+		"accessTokenExpiry", service.accessTokenExpiry,
+		"refreshTokenExpiry", service.refreshTokenExpiry,
+		"mobileRefreshTokenExpiry", service.mobileRefreshTokenExpiry,
+		"tempTokenExpiry", service.tempTokenExpiry,
+		"logoutTokenExpiry", service.logoutTokenExpiry,
+		"using RSA", service.privateKey != nil,
+		"using secret", service.Secret != "")
+
+	return service
+}

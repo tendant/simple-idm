@@ -262,7 +262,7 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 
 	activeKey, _ := jwksService.GetActiveSigningKey()
 
-	// Token generators
+	// RSA token generator (shared by TokenService and OIDCService)
 	rsaTokenGenerator := tokengenerator.NewRSATokenGenerator(
 		activeKey.PrivateKey,
 		activeKey.Kid,
@@ -270,23 +270,16 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 		config.JWTIssuer,
 	)
 
-	tempTokenGenerator := tokengenerator.NewTempRSATokenGenerator(
-		activeKey.PrivateKey,
-		activeKey.Kid,
-		config.JWTIssuer,
-		config.JWTIssuer,
-	)
-
-	tokenService := tokengenerator.NewTokenServiceWithOptions(
+	// Token service - uses single RSA generator for all token types
+	// Temp tokens use specialized generator that filters claims to: login_id, associate_users, 2fa_verified
+	tokenService := tokengenerator.NewTokenServiceFromGenerator(
 		rsaTokenGenerator,
-		rsaTokenGenerator,
-		tempTokenGenerator,
-		rsaTokenGenerator,
-		tokengenerator.WithAccessTokenExpiry(config.AccessTokenExpiry),
-		tokengenerator.WithRefreshTokenExpiry(config.RefreshTokenExpiry),
-		tokengenerator.WithTempTokenExpiry(config.TempTokenExpiry),
-		tokengenerator.WithLogoutTokenExpiry("-1m"),
-		tokengenerator.WithPrivateKey(activeKey.PrivateKey),
+		tokengenerator.WithTempTokenGenerator(
+			tokengenerator.NewTempRSATokenGenerator(activeKey.PrivateKey, activeKey.Kid, config.JWTIssuer, config.JWTIssuer),
+		),
+		tokengenerator.WithAccessTokenExpiry(config.AccessTokenExpiry),   // Default: 15m
+		tokengenerator.WithRefreshTokenExpiry(config.RefreshTokenExpiry), // Default: 24h
+		tokengenerator.WithTempTokenExpiry(config.TempTokenExpiry),       // Default: 10m
 	)
 
 	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
