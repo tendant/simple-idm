@@ -114,6 +114,7 @@ LIMIT 50;
 -- name: AnyUserExists :one
 SELECT EXISTS (
     SELECT 1 FROM users
+    WHERE deleted_at IS NULL
 ) as exists;
 
 -- Group queries
