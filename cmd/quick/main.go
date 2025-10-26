@@ -95,6 +95,11 @@ type Config struct {
 	CookieSecure   bool `env:"COOKIE_SECURE" env-default:"false"`
 	CookieHttpOnly bool `env:"COOKIE_HTTP_ONLY" env-default:"true"`
 
+	// Initial Admin User
+	AdminUsername string `env:"ADMIN_USERNAME" env-default:""`
+	AdminPassword string `env:"ADMIN_PASSWORD" env-default:""`
+	AdminEmail    string `env:"ADMIN_EMAIL" env-default:""`
+
 	// Server
 	AppConfig app.AppConfig
 }
@@ -157,7 +162,7 @@ func main() {
 	services := initializeServices(pool, &config, privateKey, keyID)
 
 	// Create first admin user if no users exist
-	createInitialAdminUser(services.iamService, services.userService)
+	createInitialAdminUser(services.iamService, services.userService, &config)
 
 	// Setup HTTP server
 	server := app.DefaultApp()
@@ -526,7 +531,7 @@ func setupRoutes(r *chi.Mux, services *Services, config *Config) {
 	})
 }
 
-func createInitialAdminUser(iamService *iam.IamService, userService *user.UserService) {
+func createInitialAdminUser(iamService *iam.IamService, userService *user.UserService, config *Config) {
 	ctx := context.Background()
 	exists, err := iamService.AnyUserExists(ctx)
 	if err != nil {
@@ -536,16 +541,42 @@ func createInitialAdminUser(iamService *iam.IamService, userService *user.UserSe
 
 	if !exists {
 		slog.Info("No users exist - creating first admin user")
-		res, err := userService.CreateAdminUser(ctx, user.CreateAdminUserOptions{})
+
+		// Build admin user options from environment variables
+		options := user.CreateAdminUserOptions{}
+
+		// Use environment variables if provided, otherwise use defaults
+		if config.AdminUsername != "" {
+			options.Username = config.AdminUsername
+		}
+
+		if config.AdminEmail != "" {
+			options.Email = config.AdminEmail
+		}
+
+		if config.AdminPassword != "" {
+			options.Password = config.AdminPassword
+		}
+
+		res, err := userService.CreateAdminUser(ctx, options)
 		if err != nil {
 			slog.Error("Error creating admin user", "error", err)
 			return
 		}
+
 		slog.Info("=" + string(make([]byte, 60)) + "=")
 		slog.Info("FIRST TIME SETUP - ADMIN USER CREATED")
 		slog.Info("Username: " + res.Username)
-		slog.Info("Password: " + res.Password)
-		slog.Info("SAVE THESE CREDENTIALS - THEY WILL NOT BE SHOWN AGAIN")
+		slog.Info("Email: " + res.Email)
+
+		// Only display password if it was auto-generated
+		if config.AdminPassword == "" {
+			slog.Info("Password: " + res.Password)
+			slog.Info("SAVE THESE CREDENTIALS - THEY WILL NOT BE SHOWN AGAIN")
+		} else {
+			slog.Info("Password: (using ADMIN_PASSWORD from environment)")
+		}
+
 		slog.Info("=" + string(make([]byte, 60)) + "=")
 	}
 }
