@@ -223,19 +223,11 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	userMapper := mapper.NewDefaultUserMapper(mapperRepo)
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
-	// Password management (lenient policy for quick start)
-	passwordPolicy := &login.PasswordPolicy{
-		MinLength:            8,
-		RequireUppercase:     false,
-		RequireLowercase:     false,
-		RequireDigit:         false,
-		RequireSpecialChar:   false,
-		DisallowCommonPwds:   false,
-		MaxRepeatedChars:     100,
-		HistoryCheckCount:    0,
-		ExpirationPeriod:     100 * 365 * 24 * time.Hour, // 100 years
-		MinPasswordAgePeriod: 0,
-	}
+	// Password management - use no-op policy for quick start
+	// This accepts any non-empty password (even "a" or "123")
+	// Perfect for development/testing - NOT recommended for production
+	// To enable password validation, set PASSWORD_POLICY_ENABLED=true in environment
+	passwordPolicy := login.NoOpPasswordPolicy()
 
 	passwordManager := login.NewPasswordManager(loginQueries)
 	policyChecker := login.NewDefaultPasswordPolicyChecker(passwordPolicy, nil)
