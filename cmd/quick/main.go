@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -114,7 +115,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	slog.Info("Starting Quick IDM Service")
-	slog.Info("=" + string(make([]byte, 60)) + "=")
+	slog.Info(strings.Repeat("=", 80))
 
 	// Load .env file
 	loadEnvFile()
@@ -170,11 +171,11 @@ func main() {
 	server := app.DefaultApp()
 	setupRoutes(server.R, services, &config)
 
-	slog.Info("=" + string(make([]byte, 60)) + "=")
+	slog.Info(strings.Repeat("=", 80))
 	slog.Info("Quick IDM Service Ready")
 	slog.Info("Base URL: " + config.BaseURL)
 	slog.Info("OIDC Discovery: " + config.BaseURL + "/.well-known/openid-configuration")
-	slog.Info("=" + string(make([]byte, 60)) + "=")
+	slog.Info(strings.Repeat("=", 80))
 
 	// Start server
 	server.Run()
