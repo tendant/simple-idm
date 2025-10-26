@@ -234,9 +234,8 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 		slog.Error("Failed to initialize notification manager", "error", err)
 	}
 
-	// User mapper
+	// User mapper (shared across LoginService, LoginFlowService, and OIDCService)
 	userMapper := mapper.NewDefaultUserMapper(mapperRepo)
-	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Login service
 	// Uses sensible defaults:
@@ -248,7 +247,6 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 		loginRepository,
 		login.WithNotificationManager(notificationManager),
 		login.WithUserMapper(userMapper),
-		login.WithDelegatedUserMapper(delegatedUserMapper),
 	)
 
 	// JWKS service
