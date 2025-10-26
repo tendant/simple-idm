@@ -70,8 +70,7 @@ type Config struct {
 	EmailFrom     string `env:"EMAIL_FROM" env-default:"noreply@example.com"`
 	EmailTLS      bool   `env:"EMAIL_TLS" env-default:"false"`
 
-	// JWT
-	JWTSecret  string `env:"JWT_SECRET" env-default:"quick-idm-secret"`
+	// JWT (RSA-based signing with RS256)
 	JWTIssuer  string `env:"JWT_ISSUER" env-default:"quick-idm"`
 	JWTKeyFile string `env:"JWT_KEY_FILE" env-default:"jwt-private.pem"`
 
