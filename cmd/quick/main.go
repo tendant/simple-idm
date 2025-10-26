@@ -239,24 +239,15 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	userMapper := mapper.NewDefaultUserMapper(mapperRepo)
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
-	// Password management - use no-op policy for quick start
-	// This accepts any non-empty password (even "a" or "123")
-	// Perfect for development/testing - NOT recommended for production
-	// To enable password validation, set PASSWORD_POLICY_ENABLED=true in environment
-	passwordPolicy := login.NoOpPasswordPolicy()
-
-	passwordManager := login.NewPasswordManagerWithRepository(loginRepository)
-	policyChecker := login.NewDefaultPasswordPolicyChecker(passwordPolicy, nil)
-	passwordManager.WithPolicyChecker(policyChecker)
-
 	// Login service
+	// Note: Uses default password policy (reasonable security settings)
+	// For production, consider customizing via environment variables
 	magicLinkExpiration := 1 * time.Hour
 	loginService := login.NewLoginServiceWithOptions(
 		loginRepository,
 		login.WithNotificationManager(notificationManager),
 		login.WithUserMapper(userMapper),
 		login.WithDelegatedUserMapper(delegatedUserMapper),
-		login.WithPasswordManager(passwordManager),
 		login.WithMaxFailedAttempts(10),
 		login.WithLockoutDuration(5*time.Minute),
 		login.WithMagicLinkTokenExpiration(magicLinkExpiration),
@@ -338,10 +329,8 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	roleService := role.NewRoleService(roleRepo)
 
 	// Logins service
-	loginsServiceOptions := &logins.LoginsServiceOptions{
-		PasswordManager: passwordManager,
-	}
-	loginsService := logins.NewLoginsService(loginsRepo, nil, loginsServiceOptions)
+	// Uses default password manager (created internally with default policy)
+	loginsService := logins.NewLoginsService(loginsRepo, nil, nil)
 
 	// User service
 	userService := user.NewUserService(iamService, loginsService)
