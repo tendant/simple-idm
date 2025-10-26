@@ -196,7 +196,34 @@
    - Supports "postgres" and "file" persistence types
    - ~35 lines
 
-**Total Phase 5: 5 packages with factory pattern, ~195 lines of implementation**
+24. **`pkg/login/factory.go`** ✅
+   - `NewLoginRepository(persistenceType, config)` factory function
+   - Supports "postgres" and "file" persistence types
+   - 46 interface methods for comprehensive credential management
+   - ~35 lines
+
+25. **`pkg/device/factory.go`** ✅
+   - `NewDeviceRepository(persistenceType, config)` factory function
+   - Supports "postgres" and "file" persistence types
+   - Special handling for `DeviceRepositoryOptions` (expiry duration)
+   - Uses DBTX interface instead of sqlc queries
+   - ~40 lines
+
+26. **`pkg/delegate/factory.go`** ✅
+   - `NewDelegationRepository(persistenceType, config)` factory function
+   - Supports "file" only (PostgreSQL implementation not available)
+   - Requires `mapper.UserMapper` dependency
+   - Simple delegation relationship tracking
+   - ~35 lines
+
+27. **`pkg/emailverification/factory.go`** ✅
+   - `NewEmailVerificationRepository(persistenceType, config)` factory function
+   - Supports "postgres" and "file" persistence types
+   - Uses pgxpool.Pool for PostgreSQL
+   - Existing Repository struct implements interface implicitly
+   - ~35 lines
+
+**Total Phase 5: 9 packages with factory pattern, ~375 lines of implementation**
 
 ### Pattern Established
 
@@ -244,12 +271,12 @@ type XRepository interface {
 - pkg/mapper, pkg/auth, pkg/twofa, pkg/iam, pkg/profile
 
 **Phase 5:** Factory pattern implementation ✅
-- All 5 newly extracted packages now have factory functions
+- All 9 newly extracted/existing packages now have factory functions
 - Runtime selection between PostgreSQL and file-based storage
 
 **Total packages with dual persistence support:** 14 packages
 **Total lines of file-based implementation:** ~4,740 lines
-**Total lines of factory code:** ~195 lines
+**Total lines of factory code:** ~375 lines (9 packages)
 
 ### Factory Pattern Usage
 
@@ -268,6 +295,30 @@ iamRepo, err := iam.NewIamRepository("file", iam.RepositoryConfig{
 groupRepo, err := iam.NewIamGroupRepository("file", iam.RepositoryConfig{
     DataDir: "./data",
 }, iamRepo)
+
+// Example: pkg/login (comprehensive credential management)
+loginRepo, err := login.NewLoginRepository("postgres", login.RepositoryConfig{
+    Queries: loginQueries,
+})
+
+// Example: pkg/device (with expiry options)
+deviceRepo, err := device.NewDeviceRepository("file", device.RepositoryConfig{
+    DataDir: "./data",
+    Options: &device.DeviceRepositoryOptions{
+        ExpiryDuration: 90 * 24 * time.Hour,
+    },
+})
+
+// Example: pkg/delegate (requires user mapper)
+delegateRepo, err := delegate.NewDelegationRepository("file", delegate.RepositoryConfig{
+    DataDir:    "./data",
+    UserMapper: userMapper,
+})
+
+// Example: pkg/emailverification
+emailRepo, err := emailverification.NewEmailVerificationRepository("postgres", emailverification.RepositoryConfig{
+    Pool: pool,
+})
 ```
 
 ### Environment Configuration (Recommended)
@@ -446,8 +497,21 @@ All repository extraction, file-based implementations, and factory patterns are 
 
 - **14 packages** now support dual persistence (PostgreSQL + File-based)
 - **~4,740 lines** of file-based repository implementations
-- **~195 lines** of factory pattern code
+- **~375 lines** of factory pattern code (9 packages)
 - **Zero breaking changes** to existing code using PostgreSQL
+
+**Packages with factory patterns:**
+1. pkg/mapper ✅
+2. pkg/auth ✅
+3. pkg/twofa ✅
+4. pkg/iam ✅ (IamRepository + IamGroupRepository)
+5. pkg/profile ✅
+6. pkg/login ✅
+7. pkg/device ✅ (with DeviceRepositoryOptions support)
+8. pkg/delegate ✅ (file-only, requires UserMapper)
+9. pkg/emailverification ✅
+
+**All factories verified to build successfully!**
 
 ### 🎯 Ready to Use
 
