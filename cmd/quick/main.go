@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/tendant/chi-demo/app"
+	"github.com/tendant/simple-idm/pkg/bootstrap"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/config"
 	"github.com/tendant/simple-idm/pkg/device"
@@ -156,8 +157,8 @@ func main() {
 	// Initialize core services
 	services := initializeServices(pool, &config, privateKey, keyID)
 
-	// Create first admin user if no users exist
-	createInitialAdminUser(services.iamService, services.userService, &config)
+	// Bootstrap admin roles and user if needed
+	bootstrapAdminRolesAndUser(services.iamService, services.userService, &config)
 
 	// Setup HTTP server
 	server := app.DefaultApp()
@@ -524,62 +525,35 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 	})
 }
 
-func createInitialAdminUser(iamService *iam.IamService, userService *user.UserService, appConfig *Config) {
+// bootstrapAdminRolesAndUser ensures admin roles exist and creates the first admin user if needed
+func bootstrapAdminRolesAndUser(iamService *iam.IamService, userService *user.UserService, appConfig *Config) {
 	ctx := context.Background()
-	exists, err := iamService.AnyUserExists(ctx)
+
+	// Parse admin role names from configuration
+	adminRoles := config.ParseAdminRoleNames(appConfig.AdminRoleNames)
+
+	// Build bootstrap configuration
+	bootstrapConfig := bootstrap.AdminBootstrapConfig{
+		AdminRoleNames: adminRoles,
+		AdminUsername:  appConfig.AdminUsername,
+		AdminEmail:     appConfig.AdminEmail,
+		AdminPassword:  appConfig.AdminPassword,
+		IamService:     iamService,
+		UserService:    userService,
+	}
+
+	// Execute bootstrap
+	result, err := bootstrap.BootstrapAdminRolesAndUser(ctx, bootstrapConfig)
 	if err != nil {
-		slog.Error("Error checking user existence", "error", err)
+		slog.Error("Failed to bootstrap admin roles and user", "error", err)
+		// Don't exit - allow service to continue (admin can be created via API)
 		return
 	}
 
-	if !exists {
-		// Parse admin role names from config
-		adminRoles := config.ParseAdminRoleNames(appConfig.AdminRoleNames)
-		primaryAdminRole := config.GetPrimaryAdminRole(adminRoles)
-
-		slog.Info("No users exist - creating first admin user",
-			"admin_role", primaryAdminRole,
-			"all_admin_roles", adminRoles)
-
-		// Build admin user options from environment variables
-		options := user.CreateAdminUserOptions{}
-
-		// Use environment variables if provided, otherwise use defaults
-		if appConfig.AdminUsername != "" {
-			options.Username = appConfig.AdminUsername
-		}
-
-		if appConfig.AdminEmail != "" {
-			options.Email = appConfig.AdminEmail
-		}
-
-		if appConfig.AdminPassword != "" {
-			options.Password = appConfig.AdminPassword
-		}
-
-		// Set the admin role name to use
-		options.AdminRoleName = primaryAdminRole
-
-		res, err := userService.CreateAdminUser(ctx, options)
-		if err != nil {
-			slog.Error("Error creating admin user", "error", err)
-			return
-		}
-
-		slog.Info("=" + string(make([]byte, 60)) + "=")
-		slog.Info("FIRST TIME SETUP - ADMIN USER CREATED")
-		slog.Info("Username: " + res.Username)
-		slog.Info("Email: " + res.Email)
-
-		// Only display password if it was auto-generated
-		if appConfig.AdminPassword == "" {
-			slog.Info("Password: " + res.Password)
-			slog.Info("SAVE THESE CREDENTIALS - THEY WILL NOT BE SHOWN AGAIN")
-		} else {
-			slog.Info("Password: (using ADMIN_PASSWORD from environment)")
-		}
-
-		slog.Info("=" + string(make([]byte, 60)) + "=")
+	// Display results if admin was created
+	if result.UserCreated {
+		bootstrap.PrintBootstrapResult(result)
+		bootstrap.LogBootstrapSummary(result)
 	}
 }
 
