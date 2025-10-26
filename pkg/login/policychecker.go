@@ -175,3 +175,21 @@ func loadCommonPasswords(filePath string) map[string]bool {
 	}
 	return result
 }
+
+// NoOpPasswordPolicy returns a permissive policy that accepts any non-empty password
+// Useful for development/testing environments
+func NoOpPasswordPolicy() *PasswordPolicy {
+	return &PasswordPolicy{
+		MinLength:            1, // only requirement: non-empty
+		RequireUppercase:     false,
+		RequireLowercase:     false,
+		RequireDigit:         false,
+		RequireSpecialChar:   false,
+		DisallowCommonPwds:   false,
+		MaxRepeatedChars:     0,
+		HistoryCheckCount:    0,
+		ExpirationPeriod:     100 * 365 * 24 * time.Hour,
+		MinPasswordAgePeriod: 0,
+		CommonPasswordsPath:  "",
+	}
+}

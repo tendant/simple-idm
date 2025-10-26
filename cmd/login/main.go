@@ -98,6 +98,7 @@ type TwilioConfig struct {
 }
 
 type PasswordComplexityConfig struct {
+	Enabled                 bool   `env:"PASSWORD_POLICY_ENABLED" env-default:"true"`
 	RequiredDigit           bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_DIGIT" env-default:"true"`
 	RequiredLowercase       bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_LOWERCASE" env-default:"true"`
 	RequiredNonAlphanumeric bool   `env:"PASSWORD_COMPLEXITY_REQUIRE_NON_ALPHANUMERIC" env-default:"true"`
@@ -495,6 +496,11 @@ func createPasswordPolicy(config *PasswordComplexityConfig) *login.PasswordPolic
 	// If no config is provided, use the default policy
 	if config == nil {
 		return login.DefaultPasswordPolicy()
+	}
+
+	// If policy is disabled, return no-op policy
+	if !config.Enabled {
+		return login.NoOpPasswordPolicy()
 	}
 
 	expirationPeriod, err := duration.Parse(config.ExpirationPeriod)
