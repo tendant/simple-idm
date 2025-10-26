@@ -88,9 +88,6 @@ type Config struct {
 	// Magic Link
 	MagicLinkExpiration string `env:"MAGIC_LINK_EXPIRATION" env-default:"1h"`
 
-	// OAuth2 Client Encryption
-	OAuth2EncryptionKey string `env:"OAUTH2_CLIENT_ENCRYPTION_KEY" env-default:""`
-
 	// Cookies
 	CookieSecure   bool `env:"COOKIE_SECURE" env-default:"false"`
 	CookieHttpOnly bool `env:"COOKIE_HTTP_ONLY" env-default:"true"`
@@ -134,12 +131,6 @@ func main() {
 	if err != nil {
 		slog.Error("Failed to ensure RSA key", "error", err)
 		os.Exit(1)
-	}
-
-	// Generate OAuth2 encryption key if not provided
-	if config.OAuth2EncryptionKey == "" {
-		config.OAuth2EncryptionKey = generateEncryptionKey()
-		slog.Warn("OAuth2 encryption key auto-generated - this is OK for development but should be set via env for production")
 	}
 
 	// Initialize database connection
@@ -330,13 +321,15 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	// User service
 	userService := user.NewUserService(iamService, loginsService)
 
-	// OAuth2 client service
-	oauth2Repo, err := oauth2client.NewPostgresOAuth2ClientRepository(pool, config.OAuth2EncryptionKey)
+	// OAuth2 client service - using environment-based configuration
+	// No database or encryption needed - clients configured via env vars
+	oauth2Repo, err := oauth2client.NewEnvOAuth2ClientRepository()
 	if err != nil {
 		slog.Error("Failed to create OAuth2 client repository", "error", err)
 		os.Exit(1)
 	}
 	oauth2ClientService := oauth2client.NewClientService(oauth2Repo)
+	slog.Info("OAuth2 clients loaded from environment variables")
 
 	// OIDC service
 	oidcRepository := oidc.NewInMemoryOIDCRepository()
@@ -634,16 +627,6 @@ func ensureRSAKey(keyFile string) (*rsa.PrivateKey, string, error) {
 
 	keyID := fmt.Sprintf("quick-idm-%d", time.Now().Unix()%1000000)
 	return privateKey, keyID, nil
-}
-
-// generateEncryptionKey generates a 32-byte key for OAuth2 client secret encryption
-func generateEncryptionKey() string {
-	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
-		slog.Error("Failed to generate encryption key", "error", err)
-		return "12345678901234567890123456789012" // Fallback (not secure!)
-	}
-	return fmt.Sprintf("%x", key)
 }
 
 // loadEnvFile loads environment variables from .env file if it exists
