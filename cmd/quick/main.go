@@ -411,7 +411,7 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 	)
 
 	// Public routes (no authentication)
-	r.Route("/api/auth", func(r chi.Router) {
+	r.Route("/api/idm/auth", func(r chi.Router) {
 		// Password login
 		r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
 			resp := loginHandle.PostLogin(w, r)
@@ -455,7 +455,7 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 	})
 
 	// Signup routes (public)
-	r.Route("/api/signup", func(r chi.Router) {
+	r.Route("/api/idm/signup", func(r chi.Router) {
 		r.Post("/passwordless", func(w http.ResponseWriter, r *http.Request) {
 			resp := signupHandle.RegisterUserPasswordless(w, r)
 			if resp != nil {

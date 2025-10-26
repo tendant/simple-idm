@@ -135,6 +135,19 @@ func (h Handle) PostLogin(w http.ResponseWriter, r *http.Request) *Response {
 
 	h.tokenCookieService.SetTokensCookie(w, result.Tokens)
 
+	// Safety check: ensure we have at least one user
+	if len(apiUsers) == 0 {
+		slog.Error("Login successful but no users found in result",
+			"loginID", result.LoginID,
+			"tokens_present", len(result.Tokens) > 0)
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: map[string]string{
+				"error": "Login succeeded but user data not found",
+			},
+		}
+	}
+
 	// Create response with user information
 	response := Login{
 		Status:  STATUS_SUCCESS,
