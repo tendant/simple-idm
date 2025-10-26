@@ -18,17 +18,22 @@ func CreateTestToken(userID string, extraClaims ExtraClaims, secret []byte) (str
 	// Initialize JWT auth with the provided secret
 	tokenAuth := jwtauth.New("HS256", secret, nil)
 
-	// Create custom claims with user ID and extra claims
-	customClaims := map[string]interface{}{
-		"user_id":      userID,
-		"extra_claims": extraClaims,
+	// Create nested extra claims structure that matches what AuthUserMiddleware expects
+	nestedExtraClaims := map[string]interface{}{
+		"user_id": userID,
+		"extra_claims": map[string]interface{}{
+			"usernmae": extraClaims.Username, // Match the typo in the struct tag
+			"email":    extraClaims.Email,
+			"roles":    extraClaims.Roles,
+		},
 	}
 
-	// Create JWT claims with expiration (1 hour)
+	// Create JWT claims with the expected structure
 	claims := map[string]interface{}{
 		"sub":           userID,
 		"exp":           time.Now().Add(time.Hour).Unix(),
-		"custom_claims": customClaims,
+		"user_id":       userID,
+		"extra_claims":  nestedExtraClaims,
 	}
 
 	// Create and return the JWT token
@@ -74,14 +79,38 @@ func TestCreateTestToken(t *testing.T) {
 	assert.True(t, ok, "Subject claim should be a string")
 	assert.Equal(t, userID, sub, "Subject claim should match user ID")
 
-	// Verify custom claims
-	customClaimsFromToken, ok := tokenClaims["custom_claims"].(map[string]interface{})
-	require.True(t, ok, "Custom claims should be a map")
-
-	// Verify user ID in custom claims
-	userIDFromToken, ok := customClaimsFromToken["user_id"].(string)
+	// Verify user ID in top-level claims
+	userIDFromToken, ok := tokenClaims["user_id"].(string)
 	assert.True(t, ok, "User ID should be a string")
-	assert.Equal(t, userID, userIDFromToken, "User ID in custom claims should match")
+	assert.Equal(t, userID, userIDFromToken, "User ID should match")
+
+	// Verify extra claims structure
+	extraClaimsTop, ok := tokenClaims["extra_claims"].(map[string]interface{})
+	require.True(t, ok, "Extra claims should be a map")
+
+	// Verify user ID in extra claims
+	userIDInExtraClaims, ok := extraClaimsTop["user_id"].(string)
+	assert.True(t, ok, "User ID in extra claims should be a string")
+	assert.Equal(t, userID, userIDInExtraClaims, "User ID in extra claims should match")
+
+	// Verify nested extra claims exist
+	extraClaimsNested, ok := extraClaimsTop["extra_claims"].(map[string]interface{})
+	require.True(t, ok, "Nested extra claims should be a map")
+
+	// Verify username in nested extra claims (note the typo "usernmae")
+	username, ok := extraClaimsNested["usernmae"].(string)
+	assert.True(t, ok, "Username should be a string")
+	assert.Equal(t, extraClaims.Username, username, "Username should match")
+
+	// Verify email in nested extra claims
+	email, ok := extraClaimsNested["email"].(string)
+	assert.True(t, ok, "Email should be a string")
+	assert.Equal(t, extraClaims.Email, email, "Email should match")
+
+	// Verify roles in nested extra claims
+	roles, ok := extraClaimsNested["roles"].([]interface{})
+	assert.True(t, ok, "Roles should be an array")
+	assert.Len(t, roles, len(extraClaims.Roles), "Roles array length should match")
 }
 
 func TestAuthUserMiddleware(t *testing.T) {
@@ -200,17 +229,22 @@ func TestJWTTokenWithCustomClaims(t *testing.T) {
 		Roles:    []string{"user", "admin"},
 	}
 
-	// Create custom claims
-	customClaims := map[string]interface{}{
-		"user_id":      userID,
-		"extra_claims": extraClaims,
+	// Create nested extra claims structure that matches what AuthUserMiddleware expects
+	nestedExtraClaims := map[string]interface{}{
+		"user_id": userID,
+		"extra_claims": map[string]interface{}{
+			"usernmae": extraClaims.Username, // Match the typo in the struct tag
+			"email":    extraClaims.Email,
+			"roles":    extraClaims.Roles,
+		},
 	}
 
-	// Create JWT claims with expiration
+	// Create JWT claims with the expected structure
 	claims := map[string]interface{}{
 		"sub":           userID,
 		"exp":           time.Now().Add(time.Hour).Unix(),
-		"custom_claims": customClaims,
+		"user_id":       userID,
+		"extra_claims":  nestedExtraClaims,
 	}
 
 	// Create the JWT token
@@ -234,31 +268,36 @@ func TestJWTTokenWithCustomClaims(t *testing.T) {
 	assert.True(t, ok, "Subject claim should be a string")
 	assert.Equal(t, userID, sub, "Subject claim should match user ID")
 
-	// Verify custom claims
-	customClaimsFromToken, ok := tokenClaims["custom_claims"].(map[string]interface{})
-	require.True(t, ok, "Custom claims should be a map")
-
-	// Verify user ID in custom claims
-	userIDFromToken, ok := customClaimsFromToken["user_id"].(string)
+	// Verify user ID in top-level claims
+	userIDFromToken, ok := tokenClaims["user_id"].(string)
 	assert.True(t, ok, "User ID should be a string")
-	assert.Equal(t, userID, userIDFromToken, "User ID in custom claims should match")
+	assert.Equal(t, userID, userIDFromToken, "User ID should match")
 
-	// Verify extra claims
-	extraClaimsFromToken, ok := customClaimsFromToken["extra_claims"].(map[string]interface{})
+	// Verify extra claims structure
+	extraClaimsTop, ok := tokenClaims["extra_claims"].(map[string]interface{})
 	require.True(t, ok, "Extra claims should be a map")
 
+	// Verify user ID in extra claims
+	userIDInExtraClaims, ok := extraClaimsTop["user_id"].(string)
+	assert.True(t, ok, "User ID in extra claims should be a string")
+	assert.Equal(t, userID, userIDInExtraClaims, "User ID in extra claims should match")
+
+	// Verify nested extra claims
+	extraClaimsNested, ok := extraClaimsTop["extra_claims"].(map[string]interface{})
+	require.True(t, ok, "Nested extra claims should be a map")
+
 	// Note: The struct has a typo in the tag - "usernmae" instead of "username"
-	usernameFromToken, ok := extraClaimsFromToken["usernmae"].(string)
+	usernameFromToken, ok := extraClaimsNested["usernmae"].(string)
 	assert.True(t, ok, "Username should be a string")
 	assert.Equal(t, extraClaims.Username, usernameFromToken, "Username should match")
 
-	// Verify email in extra claims
-	emailFromToken, ok := extraClaimsFromToken["email"].(string)
+	// Verify email in nested extra claims
+	emailFromToken, ok := extraClaimsNested["email"].(string)
 	assert.True(t, ok, "Email should be a string")
 	assert.Equal(t, extraClaims.Email, emailFromToken, "Email should match")
 
-	// Verify roles in extra claims
-	rolesFromToken, ok := extraClaimsFromToken["roles"].([]interface{})
+	// Verify roles in nested extra claims
+	rolesFromToken, ok := extraClaimsNested["roles"].([]interface{})
 	assert.True(t, ok, "Roles should be an array")
 	assert.Len(t, rolesFromToken, len(extraClaims.Roles), "Roles array length should match")
 
