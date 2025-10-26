@@ -31,6 +31,7 @@ func NewUserService(iamService *iam.IamService, loginsService *logins.LoginsServ
 type CreateAdminUserOptions struct {
 	Username string // Default: "super"
 	Email    string // Default: "{username}@example.com"
+	Password string // Optional: if empty, a secure password will be generated
 }
 
 // CreateAdminUserResult contains the result of creating an admin user
@@ -65,10 +66,14 @@ func (s *UserService) CreateAdminUser(ctx context.Context, options CreateAdminUs
 	}
 	slog.Info("Admin role ensured", "role_id", adminRoleID)
 
-	// Step 2: Generate secure password
-	password, err := s.generateSecurePassword()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate secure password: %w", err)
+	// Step 2: Use provided password or generate secure password
+	password := options.Password
+	if password == "" {
+		var err error
+		password, err = s.generateSecurePassword()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate secure password: %w", err)
+		}
 	}
 
 	// Step 3: Create login record
