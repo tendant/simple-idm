@@ -2,10 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -131,12 +128,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Ensure RSA key exists (auto-generate if missing)
-	privateKey, keyID, err := ensureRSAKey(config.JWTKeyFile)
+	// Bootstrap RSA key (auto-generate if missing)
+	rsaResult, err := bootstrap.BootstrapRSAKey(bootstrap.RSAKeyConfig{
+		KeyFile:     config.JWTKeyFile,
+		KeySize:     2048,
+		KeyIDPrefix: "quick-idm",
+	})
 	if err != nil {
-		slog.Error("Failed to ensure RSA key", "error", err)
+		slog.Error("Failed to bootstrap RSA key", "error", err)
 		os.Exit(1)
 	}
+
+	// Display RSA key info (quiet mode - just one line)
+	bootstrap.PrintRSAKeyQuietInfo(rsaResult)
+
+	// Extract key and keyID for later use
+	privateKey := rsaResult.PrivateKey
+	keyID := rsaResult.KeyID
 
 	// Initialize database connection
 	dbURL := config.toDatabaseURL()
@@ -557,68 +565,8 @@ func bootstrapAdminRolesAndUser(iamService *iam.IamService, userService *user.Us
 	}
 }
 
-// ensureRSAKey checks if RSA key exists, generates if missing
-func ensureRSAKey(keyFile string) (*rsa.PrivateKey, string, error) {
-	// Resolve absolute path
-	keyPath := keyFile
-	if !filepath.IsAbs(keyPath) {
-		cwd, _ := os.Getwd()
-		keyPath = filepath.Join(cwd, keyFile)
-	}
-
-	// Check if key exists
-	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-		slog.Info("RSA key not found - generating new key pair", "path", keyPath)
-
-		// Generate 2048-bit RSA key
-		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to generate RSA key: %w", err)
-		}
-
-		// Encode to PEM
-		privateKeyPEM := &pem.Block{
-			Type:  "RSA PRIVATE KEY",
-			Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
-		}
-
-		// Write to file
-		keyFileHandle, err := os.Create(keyPath)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to create key file: %w", err)
-		}
-		defer keyFileHandle.Close()
-
-		if err := pem.Encode(keyFileHandle, privateKeyPEM); err != nil {
-			return nil, "", fmt.Errorf("failed to write key file: %w", err)
-		}
-
-		// Set restrictive permissions
-		if err := os.Chmod(keyPath, 0600); err != nil {
-			slog.Warn("Failed to set key file permissions", "error", err)
-		}
-
-		keyID := fmt.Sprintf("quick-idm-%d", time.Now().Unix())
-		slog.Info("RSA key generated successfully", "path", keyPath, "key_id", keyID)
-
-		return privateKey, keyID, nil
-	}
-
-	// Load existing key
-	slog.Info("Loading existing RSA key", "path", keyPath)
-	keyBytes, err := os.ReadFile(keyPath)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to read key file: %w", err)
-	}
-
-	privateKey, err := jwks.DecodePrivateKeyFromPEM(string(keyBytes))
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to decode private key: %w", err)
-	}
-
-	keyID := fmt.Sprintf("quick-idm-%d", time.Now().Unix()%1000000)
-	return privateKey, keyID, nil
-}
+// Note: ensureRSAKey has been replaced with bootstrap.BootstrapRSAKey
+// See pkg/bootstrap/rsa.go for the new implementation
 
 // loadEnvFile loads environment variables from .env file if it exists
 func loadEnvFile() {
