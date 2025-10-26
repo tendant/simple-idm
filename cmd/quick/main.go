@@ -181,19 +181,25 @@ func main() {
 	server.Run()
 }
 
+// Services contains all initialized services for the application
+// Some services are stored for future extensibility even if not currently used
 type Services struct {
+	// Core services (actively used)
 	iamService          *iam.IamService
 	loginService        *login.LoginService
 	loginFlowService    *loginflow.LoginFlowService
 	loginsService       *logins.LoginsService
 	roleService         *role.RoleService
-	tokenService        tokengenerator.TokenService
 	tokenCookieService  tokengenerator.TokenCookieService
 	oauth2ClientService *oauth2client.ClientService
 	oidcService         *oidc.OIDCService
 	jwksService         *jwks.JWKSService
 	userService         *user.UserService
-	userMapper          mapper.UserMapper
+
+	// Optional services (available but not directly accessed - passed to sub-services)
+	// These can be nil in minimal configurations
+	tokenService tokengenerator.TokenService // Used by sub-services (loginFlowService, oidcService)
+	userMapper   mapper.UserMapper           // Used by sub-services (loginService, oidcService)
 }
 
 func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.PrivateKey, keyID string) *Services {
