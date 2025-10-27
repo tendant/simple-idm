@@ -335,6 +335,30 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	oauth2ClientService := oauth2client.NewClientService(oauth2Repo)
 	slog.Info("OAuth2 clients loaded from environment variables")
 
+	// Print OAuth2 client configurations for debugging
+	clients, err := oauth2Repo.ListClients(context.Background())
+	if err != nil {
+		slog.Warn("Failed to list OAuth2 clients", "error", err)
+	} else if len(clients) > 0 {
+		slog.Info("==============================================")
+		slog.Info("OAuth2/OIDC Client Configuration", "count", len(clients))
+		slog.Info("==============================================")
+		for _, client := range clients {
+			slog.Info("Client registered",
+				"client_id", client.ClientID,
+				"client_name", client.ClientName,
+				"redirect_uris", client.RedirectURIs,
+				"grant_types", client.GrantTypes,
+				"scopes", client.Scopes,
+				"require_pkce", client.RequirePKCE,
+			)
+		}
+		slog.Info("==============================================")
+	} else {
+		slog.Warn("No OAuth2 clients configured - set environment variables to register clients")
+		slog.Info("Example: OAUTH2_CLIENT_1_ID=my-client OAUTH2_CLIENT_1_SECRET=secret OAUTH2_CLIENT_1_REDIRECT_URIS=http://localhost:3000/callback")
+	}
+
 	// OIDC service
 	oidcRepository := oidc.NewInMemoryOIDCRepository()
 	oidcService := oidc.NewOIDCServiceWithOptions(
