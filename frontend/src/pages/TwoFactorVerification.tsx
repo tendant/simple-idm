@@ -2,6 +2,7 @@ import { Component, createSignal, createEffect, For, Show } from 'solid-js';
 import { useNavigate, useSearchParams, A, RouteSectionProps } from '@solidjs/router';
 import { twoFactorApi, TwoFactorMethod, TwoFactorSendRequest, DeliveryOption, User, SelectUserRequiredResponse } from '../api/twoFactor';
 import { userApi } from '../api/user';
+import { needsFullRedirect } from '../lib/utils';
 
 interface TwoFactorVerificationProps extends RouteSectionProps {
   tempToken?: string;
@@ -166,14 +167,14 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
       // Redirect to the original page or default to /users
       let redirectPath = '/users';
       if (searchParams.redirect) {
-        redirectPath = Array.isArray(searchParams.redirect) 
-          ? searchParams.redirect[0] 
+        redirectPath = Array.isArray(searchParams.redirect)
+          ? searchParams.redirect[0]
           : searchParams.redirect;
       }
-      
-      // Check if this is an OAuth2 authorization URL (backend API endpoint)
-      if (redirectPath.includes('api/idm/oauth2/authorize')) {
-        // Use full page redirect for backend API endpoints
+
+      // Use utility function to determine redirect strategy
+      if (needsFullRedirect(redirectPath)) {
+        // Use full page redirect for external URLs or backend endpoints
         window.location.href = redirectPath;
       } else {
         // Add a small delay to ensure localStorage updates are complete
@@ -232,14 +233,14 @@ const TwoFactorVerification: Component<TwoFactorVerificationProps> = (props) => 
       // Redirect to the original page or default to /users
       let redirectPath = '/users';
       if (searchParams.redirect) {
-        redirectPath = Array.isArray(searchParams.redirect) 
-          ? searchParams.redirect[0] 
+        redirectPath = Array.isArray(searchParams.redirect)
+          ? searchParams.redirect[0]
           : searchParams.redirect;
       }
-      
-      // Check if this is an OAuth2 authorization URL (backend API endpoint)
-      if (redirectPath.includes('api/idm/oauth2/authorize')) {
-        // Use full page redirect for backend API endpoints
+
+      // Use utility function to determine redirect strategy
+      if (needsFullRedirect(redirectPath)) {
+        // Use full page redirect for external URLs or backend endpoints
         window.location.href = redirectPath;
       } else {
         // Use frontend router for internal routes

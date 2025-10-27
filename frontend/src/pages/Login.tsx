@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, A } from '@solidjs/router';
 import { userApi } from '../api/user';
 import { DeliveryOption } from '../api/twoFactor';
 import { getExternalProviders, initiateOAuth2Flow, handleOAuth2Callback, type ExternalProvider } from '../api/externalProviders';
+import { needsFullRedirect } from '../lib/utils';
 
 const Login: Component = () => {
   const navigate = useNavigate();
@@ -116,15 +117,15 @@ const Login: Component = () => {
       let redirectPath = '/users';
       if (searchParams.redirect) {
         console.log("searchParams.redirect to:", searchParams.redirect);
-        redirectPath = Array.isArray(searchParams.redirect) 
-          ? searchParams.redirect[0] 
+        redirectPath = Array.isArray(searchParams.redirect)
+          ? searchParams.redirect[0]
           : searchParams.redirect;
       }
       console.log("Redirecting to:", redirectPath);
-      
-      // Check if this is an OAuth2 authorization URL (backend API endpoint)
-      if (redirectPath.includes('api/idm/oauth2/authorize')) {
-        // Use full page redirect for backend API endpoints
+
+      // Use utility function to determine redirect strategy
+      if (needsFullRedirect(redirectPath)) {
+        // Use full page redirect for external URLs or backend endpoints
         window.location.href = redirectPath;
       } else {
         // Use frontend router for internal routes
