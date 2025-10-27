@@ -1,6 +1,9 @@
 package oauth2client
 
-import "time"
+import (
+	"log/slog"
+	"time"
+)
 
 // OAuth2Client represents an OAuth2 client configuration
 type OAuth2Client struct {
@@ -49,6 +52,11 @@ func (c *OAuth2Client) ValidateScope(requestedScopes []string) bool {
 			}
 		}
 		if !found {
+			// Debug logging to understand validation failure
+			slog.Error("Scope validation failed",
+				"requested_scope", requestedScope,
+				"allowed_scopes", c.Scopes,
+				"all_requested", requestedScopes)
 			return false
 		}
 	}
