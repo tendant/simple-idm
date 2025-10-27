@@ -250,7 +250,7 @@ func (s *LoginFlowService) ProcessMagicLinkValidation(ctx context.Context, token
 	// 5. Record success
 	s.recordLoginAttempt(ctx, loginResult.LoginID, request, true, "")
 
-	return s.successResult(tokens)
+	return s.successResult(tokens, loginResult.LoginID, loginResult.Users)
 }
 
 // UserSwitchRequest contains the data needed for user switching
@@ -337,7 +337,7 @@ func (s *LoginFlowService) Process2FAValidation(ctx context.Context, request Two
 	}
 	s.recordLoginAttempt(ctx, loginID, req, true, "")
 
-	return s.successResult(tokens)
+	return s.successResult(tokens, loginID, []mapper.User{user})
 }
 
 // ProcessMobile2FAValidation orchestrates the mobile 2FA validation flow
@@ -401,7 +401,7 @@ func (s *LoginFlowService) ProcessMobile2FAValidation(ctx context.Context, reque
 	}
 	s.recordLoginAttempt(ctx, loginID, req, true, "")
 
-	return s.successResult(tokens)
+	return s.successResult(tokens, loginID, []mapper.User{user})
 }
 
 // ProcessUserSwitch orchestrates the user switching flow
@@ -459,7 +459,7 @@ func (s *LoginFlowService) ProcessUserSwitch(ctx context.Context, request UserSw
 	}
 	s.recordLoginAttempt(ctx, loginID, req, true, "")
 
-	return s.successResult(tokens)
+	return s.successResult(tokens, loginID, []mapper.User{user})
 }
 
 // TokenRefreshRequest contains the data needed for token refresh
@@ -934,10 +934,12 @@ func (s *LoginFlowService) requireUserSelectionResult(loginID uuid.UUID, users [
 }
 
 // successResult creates a successful Result with tokens
-func (s *LoginFlowService) successResult(tokens map[string]tg.TokenValue) Result {
+func (s *LoginFlowService) successResult(tokens map[string]tg.TokenValue, loginID uuid.UUID, users []mapper.User) Result {
 	return Result{
 		Success: true,
 		Tokens:  tokens,
+		LoginID: loginID,
+		Users:   users,
 	}
 }
 
@@ -1032,7 +1034,11 @@ func (s *LoginFlowService) processCredentialLogin(ctx context.Context, req Reque
 	// 7. Record success
 	s.recordLoginAttempt(ctx, loginResult.LoginID, req, true, "")
 
-	return s.successResult(tokens)
+	slog.Info("processCredentialLogin success",
+		"loginID", loginResult.LoginID,
+		"users_count", len(loginResult.Users))
+
+	return s.successResult(tokens, loginResult.LoginID, loginResult.Users)
 }
 
 // TwoFASendRequest contains the data needed for sending 2FA notifications
