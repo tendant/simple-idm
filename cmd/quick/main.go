@@ -52,7 +52,7 @@ import (
 type Config struct {
 	// Application
 	BaseURL     string `env:"BASE_URL" env-default:"http://localhost:4000"`
-	FrontendURL string `env:"FRONTEND_URL" env-default:"http://localhost:3000"`
+	FrontendURL string `env:"FRONTEND_URL" env-default:"http://localhost:4040"`
 
 	// Database
 	DBHost     string `env:"IDM_PG_HOST" env-default:"localhost"`
@@ -553,11 +553,11 @@ func bootstrapAdminRolesAndUser(iamService *iam.IamService, userService *user.Us
 
 	// Step 2: Bootstrap admin user (only if no users exist)
 	userResult, err := bootstrap.BootstrapAdminUser(ctx, iamService, userService, bootstrap.AdminUserConfig{
-		Username:       appConfig.AdminUsername,
-		Email:          appConfig.AdminEmail,
-		Password:       appConfig.AdminPassword,
-		AdminRoleName:  rolesResult.PrimaryRole.Name,
-		AdminRoleID:    rolesResult.PrimaryRole.ID,
+		Username:      appConfig.AdminUsername,
+		Email:         appConfig.AdminEmail,
+		Password:      appConfig.AdminPassword,
+		AdminRoleName: rolesResult.PrimaryRole.Name,
+		AdminRoleID:   rolesResult.PrimaryRole.ID,
 	})
 	if err != nil {
 		slog.Error("Failed to bootstrap admin user", "error", err)
