@@ -470,7 +470,42 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 		})
 	})
 
-	// OAuth2/OIDC endpoints (public)
+	// OAuth2/OIDC endpoints (split user-facing from API endpoints)
+	// User-facing authorize endpoint (browser redirects)
+	r.Get("/oauth2/authorize", func(w http.ResponseWriter, r *http.Request) {
+		// Extract query parameters for authorize endpoint
+		scope := r.URL.Query().Get("scope")
+		state := r.URL.Query().Get("state")
+		codeChallenge := r.URL.Query().Get("code_challenge")
+		codeChallengeMethod := r.URL.Query().Get("code_challenge_method")
+
+		params := oidcapi.AuthorizeParams{
+			ClientID:     r.URL.Query().Get("client_id"),
+			RedirectURI:  r.URL.Query().Get("redirect_uri"),
+			ResponseType: oidcapi.AuthorizeParamsResponseType(r.URL.Query().Get("response_type")),
+		}
+
+		if scope != "" {
+			params.Scope = &scope
+		}
+		if state != "" {
+			params.State = &state
+		}
+		if codeChallenge != "" {
+			params.CodeChallenge = &codeChallenge
+		}
+		if codeChallengeMethod != "" {
+			method := oidcapi.AuthorizeParamsCodeChallengeMethod(codeChallengeMethod)
+			params.CodeChallengeMethod = &method
+		}
+
+		resp := oidcHandle.Authorize(w, r, params)
+		if resp != nil {
+			render.Render(w, r, resp)
+		}
+	})
+
+	// API endpoints for token, userinfo, jwks
 	r.Mount("/api/oauth2", oidcapi.Handler(oidcHandle))
 
 	// JWT authentication setup
