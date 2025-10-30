@@ -6,7 +6,8 @@ This directory contains nginx configuration and deployment scripts for Simple ID
 
 - **`.env.example`** - Example environment configuration
 - **`nginx.conf.template`** - Nginx configuration template
-- **`deploy-nginx.sh`** - Automated deployment script
+- **`deploy-nginx.sh`** - Automated nginx deployment script
+- **`certbot-cloudflare.sh`** - SSL certificate via Cloudflare DNS challenge
 - **`nginx.conf`** - Generated nginx config (not in git)
 
 ## Quick Start
@@ -70,7 +71,26 @@ Internet → nginx (443)
 
 ## SSL Certificates
 
-After deploying nginx config, obtain SSL certificates:
+### Option 1: Cloudflare DNS Challenge (Recommended)
+
+No need to stop nginx. Works even if port 80/443 is not accessible.
+
+```bash
+# Add your Cloudflare API token to .env
+vim .env  # Add CLOUDFLARE_API_TOKEN
+
+# Run the script
+sudo ./certbot-cloudflare.sh
+```
+
+**Get Cloudflare API token:**
+1. Go to https://dash.cloudflare.com/profile/api-tokens
+2. Create token with permissions:
+   - `Zone.DNS` (Edit)
+   - `Zone.Zone` (Read)
+3. Add token to `.env` file
+
+### Option 2: Standalone (requires stopping nginx)
 
 ```bash
 sudo systemctl stop nginx
