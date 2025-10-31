@@ -28,7 +28,7 @@ func NewPasswordManager(queries *logindb.Queries) *PasswordManager {
 	repository := NewPostgresLoginRepository(queries)
 	return &PasswordManager{
 		repository:     repository,
-		policyChecker:  NewDefaultPasswordPolicyChecker(nil, nil),
+		policyChecker:  NewDefaultPasswordPolicyChecker(NoOpPasswordPolicy(), nil),
 		hasherFactory:  NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
 		currentVersion: CurrentPasswordVersion,
 	}
@@ -38,7 +38,7 @@ func NewPasswordManager(queries *logindb.Queries) *PasswordManager {
 func NewPasswordManagerWithRepository(repository LoginRepository) *PasswordManager {
 	return &PasswordManager{
 		repository:     repository,
-		policyChecker:  NewDefaultPasswordPolicyChecker(nil, nil),
+		policyChecker:  NewDefaultPasswordPolicyChecker(NoOpPasswordPolicy(), nil),
 		hasherFactory:  NewDefaultPasswordHasherFactory(CurrentPasswordVersion),
 		currentVersion: CurrentPasswordVersion,
 	}
