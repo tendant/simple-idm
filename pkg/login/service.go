@@ -158,8 +158,9 @@ func NewLoginService(
 
 // NewLoginServiceWithOptions creates a new LoginService with the given options
 func NewLoginServiceWithOptions(repository LoginRepository, opts ...Option) *LoginService {
-	// Create a default password manager
-	passwordManager := NewPasswordManagerWithRepository(repository)
+	// Create a default password manager with permissive NoOp policy
+	passwordManager := NewPasswordManagerWithRepository(repository).
+		WithPolicyChecker(NewDefaultPasswordPolicyChecker(NoOpPasswordPolicy(), nil))
 
 	// Create service with default values
 	ls := &LoginService{
