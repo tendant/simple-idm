@@ -141,8 +141,8 @@ server {
         }
     }
 
-    # Deny access to hidden files
-    location ~ /\. {
+    # Deny access to hidden files (except .well-known)
+    location ~ /\.(?!well-known) {
         deny all;
         access_log off;
         log_not_found off;
