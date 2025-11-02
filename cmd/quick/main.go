@@ -11,13 +11,13 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/cors"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/tendant/chi-demo/app"
+	"github.com/tendant/cors"
 	"github.com/tendant/simple-idm/pkg/bootstrap"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/config"
@@ -168,8 +168,19 @@ func main() {
 	// Bootstrap admin roles and user if needed
 	bootstrapAdminRolesAndUser(services.iamService, services.userService, &config)
 
-	// Setup HTTP server
-	server := app.DefaultApp()
+	// Setup HTTP server with custom CORS options
+	server := app.NewApp(
+		app.WithPort(4000), // Listen on port 4000 (not 3000 which is used by frontend)
+		app.WithCORS(&cors.Options{
+			AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:3000"},
+			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
+			ExposedHeaders:   []string{"Link"},
+			AllowCredentials: true, // CRITICAL: Required for HTTP-only cookies
+			MaxAge:           300,
+			Debug:            true, // Enable debug logging
+		}),
+	)
 	setupRoutes(server.R, services, &config)
 
 	slog.Info(strings.Repeat("=", 80))
@@ -393,19 +404,8 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 	adminRoles := config.ParseAdminRoleNames(appConfig.AdminRoleNames)
 	slog.Info("Configuring admin role middleware", "admin_roles", adminRoles)
 
-	// CORS middleware - allow dev server to make authenticated requests
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:3000"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
-		AllowCredentials: true, // CRITICAL: Required for HTTP-only cookies
-		MaxAge:           300,  // Cache preflight requests for 5 minutes
-	}))
-	slog.Info("CORS middleware configured", "allowed_origins", []string{"http://localhost:5173", "http://localhost:3000"})
-
 	// Health check endpoints
-	app.RoutesHealthz(r)
-	app.RoutesHealthzReady(r)
+	app.RegisterHealthzRoutes(r)
 
 	// Well-known endpoints (OIDC/OAuth2 discovery)
 	wellKnownConfig := wellknown.Config{
