@@ -17,10 +17,10 @@ require (
 	github.com/jinzhu/copier v0.4.0
 	github.com/lib/pq v1.10.9
 	github.com/pquerna/otp v1.4.0
-	github.com/senseyeio/duration v0.0.0-20180430131211-7c2a214ada46
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.10.0
-	github.com/tendant/chi-demo v1.5.2
+	github.com/tendant/chi-demo v1.7.0
+	github.com/tendant/cors v1.3.1
 	github.com/tendant/db-utils v0.0.1
 	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.35.0
@@ -57,7 +57,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/ggicci/httpin v0.10.1 // indirect
-	github.com/go-chi/cors v1.2.2 // indirect
 	github.com/go-chi/httplog/v2 v2.1.1 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
