@@ -14,8 +14,8 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/ilyakaznacheev/cleanenv"
-	"github.com/joho/godotenv"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/tendant/chi-demo/app"
 	"github.com/tendant/simple-idm/pkg/client"
 	"github.com/tendant/simple-idm/pkg/config"
@@ -289,8 +289,7 @@ func main() {
 
 	server := app.DefaultApp()
 
-	app.RoutesHealthz(server.R)
-	app.RoutesHealthzReady(server.R)
+	app.RegisterHealthzRoutes(server.R)
 
 	dbURL := config.IdmDbConfig.toDatabaseURL()
 	pool, err := pgxpool.New(context.Background(), dbURL)
@@ -733,7 +732,6 @@ func main() {
 
 	})
 
-	app.RoutesHealthzReady(server.R)
 	server.Run()
 }
 

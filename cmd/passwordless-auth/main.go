@@ -149,8 +149,7 @@ func main() {
 
 	server := app.DefaultApp()
 
-	app.RoutesHealthz(server.R)
-	app.RoutesHealthzReady(server.R)
+	app.RegisterHealthzRoutes(server.R)
 
 	dbConfig := config.IdmDbConfig.toDbConfig()
 	pool, err := dbutils.NewDbPool(context.Background(), dbConfig)
@@ -415,7 +414,6 @@ func main() {
 		r.Mount("/api/idm/device", deviceapi.Handler(deviceHandle))
 	})
 
-	app.RoutesHealthzReady(server.R)
 	server.Run()
 }
 

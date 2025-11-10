@@ -163,8 +163,7 @@ func main() {
 
 	server := app.DefaultApp()
 
-	app.RoutesHealthz(server.R)
-	app.RoutesHealthzReady(server.R)
+	app.RegisterHealthzRoutes(server.R)
 
 	dbConfig := config.IdmDbConfig.toDbConfig()
 	pool, err := dbutils.NewDbPool(context.Background(), dbConfig)
@@ -478,7 +477,6 @@ func main() {
 
 	})
 
-	app.RoutesHealthzReady(server.R)
 	server.Run()
 }
 
