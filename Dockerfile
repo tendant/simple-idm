@@ -1,7 +1,7 @@
 ARG GIT_COMMIT=noversion
 ARG GIT_COMMIT_SHORT=noversion
 
-FROM public.ecr.aws/docker/library/golang:1.23-alpine AS build
+FROM public.ecr.aws/docker/library/golang:1.24-alpine AS build
 
 RUN apk update && \
   apk add --update openntpd && \
@@ -21,7 +21,7 @@ COPY . .
 # Build the login binary directly with explicit architecture settings
 RUN make all
 
-FROM public.ecr.aws/docker/library/golang:1.23-alpine
+FROM public.ecr.aws/docker/library/golang:1.24-alpine
 
 WORKDIR /app
 
