@@ -270,7 +270,7 @@ func main() {
 		ExpiryDuration: deviceExpiryDuration,
 	}
 	deviceRepository := device.NewPostgresDeviceRepositoryWithOptions(pool, deviceRepositoryOptions)
-	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
+	deviceService := device.NewDeviceService(deviceRepository)
 
 	// Create a new handle with the domain login service directly
 	loginHandle := loginapi.NewHandle(

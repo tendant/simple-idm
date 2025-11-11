@@ -7,21 +7,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tendant/simple-idm/pkg/login"
 )
 
 // DeviceService handles device recognition and management
 type DeviceService struct {
 	deviceRepository     DeviceRepository
-	loginRepository      login.LoginRepository
 	deviceExpirationDays time.Duration
 }
 
 // NewDeviceService creates a new device service with the given repository
-func NewDeviceService(deviceRepository DeviceRepository, loginRepository login.LoginRepository, opts ...DeviceServiceOption) *DeviceService {
+//
+// BREAKING CHANGE (2025-11): Removed unused loginRepository parameter.
+// The loginRepository was never used in the implementation and created
+// an unnecessary circular dependency with the login package.
+//
+// Migration:
+//   Before: service := NewDeviceService(deviceRepo, loginRepo)
+//   After:  service := NewDeviceService(deviceRepo)
+func NewDeviceService(deviceRepository DeviceRepository, opts ...DeviceServiceOption) *DeviceService {
 	service := &DeviceService{
 		deviceRepository:     deviceRepository,
-		loginRepository:      loginRepository,
 		deviceExpirationDays: 90 * 24 * time.Hour, // Default to 90 days
 	}
 

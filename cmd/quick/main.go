@@ -309,7 +309,7 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	// For DeviceService, we'll create a minimal instance with no-op repository
 	// This is simpler than modifying loginflow to accept nil
 	deviceRepository := device.NewNoOpDeviceRepository()
-	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
+	deviceService := device.NewDeviceService(deviceRepository)
 
 	// LoginFlow service (with no-op 2FA and minimal device service)
 	loginFlowService := loginflow.NewLoginFlowService(

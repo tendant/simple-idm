@@ -6,25 +6,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tendant/simple-idm/pkg/login"
-	"github.com/tendant/simple-idm/pkg/login/logindb"
 )
 
 func setupDeviceService(t *testing.T) *DeviceService {
 	// Create repository with default options
 	repo := NewInMemDeviceRepositoryWithOptions(DefaultDeviceRepositoryOptions())
-	connStr := "postgres://login:pwd@localhost:5432/powercard_db"
-	dbPool, err := pgxpool.New(context.Background(), connStr)
-	if err != nil {
-		t.Fatalf("Failed to connect to the database: %v", err)
-	}
-	loginQueries := logindb.New(dbPool)
-	loginRepository := login.NewPostgresLoginRepository(loginQueries)
-	// psqlRepo := NewPostgresDeviceRepository(dbPool)
-	service := NewDeviceService(repo, loginRepository)
+
+	// BREAKING CHANGE (2025-11): Removed unused loginRepository parameter
+	// The device service no longer depends on login package, eliminating circular dependency
+	service := NewDeviceService(repo)
 	return service
 }
 

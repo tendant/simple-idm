@@ -454,7 +454,7 @@ func main() {
 		ExpiryDuration: deviceExpiryDuration,
 	}
 	deviceRepository := device.NewPostgresDeviceRepositoryWithOptions(pool, deviceRepositoryOptions)
-	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
+	deviceService := device.NewDeviceService(deviceRepository)
 
 	twoFaService := twofa.NewTwoFaService(
 		twofaRepo,
