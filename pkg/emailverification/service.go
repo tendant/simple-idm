@@ -14,7 +14,7 @@ import (
 
 // EmailVerificationService handles email verification operations
 type EmailVerificationService struct {
-	repo                *Repository
+	repo                EmailVerificationRepository
 	notificationManager *notification.NotificationManager
 	baseURL             string
 	tokenExpiry         time.Duration
@@ -48,7 +48,7 @@ func WithResendWindow(window time.Duration) EmailVerificationServiceOption {
 
 // NewEmailVerificationService creates a new email verification service
 func NewEmailVerificationService(
-	repo *Repository,
+	repo EmailVerificationRepository,
 	notificationManager *notification.NotificationManager,
 	baseURL string,
 	opts ...EmailVerificationServiceOption,

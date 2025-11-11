@@ -29,14 +29,39 @@ type UserEmailStatus struct {
 	EmailVerifiedAt *time.Time
 }
 
-// Repository handles database operations for email verification
-type Repository struct {
+// EmailVerificationRepository defines the interface for email verification operations
+type EmailVerificationRepository interface {
+	CreateVerificationToken(ctx context.Context, userID uuid.UUID, token string, expiresAt time.Time) (*VerificationToken, error)
+	GetVerificationTokenByToken(ctx context.Context, token string) (*VerificationToken, error)
+	GetActiveTokensByUserId(ctx context.Context, userID uuid.UUID) ([]*VerificationToken, error)
+	MarkTokenAsVerified(ctx context.Context, tokenID uuid.UUID) error
+	SoftDeleteToken(ctx context.Context, tokenID uuid.UUID) error
+	SoftDeleteUserTokens(ctx context.Context, userID uuid.UUID) error
+	MarkUserEmailAsVerified(ctx context.Context, userID uuid.UUID) error
+	GetUserEmailVerificationStatus(ctx context.Context, userID uuid.UUID) (*UserEmailStatus, error)
+	CountRecentTokensByUserId(ctx context.Context, userID uuid.UUID, since time.Time) (int64, error)
+	CleanupExpiredTokens(ctx context.Context) error
+	GetUserByEmail(ctx context.Context, email string) (*UserEmailStatus, error)
+}
+
+// PostgresEmailVerificationRepository implements EmailVerificationRepository using PostgreSQL
+type PostgresEmailVerificationRepository struct {
 	db *pgxpool.Pool
 }
 
+// Repository is an alias for PostgresEmailVerificationRepository for backward compatibility
+// Deprecated: Use EmailVerificationRepository interface and PostgresEmailVerificationRepository instead
+type Repository = PostgresEmailVerificationRepository
+
+// NewPostgresEmailVerificationRepository creates a new PostgreSQL email verification repository
+func NewPostgresEmailVerificationRepository(db *pgxpool.Pool) *PostgresEmailVerificationRepository {
+	return &PostgresEmailVerificationRepository{db: db}
+}
+
 // NewRepository creates a new email verification repository
+// Deprecated: Use NewPostgresEmailVerificationRepository instead
 func NewRepository(db *pgxpool.Pool) *Repository {
-	return &Repository{db: db}
+	return NewPostgresEmailVerificationRepository(db)
 }
 
 // CreateVerificationToken creates a new verification token

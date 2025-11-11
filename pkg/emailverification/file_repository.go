@@ -12,21 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// EmailVerificationRepository defines the interface for email verification operations
-type EmailVerificationRepository interface {
-	CreateVerificationToken(ctx context.Context, userID uuid.UUID, token string, expiresAt time.Time) (*VerificationToken, error)
-	GetVerificationTokenByToken(ctx context.Context, token string) (*VerificationToken, error)
-	GetActiveTokensByUserId(ctx context.Context, userID uuid.UUID) ([]*VerificationToken, error)
-	MarkTokenAsVerified(ctx context.Context, tokenID uuid.UUID) error
-	SoftDeleteToken(ctx context.Context, tokenID uuid.UUID) error
-	SoftDeleteUserTokens(ctx context.Context, userID uuid.UUID) error
-	MarkUserEmailAsVerified(ctx context.Context, userID uuid.UUID) error
-	GetUserEmailVerificationStatus(ctx context.Context, userID uuid.UUID) (*UserEmailStatus, error)
-	CountRecentTokensByUserId(ctx context.Context, userID uuid.UUID, since time.Time) (int64, error)
-	CleanupExpiredTokens(ctx context.Context) error
-	GetUserByEmail(ctx context.Context, email string) (*UserEmailStatus, error)
-}
-
 // FileEmailVerificationRepository implements EmailVerificationRepository using file-based storage
 type FileEmailVerificationRepository struct {
 	dataDir string
