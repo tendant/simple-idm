@@ -16,6 +16,9 @@ A streamlined, production-ready identity management service with OAuth2/OIDC sup
 ### 1. Prerequisites
 
 - PostgreSQL database
+```bash
+podman run -d --name idm-postgres -e POSTGRES_PASSWORD=pwd -e POSTGRES_USER=idm -e POSTGRES_DB=idm -p 5432:5432 -v idm-pgdata:/var/lib/postgresql/data:Z postgres:17-alpine
+```
 - Go 1.21+ (for running from source)
 - Email server (use Mailpit for local dev)
 
