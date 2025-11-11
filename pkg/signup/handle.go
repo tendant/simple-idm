@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/emailverification"
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/login"
@@ -14,79 +13,114 @@ import (
 	"github.com/tendant/simple-idm/pkg/role"
 )
 
+// Handle handles HTTP requests for signup operations
 type Handle struct {
-	iamService               iam.IamService
-	roleService              role.RoleService
-	loginService             login.LoginService
-	loginsService            logins.LoginsService
-	emailVerificationService *emailverification.EmailVerificationService
-	registrationEnabled      bool
-	defaultRole              string
+	service *SignupService
 }
 
 type Option func(*Handle)
 
-func NewHandle(opts ...Option) *Handle {
-	h := &Handle{}
+// NewHandle creates a new HTTP handler with the given signup service
+func NewHandle(service *SignupService) *Handle {
+	return &Handle{
+		service: service,
+	}
+}
 
-	// Apply all options
+// NewHandleWithOptions creates a new HTTP handler with legacy options pattern
+// Deprecated: Use NewHandle with NewSignupService instead
+func NewHandleWithOptions(opts ...Option) *Handle {
+	// Temporary handle to collect options
+	tempHandle := &Handle{}
 	for _, opt := range opts {
-		opt(h)
+		opt(tempHandle)
 	}
 
-	return h
+	// If service was set directly via options, use it
+	if tempHandle.service != nil {
+		return tempHandle
+	}
+
+	// Otherwise create a default service
+	tempHandle.service = NewSignupService()
+	return tempHandle
 }
+
+// WithSignupService sets the signup service directly
+func WithSignupService(s *SignupService) Option {
+	return func(h *Handle) {
+		h.service = s
+	}
+}
+
+// Legacy options for backward compatibility
+// Deprecated: Use NewSignupService with service options instead
 
 func WithIamService(is iam.IamService) Option {
 	return func(h *Handle) {
-		h.iamService = is
+		if h.service == nil {
+			h.service = NewSignupService()
+		}
+		h.service.iamService = &is
 	}
 }
 
 func WithRoleService(rs role.RoleService) Option {
 	return func(h *Handle) {
-		h.roleService = rs
+		if h.service == nil {
+			h.service = NewSignupService()
+		}
+		h.service.roleService = &rs
 	}
 }
 
 func WithLoginsService(ls logins.LoginsService) Option {
 	return func(h *Handle) {
-		h.loginsService = ls
+		if h.service == nil {
+			h.service = NewSignupService()
+		}
+		h.service.loginsService = &ls
 	}
 }
 
 func WithLoginService(ls login.LoginService) Option {
 	return func(h *Handle) {
-		h.loginService = ls
+		if h.service == nil {
+			h.service = NewSignupService()
+		}
+		h.service.loginService = &ls
 	}
 }
 
 func WithRegistrationEnabled(enabled bool) Option {
 	return func(h *Handle) {
-		h.registrationEnabled = enabled
+		if h.service == nil {
+			h.service = NewSignupService()
+		}
+		h.service.registrationEnabled = enabled
 	}
 }
 
 func WithDefaultRole(role string) Option {
 	return func(h *Handle) {
-		h.defaultRole = role
+		if h.service == nil {
+			h.service = NewSignupService()
+		}
+		h.service.defaultRole = role
 	}
 }
 
 func WithEmailVerificationService(evs *emailverification.EmailVerificationService) Option {
 	return func(h *Handle) {
-		h.emailVerificationService = evs
+		if h.service == nil {
+			h.service = NewSignupService()
+		}
+		h.service.emailVerificationService = evs
 	}
 }
 
 // RegisterUser handles user registration with optional invitation code
 func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
-	if !h.registrationEnabled {
-		return &Response{
-			Code: http.StatusForbidden,
-			body: "Registration is disabled",
-		}
-	}
 	// Parse request body
 	var request RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -97,124 +131,33 @@ func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Validate required fields
-	if request.Username == "" || request.Password == "" || request.Fullname == "" || request.Email == "" {
-		slog.Error("Full name, username, password, and email are required")
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Full name, username, password, and email are required",
-		}
-	}
+	// Call service
+	result, err := h.service.RegisterUser(r.Context(), RegisterUserRequest{
+		Username:       request.Username,
+		Password:       request.Password,
+		Fullname:       request.Fullname,
+		Email:          request.Email,
+		InvitationCode: request.InvitationCode,
+	})
 
-	// Determine role based on invitation code
-	role := h.defaultRole
-	if request.InvitationCode != "" {
-		// Get role from invitation code
-		assignedRole, valid := GetRoleForInvitationCode(request.InvitationCode)
-		if !valid {
-			slog.Error("Unrecognized invitation code", "code", request.InvitationCode)
-			return &Response{
-				Code: http.StatusBadRequest,
-				body: "Invalid invitation code",
-			}
-		}
-		role = assignedRole
-		slog.Info("Role assigned based on invitation code", "code", request.InvitationCode, "role", role)
-	}
-
-	// Get role ID
-	roleID, err := h.roleService.GetRoleIdByName(r.Context(), role)
 	if err != nil {
-		slog.Error("Failed to get role ID", "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Failed to register user",
-		}
-	}
-	slog.Info("Role ID", "role_id", roleID)
-
-	// Create the login
-	login, err := h.loginsService.CreateLogin(r.Context(), logins.LoginCreateRequest{
-		Username: request.Username,
-		Password: request.Password,
-	}, "")
-	if err != nil {
-		// Check for specific error types
-		var usernameErr logins.ErrUsernameAlreadyExists
-		var passwordErr logins.ErrPasswordComplexity
-
-		// Username already exists
-		if errors.As(err, &usernameErr) {
-			return &Response{
-				Code: http.StatusBadRequest,
-				body: map[string]interface{}{
-					"error": "Username already exists",
-				},
-				contentType: "application/json",
-			}
-		}
-
-		// Password complexity error
-		if errors.As(err, &passwordErr) {
-			return &Response{
-				Code: http.StatusBadRequest,
-				body: map[string]interface{}{
-					"error":   "Password does not meet complexity requirements",
-					"details": passwordErr.Details,
-				},
-				contentType: "application/json",
-			}
-		}
-		// All other errors
-		slog.Error("Failed to create login", "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Failed to register user",
-		}
+		return h.handleServiceError(err)
 	}
 
-	// Create user
-	user, err := h.iamService.CreateUser(r.Context(), request.Email, request.Username, request.Fullname, []uuid.UUID{}, login.ID)
-	if err != nil {
-		slog.Error("Failed to create user", "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Failed to register user",
-		}
-	}
-
-	// Add user to role
-	err = h.roleService.AddUserToRole(r.Context(), roleID, user.ID, login.Username)
-	if err != nil {
-		slog.Error("Failed to add user to role", "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Failed to register user",
-		}
-	}
-
-	// Send email verification if service is configured
-	if h.emailVerificationService != nil {
-		_, err = h.emailVerificationService.CreateVerificationToken(r.Context(), user.ID, request.Fullname, request.Email)
-		if err != nil {
-			slog.Error("Failed to send verification email", "user_id", user.ID, "error", err)
-			// Don't fail registration if email sending fails - just log it
-		} else {
-			slog.Info("Verification email sent", "user_id", user.ID, "email", request.Email)
-		}
-	}
-
-	// Return the created login
+	// Return success response
 	return &Response{
-		Code:        http.StatusCreated,
-		body:        login,
+		Code: http.StatusCreated,
+		body: map[string]interface{}{
+			"id":       result.LoginID,
+			"username": result.Username,
+		},
 		contentType: "application/json",
 	}
 }
 
 // GetPasswordPolicy returns the password complexity requirements
 func (h Handle) GetPasswordPolicy(w http.ResponseWriter, r *http.Request) *Response {
-	policy := h.loginService.GetPasswordPolicy()
+	policy := h.service.GetPasswordPolicy()
 	return &Response{
 		Code:        http.StatusOK,
 		body:        policy,
@@ -223,14 +166,7 @@ func (h Handle) GetPasswordPolicy(w http.ResponseWriter, r *http.Request) *Respo
 }
 
 // RegisterUserPasswordless handles user registration without password
-// It creates a user with a random password and sets the passwordless flag
 func (h Handle) RegisterUserPasswordless(w http.ResponseWriter, r *http.Request) *Response {
-	if !h.registrationEnabled {
-		return &Response{
-			Code: http.StatusForbidden,
-			body: "Registration is disabled",
-		}
-	}
 	// Parse request body
 	var request PasswordlessRegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -241,119 +177,65 @@ func (h Handle) RegisterUserPasswordless(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// Validate required fields
-	if request.Email == "" {
-		slog.Error("Email is required")
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Email is required",
-		}
-	}
+	// Call service
+	result, err := h.service.RegisterUserPasswordless(r.Context(), RegisterUserPasswordlessRequest{
+		Username:       request.Username,
+		Fullname:       request.Fullname,
+		Email:          request.Email,
+		InvitationCode: request.InvitationCode,
+	})
 
-	// If username is empty, use email
-	if request.Username == "" {
-		request.Username = request.Email
-		slog.Info("Username is empty, using email as username", "email", request.Email)
-	}
-
-	// Determine role based on invitation code
-	role := h.defaultRole
-	if request.InvitationCode != "" {
-		assignedRole, valid := GetRoleForInvitationCode(request.InvitationCode)
-		if !valid {
-			slog.Error("Unrecognized invitation code", "code", request.InvitationCode)
-			return &Response{
-				Code: http.StatusBadRequest,
-				body: "Invalid invitation code",
-			}
-		}
-		role = assignedRole
-		slog.Info("Role assigned based on invitation code", "code", request.InvitationCode, "role", role)
-	}
-
-	// Get role ID
-	roleID, err := h.roleService.GetRoleIdByName(r.Context(), role)
 	if err != nil {
-		slog.Error("Failed to get role ID", "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Failed to register user",
-		}
-	}
-	slog.Info("Role ID", "role_id", roleID)
-
-	// Create the login without a password
-	login, err := h.loginsService.CreateLoginWithoutPassword(r.Context(), request.Username, "")
-	if err != nil {
-		// Check for specific error types
-		var usernameErr logins.ErrUsernameAlreadyExists
-
-		// Username already exists
-		if errors.As(err, &usernameErr) {
-			return &Response{
-				Code: http.StatusBadRequest,
-				body: map[string]interface{}{
-					"error": "Username already exists",
-				},
-				contentType: "application/json",
-			}
-		}
-
-		// All other errors
-		slog.Error("Failed to create login", "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Failed to register user",
-		}
+		return h.handleServiceError(err)
 	}
 
-	// Set flag indicating this is a passwordless account
-	loginID, err := uuid.Parse(login.ID)
-	if err != nil {
-		slog.Error("Failed to parse login ID", "error", err)
-	} else {
-		err = h.loginService.GetRepository().SetPasswordlessFlag(r.Context(), loginID, true)
-		if err != nil {
-			slog.Error("Failed to set passwordless flag", "error", err)
-			// Continue anyway, as the user is created
-		}
-	}
-
-	// Create user
-	user, err := h.iamService.CreateUser(r.Context(), request.Email, request.Username, request.Fullname, []uuid.UUID{}, login.ID)
-	if err != nil {
-		slog.Error("Failed to create user", "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Failed to register user",
-		}
-	}
-
-	// Add user to role
-	err = h.roleService.AddUserToRole(r.Context(), roleID, user.ID, login.Username)
-	if err != nil {
-		slog.Error("Failed to add user to role", "error", err)
-		return &Response{
-			Code: http.StatusBadRequest,
-			body: "Failed to register user",
-		}
-	}
-
-	// Send email verification if service is configured
-	if h.emailVerificationService != nil {
-		_, err = h.emailVerificationService.CreateVerificationToken(r.Context(), user.ID, request.Fullname, request.Email)
-		if err != nil {
-			slog.Error("Failed to send verification email", "user_id", user.ID, "error", err)
-			// Don't fail registration if email sending fails - just log it
-		} else {
-			slog.Info("Verification email sent", "user_id", user.ID, "email", request.Email)
-		}
-	}
-
-	// Return the created login
+	// Return success response
 	return &Response{
-		Code:        http.StatusCreated,
-		body:        login,
+		Code: http.StatusCreated,
+		body: map[string]interface{}{
+			"id":       result.LoginID,
+			"username": result.Username,
+		},
+		contentType: "application/json",
+	}
+}
+
+// handleServiceError converts service errors to HTTP responses
+func (h Handle) handleServiceError(err error) *Response {
+	var signupErr *SignupError
+	if !errors.As(err, &signupErr) {
+		// Generic error
+		return &Response{
+			Code: http.StatusInternalServerError,
+			body: "An error occurred during registration",
+		}
+	}
+
+	// Map error codes to HTTP status codes
+	statusCode := http.StatusBadRequest
+	switch signupErr.Code {
+	case ErrCodeRegistrationDisabled:
+		statusCode = http.StatusForbidden
+	case ErrCodeInvalidRequest:
+		statusCode = http.StatusBadRequest
+	case ErrCodeUsernameExists:
+		statusCode = http.StatusConflict
+	default:
+		statusCode = http.StatusBadRequest
+	}
+
+	// Build error response
+	body := map[string]interface{}{
+		"error": signupErr.Message,
+		"code":  signupErr.Code,
+	}
+	if signupErr.Details != nil {
+		body["details"] = signupErr.Details
+	}
+
+	return &Response{
+		Code:        statusCode,
+		body:        body,
 		contentType: "application/json",
 	}
 }

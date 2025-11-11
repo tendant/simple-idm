@@ -517,7 +517,7 @@ func main() {
 		emailverification.WithResendWindow(1*time.Hour),
 	)
 
-	signupHandle := signup.NewHandle(
+	signupHandle := signup.NewHandleWithOptions(
 		signup.WithIamService(*iamService),
 		signup.WithRoleService(*roleService),
 		signup.WithLoginsService(*loginsService),
