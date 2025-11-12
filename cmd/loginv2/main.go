@@ -58,6 +58,8 @@ import (
 	"github.com/tendant/simple-idm/pkg/ratelimit"
 	"github.com/tendant/simple-idm/pkg/role"
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
+	"github.com/tendant/simple-idm/pkg/sessions"
+	sessionsapi "github.com/tendant/simple-idm/pkg/sessions/api"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
@@ -198,6 +200,15 @@ type RateLimitConfig struct {
 	IncludeHeaders bool `env:"RATELIMIT_INCLUDE_HEADERS" env-default:"true"`
 }
 
+type SessionManagementConfig struct {
+	// Enable session tracking and management
+	Enabled bool `env:"SESSION_MANAGEMENT_ENABLED" env-default:"false"`
+
+	// API endpoint prefix for session management routes
+	// Will be automatically set based on prefix configuration if not specified
+	APIPrefix string `env:"SESSION_MANAGEMENT_API_PREFIX" env-default:""`
+}
+
 type Config struct {
 	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:4000"`
 	FrontendUrl              string `env:"FRONTEND_URL" env-default:"http://localhost:3000"`
@@ -212,6 +223,7 @@ type Config struct {
 	JWKSConfig               JWKSConfig
 	ExternalProviderConfig   ExternalProviderConfig
 	RateLimitConfig          RateLimitConfig
+	SessionManagementConfig  SessionManagementConfig
 }
 
 // loadEnvFile loads environment variables from .env file if it exists
@@ -762,6 +774,30 @@ func main() {
 
 		deviceHandle := deviceapi.NewDeviceHandler(deviceService)
 		r.Mount(prefixConfig.Device, deviceapi.Handler(deviceHandle))
+
+		// Initialize session management (optional feature)
+		if config.SessionManagementConfig.Enabled {
+			slog.Info("Session management enabled")
+			sessionRepo := sessions.NewPostgresRepository(pool)
+			sessionService := sessions.NewService(sessionRepo)
+			sessionHandle := sessionsapi.NewHandler(sessionService)
+
+			// Determine session API prefix
+			sessionPrefix := config.SessionManagementConfig.APIPrefix
+			if sessionPrefix == "" {
+				// Default to using the IDM prefix + /sessions
+				sessionPrefix = prefixConfig.Profile + "/sessions"
+			}
+
+			// Mount session routes (requires authentication)
+			sessionRouter := chi.NewRouter()
+			sessionHandle.RegisterRoutes(sessionRouter)
+			r.Mount(sessionPrefix, sessionRouter)
+
+			slog.Info("Session management routes mounted", "prefix", sessionPrefix)
+		} else {
+			slog.Info("Session management disabled")
+		}
 
 		loginsRouter := chi.NewRouter()
 		loginsRouter.Group(func(r chi.Router) {
