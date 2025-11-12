@@ -20,7 +20,7 @@ import (
 	"github.com/tendant/cors"
 	"github.com/tendant/simple-idm/pkg/bootstrap"
 	"github.com/tendant/simple-idm/pkg/client"
-	"github.com/tendant/simple-idm/pkg/config"
+	pkgconfig "github.com/tendant/simple-idm/pkg/config"
 	"github.com/tendant/simple-idm/pkg/device"
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
@@ -128,6 +128,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Load API endpoint prefix configuration
+	prefixConfig := pkgconfig.LoadPrefixConfig()
+	if err := prefixConfig.Validate(); err != nil {
+		slog.Error("Invalid prefix configuration", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("API endpoint prefixes configured", "auth", prefixConfig.Auth, "signup", prefixConfig.Signup)
+
 	// Bootstrap RSA key (auto-generate if missing)
 	rsaResult, err := bootstrap.BootstrapRSAKey(bootstrap.RSAKeyConfig{
 		KeyFile:     config.JWTKeyFile,
@@ -181,7 +189,7 @@ func main() {
 			Debug:            true, // Enable debug logging
 		}),
 	)
-	setupRoutes(server.R, services, &config)
+	setupRoutes(server.R, services, &config, prefixConfig)
 
 	slog.Info(strings.Repeat("=", 80))
 	slog.Info("Quick IDM Service Ready")
@@ -399,9 +407,9 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	}
 }
 
-func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
+func setupRoutes(r *chi.Mux, services *Services, appConfig *Config, prefixConfig pkgconfig.PrefixConfig) {
 	// Parse admin role names from config
-	adminRoles := config.ParseAdminRoleNames(appConfig.AdminRoleNames)
+	adminRoles := pkgconfig.ParseAdminRoleNames(appConfig.AdminRoleNames)
 	slog.Info("Configuring admin role middleware", "admin_roles", adminRoles)
 
 	// Health check endpoints
@@ -446,7 +454,7 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 	)
 
 	// Public routes (no authentication)
-	r.Route("/api/idm/auth", func(r chi.Router) {
+	r.Route(prefixConfig.Auth, func(r chi.Router) {
 		// Password login
 		r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
 			resp := loginHandle.PostLogin(w, r)
@@ -490,7 +498,7 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 	})
 
 	// Signup routes (public)
-	r.Route("/api/idm/signup", func(r chi.Router) {
+	r.Route(prefixConfig.Signup, func(r chi.Router) {
 		r.Post("/passwordless", func(w http.ResponseWriter, r *http.Request) {
 			resp := signupHandle.RegisterUserPasswordless(w, r)
 			if resp != nil {
@@ -541,7 +549,7 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 	})
 
 	// API endpoints for token, userinfo, jwks
-	r.Mount("/api/oauth2", oidcapi.Handler(oidcHandle))
+	r.Mount(prefixConfig.OAuth2, oidcapi.Handler(oidcHandle))
 
 	// JWT authentication setup
 	activeKey, _ := services.jwksService.GetActiveSigningKey()
@@ -572,7 +580,7 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 
 		// IAM routes (user management)
 		userHandle := iamapi.NewHandle(services.iamService)
-		r.Mount("/api/users", iamapi.SecureHandler(userHandle))
+		r.Mount(prefixConfig.Users, iamapi.SecureHandler(userHandle))
 
 		// Role routes (admin only)
 		roleHandle := roleapi.NewHandle(services.roleService)
@@ -581,7 +589,7 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 			r.Use(client.NewAdminRoleMiddleware(adminRoles))
 			r.Mount("/", roleapi.Handler(roleHandle))
 		})
-		r.Mount("/api/roles", roleRouter)
+		r.Mount(prefixConfig.Roles, roleRouter)
 
 		// OAuth2 client management (admin only)
 		oauth2ClientHandle := oauth2clientapi.NewHandle(services.oauth2ClientService)
@@ -590,7 +598,7 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 			r.Use(client.NewAdminRoleMiddleware(adminRoles))
 			r.Mount("/", oauth2clientapi.Handler(oauth2ClientHandle))
 		})
-		r.Mount("/api/oauth2-clients", oauth2ClientRouter)
+		r.Mount(prefixConfig.OAuth2Clients, oauth2ClientRouter)
 	})
 }
 
@@ -599,7 +607,7 @@ func bootstrapAdminRolesAndUser(iamService *iam.IamService, userService *user.Us
 	ctx := context.Background()
 
 	// Parse admin role names from configuration
-	adminRoles := config.ParseAdminRoleNames(appConfig.AdminRoleNames)
+	adminRoles := pkgconfig.ParseAdminRoleNames(appConfig.AdminRoleNames)
 
 	// Step 1: Bootstrap admin roles (always safe to run)
 	rolesResult, err := bootstrap.BootstrapAdminRoles(ctx, iamService, adminRoles)
