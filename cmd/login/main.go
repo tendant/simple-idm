@@ -335,7 +335,7 @@ func main() {
 	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, loginsServiceOptions) // Pass nil for default options
 	loginsHandle := logins.NewHandle(loginsService, *twoFaService)
 
-	signupHandle := signup.NewHandle(
+	signupHandle := signup.NewHandleWithOptions(
 		signup.WithIamService(*iamService),
 		signup.WithRoleService(*roleService),
 		signup.WithLoginsService(*loginsService),

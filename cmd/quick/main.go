@@ -429,7 +429,7 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config) {
 	)
 
 	// Signup handler
-	signupHandle := signup.NewHandle(
+	signupHandle := signup.NewHandleWithOptions(
 		signup.WithIamService(*services.iamService),
 		signup.WithRoleService(*services.roleService),
 		signup.WithLoginsService(*services.loginsService),

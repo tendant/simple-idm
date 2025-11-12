@@ -300,7 +300,7 @@ func main() {
 	}
 	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, loginsServiceOptions)
 
-	signupHandle := signup.NewHandle(
+	signupHandle := signup.NewHandleWithOptions(
 		signup.WithIamService(*iamService),
 		signup.WithRoleService(*roleService),
 		signup.WithLoginsService(*loginsService),
