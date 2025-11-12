@@ -1,0 +1,162 @@
+package config
+
+import "fmt"
+
+// PrefixConfig holds configurable API endpoint prefixes for all route groups.
+// This allows flexible API gateway routing and versioning support.
+//
+// Example environment variables:
+//
+//	API_PREFIX_AUTH=/api/v1/idm/auth
+//	API_PREFIX_SIGNUP=/api/v1/idm/signup
+//	API_PREFIX_PROFILE=/api/v1/idm/profile
+//	API_PREFIX_2FA=/api/v1/idm/2fa
+//	API_PREFIX_EMAIL=/api/v1/idm/email
+//	API_PREFIX_PASSWORD_RESET=/api/v1/idm/password-reset
+//	API_PREFIX_OAUTH2=/api/v1/oauth2
+//	API_PREFIX_USERS=/api/v1/idm/users
+//	API_PREFIX_ROLES=/api/v1/idm/roles
+//	API_PREFIX_DEVICE=/api/v1/idm/device
+//	API_PREFIX_LOGINS=/api/v1/idm/logins
+//	API_PREFIX_OAUTH2_CLIENTS=/api/v1/idm/oauth2-clients
+//	API_PREFIX_EXTERNAL=/api/v1/idm/external
+type PrefixConfig struct {
+	Auth           string // Authentication endpoints (login, logout, magic link, token refresh)
+	Signup         string // User registration endpoints (passwordless, password-based)
+	Profile        string // Profile management endpoints (username, phone, password updates)
+	TwoFA          string // Two-factor authentication endpoints (setup, enable, disable, validate)
+	Email          string // Email verification endpoints (verify, resend, status)
+	PasswordReset  string // Password reset endpoints (initiate, reset, policy)
+	OAuth2         string // OAuth2 standard endpoints (token, authorize, userinfo)
+	Users          string // User management endpoints (admin)
+	Roles          string // Role management endpoints (admin)
+	Device         string // Device management endpoints
+	Logins         string // Login session management endpoints
+	OAuth2Clients  string // OAuth2 client management endpoints (admin)
+	External       string // External provider authentication endpoints
+}
+
+// DefaultV1Prefixes returns the default v1 prefix configuration.
+// This is the recommended configuration that resolves the 2FA prefix inconsistency.
+//
+// Pattern: /api/v1/idm/* for IDM endpoints, /api/v1/oauth2 for OAuth2 standard endpoints
+func DefaultV1Prefixes() PrefixConfig {
+	return PrefixConfig{
+		Auth:          "/api/v1/idm/auth",
+		Signup:        "/api/v1/idm/signup",
+		Profile:       "/api/v1/idm/profile",
+		TwoFA:         "/api/v1/idm/2fa", // Fixed from /idm/2fa
+		Email:         "/api/v1/idm/email",
+		PasswordReset: "/api/v1/idm/password-reset",
+		OAuth2:        "/api/v1/oauth2",
+		Users:         "/api/v1/idm/users",
+		Roles:         "/api/v1/idm/roles",
+		Device:        "/api/v1/idm/device",
+		Logins:        "/api/v1/idm/logins",
+		OAuth2Clients: "/api/v1/idm/oauth2-clients",
+		External:      "/api/v1/idm/external",
+	}
+}
+
+// LegacyPrefixes returns the legacy prefix configuration for backward compatibility.
+// This includes the inconsistent 2FA prefix /idm/2fa (missing /api prefix).
+//
+// DEPRECATED: Use DefaultV1Prefixes() or custom configuration instead.
+func LegacyPrefixes() PrefixConfig {
+	return PrefixConfig{
+		Auth:          "/api/idm/auth",
+		Signup:        "/api/idm/signup",
+		Profile:       "/api/idm/profile",
+		TwoFA:         "/idm/2fa", // Inconsistent - missing /api prefix
+		Email:         "/api/idm/email",
+		PasswordReset: "/api/idm/password-reset",
+		OAuth2:        "/api/oauth2",
+		Users:         "/api/idm/users",
+		Roles:         "/api/idm/roles",
+		Device:        "/api/idm/device",
+		Logins:        "/api/idm/logins",
+		OAuth2Clients: "/api/idm/oauth2-clients",
+		External:      "/api/idm/external",
+	}
+}
+
+// LoadPrefixConfig loads prefix configuration from environment variables.
+// Falls back to DefaultV1Prefixes() for any unset variables.
+//
+// Set API_PREFIX_LEGACY=true to use legacy prefix pattern (for backward compatibility).
+//
+// Environment variables:
+//   - API_PREFIX_LEGACY: Set to "true" to use legacy prefix pattern
+//   - API_PREFIX_AUTH: Authentication endpoint prefix
+//   - API_PREFIX_SIGNUP: Signup endpoint prefix
+//   - API_PREFIX_PROFILE: Profile endpoint prefix
+//   - API_PREFIX_2FA: Two-factor auth endpoint prefix
+//   - API_PREFIX_EMAIL: Email verification endpoint prefix
+//   - API_PREFIX_PASSWORD_RESET: Password reset endpoint prefix
+//   - API_PREFIX_OAUTH2: OAuth2 endpoint prefix
+//   - API_PREFIX_USERS: User management endpoint prefix
+//   - API_PREFIX_ROLES: Role management endpoint prefix
+//   - API_PREFIX_DEVICE: Device management endpoint prefix
+//   - API_PREFIX_LOGINS: Login session endpoint prefix
+//   - API_PREFIX_OAUTH2_CLIENTS: OAuth2 client management endpoint prefix
+//   - API_PREFIX_EXTERNAL: External provider endpoint prefix
+func LoadPrefixConfig() PrefixConfig {
+	// Check if legacy mode is enabled
+	if GetEnvBool("API_PREFIX_LEGACY", false) {
+		defaults := LegacyPrefixes()
+		return mergeWithDefaults(defaults)
+	}
+
+	// Use v1 defaults
+	defaults := DefaultV1Prefixes()
+	return mergeWithDefaults(defaults)
+}
+
+// mergeWithDefaults merges environment variable overrides with defaults
+func mergeWithDefaults(defaults PrefixConfig) PrefixConfig {
+	return PrefixConfig{
+		Auth:          GetEnvOrDefault("API_PREFIX_AUTH", defaults.Auth),
+		Signup:        GetEnvOrDefault("API_PREFIX_SIGNUP", defaults.Signup),
+		Profile:       GetEnvOrDefault("API_PREFIX_PROFILE", defaults.Profile),
+		TwoFA:         GetEnvOrDefault("API_PREFIX_2FA", defaults.TwoFA),
+		Email:         GetEnvOrDefault("API_PREFIX_EMAIL", defaults.Email),
+		PasswordReset: GetEnvOrDefault("API_PREFIX_PASSWORD_RESET", defaults.PasswordReset),
+		OAuth2:        GetEnvOrDefault("API_PREFIX_OAUTH2", defaults.OAuth2),
+		Users:         GetEnvOrDefault("API_PREFIX_USERS", defaults.Users),
+		Roles:         GetEnvOrDefault("API_PREFIX_ROLES", defaults.Roles),
+		Device:        GetEnvOrDefault("API_PREFIX_DEVICE", defaults.Device),
+		Logins:        GetEnvOrDefault("API_PREFIX_LOGINS", defaults.Logins),
+		OAuth2Clients: GetEnvOrDefault("API_PREFIX_OAUTH2_CLIENTS", defaults.OAuth2Clients),
+		External:      GetEnvOrDefault("API_PREFIX_EXTERNAL", defaults.External),
+	}
+}
+
+// Validate checks that all prefix paths are valid (non-empty and start with /)
+func (p PrefixConfig) Validate() error {
+	prefixes := map[string]string{
+		"Auth":          p.Auth,
+		"Signup":        p.Signup,
+		"Profile":       p.Profile,
+		"TwoFA":         p.TwoFA,
+		"Email":         p.Email,
+		"PasswordReset": p.PasswordReset,
+		"OAuth2":        p.OAuth2,
+		"Users":         p.Users,
+		"Roles":         p.Roles,
+		"Device":        p.Device,
+		"Logins":        p.Logins,
+		"OAuth2Clients": p.OAuth2Clients,
+		"External":      p.External,
+	}
+
+	for name, prefix := range prefixes {
+		if prefix == "" {
+			return fmt.Errorf("prefix configuration missing: %s", name)
+		}
+		if prefix[0] != '/' {
+			return fmt.Errorf("prefix must start with '/': %s = %s", name, prefix)
+		}
+	}
+
+	return nil
+}

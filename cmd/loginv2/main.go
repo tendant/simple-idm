@@ -287,6 +287,15 @@ func main() {
 	config := Config{}
 	cleanenv.ReadEnv(&config)
 
+	// Load API endpoint prefix configuration
+	prefixConfig := config.LoadPrefixConfig()
+	if err := prefixConfig.Validate(); err != nil {
+		slog.Error("Invalid prefix configuration", "error", err)
+		os.Exit(-1)
+	}
+	slog.Info("API endpoint prefixes configured", "auth", prefixConfig.Auth, "signup", prefixConfig.Signup,
+		"profile", prefixConfig.Profile, "2fa", prefixConfig.TwoFA, "email", prefixConfig.Email)
+
 	server := app.DefaultApp()
 
 	app.RegisterHealthzRoutes(server.R)
@@ -611,21 +620,21 @@ func main() {
 
 	slog.Info("Registration enabled", "enabled", config.LoginConfig.RegistrationEnabled)
 	slog.Info("MCP Well-known endpoints configured", "base_url", config.BaseUrl)
-	server.R.Mount("/api/idm/auth", loginapi.Handler(loginHandle))
-	server.R.Mount("/api/idm/signup", signup.Handler(signupHandle))
+	server.R.Mount(prefixConfig.Auth, loginapi.Handler(loginHandle))
+	server.R.Mount(prefixConfig.Signup, signup.Handler(signupHandle))
 
 	// Mount OIDC endpoints (public, no authentication required)
-	server.R.Mount("/api/idm/oauth2", oidcapi.Handler(oidcHandle))
+	server.R.Mount(prefixConfig.OAuth2, oidcapi.Handler(oidcHandle))
 
 	// Mount external provider endpoints (public, no authentication required)
-	server.R.Mount("/api/idm/external", externalProviderAPI.Handler(externalProviderHandle))
+	server.R.Mount(prefixConfig.External, externalProviderAPI.Handler(externalProviderHandle))
 
 	// Create both RSA and HMAC verifiers for multi-algorithm support
 	rsaAuth := jwtauth.New("RS256", activeKey.PrivateKey, activeKey.PublicKey)
 	hmacAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
 	// Mount email verification endpoints (verify is public, resend and status require auth)
-	server.R.Route("/api/idm/email", func(r chi.Router) {
+	server.R.Route(prefixConfig.Email, func(r chi.Router) {
 		// Public endpoint for email verification
 		r.Post("/verify", emailVerificationHandle.VerifyEmail)
 
@@ -674,9 +683,9 @@ func main() {
 			render.PlainText(w, r, http.StatusText(http.StatusOK))
 		})
 
-		// Authenticated email verification endpoints
-		r.Post("/api/idm/email/resend", emailVerificationHandle.ResendVerification)
-		r.Get("/api/idm/email/status", emailVerificationHandle.GetVerificationStatus)
+		// Authenticated email verification endpoints (duplicate handlers removed - use email route above)
+		// r.Post("/api/idm/email/resend", emailVerificationHandle.ResendVerification)
+		// r.Get("/api/idm/email/status", emailVerificationHandle.GetVerificationStatus)
 
 		profileQueries := profiledb.New(pool)
 		profileRepo := profile.NewPostgresProfileRepository(profileQueries)
@@ -688,11 +697,11 @@ func main() {
 		)
 		responseHandler := profileapi.NewDefaultResponseHandler()
 		profileHandle := profileapi.NewHandle(profileService, twoFaService, tokenService, tokenCookieService, loginService, deviceService, responseHandler, config.LoginConfig.PhoneVerificationSecret)
-		r.Mount("/api/idm/profile", profileapi.Handler(profileHandle))
+		r.Mount(prefixConfig.Profile, profileapi.Handler(profileHandle))
 
 		// r.Mount("/auth", authpkg.Handler(authHandle))
 
-		r.Mount("/api/idm/users", iamapi.SecureHandler(userHandle))
+		r.Mount(prefixConfig.Users, iamapi.SecureHandler(userHandle))
 
 		// Create a secure handler for roles that uses the IAM admin middleware
 		roleRouter := chi.NewRouter()
@@ -700,21 +709,21 @@ func main() {
 			r.Use(client.AdminRoleMiddleware)
 			r.Mount("/", roleapi.Handler(roleHandle))
 		})
-		r.Mount("/api/idm/roles", roleRouter)
+		r.Mount(prefixConfig.Roles, roleRouter)
 
 		// Initialize two factor authentication service and routes
 		twoFaHandle := twofaapi.NewHandle(twoFaService, tokenService, tokenCookieService, userMapper)
-		r.Mount("/api/idm/2fa", twofaapi.TwoFaHandler(twoFaHandle))
+		r.Mount(prefixConfig.TwoFA, twofaapi.TwoFaHandler(twoFaHandle))
 
 		deviceHandle := deviceapi.NewDeviceHandler(deviceService)
-		r.Mount("/api/idm/device", deviceapi.Handler(deviceHandle))
+		r.Mount(prefixConfig.Device, deviceapi.Handler(deviceHandle))
 
 		loginsRouter := chi.NewRouter()
 		loginsRouter.Group(func(r chi.Router) {
 			r.Use(client.AdminRoleMiddleware)
 			r.Mount("/", logins.Handler(loginsHandle))
 		})
-		r.Mount("/api/idm/logins", loginsRouter)
+		r.Mount(prefixConfig.Logins, loginsRouter)
 
 		// Initialize OAuth2 client management API (admin only)
 		oauth2ClientHandle := oauth2clientapi.NewHandle(clientService)
@@ -723,7 +732,7 @@ func main() {
 			r.Use(client.AdminRoleMiddleware)
 			r.Mount("/", oauth2clientapi.Handler(oauth2ClientHandle))
 		})
-		r.Mount("/api/idm/oauth2-clients", oauth2ClientRouter)
+		r.Mount(prefixConfig.OAuth2Clients, oauth2ClientRouter)
 
 		// Initialize impersonate service and routes
 		// impersonateService := impersonate.NewService(userMapper, nil)
