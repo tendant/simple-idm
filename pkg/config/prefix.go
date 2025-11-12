@@ -80,35 +80,88 @@ func LegacyPrefixes() PrefixConfig {
 	}
 }
 
+// BuildPrefixesFromBase builds prefix configuration from a base path.
+//
+// Appends route segments to the base path for each route group.
+// This provides a simple way to configure all endpoints with one prefix.
+//
+// Example:
+//
+//	BuildPrefixesFromBase("/api/v1/idm")
+//	// Returns:
+//	// PrefixConfig{
+//	//   Auth:          "/api/v1/idm/auth",
+//	//   Signup:        "/api/v1/idm/signup",
+//	//   Profile:       "/api/v1/idm/profile",
+//	//   TwoFA:         "/api/v1/idm/2fa",
+//	//   Email:         "/api/v1/idm/email",
+//	//   PasswordReset: "/api/v1/idm/password-reset",
+//	//   OAuth2:        "/api/v1/idm/oauth2",
+//	//   ...
+//	// }
+func BuildPrefixesFromBase(basePath string) PrefixConfig {
+	// Remove trailing slash if present
+	if len(basePath) > 0 && basePath[len(basePath)-1] == '/' {
+		basePath = basePath[:len(basePath)-1]
+	}
+
+	return PrefixConfig{
+		Auth:          basePath + "/auth",
+		Signup:        basePath + "/signup",
+		Profile:       basePath + "/profile",
+		TwoFA:         basePath + "/2fa",
+		Email:         basePath + "/email",
+		PasswordReset: basePath + "/password-reset",
+		OAuth2:        basePath + "/oauth2",
+		Users:         basePath + "/users",
+		Roles:         basePath + "/roles",
+		Device:        basePath + "/device",
+		Logins:        basePath + "/logins",
+		OAuth2Clients: basePath + "/oauth2-clients",
+		External:      basePath + "/external",
+	}
+}
+
 // LoadPrefixConfig loads prefix configuration from environment variables.
 // Falls back to DefaultV1Prefixes() for any unset variables.
 //
-// Set API_PREFIX_LEGACY=true to use legacy prefix pattern (for backward compatibility).
+// Configuration priority (highest to lowest):
+//   1. API_PREFIX_BASE: Base path for all endpoints (simplest)
+//   2. API_PREFIX_LEGACY: Use legacy prefix pattern
+//   3. Individual API_PREFIX_* overrides
+//   4. DefaultV1Prefixes (default)
 //
 // Environment variables:
+//   - API_PREFIX_BASE: Base path for all endpoints (e.g., "/api/v1/idm")
 //   - API_PREFIX_LEGACY: Set to "true" to use legacy prefix pattern
-//   - API_PREFIX_AUTH: Authentication endpoint prefix
-//   - API_PREFIX_SIGNUP: Signup endpoint prefix
-//   - API_PREFIX_PROFILE: Profile endpoint prefix
-//   - API_PREFIX_2FA: Two-factor auth endpoint prefix
-//   - API_PREFIX_EMAIL: Email verification endpoint prefix
-//   - API_PREFIX_PASSWORD_RESET: Password reset endpoint prefix
-//   - API_PREFIX_OAUTH2: OAuth2 endpoint prefix
-//   - API_PREFIX_USERS: User management endpoint prefix
-//   - API_PREFIX_ROLES: Role management endpoint prefix
-//   - API_PREFIX_DEVICE: Device management endpoint prefix
-//   - API_PREFIX_LOGINS: Login session endpoint prefix
-//   - API_PREFIX_OAUTH2_CLIENTS: OAuth2 client management endpoint prefix
-//   - API_PREFIX_EXTERNAL: External provider endpoint prefix
+//   - API_PREFIX_AUTH: Authentication endpoint prefix (overrides base)
+//   - API_PREFIX_SIGNUP: Signup endpoint prefix (overrides base)
+//   - API_PREFIX_PROFILE: Profile endpoint prefix (overrides base)
+//   - API_PREFIX_2FA: Two-factor auth endpoint prefix (overrides base)
+//   - API_PREFIX_EMAIL: Email verification endpoint prefix (overrides base)
+//   - API_PREFIX_PASSWORD_RESET: Password reset endpoint prefix (overrides base)
+//   - API_PREFIX_OAUTH2: OAuth2 endpoint prefix (overrides base)
+//   - API_PREFIX_USERS: User management endpoint prefix (overrides base)
+//   - API_PREFIX_ROLES: Role management endpoint prefix (overrides base)
+//   - API_PREFIX_DEVICE: Device management endpoint prefix (overrides base)
+//   - API_PREFIX_LOGINS: Login session endpoint prefix (overrides base)
+//   - API_PREFIX_OAUTH2_CLIENTS: OAuth2 client management endpoint prefix (overrides base)
+//   - API_PREFIX_EXTERNAL: External provider endpoint prefix (overrides base)
 func LoadPrefixConfig() PrefixConfig {
-	// Check if legacy mode is enabled
-	if GetEnvBool("API_PREFIX_LEGACY", false) {
-		defaults := LegacyPrefixes()
-		return mergeWithDefaults(defaults)
+	var defaults PrefixConfig
+
+	// Priority 1: Base prefix (simplest - one prefix for all routes)
+	if basePath := GetEnv("API_PREFIX_BASE"); basePath != "" {
+		defaults = BuildPrefixesFromBase(basePath)
+	} else if GetEnvBool("API_PREFIX_LEGACY", false) {
+		// Priority 2: Legacy mode
+		defaults = LegacyPrefixes()
+	} else {
+		// Priority 3: Use v1 defaults
+		defaults = DefaultV1Prefixes()
 	}
 
-	// Use v1 defaults
-	defaults := DefaultV1Prefixes()
+	// Merge individual overrides (allows overriding specific routes)
 	return mergeWithDefaults(defaults)
 }
 
