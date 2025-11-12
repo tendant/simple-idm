@@ -55,6 +55,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/profile"
 	profileapi "github.com/tendant/simple-idm/pkg/profile/api"
 	"github.com/tendant/simple-idm/pkg/profile/profiledb"
+	"github.com/tendant/simple-idm/pkg/ratelimit"
 	"github.com/tendant/simple-idm/pkg/role"
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
@@ -162,6 +163,41 @@ type ExternalProviderConfig struct {
 	DefaultRole string `env:"EXTERNAL_PROVIDER_DEFAULT_ROLE" env-default:"user"`
 }
 
+type RateLimitConfig struct {
+	// Global rate limiting
+	GlobalEnabled    bool    `env:"RATELIMIT_GLOBAL_ENABLED" env-default:"true"`
+	GlobalCapacity   int     `env:"RATELIMIT_GLOBAL_CAPACITY" env-default:"1000"`
+	GlobalRefillRate float64 `env:"RATELIMIT_GLOBAL_REFILL_RATE" env-default:"16.67"` // ~1000 per minute
+
+	// Per-IP rate limiting
+	PerIPEnabled    bool    `env:"RATELIMIT_PER_IP_ENABLED" env-default:"true"`
+	PerIPCapacity   int     `env:"RATELIMIT_PER_IP_CAPACITY" env-default:"100"`
+	PerIPRefillRate float64 `env:"RATELIMIT_PER_IP_REFILL_RATE" env-default:"1.67"` // ~100 per minute
+
+	// Per-User rate limiting (for authenticated requests)
+	PerUserEnabled    bool    `env:"RATELIMIT_PER_USER_ENABLED" env-default:"true"`
+	PerUserCapacity   int     `env:"RATELIMIT_PER_USER_CAPACITY" env-default:"200"`
+	PerUserRefillRate float64 `env:"RATELIMIT_PER_USER_REFILL_RATE" env-default:"3.33"` // ~200 per minute
+
+	// Login endpoint specific limits (to prevent brute force)
+	LoginEnabled    bool    `env:"RATELIMIT_LOGIN_ENABLED" env-default:"true"`
+	LoginCapacity   int     `env:"RATELIMIT_LOGIN_CAPACITY" env-default:"10"`
+	LoginRefillRate float64 `env:"RATELIMIT_LOGIN_REFILL_RATE" env-default:"0.167"` // 10 per minute
+
+	// Signup endpoint specific limits
+	SignupEnabled    bool    `env:"RATELIMIT_SIGNUP_ENABLED" env-default:"true"`
+	SignupCapacity   int     `env:"RATELIMIT_SIGNUP_CAPACITY" env-default:"5"`
+	SignupRefillRate float64 `env:"RATELIMIT_SIGNUP_REFILL_RATE" env-default:"0.017"` // 5 per 5 minutes
+
+	// Password reset endpoint specific limits
+	PasswordResetEnabled    bool    `env:"RATELIMIT_PASSWORD_RESET_ENABLED" env-default:"true"`
+	PasswordResetCapacity   int     `env:"RATELIMIT_PASSWORD_RESET_CAPACITY" env-default:"3"`
+	PasswordResetRefillRate float64 `env:"RATELIMIT_PASSWORD_RESET_REFILL_RATE" env-default:"0.00083"` // 3 per hour
+
+	// Include rate limit headers in response
+	IncludeHeaders bool `env:"RATELIMIT_INCLUDE_HEADERS" env-default:"true"`
+}
+
 type Config struct {
 	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:4000"`
 	FrontendUrl              string `env:"FRONTEND_URL" env-default:"http://localhost:3000"`
@@ -175,6 +211,7 @@ type Config struct {
 	OAuth2ClientConfig       OAuth2ClientConfig
 	JWKSConfig               JWKSConfig
 	ExternalProviderConfig   ExternalProviderConfig
+	RateLimitConfig          RateLimitConfig
 }
 
 // loadEnvFile loads environment variables from .env file if it exists
@@ -299,6 +336,14 @@ func main() {
 	server := app.DefaultApp()
 
 	app.RegisterHealthzRoutes(server.R)
+
+	// Configure and add rate limiting middleware
+	rateLimitMiddleware := createRateLimitMiddleware(&config, prefixConfig)
+	server.R.Use(rateLimitMiddleware.Handler)
+	slog.Info("Rate limiting configured",
+		"global", config.RateLimitConfig.GlobalEnabled,
+		"per_ip", config.RateLimitConfig.PerIPEnabled,
+		"per_user", config.RateLimitConfig.PerUserEnabled)
 
 	dbURL := config.IdmDbConfig.toDatabaseURL()
 	pool, err := pgxpool.New(context.Background(), dbURL)
@@ -747,6 +792,58 @@ func main() {
 // createPasswordPolicy now delegates to the shared config.ToPasswordPolicy method
 func createPasswordPolicy(cfg *PasswordComplexityConfig) *login.PasswordPolicy {
 	return cfg.ToPasswordPolicy()
+}
+
+// createRateLimitMiddleware creates and configures the rate limiting middleware
+func createRateLimitMiddleware(appConfig *Config, prefixConfig pkgconfig.PrefixConfig) *ratelimit.Middleware {
+	cfg := &ratelimit.Config{
+		GlobalEnabled:    appConfig.RateLimitConfig.GlobalEnabled,
+		GlobalCapacity:   appConfig.RateLimitConfig.GlobalCapacity,
+		GlobalRefillRate: appConfig.RateLimitConfig.GlobalRefillRate,
+
+		PerIPEnabled:    appConfig.RateLimitConfig.PerIPEnabled,
+		PerIPCapacity:   appConfig.RateLimitConfig.PerIPCapacity,
+		PerIPRefillRate: appConfig.RateLimitConfig.PerIPRefillRate,
+
+		PerUserEnabled:    appConfig.RateLimitConfig.PerUserEnabled,
+		PerUserCapacity:   appConfig.RateLimitConfig.PerUserCapacity,
+		PerUserRefillRate: appConfig.RateLimitConfig.PerUserRefillRate,
+
+		IncludeHeaders: appConfig.RateLimitConfig.IncludeHeaders,
+		BucketTTL:      1 * time.Hour, // Keep inactive buckets for 1 hour
+
+		EndpointLimits: make(map[string]ratelimit.EndpointLimit),
+	}
+
+	// Add endpoint-specific limits using the configured prefixes
+	if appConfig.RateLimitConfig.LoginEnabled {
+		cfg.EndpointLimits["POST "+prefixConfig.Auth+"/login"] = ratelimit.EndpointLimit{
+			Capacity:   appConfig.RateLimitConfig.LoginCapacity,
+			RefillRate: appConfig.RateLimitConfig.LoginRefillRate,
+		}
+	}
+
+	if appConfig.RateLimitConfig.SignupEnabled {
+		cfg.EndpointLimits["POST "+prefixConfig.Signup] = ratelimit.EndpointLimit{
+			Capacity:   appConfig.RateLimitConfig.SignupCapacity,
+			RefillRate: appConfig.RateLimitConfig.SignupRefillRate,
+		}
+	}
+
+	if appConfig.RateLimitConfig.PasswordResetEnabled {
+		cfg.EndpointLimits["POST "+prefixConfig.PasswordReset+"/request"] = ratelimit.EndpointLimit{
+			Capacity:   appConfig.RateLimitConfig.PasswordResetCapacity,
+			RefillRate: appConfig.RateLimitConfig.PasswordResetRefillRate,
+		}
+	}
+
+	// Add email resend endpoint limit (same as password reset)
+	cfg.EndpointLimits["POST "+prefixConfig.Email+"/resend"] = ratelimit.EndpointLimit{
+		Capacity:   3,
+		RefillRate: 3.0 / 600.0, // 3 per 10 minutes
+	}
+
+	return ratelimit.NewMiddleware(cfg)
 }
 
 // setupExternalProviders configures external OAuth2 providers based on environment variables
