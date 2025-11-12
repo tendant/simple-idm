@@ -18,7 +18,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/tendant/chi-demo/app"
 	"github.com/tendant/simple-idm/pkg/client"
-	"github.com/tendant/simple-idm/pkg/config"
+	pkgconfig "github.com/tendant/simple-idm/pkg/config"
 	"github.com/tendant/simple-idm/pkg/emailverification"
 	emailverificationapi "github.com/tendant/simple-idm/pkg/emailverification/api"
 	"github.com/tendant/simple-idm/pkg/externalprovider"
@@ -109,7 +109,7 @@ type TwilioConfig struct {
 
 // PasswordComplexityConfig is now defined in pkg/config package
 // Keeping this type alias for backward compatibility
-type PasswordComplexityConfig = config.PasswordComplexityConfig
+type PasswordComplexityConfig = pkgconfig.PasswordComplexityConfig
 
 type LoginConfig struct {
 	MaxFailedAttempts        int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"10000"`
@@ -288,7 +288,7 @@ func main() {
 	cleanenv.ReadEnv(&config)
 
 	// Load API endpoint prefix configuration
-	prefixConfig := config.LoadPrefixConfig()
+	prefixConfig := pkgconfig.LoadPrefixConfig()
 	if err := prefixConfig.Validate(); err != nil {
 		slog.Error("Invalid prefix configuration", "error", err)
 		os.Exit(-1)
