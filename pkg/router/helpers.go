@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tendant/simple-idm/pkg/client"
 	pkgconfig "github.com/tendant/simple-idm/pkg/config"
+	"github.com/tendant/simple-idm/pkg/device"
 	deviceapi "github.com/tendant/simple-idm/pkg/device/api"
 	emailverificationapi "github.com/tendant/simple-idm/pkg/emailverification/api"
 	externalProviderAPI "github.com/tendant/simple-idm/pkg/externalprovider/api"
@@ -19,6 +20,8 @@ import (
 	logindb "github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/logins"
 	loginsdb "github.com/tendant/simple-idm/pkg/logins/loginsdb"
+	"github.com/tendant/simple-idm/pkg/mapper"
+	mapperdb "github.com/tendant/simple-idm/pkg/mapper/mapperdb"
 	oauth2clientapi "github.com/tendant/simple-idm/pkg/oauth2client/api"
 	oidcapi "github.com/tendant/simple-idm/pkg/oidc/api"
 	profileapi "github.com/tendant/simple-idm/pkg/profile/api"
@@ -26,6 +29,8 @@ import (
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	roledb "github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/tendant/simple-idm/pkg/signup"
+	"github.com/tendant/simple-idm/pkg/tokengenerator"
+	"github.com/tendant/simple-idm/pkg/twofa"
 	twofaapi "github.com/tendant/simple-idm/pkg/twofa/api"
 	"github.com/tendant/simple-idm/pkg/wellknown"
 )
@@ -73,9 +78,15 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	loginRepo := login.NewPostgresLoginRepository(loginQueries)
 	passwordManager := login.NewPasswordManager(loginQueries)
 
+	// Initialize mapper for user lookup
+	mapperQueries := mapperdb.New(pool)
+	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
+	userMapper := mapper.NewDefaultUserMapper(mapperRepo)
+
 	loginService := login.NewLoginServiceWithOptions(
 		loginRepo,
 		login.WithPasswordManager(passwordManager),
+		login.WithUserMapper(userMapper),
 	)
 
 	// IAM service
@@ -87,6 +98,27 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	roleQueries := roledb.New(pool)
 	roleRepo := role.NewPostgresRoleRepository(roleQueries)
 	roleService := role.NewRoleService(roleRepo)
+
+	// Device service
+	deviceRepo := device.NewPostgresDeviceRepository(pool)
+	deviceService := device.NewDeviceService(deviceRepo)
+
+	// Token services
+	hmacTokenGenerator := tokengenerator.NewJwtTokenGenerator(opts.JWTSecret, opts.BaseURL, opts.BaseURL)
+	tempTokenGenerator := tokengenerator.NewTempTokenGenerator(opts.JWTSecret, opts.BaseURL, opts.BaseURL)
+	tokenService := tokengenerator.NewTokenServiceFromGenerator(
+		hmacTokenGenerator,
+		tokengenerator.WithTempTokenGenerator(tempTokenGenerator),
+	)
+	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
+		"/",
+		true,  // httpOnly
+		false, // secure (false for development, true for production)
+		http.SameSiteLaxMode,
+	)
+
+	// Two-factor service (no-op for minimal config)
+	twoFaService := twofa.NewNoOpTwoFactorService()
 
 	// Logins service
 	loginsQueries := loginsdb.New(pool)
@@ -133,6 +165,10 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	// 5. Create handlers
 	loginHandle := loginapi.NewHandle(
 		loginapi.WithLoginService(loginService),
+		loginapi.WithTokenService(tokenService),
+		loginapi.WithTokenCookieService(tokenCookieService),
+		loginapi.WithTwoFactorService(twoFaService),
+		loginapi.WithDeviceService(*deviceService),
 	)
 
 	signupHandle := signup.NewHandleWithOptions(
