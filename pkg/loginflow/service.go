@@ -972,6 +972,16 @@ func (s *LoginFlowService) processCredentialLogin(ctx context.Context, req Reque
 				"Your password has expired, please reset your password through the forgot password link.")
 		}
 
+		// Check for database/internal errors (e.g., missing tables, connection issues)
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "error finding user") ||
+			strings.Contains(errMsg, "SQLSTATE") ||
+			strings.Contains(errMsg, "relation") && strings.Contains(errMsg, "does not exist") ||
+			strings.Contains(errMsg, "database") ||
+			strings.Contains(errMsg, "connection") {
+			return s.errorResult(ErrorTypeInternalError, "An internal error occurred. Please try again later.")
+		}
+
 		errorMessage := "Username/Password is wrong"
 		if req.FlowType == "email" {
 			errorMessage = "Email/Password is wrong"
