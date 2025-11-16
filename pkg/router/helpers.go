@@ -110,7 +110,7 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 			Profile:       "/api/v1/idm/profile",
 			TwoFA:         "/api/v1/idm/2fa",
 			Email:         "/api/v1/idm/email",
-			OAuth2:        "/api/v1/oauth2",
+			OAuth2:        "/api/v1/idm/oauth2",
 			Users:         "/api/v1/idm/users",
 			Roles:         "/api/v1/idm/roles",
 			Device:        "/api/v1/idm/device",
