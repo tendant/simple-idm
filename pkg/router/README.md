@@ -4,7 +4,57 @@ This package provides reusable route setup for Simple IDM, allowing you to mount
 
 ## Usage
 
-### Basic Setup
+### Quick Start (Recommended)
+
+The easiest way to integrate Simple IDM is using `NewMinimalConfig`:
+
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+
+    "github.com/go-chi/chi/v5"
+    "github.com/tendant/simple-idm/pkg/router"
+)
+
+func main() {
+    r := chi.NewRouter()
+
+    // Create Simple IDM configuration with sane defaults
+    cfg, err := router.NewMinimalConfig(router.MinimalOptions{
+        DatabaseURL:         "postgres://user:pwd@localhost:5432/mydb?sslmode=disable",
+        JWTSecret:           "your-secret-key",
+        BaseURL:             "http://localhost:4000",
+        RegistrationEnabled: true,   // Allow user registration
+        DefaultRole:         "user", // Default role for new users
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Mount all Simple IDM routes
+    router.SetupRoutes(r, cfg)
+
+    // Add your application routes
+    r.Get("/api/myapp/*", myAppHandler)
+
+    // Start server
+    http.ListenAndServe(":4000", r)
+}
+```
+
+That's it! Just **3 required parameters**:
+- `DatabaseURL` - PostgreSQL connection string
+- `JWTSecret` - Secret for signing JWT tokens
+- `BaseURL` - Base URL of your application
+
+All routes are automatically configured with sensible defaults.
+
+### Advanced Setup
+
+For full control over all handlers and services:
 
 ```go
 package main
