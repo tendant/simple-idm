@@ -48,6 +48,8 @@ type MinimalOptions struct {
 	PrefixConfig        *pkgconfig.PrefixConfig // API route prefixes
 	RegistrationEnabled bool                    // Allow user registration (default: true)
 	DefaultRole         string                  // Default role for new users (default: "user")
+	JWTIssuer           string                  // JWT token issuer claim (default: BaseURL)
+	JWTAudience         string                  // JWT token audience claim (default: BaseURL)
 }
 
 // NewMinimalConfig creates a Simple IDM router configuration with sane defaults
@@ -105,9 +107,19 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	deviceRepo := device.NewPostgresDeviceRepository(pool)
 	deviceService := device.NewDeviceService(deviceRepo)
 
+	// Determine JWT issuer and audience (use BaseURL as default)
+	jwtIssuer := opts.JWTIssuer
+	if jwtIssuer == "" {
+		jwtIssuer = opts.BaseURL
+	}
+	jwtAudience := opts.JWTAudience
+	if jwtAudience == "" {
+		jwtAudience = opts.BaseURL
+	}
+
 	// Token services
-	hmacTokenGenerator := tokengenerator.NewJwtTokenGenerator(opts.JWTSecret, opts.BaseURL, opts.BaseURL)
-	tempTokenGenerator := tokengenerator.NewTempTokenGenerator(opts.JWTSecret, opts.BaseURL, opts.BaseURL)
+	hmacTokenGenerator := tokengenerator.NewJwtTokenGenerator(opts.JWTSecret, jwtIssuer, jwtAudience)
+	tempTokenGenerator := tokengenerator.NewTempTokenGenerator(opts.JWTSecret, jwtIssuer, jwtAudience)
 	tokenService := tokengenerator.NewTokenServiceFromGenerator(
 		hmacTokenGenerator,
 		tokengenerator.WithTempTokenGenerator(tempTokenGenerator),
@@ -196,7 +208,7 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 		oidc.WithTokenGenerator(hmacTokenGenerator),
 		oidc.WithBaseURL(opts.BaseURL),
 		oidc.WithUserMapper(userMapper),
-		oidc.WithIssuer(opts.BaseURL),
+		oidc.WithIssuer(jwtIssuer),
 	)
 
 	// OIDC handle
