@@ -22,7 +22,9 @@ import (
 	loginsdb "github.com/tendant/simple-idm/pkg/logins/loginsdb"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	mapperdb "github.com/tendant/simple-idm/pkg/mapper/mapperdb"
+	"github.com/tendant/simple-idm/pkg/oauth2client"
 	oauth2clientapi "github.com/tendant/simple-idm/pkg/oauth2client/api"
+	"github.com/tendant/simple-idm/pkg/oidc"
 	oidcapi "github.com/tendant/simple-idm/pkg/oidc/api"
 	profileapi "github.com/tendant/simple-idm/pkg/profile/api"
 	"github.com/tendant/simple-idm/pkg/role"
@@ -182,8 +184,23 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 
 	userHandle := iamapi.NewHandle(iamService)
 
-	// Empty handlers for optional features
-	emptyOIDCHandle := &oidcapi.OidcHandle{}
+	// OAuth2 client service (environment-based, minimal config)
+	oauth2Repo, _ := oauth2client.NewEnvOAuth2ClientRepository() // Ignore error for minimal config
+	oauth2ClientService := oauth2client.NewClientService(oauth2Repo)
+
+	// OIDC service (in-memory repository for minimal config)
+	oidcRepository := oidc.NewInMemoryOIDCRepository()
+	oidcService := oidc.NewOIDCServiceWithOptions(
+		oidcRepository,
+		oauth2ClientService,
+		oidc.WithTokenGenerator(hmacTokenGenerator),
+		oidc.WithBaseURL(opts.BaseURL),
+		oidc.WithUserMapper(userMapper),
+		oidc.WithIssuer(opts.BaseURL),
+	)
+
+	// OIDC handle
+	oidcHandle := oidcapi.NewOidcHandle(oauth2ClientService, oidcService)
 	emptyExternalProviderHandle := &externalProviderAPI.Handle{}
 	emptyEmailVerificationHandle := emailverificationapi.Handler{}
 	emptyProfileHandle := profileapi.Handle{}
@@ -214,7 +231,7 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 		LoginsHandle: loginsHandle,
 
 		// Minimal/empty handlers (routes registered but may not be fully functional)
-		OIDCHandle:              emptyOIDCHandle,
+		OIDCHandle:              oidcHandle,
 		ExternalProviderHandle:  emptyExternalProviderHandle,
 		EmailVerificationHandle: emptyEmailVerificationHandle,
 		ProfileHandle:           emptyProfileHandle,
