@@ -50,6 +50,8 @@ type MinimalOptions struct {
 	DefaultRole         string                  // Default role for new users (default: "user")
 	JWTIssuer           string                  // JWT token issuer claim (default: BaseURL)
 	JWTAudience         string                  // JWT token audience claim (default: BaseURL)
+	AccessTokenExpiry   string                  // Access token expiration duration (e.g., "30m", default: "5m")
+	RefreshTokenExpiry  string                  // Refresh token expiration duration (e.g., "48h", default: "15m")
 }
 
 // NewMinimalConfig creates a Simple IDM router configuration with sane defaults
@@ -120,9 +122,21 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	// Token services
 	hmacTokenGenerator := tokengenerator.NewJwtTokenGenerator(opts.JWTSecret, jwtIssuer, jwtAudience)
 	tempTokenGenerator := tokengenerator.NewTempTokenGenerator(opts.JWTSecret, jwtIssuer, jwtAudience)
+
+	// Configure token expiry from options
+	tokenOptions := []tokengenerator.Option{
+		tokengenerator.WithTempTokenGenerator(tempTokenGenerator),
+	}
+	if opts.AccessTokenExpiry != "" {
+		tokenOptions = append(tokenOptions, tokengenerator.WithAccessTokenExpiry(opts.AccessTokenExpiry))
+	}
+	if opts.RefreshTokenExpiry != "" {
+		tokenOptions = append(tokenOptions, tokengenerator.WithRefreshTokenExpiry(opts.RefreshTokenExpiry))
+	}
+
 	tokenService := tokengenerator.NewTokenServiceFromGenerator(
 		hmacTokenGenerator,
-		tokengenerator.WithTempTokenGenerator(tempTokenGenerator),
+		tokenOptions...,
 	)
 	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
 		"/",
