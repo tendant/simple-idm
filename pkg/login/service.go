@@ -824,7 +824,7 @@ func (s *LoginService) SendMagicLinkEmail(ctx context.Context, param SendMagicLi
 		return errors.New("notification manager is not configured")
 	}
 
-	magicLink := fmt.Sprintf("%s/magic-link-validate?token=%s", s.notificationManager.BaseUrl, param.Token)
+	magicLink := fmt.Sprintf("%s/magic-link/validate?token=%s", s.notificationManager.BaseUrl, param.Token)
 	slog.Info("Sending magic link email", "email", param.Email)
 
 	data := map[string]string{
