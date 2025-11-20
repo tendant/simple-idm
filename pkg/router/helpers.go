@@ -3,6 +3,9 @@ package router
 import (
 	"context"
 	"net/http"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,6 +13,7 @@ import (
 	pkgconfig "github.com/tendant/simple-idm/pkg/config"
 	"github.com/tendant/simple-idm/pkg/device"
 	deviceapi "github.com/tendant/simple-idm/pkg/device/api"
+	"github.com/tendant/simple-idm/pkg/emailverification"
 	emailverificationapi "github.com/tendant/simple-idm/pkg/emailverification/api"
 	externalProviderAPI "github.com/tendant/simple-idm/pkg/externalprovider/api"
 	"github.com/tendant/simple-idm/pkg/iam"
@@ -18,6 +22,8 @@ import (
 	"github.com/tendant/simple-idm/pkg/login"
 	loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	logindb "github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/notice"
+	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/logins"
 	loginsdb "github.com/tendant/simple-idm/pkg/logins/loginsdb"
 	"github.com/tendant/simple-idm/pkg/mapper"
@@ -89,10 +95,32 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
 	userMapper := mapper.NewDefaultUserMapper(mapperRepo)
 
+	// Notification manager - read from environment variables
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = opts.BaseURL
+	}
+	emailPort, _ := strconv.Atoi(os.Getenv("EMAIL_PORT"))
+	emailTLS := os.Getenv("EMAIL_TLS") == "true"
+
+	notificationManager, _ := notice.NewNotificationManager(
+		frontendURL,
+		notice.WithSMTP(notification.SMTPConfig{
+			Host:     os.Getenv("EMAIL_HOST"),
+			Port:     emailPort,
+			Username: os.Getenv("EMAIL_USERNAME"),
+			Password: os.Getenv("EMAIL_PASSWORD"),
+			From:     os.Getenv("EMAIL_FROM"),
+			TLS:      emailTLS,
+		}),
+		notice.WithDefaultTemplates(),
+	)
+
 	loginService := login.NewLoginServiceWithOptions(
 		loginRepo,
 		login.WithPasswordManager(passwordManager),
 		login.WithUserMapper(userMapper),
+		login.WithNotificationManager(notificationManager),
 	)
 
 	// IAM service
@@ -156,6 +184,29 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	}
 	loginsService := logins.NewLoginsService(loginsRepo, loginQueries, loginsServiceOptions)
 
+	// Email verification service
+	emailVerificationRepo := emailverification.NewPostgresEmailVerificationRepository(pool)
+	tokenExpiry := 24 * time.Hour
+	if expiryEnv := os.Getenv("EMAIL_VERIFICATION_TOKEN_EXPIRY"); expiryEnv != "" {
+		if parsed, err := time.ParseDuration(expiryEnv); err == nil {
+			tokenExpiry = parsed
+		}
+	}
+	resendWindow := 1 * time.Hour
+	if windowEnv := os.Getenv("EMAIL_VERIFICATION_RESEND_WINDOW"); windowEnv != "" {
+		if parsed, err := time.ParseDuration(windowEnv); err == nil {
+			resendWindow = parsed
+		}
+	}
+	emailVerificationService := emailverification.NewEmailVerificationService(
+		emailVerificationRepo,
+		notificationManager,
+		opts.BaseURL,
+		emailverification.WithTokenExpiry(tokenExpiry),
+		emailverification.WithResendLimit(3),
+		emailverification.WithResendWindow(resendWindow),
+	)
+
 	// 3. Create JWT authenticators
 	// Using HMAC256 for simplicity (production should use RSA256)
 	rsaAuth := jwtauth.New("HS256", []byte(opts.JWTSecret), nil)
@@ -206,6 +257,7 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 		signup.WithRegistrationEnabled(registrationEnabled),
 		signup.WithDefaultRole(defaultRole),
 		signup.WithLoginService(*loginService),
+		signup.WithEmailVerificationService(emailVerificationService),
 	)
 
 	userHandle := iamapi.NewHandle(iamService)
