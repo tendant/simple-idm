@@ -201,7 +201,7 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	emailVerificationService := emailverification.NewEmailVerificationService(
 		emailVerificationRepo,
 		notificationManager,
-		opts.BaseURL,
+		frontendURL,
 		emailverification.WithTokenExpiry(tokenExpiry),
 		emailverification.WithResendLimit(3),
 		emailverification.WithResendWindow(resendWindow),
