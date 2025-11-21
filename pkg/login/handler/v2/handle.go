@@ -96,7 +96,7 @@ func (h *Handle) Login(w http.ResponseWriter, r *http.Request) {
 // Logout handles POST /api/v2/idm/login/logout
 func (h *Handle) Logout(w http.ResponseWriter, r *http.Request) {
 	// Clear cookies
-	h.tokenCookieService.ClearTokensCookie(w)
+	h.tokenCookieService.ClearCookies(w)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "logged out successfully",
@@ -177,23 +177,29 @@ func (h *Handle) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handle) writeLoginError(w http.ResponseWriter, err *loginflow.Error) {
 	statusCode := http.StatusBadRequest
-	if err.Code == "ACCOUNT_LOCKED" {
+	if err.Type == "ACCOUNT_LOCKED" {
 		statusCode = http.StatusForbidden
 	}
 
 	writeJSON(w, statusCode, map[string]interface{}{
 		"error": err.Message,
-		"code":  err.Code,
+		"code":  err.Type,
 	})
 }
 
 func (h *Handle) write2FARequiredResponse(w http.ResponseWriter, result loginflow.Result) {
 	methods := make([]TwoFactorMethodInfo, len(result.TwoFactorMethods))
 	for i, m := range result.TwoFactorMethods {
+		// Convert []DeliveryOption to []string
+		deliveryOptions := make([]string, len(m.DeliveryOptions))
+		for j, opt := range m.DeliveryOptions {
+			deliveryOptions[j] = opt.DisplayValue
+		}
+
 		methods[i] = TwoFactorMethodInfo{
 			Type:            m.Type,
-			DeliveryOptions: m.DeliveryOptions,
-			DisplayName:     m.DisplayName,
+			DeliveryOptions: deliveryOptions,
+			DisplayName:     m.Type, // Use type as display name since DisplayName field doesn't exist
 		}
 	}
 

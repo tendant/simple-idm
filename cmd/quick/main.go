@@ -28,6 +28,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/login"
 	loginapi "github.com/tendant/simple-idm/pkg/login/loginapi"
+	loginv2 "github.com/tendant/simple-idm/pkg/login/handler/v2"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/loginflow"
 	"github.com/tendant/simple-idm/pkg/logins"
@@ -511,6 +512,16 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config, prefixConfig
 				render.Render(w, r, resp)
 			}
 		})
+	})
+
+	// V2 Login API (clean handlers without code generation)
+	loginHandlerV2 := loginv2.NewHandle(
+		services.loginService,
+		services.loginFlowService,
+		services.tokenCookieService,
+	)
+	r.Route("/api/v2/idm/login", func(r chi.Router) {
+		loginHandlerV2.RegisterRoutes(r)
 	})
 
 	// OAuth2/OIDC endpoints (split user-facing from API endpoints)
