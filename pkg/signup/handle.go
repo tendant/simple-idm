@@ -119,7 +119,8 @@ func WithEmailVerificationService(evs *emailverification.EmailVerificationServic
 	}
 }
 
-// RegisterUser handles user registration with optional invitation code
+// RegisterUser handles user registration with optional password
+// If password is provided, registers with password. Otherwise, uses passwordless registration.
 func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 	// Parse request body
 	var request RegisterRequest
@@ -131,14 +132,28 @@ func (h Handle) RegisterUser(w http.ResponseWriter, r *http.Request) *Response {
 		}
 	}
 
-	// Call service
-	result, err := h.service.RegisterUser(r.Context(), RegisterUserRequest{
-		Username:       request.Username,
-		Password:       request.Password,
-		Fullname:       request.Fullname,
-		Email:          request.Email,
-		InvitationCode: request.InvitationCode,
-	})
+	var result *RegisterUserResult
+	var err error
+
+	// Dynamically choose registration method based on whether password is provided
+	if request.Password != "" {
+		// Password-based registration
+		result, err = h.service.RegisterUser(r.Context(), RegisterUserRequest{
+			Username:       request.Username,
+			Password:       request.Password,
+			Fullname:       request.Fullname,
+			Email:          request.Email,
+			InvitationCode: request.InvitationCode,
+		})
+	} else {
+		// Passwordless registration
+		result, err = h.service.RegisterUserPasswordless(r.Context(), RegisterUserPasswordlessRequest{
+			Username:       request.Username,
+			Fullname:       request.Fullname,
+			Email:          request.Email,
+			InvitationCode: request.InvitationCode,
+		})
+	}
 
 	if err != nil {
 		return h.handleServiceError(err)

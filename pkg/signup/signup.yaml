@@ -76,10 +76,7 @@ components:
         invitation_code:
           type: string
       required:
-        - fullname
-        - username
         - email
-        - password
     PasswordlessRegisterRequest:
       type: object
       x-go-optional-value: true
