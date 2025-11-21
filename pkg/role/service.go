@@ -343,5 +343,14 @@ func (s *RoleService) AddUserToRole(ctx context.Context, roleID, userID uuid.UUI
 
 // GetRoleIdByName gets the role ID by name
 func (s *RoleService) GetRoleIdByName(ctx context.Context, name string) (uuid.UUID, error) {
-	return s.repo.GetRoleIdByName(ctx, name)
+	roleID, err := s.repo.GetRoleIdByName(ctx, name)
+	if err != nil {
+		// Check if it's a "not found" error (404) vs database error (500)
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrRoleNotFound
+		}
+		// Database/system error - return with wrapped error for proper logging
+		return uuid.Nil, fmt.Errorf("database error while looking up role '%s': %w", name, err)
+	}
+	return roleID, nil
 }

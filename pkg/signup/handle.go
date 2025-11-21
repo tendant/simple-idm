@@ -220,6 +220,10 @@ func (h Handle) handleServiceError(err error) *Response {
 		statusCode = http.StatusBadRequest
 	case ErrCodeUsernameExists:
 		statusCode = http.StatusConflict
+	case ErrCodeInternalError:
+		statusCode = http.StatusInternalServerError
+	case ErrCodeRoleNotFound:
+		statusCode = http.StatusNotFound
 	default:
 		statusCode = http.StatusBadRequest
 	}

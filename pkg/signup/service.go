@@ -138,6 +138,7 @@ const (
 	ErrCodeLoginCreationFailed    = "LOGIN_CREATION_FAILED"
 	ErrCodeUserCreationFailed     = "USER_CREATION_FAILED"
 	ErrCodeRoleAssignmentFailed   = "ROLE_ASSIGNMENT_FAILED"
+	ErrCodeInternalError          = "INTERNAL_ERROR"
 )
 
 // IsRegistrationEnabled returns whether registration is enabled
@@ -181,9 +182,17 @@ func (s *SignupService) RegisterUser(ctx context.Context, req RegisterUserReques
 	roleID, err := s.roleService.GetRoleIdByName(ctx, roleName)
 	if err != nil {
 		slog.Error("Failed to get role ID", "role", roleName, "error", err)
+		// Check if it's a "not found" error (404) vs database/system error (500)
+		if errors.Is(err, role.ErrRoleNotFound) {
+			return nil, &SignupError{
+				Code:    ErrCodeRoleNotFound,
+				Message: fmt.Sprintf("Role not found: %s", roleName),
+			}
+		}
+		// Database or system error - return 500
 		return nil, &SignupError{
-			Code:    ErrCodeRoleNotFound,
-			Message: fmt.Sprintf("Role not found: %s", roleName),
+			Code:    ErrCodeInternalError,
+			Message: "Internal server error while processing registration",
 		}
 	}
 
@@ -278,9 +287,17 @@ func (s *SignupService) RegisterUserPasswordless(ctx context.Context, req Regist
 	roleID, err := s.roleService.GetRoleIdByName(ctx, roleName)
 	if err != nil {
 		slog.Error("Failed to get role ID", "role", roleName, "error", err)
+		// Check if it's a "not found" error (404) vs database/system error (500)
+		if errors.Is(err, role.ErrRoleNotFound) {
+			return nil, &SignupError{
+				Code:    ErrCodeRoleNotFound,
+				Message: fmt.Sprintf("Role not found: %s", roleName),
+			}
+		}
+		// Database or system error - return 500
 		return nil, &SignupError{
-			Code:    ErrCodeRoleNotFound,
-			Message: fmt.Sprintf("Role not found: %s", roleName),
+			Code:    ErrCodeInternalError,
+			Message: "Internal server error while processing registration",
 		}
 	}
 
