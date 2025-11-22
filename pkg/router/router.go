@@ -71,10 +71,19 @@ func SetupRoutes(router chi.Router, cfg Config) {
 	router.Get("/.well-known/openid-configuration", cfg.WellKnownHandler.OpenIDConfiguration)
 
 	// Mount public routes (no authentication required)
-	router.Mount(cfg.PrefixConfig.Auth, loginapi.Handler(cfg.LoginHandle))
-	router.Mount(cfg.PrefixConfig.Signup, signup.Handler(cfg.SignupHandle))
-	router.Mount(cfg.PrefixConfig.OAuth2, oidcapi.Handler(cfg.OIDCHandle))
-	router.Mount(cfg.PrefixConfig.External, externalProviderAPI.Handler(cfg.ExternalProviderHandle))
+	// Skip mounting if prefix is empty (allows applications to mount v2 handlers separately)
+	if cfg.PrefixConfig.Auth != "" {
+		router.Mount(cfg.PrefixConfig.Auth, loginapi.Handler(cfg.LoginHandle))
+	}
+	if cfg.PrefixConfig.Signup != "" {
+		router.Mount(cfg.PrefixConfig.Signup, signup.Handler(cfg.SignupHandle))
+	}
+	if cfg.PrefixConfig.OAuth2 != "" {
+		router.Mount(cfg.PrefixConfig.OAuth2, oidcapi.Handler(cfg.OIDCHandle))
+	}
+	if cfg.PrefixConfig.External != "" {
+		router.Mount(cfg.PrefixConfig.External, externalProviderAPI.Handler(cfg.ExternalProviderHandle))
+	}
 
 	// Mount email verification endpoints (verify is public, resend and status require auth)
 	router.Route(cfg.PrefixConfig.Email, func(r chi.Router) {
