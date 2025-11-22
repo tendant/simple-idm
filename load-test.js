@@ -105,7 +105,7 @@ export default function () {
 
   // 2. Test Login
   const loginPayload = JSON.stringify({
-    username: testEmail,
+    username: testUsername,
     password: testPassword,
   });
 

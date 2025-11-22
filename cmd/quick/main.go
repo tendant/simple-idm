@@ -27,7 +27,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/login"
-	loginapi "github.com/tendant/simple-idm/pkg/login/loginapi"
+	// loginapi "github.com/tendant/simple-idm/pkg/login/loginapi" // Unused - v1 routes disabled
 	loginv2 "github.com/tendant/simple-idm/pkg/login/handler/v2"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/loginflow"
@@ -44,7 +44,7 @@ import (
 	"github.com/tendant/simple-idm/pkg/role"
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
-	"github.com/tendant/simple-idm/pkg/signup"
+	"github.com/tendant/simple-idm/pkg/signup" // Used by v2 signup handler
 	signupv2 "github.com/tendant/simple-idm/pkg/signup/handler/v2"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
@@ -130,13 +130,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load API endpoint prefix configuration
+	// V2 API endpoints for public routes (v1 auth/signup endpoints disabled)
 	prefixConfig := pkgconfig.LoadPrefixConfig()
 	if err := prefixConfig.Validate(); err != nil {
 		slog.Error("Invalid prefix configuration", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("API endpoint prefixes configured", "auth", prefixConfig.Auth, "signup", prefixConfig.Signup)
+	slog.Info("Using V2 API endpoints for auth/signup", "auth", "/api/v2/auth", "magic-links", "/api/v2/magic-links", "passwords", "/api/v2/passwords")
+	slog.Info("Admin endpoints configured", "users", prefixConfig.Users, "roles", prefixConfig.Roles, "oauth2-clients", prefixConfig.OAuth2Clients)
 
 	// Bootstrap RSA key (auto-generate if missing)
 	rsaResult, err := bootstrap.BootstrapRSAKey(bootstrap.RSAKeyConfig{
@@ -442,23 +443,22 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config, prefixConfig
 	r.Get("/.well-known/oauth-authorization-server", wellKnownHandler.AuthorizationServerMetadata)
 	r.Get("/.well-known/openid-configuration", wellKnownHandler.OpenIDConfiguration)
 
-	// Login API handler (uses loginflow service for magic link validation)
-	loginHandle := loginapi.NewHandle(
-		loginapi.WithLoginService(services.loginService),
-		loginapi.WithLoginFlowService(services.loginFlowService),
-		loginapi.WithTokenCookieService(services.tokenCookieService),
-		loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()),
-	)
+	// V1 API handlers - Not used (v1 routes disabled)
+	// loginHandle := loginapi.NewHandle(
+	// 	loginapi.WithLoginService(services.loginService),
+	// 	loginapi.WithLoginFlowService(services.loginFlowService),
+	// 	loginapi.WithTokenCookieService(services.tokenCookieService),
+	// 	loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()),
+	// )
 
-	// Signup handler
-	signupHandle := signup.NewHandleWithOptions(
-		signup.WithIamService(*services.iamService),
-		signup.WithRoleService(*services.roleService),
-		signup.WithLoginsService(*services.loginsService),
-		signup.WithRegistrationEnabled(appConfig.RegistrationEnabled),
-		signup.WithDefaultRole(appConfig.RegistrationDefaultRole),
-		signup.WithLoginService(*services.loginService),
-	)
+	// signupHandle := signup.NewHandleWithOptions(
+	// 	signup.WithIamService(*services.iamService),
+	// 	signup.WithRoleService(*services.roleService),
+	// 	signup.WithLoginsService(*services.loginsService),
+	// 	signup.WithRegistrationEnabled(appConfig.RegistrationEnabled),
+	// 	signup.WithDefaultRole(appConfig.RegistrationDefaultRole),
+	// 	signup.WithLoginService(*services.loginService),
+	// )
 
 	// OIDC handler
 	oidcHandle := oidcapi.NewOidcHandle(
@@ -467,65 +467,65 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config, prefixConfig
 		oidcapi.WithJwksService(services.jwksService),
 	)
 
-	// Public routes (no authentication)
-	r.Route(prefixConfig.Auth, func(r chi.Router) {
-		// Password login
-		r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
-			resp := loginHandle.PostLogin(w, r)
-			if resp != nil {
-				render.Render(w, r, resp)
-			}
-		})
-
-		// Magic link endpoints
-		r.Post("/magic-link/email", func(w http.ResponseWriter, r *http.Request) {
-			resp := loginHandle.InitiateMagicLinkLoginByEmail(w, r)
-			if resp != nil {
-				render.Render(w, r, resp)
-			}
-		})
-		r.Get("/magic-link/validate", func(w http.ResponseWriter, r *http.Request) {
-			params := loginapi.ValidateMagicLinkTokenParams{
-				Token: r.URL.Query().Get("token"),
-			}
-			resp := loginHandle.ValidateMagicLinkToken(w, r, params)
-			if resp != nil {
-				render.Render(w, r, resp)
-			}
-		})
-
-		// Token refresh
-		r.Post("/token/refresh", func(w http.ResponseWriter, r *http.Request) {
-			resp := loginHandle.PostTokenRefresh(w, r)
-			if resp != nil {
-				render.Render(w, r, resp)
-			}
-		})
-
-		// Logout
-		r.Post("/logout", func(w http.ResponseWriter, r *http.Request) {
-			resp := loginHandle.PostLogout(w, r)
-			if resp != nil {
-				render.Render(w, r, resp)
-			}
-		})
-	})
-
-	// Signup routes (public)
-	r.Route(prefixConfig.Signup, func(r chi.Router) {
-		r.Post("/passwordless", func(w http.ResponseWriter, r *http.Request) {
-			resp := signupHandle.RegisterUserPasswordless(w, r)
-			if resp != nil {
-				render.Render(w, r, resp)
-			}
-		})
-		r.Post("/register", func(w http.ResponseWriter, r *http.Request) {
-			resp := signupHandle.RegisterUser(w, r)
-			if resp != nil {
-				render.Render(w, r, resp)
-			}
-		})
-	})
+	// V1 API routes disabled - using V2 endpoints only
+	// r.Route(prefixConfig.Auth, func(r chi.Router) {
+	// 	// Password login
+	// 	r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
+	// 		resp := loginHandle.PostLogin(w, r)
+	// 		if resp != nil {
+	// 			render.Render(w, r, resp)
+	// 		}
+	// 	})
+	//
+	// 	// Magic link endpoints
+	// 	r.Post("/magic-link/email", func(w http.ResponseWriter, r *http.Request) {
+	// 		resp := loginHandle.InitiateMagicLinkLoginByEmail(w, r)
+	// 		if resp != nil {
+	// 			render.Render(w, r, resp)
+	// 		}
+	// 	})
+	// 	r.Get("/magic-link/validate", func(w http.ResponseWriter, r *http.Request) {
+	// 		params := loginapi.ValidateMagicLinkTokenParams{
+	// 			Token: r.URL.Query().Get("token"),
+	// 		}
+	// 		resp := loginHandle.ValidateMagicLinkToken(w, r, params)
+	// 		if resp != nil {
+	// 			render.Render(w, r, resp)
+	// 		}
+	// 	})
+	//
+	// 	// Token refresh
+	// 	r.Post("/token/refresh", func(w http.ResponseWriter, r *http.Request) {
+	// 		resp := loginHandle.PostTokenRefresh(w, r)
+	// 		if resp != nil {
+	// 			render.Render(w, r, resp)
+	// 		}
+	// 	})
+	//
+	// 	// Logout
+	// 	r.Post("/logout", func(w http.ResponseWriter, r *http.Request) {
+	// 		resp := loginHandle.PostLogout(w, r)
+	// 		if resp != nil {
+	// 			render.Render(w, r, resp)
+	// 		}
+	// 	})
+	// })
+	//
+	// // Signup routes (public)
+	// r.Route(prefixConfig.Signup, func(r chi.Router) {
+	// 	r.Post("/passwordless", func(w http.ResponseWriter, r *http.Request) {
+	// 		resp := signupHandle.RegisterUserPasswordless(w, r)
+	// 		if resp != nil {
+	// 			render.Render(w, r, resp)
+	// 		}
+	// 	})
+	// 	r.Post("/register", func(w http.ResponseWriter, r *http.Request) {
+	// 		resp := signupHandle.RegisterUser(w, r)
+	// 		if resp != nil {
+	// 			render.Render(w, r, resp)
+	// 		}
+	// 	})
+	// })
 
 	// V2 API - Clean, organized structure
 	loginHandlerV2 := loginv2.NewHandle(
@@ -590,8 +590,8 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config, prefixConfig
 		}
 	})
 
-	// API endpoints for token, userinfo, jwks
-	r.Mount(prefixConfig.OAuth2, oidcapi.Handler(oidcHandle))
+	// API endpoints for token, userinfo, jwks (OAuth2/OIDC)
+	r.Mount("/api/idm/oauth2", oidcapi.Handler(oidcHandle))
 
 	// JWT authentication setup
 	activeKey, _ := services.jwksService.GetActiveSigningKey()

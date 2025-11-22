@@ -37,7 +37,7 @@ DELETE FROM ${DB_SCHEMA}.user_roles WHERE user_id IN (
 DELETE FROM ${DB_SCHEMA}.users WHERE email LIKE 'loadtest_%';
 
 -- Delete logins
-DELETE FROM ${DB_SCHEMA}.logins
+DELETE FROM ${DB_SCHEMA}.login
 WHERE username LIKE 'user_%'
    OR username LIKE 'loadtest_%';
 
