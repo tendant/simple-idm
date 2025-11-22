@@ -527,20 +527,32 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config, prefixConfig
 		})
 	})
 
-	// V2 Login API (clean handlers without code generation)
+	// V2 API - Clean, organized structure
 	loginHandlerV2 := loginv2.NewHandle(
 		services.loginService,
 		services.loginFlowService,
 		services.tokenCookieService,
 	)
-	r.Route("/api/v2/idm/login", func(r chi.Router) {
-		loginHandlerV2.RegisterRoutes(r)
+	signupHandlerV2 := signupv2.NewHandle(services.signupService)
+
+	// V2 Auth endpoints (authentication & registration)
+	r.Route("/api/v2/auth", func(r chi.Router) {
+		r.Post("/login", loginHandlerV2.Login)
+		r.Post("/logout", loginHandlerV2.Logout)
+		r.Post("/refresh", loginHandlerV2.RefreshToken)
+		r.Post("/signup", signupHandlerV2.Signup)
 	})
 
-	// V2 Signup API (clean handlers without code generation)
-	signupHandlerV2 := signupv2.NewHandle(services.signupService)
-	r.Route("/api/v2/idm/signup", func(r chi.Router) {
-		signupHandlerV2.RegisterRoutes(r)
+	// V2 Magic Links
+	r.Route("/api/v2/magic-links", func(r chi.Router) {
+		r.Post("/", loginHandlerV2.RequestMagicLink)
+		r.Get("/verify", loginHandlerV2.ValidateMagicLink)
+	})
+
+	// V2 Passwords
+	r.Route("/api/v2/passwords", func(r chi.Router) {
+		r.Post("/reset", loginHandlerV2.InitPasswordReset)
+		r.Put("/reset", loginHandlerV2.CompletePasswordReset)
 	})
 
 	// OAuth2/OIDC endpoints (split user-facing from API endpoints)
