@@ -58,6 +58,28 @@ func DefaultV1Prefixes() PrefixConfig {
 	}
 }
 
+// DefaultV2Prefixes returns the default v2 prefix configuration.
+// This is the recommended configuration for new applications using v2 APIs.
+//
+// Pattern: /api/v2/* for all IDM and OAuth2 endpoints (consistent prefix structure)
+func DefaultV2Prefixes() PrefixConfig {
+	return PrefixConfig{
+		Auth:          "/api/v2/auth",
+		Signup:        "/api/v2/signup",
+		Profile:       "/api/v2/profile",
+		TwoFA:         "/api/v2/2fa",
+		Email:         "/api/v2/email",
+		PasswordReset: "/api/v2/passwords",
+		OAuth2:        "/api/v2/oauth2",
+		Users:         "/api/v2/users",
+		Roles:         "/api/v2/roles",
+		Device:        "/api/v2/device",
+		Logins:        "/api/v2/logins",
+		OAuth2Clients: "/api/v2/oauth2-clients",
+		External:      "/api/v2/external",
+	}
+}
+
 // LegacyPrefixes returns the legacy prefix configuration for backward compatibility.
 // This includes the inconsistent 2FA prefix /idm/2fa (missing /api prefix).
 //

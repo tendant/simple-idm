@@ -218,20 +218,9 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	// 4. Configure prefixes (use provided or defaults)
 	prefixConfig := opts.PrefixConfig
 	if prefixConfig == nil {
-		prefixConfig = &pkgconfig.PrefixConfig{
-			Auth:          "/api/v1/idm/auth",
-			Signup:        "/api/v1/idm/signup",
-			Profile:       "/api/v1/idm/profile",
-			TwoFA:         "/api/v1/idm/2fa",
-			Email:         "/api/v1/idm/email",
-			OAuth2:        "/api/v1/idm/oauth2",
-			Users:         "/api/v1/idm/users",
-			Roles:         "/api/v1/idm/roles",
-			Device:        "/api/v1/idm/device",
-			Logins:        "/api/v1/idm/logins",
-			OAuth2Clients: "/api/v1/idm/oauth2-clients",
-			External:      "/api/v1/idm/external",
-		}
+		// Use v2 API prefixes as default for new applications
+		defaultV2 := pkgconfig.DefaultV2Prefixes()
+		prefixConfig = &defaultV2
 	}
 
 	// Default values
