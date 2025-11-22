@@ -155,13 +155,23 @@ func (s *SignupService) RegisterUser(ctx context.Context, req RegisterUserReques
 		}
 	}
 
-	// Validate required fields
-	if req.Username == "" || req.Password == "" || req.Fullname == "" || req.Email == "" {
+	// Validate required fields (only email and password for password-based registration)
+	if req.Email == "" || req.Password == "" {
 		return nil, &SignupError{
 			Code:    ErrCodeInvalidRequest,
-			Message: "Full name, username, password, and email are required",
+			Message: "Email and password are required",
 		}
 	}
+
+	// Use email as username if not provided
+	username := req.Username
+	if username == "" {
+		username = req.Email
+		slog.Info("Username empty, using email as username", "email", req.Email)
+	}
+
+	// Use empty string for fullname if not provided
+	fullname := req.Fullname
 
 	// Determine role
 	roleName := s.defaultRole
@@ -198,7 +208,7 @@ func (s *SignupService) RegisterUser(ctx context.Context, req RegisterUserReques
 
 	// Create login
 	loginResult, err := s.loginsService.CreateLogin(ctx, logins.LoginCreateRequest{
-		Username: req.Username,
+		Username: username,
 		Password: req.Password,
 	}, "")
 	if err != nil {
@@ -206,7 +216,7 @@ func (s *SignupService) RegisterUser(ctx context.Context, req RegisterUserReques
 	}
 
 	// Create user
-	user, err := s.iamService.CreateUser(ctx, req.Email, req.Username, req.Fullname, []uuid.UUID{}, loginResult.ID)
+	user, err := s.iamService.CreateUser(ctx, req.Email, username, fullname, []uuid.UUID{}, loginResult.ID)
 	if err != nil {
 		slog.Error("Failed to create user", "error", err)
 		return nil, &SignupError{
@@ -227,7 +237,7 @@ func (s *SignupService) RegisterUser(ctx context.Context, req RegisterUserReques
 
 	// Send email verification (best effort)
 	if s.emailVerificationService != nil {
-		_, err = s.emailVerificationService.CreateVerificationToken(ctx, user.ID, req.Fullname, req.Email)
+		_, err = s.emailVerificationService.CreateVerificationToken(ctx, user.ID, fullname, req.Email)
 		if err != nil {
 			slog.Error("Failed to send verification email", "user_id", user.ID, "error", err)
 			// Don't fail registration if email sending fails
@@ -267,6 +277,9 @@ func (s *SignupService) RegisterUserPasswordless(ctx context.Context, req Regist
 		username = req.Email
 		slog.Info("Username empty, using email as username", "email", req.Email)
 	}
+
+	// Use empty string for fullname if not provided
+	fullname := req.Fullname
 
 	// Determine role
 	roleName := s.defaultRole
@@ -320,7 +333,7 @@ func (s *SignupService) RegisterUserPasswordless(ctx context.Context, req Regist
 	}
 
 	// Create user
-	user, err := s.iamService.CreateUser(ctx, req.Email, username, req.Fullname, []uuid.UUID{}, loginResult.ID)
+	user, err := s.iamService.CreateUser(ctx, req.Email, username, fullname, []uuid.UUID{}, loginResult.ID)
 	if err != nil {
 		slog.Error("Failed to create user", "error", err)
 		return nil, &SignupError{
@@ -341,7 +354,7 @@ func (s *SignupService) RegisterUserPasswordless(ctx context.Context, req Regist
 
 	// Send email verification (best effort)
 	if s.emailVerificationService != nil {
-		_, err = s.emailVerificationService.CreateVerificationToken(ctx, user.ID, req.Fullname, req.Email)
+		_, err = s.emailVerificationService.CreateVerificationToken(ctx, user.ID, fullname, req.Email)
 		if err != nil {
 			slog.Error("Failed to send verification email", "user_id", user.ID, "error", err)
 			// Don't fail registration if email sending fails

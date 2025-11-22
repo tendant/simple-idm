@@ -45,6 +45,7 @@ import (
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	"github.com/tendant/simple-idm/pkg/role/roledb"
 	"github.com/tendant/simple-idm/pkg/signup"
+	signupv2 "github.com/tendant/simple-idm/pkg/signup/handler/v2"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	"github.com/tendant/simple-idm/pkg/user"
@@ -211,6 +212,7 @@ type Services struct {
 	loginFlowService    *loginflow.LoginFlowService
 	loginsService       *logins.LoginsService
 	roleService         *role.RoleService
+	signupService       *signup.SignupService
 	tokenCookieService  tokengenerator.TokenCookieService
 	oauth2ClientService *oauth2client.ClientService
 	oidcService         *oidc.OIDCService
@@ -392,12 +394,23 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 		oidc.WithIssuer(config.JWTIssuer),
 	)
 
+	// Signup service
+	signupService := signup.NewSignupService(
+		signup.WithIamServiceForSignup(iamService),
+		signup.WithRoleServiceForSignup(roleService),
+		signup.WithLoginServiceForSignup(loginService),
+		signup.WithLoginsServiceForSignup(loginsService),
+		signup.WithRegistrationEnabledForSignup(config.RegistrationEnabled),
+		signup.WithDefaultRoleForSignup(config.RegistrationDefaultRole),
+	)
+
 	return &Services{
 		iamService:          iamService,
 		loginService:        loginService,
 		loginFlowService:    loginFlowService,
 		loginsService:       loginsService,
 		roleService:         roleService,
+		signupService:       signupService,
 		tokenService:        tokenService,
 		tokenCookieService:  tokenCookieService,
 		oauth2ClientService: oauth2ClientService,
@@ -522,6 +535,12 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config, prefixConfig
 	)
 	r.Route("/api/v2/idm/login", func(r chi.Router) {
 		loginHandlerV2.RegisterRoutes(r)
+	})
+
+	// V2 Signup API (clean handlers without code generation)
+	signupHandlerV2 := signupv2.NewHandle(services.signupService)
+	r.Route("/api/v2/idm/signup", func(r chi.Router) {
+		signupHandlerV2.RegisterRoutes(r)
 	})
 
 	// OAuth2/OIDC endpoints (split user-facing from API endpoints)
