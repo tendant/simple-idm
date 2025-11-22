@@ -36,7 +36,10 @@ import (
 	"github.com/tendant/simple-idm/pkg/role"
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	roledb "github.com/tendant/simple-idm/pkg/role/roledb"
+	"github.com/tendant/simple-idm/pkg/loginflow"
+	loginv2 "github.com/tendant/simple-idm/pkg/login/handler/v2"
 	"github.com/tendant/simple-idm/pkg/signup"
+	signupv2 "github.com/tendant/simple-idm/pkg/signup/handler/v2"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
 	"github.com/tendant/simple-idm/pkg/twofa"
 	twofaapi "github.com/tendant/simple-idm/pkg/twofa/api"
@@ -288,6 +291,34 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	loginsHandle := &logins.LoginsHandle{}
 	emptyOAuth2ClientHandle := &oauth2clientapi.Handle{}
 
+	// Signup service (needed for signupHandlerV2)
+	signupService := signup.NewSignupService(
+		signup.WithIamServiceForSignup(iamService),
+		signup.WithRoleServiceForSignup(roleService),
+		signup.WithLoginServiceForSignup(loginService),
+		signup.WithLoginsServiceForSignup(loginsService),
+		signup.WithRegistrationEnabledForSignup(registrationEnabled),
+		signup.WithDefaultRoleForSignup(defaultRole),
+	)
+
+	// Login flow service (needed for v2 handlers)
+	loginFlowService := loginflow.NewLoginFlowService(
+		loginService,
+		twoFaService,
+		deviceService,
+		tokenService,
+		&tokenCookieService,
+		userMapper,
+	)
+
+	// V2 handlers (optional - applications can use these for v2 route support)
+	loginHandlerV2 := loginv2.NewHandle(
+		loginService,
+		loginFlowService,
+		tokenCookieService,
+	)
+	signupHandlerV2 := signupv2.NewHandle(signupService)
+
 	// Well-known configuration
 	wellKnownConfig := wellknown.Config{
 		ResourceURI:            opts.BaseURL,
@@ -333,5 +364,11 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 
 		SessionEnabled: false,
 		SessionHandle:  nil,
+
+		// V2 handlers for applications that want to use v2 routes
+		V2: V2Config{
+			LoginHandlerV2:  loginHandlerV2,
+			SignupHandlerV2: signupHandlerV2,
+		},
 	}, nil
 }

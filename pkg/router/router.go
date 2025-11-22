@@ -58,6 +58,9 @@ type Config struct {
 	// Session management (optional)
 	SessionEnabled bool
 	SessionPrefix  string
+
+	// V2 handlers (optional - for applications that want to use v2 routes)
+	V2 V2Config
 }
 
 // SetupRoutes mounts all IDM routes on the provided router
