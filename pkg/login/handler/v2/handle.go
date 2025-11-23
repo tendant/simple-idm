@@ -34,7 +34,7 @@ func NewHandle(
 
 // RegisterRoutes registers all login routes
 func (h *Handle) RegisterRoutes(r chi.Router) {
-	r.Post("/", h.Login)
+	r.Post("/login", h.Login)
 	r.Post("/logout", h.Logout)
 	r.Post("/magic-link", h.RequestMagicLink)
 	r.Get("/magic-link/validate", h.ValidateMagicLink)
