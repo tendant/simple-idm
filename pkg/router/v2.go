@@ -69,9 +69,9 @@ func SetupV2OnlyRoutes(router chi.Router, cfg Config) {
 	// Mount v2 auth routes if v2 handlers are available
 	if cfg.V2.LoginHandlerV2 != nil {
 		router.Route(cfg.PrefixConfig.Auth, func(r chi.Router) {
-			r.Post("/login", cfg.V2.LoginHandlerV2.Login)
-			r.Post("/logout", cfg.V2.LoginHandlerV2.Logout)
-			r.Post("/refresh", cfg.V2.LoginHandlerV2.RefreshToken)
+			// Use RegisterRoutes to mount all login-related endpoints
+			// This includes: login, logout, refresh, magic-link, password-reset
+			cfg.V2.LoginHandlerV2.RegisterRoutes(r)
 		})
 	}
 
