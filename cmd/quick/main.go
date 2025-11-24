@@ -533,7 +533,11 @@ func setupRoutes(r *chi.Mux, services *Services, appConfig *Config, prefixConfig
 		services.loginFlowService,
 		services.tokenCookieService,
 	)
-	signupHandlerV2 := signupv2.NewHandle(services.signupService)
+	signupHandlerV2 := signupv2.NewHandle(
+		services.signupService,
+		services.loginFlowService,
+		services.tokenCookieService,
+	)
 
 	// V2 Auth endpoints (authentication & registration)
 	r.Route("/api/v2/auth", func(r chi.Router) {

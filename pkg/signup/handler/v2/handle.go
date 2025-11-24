@@ -7,16 +7,27 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/tendant/simple-idm/pkg/device"
+	"github.com/tendant/simple-idm/pkg/loginflow"
 	"github.com/tendant/simple-idm/pkg/signup"
+	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 )
 
 type Handle struct {
-	signupService *signup.SignupService
+	signupService      *signup.SignupService
+	loginFlowService   *loginflow.LoginFlowService
+	tokenCookieService tg.TokenCookieService
 }
 
-func NewHandle(signupService *signup.SignupService) *Handle {
+func NewHandle(
+	signupService *signup.SignupService,
+	loginFlowService *loginflow.LoginFlowService,
+	tokenCookieService tg.TokenCookieService,
+) *Handle {
 	return &Handle{
-		signupService: signupService,
+		signupService:      signupService,
+		loginFlowService:   loginFlowService,
+		tokenCookieService: tokenCookieService,
 	}
 }
 
@@ -69,7 +80,62 @@ func (h *Handle) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return success response
+	// If auto-login is requested and password-based signup was used, log the user in
+	if req.AutoLogin && req.Password != "" {
+		// Perform auto-login using loginflow service
+		ipAddress := getIPAddress(r)
+		userAgent := r.UserAgent()
+		fingerprintData := device.ExtractFingerprintDataFromRequest(r)
+		fingerprintStr := device.GenerateFingerprint(fingerprintData)
+
+		loginResult := h.loginFlowService.ProcessLogin(r.Context(), loginflow.Request{
+			Username:             req.Email, // Use email as username
+			Password:             req.Password,
+			IPAddress:            ipAddress,
+			UserAgent:            userAgent,
+			DeviceFingerprint:    fingerprintData,
+			DeviceFingerprintStr: fingerprintStr,
+		})
+
+		// If login failed, still return successful signup but without auto-login
+		if loginResult.ErrorResponse != nil {
+			slog.Warn("Auto-login failed after signup", "error", loginResult.ErrorResponse.Message)
+			writeJSON(w, http.StatusCreated, SignupResponse{
+				UserID:  result.LoginID,
+				Message: "Registration successful, but auto-login failed. Please log in manually.",
+			})
+			return
+		}
+
+		// Set authentication cookies
+		h.tokenCookieService.SetTokensCookie(w, loginResult.Tokens)
+
+		// Return success response with user data
+		if len(loginResult.Users) > 0 {
+			user := loginResult.Users[0]
+			writeJSON(w, http.StatusCreated, SignupResponse{
+				UserID:  result.LoginID,
+				Message: "Registration successful",
+				Status:  "success",
+				User: map[string]interface{}{
+					"id":    user.UserId,
+					"name":  user.DisplayName,
+					"email": user.UserInfo.Email,
+					"roles": user.Roles,
+				},
+			})
+		} else {
+			// Fallback if no user data is available
+			writeJSON(w, http.StatusCreated, SignupResponse{
+				UserID:  result.LoginID,
+				Message: "Registration successful",
+				Status:  "success",
+			})
+		}
+		return
+	}
+
+	// Return standard success response (no auto-login)
 	writeJSON(w, http.StatusCreated, SignupResponse{
 		UserID:  result.LoginID,
 		Message: "Registration successful",
@@ -124,4 +190,15 @@ func writeJSON(w http.ResponseWriter, code int, data interface{}) {
 
 func writeError(w http.ResponseWriter, code int, message string) {
 	writeJSON(w, code, map[string]string{"error": message})
+}
+
+// getIPAddress extracts the client IP address from the request
+func getIPAddress(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		return xff
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+	return r.RemoteAddr
 }

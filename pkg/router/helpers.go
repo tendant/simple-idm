@@ -306,7 +306,11 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 		loginFlowService,
 		tokenCookieService,
 	)
-	signupHandlerV2 := signupv2.NewHandle(signupService)
+	signupHandlerV2 := signupv2.NewHandle(
+		signupService,
+		loginFlowService,
+		tokenCookieService,
+	)
 
 	// Well-known configuration
 	wellKnownConfig := wellknown.Config{
