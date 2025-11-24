@@ -146,6 +146,12 @@ func (s *SignupService) IsRegistrationEnabled() bool {
 	return s.registrationEnabled
 }
 
+// IsEmailVerificationRequired returns whether email verification is required for signup
+// When true, users must verify their email before being able to login
+func (s *SignupService) IsEmailVerificationRequired() bool {
+	return s.emailVerificationService != nil
+}
+
 // RegisterUser registers a new user with username and password
 func (s *SignupService) RegisterUser(ctx context.Context, req RegisterUserRequest) (*RegisterUserResult, error) {
 	if !s.registrationEnabled {

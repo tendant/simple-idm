@@ -80,8 +80,10 @@ func (h *Handle) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If auto-login is requested and password-based signup was used, log the user in
-	if req.AutoLogin && req.Password != "" {
+	// Backend decides: Auto-login for password-based signup when email verification is not required
+	shouldAutoLogin := req.Password != "" && !h.signupService.IsEmailVerificationRequired()
+
+	if shouldAutoLogin {
 		// Perform auto-login using loginflow service
 		ipAddress := getIPAddress(r)
 		userAgent := r.UserAgent()

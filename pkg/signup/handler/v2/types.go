@@ -7,7 +7,6 @@ type SignupRequest struct {
 	Username       string `json:"username,omitempty"`
 	Fullname       string `json:"fullname,omitempty"`
 	InvitationCode string `json:"invitation_code,omitempty"`
-	AutoLogin      bool   `json:"auto_login,omitempty"`      // Optional - auto-login after successful signup (requires password)
 }
 
 // SignupResponse represents the response for successful signup
