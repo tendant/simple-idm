@@ -15,6 +15,7 @@ import (
 	deviceapi "github.com/tendant/simple-idm/pkg/device/api"
 	"github.com/tendant/simple-idm/pkg/emailverification"
 	emailverificationapi "github.com/tendant/simple-idm/pkg/emailverification/api"
+	"github.com/tendant/simple-idm/pkg/externalprovider"
 	externalProviderAPI "github.com/tendant/simple-idm/pkg/externalprovider/api"
 	"github.com/tendant/simple-idm/pkg/iam"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
@@ -61,6 +62,10 @@ type MinimalOptions struct {
 	JWTAudience         string                  // JWT token audience claim (default: BaseURL)
 	AccessTokenExpiry   string                  // Access token expiration duration (e.g., "30m", default: "5m")
 	RefreshTokenExpiry  string                  // Refresh token expiration duration (e.g., "48h", default: "15m")
+
+	// External Provider (Google OAuth) configuration
+	GoogleClientID     string // Google OAuth client ID (leave empty to disable)
+	GoogleClientSecret string // Google OAuth client secret
 }
 
 // NewMinimalConfig creates a Simple IDM router configuration with sane defaults
@@ -271,7 +276,53 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 
 	// OIDC handle
 	oidcHandle := oidcapi.NewOidcHandle(oauth2ClientService, oidcService)
-	emptyExternalProviderHandle := &externalProviderAPI.Handle{}
+
+	// External Provider (Google OAuth) - initialize if credentials provided
+	var externalProviderHandle *externalProviderAPI.Handle
+	if opts.GoogleClientID != "" && opts.GoogleClientSecret != "" {
+		// Create external provider repository (in-memory for state management)
+		externalProviderRepo := externalprovider.NewInMemoryExternalProviderRepository()
+
+		// Create external provider service
+		externalProviderService := externalprovider.NewExternalProviderService(
+			externalProviderRepo,
+			loginService,
+			userMapper,
+			externalprovider.WithBaseURL(opts.BaseURL),
+			externalprovider.WithUserCreationEnabled(true),
+			externalprovider.WithAutoUserCreation(true),
+			externalprovider.WithLoginsService(loginsService),
+			externalprovider.WithIamService(iamService),
+			externalprovider.WithRoleService(roleService),
+			externalprovider.WithDefaultRole(defaultRole),
+		)
+
+		// Configure Google provider
+		googleProvider := &externalprovider.ExternalProvider{
+			ID:           "google",
+			Name:         "google",
+			DisplayName:  "Google",
+			ClientID:     opts.GoogleClientID,
+			ClientSecret: opts.GoogleClientSecret,
+			AuthURL:      "https://accounts.google.com/o/oauth2/v2/auth",
+			TokenURL:     "https://oauth2.googleapis.com/token",
+			UserInfoURL:  "https://www.googleapis.com/oauth2/v2/userinfo",
+			Scopes:       []string{"openid", "profile", "email"},
+			Enabled:      true,
+		}
+		externalProviderService.CreateProvider(context.Background(), googleProvider)
+
+		// Create handler (uses frontendURL from FRONTEND_URL env var, falls back to BaseURL)
+		externalProviderHandle = externalProviderAPI.NewHandle(
+			externalProviderService,
+			loginService,
+			tokenService,
+			tokenCookieService,
+		).WithFrontendURL(frontendURL)
+	} else {
+		externalProviderHandle = &externalProviderAPI.Handle{}
+	}
+
 	emptyEmailVerificationHandle := emailverificationapi.Handler{}
 	emptyProfileHandle := profileapi.Handle{}
 	roleHandle := &roleapi.Handle{}
@@ -334,7 +385,7 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 
 		// Minimal/empty handlers (routes registered but may not be fully functional)
 		OIDCHandle:              oidcHandle,
-		ExternalProviderHandle:  emptyExternalProviderHandle,
+		ExternalProviderHandle:  externalProviderHandle,
 		EmailVerificationHandle: emptyEmailVerificationHandle,
 		ProfileHandle:           emptyProfileHandle,
 		RoleHandle:              roleHandle,
