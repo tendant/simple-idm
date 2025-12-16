@@ -23,7 +23,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/login"
 	loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	logindb "github.com/tendant/simple-idm/pkg/login/logindb"
-	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/logins"
 	loginsdb "github.com/tendant/simple-idm/pkg/logins/loginsdb"
@@ -111,9 +110,9 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	emailPort, _ := strconv.Atoi(os.Getenv("EMAIL_PORT"))
 	emailTLS := os.Getenv("EMAIL_TLS") == "true"
 
-	notificationManager, _ := notice.NewNotificationManager(
+	notificationManager, _ := notification.NewNotificationManagerWithOptions(
 		frontendURL,
-		notice.WithSMTP(notification.SMTPConfig{
+		notification.WithSMTP(notification.SMTPConfig{
 			Host:     os.Getenv("EMAIL_HOST"),
 			Port:     emailPort,
 			Username: os.Getenv("EMAIL_USERNAME"),
@@ -121,7 +120,7 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 			From:     os.Getenv("EMAIL_FROM"),
 			TLS:      emailTLS,
 		}),
-		notice.WithDefaultTemplates(),
+		notification.WithDefaultTemplates(),
 	)
 
 	loginService := login.NewLoginServiceWithOptions(

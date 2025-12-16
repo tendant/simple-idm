@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 )
@@ -132,9 +131,9 @@ func TestGetTwoFactorSecretByLoginUuid(t *testing.T) {
 }
 
 func TestInitTwoFa(t *testing.T) {
-	notificationManager, err := notice.NewNotificationManager(
+	notificationManager, err := notification.NewNotificationManagerWithOptions(
 		"http://localhost:3000",
-		notice.WithSMTP(notification.SMTPConfig{
+		notification.WithSMTP(notification.SMTPConfig{
 			Host:     "localhost",
 			Port:     1025,
 			Username: "noreply@example.com",
@@ -216,9 +215,9 @@ func TestDeleteTwoFactor(t *testing.T) {
 }
 
 func TestValidate2faPasscode(t *testing.T) {
-	notificationManager, err := notice.NewNotificationManager(
+	notificationManager, err := notification.NewNotificationManagerWithOptions(
 		"http://localhost:3000",
-		notice.WithSMTP(notification.SMTPConfig{
+		notification.WithSMTP(notification.SMTPConfig{
 			Host:     "localhost",
 			Port:     1025,
 			Username: "noreply@example.com",
@@ -250,9 +249,9 @@ func TestValidate2faPasscode(t *testing.T) {
 }
 
 func TestFindEnabledTwoFAs(t *testing.T) {
-	notificationManager, err := notice.NewNotificationManager(
+	notificationManager, err := notification.NewNotificationManagerWithOptions(
 		"http://localhost:3000",
-		notice.WithSMTP(notification.SMTPConfig{
+		notification.WithSMTP(notification.SMTPConfig{
 			Host:     "localhost",
 			Port:     1025,
 			Username: "noreply@example.com",
@@ -281,9 +280,9 @@ func TestFindEnabledTwoFAs(t *testing.T) {
 }
 
 func TestFindTwoFAsByLoginId(t *testing.T) {
-	notificationManager, err := notice.NewNotificationManager(
+	notificationManager, err := notification.NewNotificationManagerWithOptions(
 		"http://localhost:3000",
-		notice.WithSMTP(notification.SMTPConfig{
+		notification.WithSMTP(notification.SMTPConfig{
 			Host:     "localhost",
 			Port:     1025,
 			Username: "noreply@example.com",

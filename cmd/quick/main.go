@@ -35,7 +35,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/mapper/mapperdb"
-	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/oauth2client"
 	oauth2clientapi "github.com/tendant/simple-idm/pkg/oauth2client/api"
@@ -243,9 +242,9 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
 
 	// Notification manager
-	notificationManager, err := notice.NewNotificationManager(
+	notificationManager, err := notification.NewNotificationManagerWithOptions(
 		config.FrontendURL,
-		notice.WithSMTP(notification.SMTPConfig{
+		notification.WithSMTP(notification.SMTPConfig{
 			Host:     config.EmailHost,
 			Port:     int(config.EmailPort),
 			Username: config.EmailUsername,
@@ -253,7 +252,7 @@ func initializeServices(pool *pgxpool.Pool, config *Config, privateKey *rsa.Priv
 			From:     config.EmailFrom,
 			TLS:      config.EmailTLS,
 		}),
-		notice.WithDefaultTemplates(),
+		notification.WithDefaultTemplates(),
 	)
 	if err != nil {
 		slog.Error("Failed to initialize notification manager", "error", err)

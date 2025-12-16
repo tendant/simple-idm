@@ -14,7 +14,6 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/skip2/go-qrcode"
 	"github.com/tendant/simple-idm/pkg/mapper"
-	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/utils"
 )
@@ -407,7 +406,7 @@ func (s TwoFaService) SendTwofaPasscodeEmail(ctx context.Context, email, passcod
 		"UserId":        userId.String(),
 		"Username":      username,
 	}
-	return s.notificationManager.Send(notice.TwofaCodeNoticeEmail, notification.NotificationData{
+	return s.notificationManager.Send(notification.TwofaCodeNoticeEmail, notification.NotificationData{
 		To:   email,
 		Data: data,
 	})
@@ -419,7 +418,7 @@ func (s TwoFaService) SendTwofaPasscodeSms(ctx context.Context, phone, passcode 
 		"TwofaPasscode": passcode,
 		"UserId":        userId.String(),
 	}
-	return s.notificationManager.Send(notice.TwofaCodeNoticeSms, notification.NotificationData{
+	return s.notificationManager.Send(notification.TwofaCodeNoticeSms, notification.NotificationData{
 		To:   phone,
 		Data: data,
 	})
@@ -430,7 +429,7 @@ func (s TwoFaService) SendPhoneVerificationCode(ctx context.Context, phone, pass
 		"Passcode": passcode,
 		"UserId":   userId.String(),
 	}
-	return s.notificationManager.Send(notice.PhoneVerificationNotice, notification.NotificationData{
+	return s.notificationManager.Send(notification.PhoneVerificationNotice, notification.NotificationData{
 		To:   phone,
 		Body: fmt.Sprintf("Your verification code is: %s", passcode),
 		Data: data,

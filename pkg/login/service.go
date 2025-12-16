@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
 	"github.com/tendant/simple-idm/pkg/mapper"
-	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/utils"
 )
@@ -812,7 +811,7 @@ func (s *LoginService) SendPasswordResetEmail(ctx context.Context, param SendPas
 		"UserId":   param.UserId,
 		"Username": param.Username,
 	}
-	return s.notificationManager.Send(notice.PasswordResetInit, notification.NotificationData{
+	return s.notificationManager.Send(notification.PasswordResetInit, notification.NotificationData{
 		To:   param.Email,
 		Data: data,
 	})
@@ -833,7 +832,7 @@ func (s *LoginService) SendMagicLinkEmail(ctx context.Context, param SendMagicLi
 		"ExpirationTime": fmt.Sprintf("%d", int(s.magicLinkTokenExpiration.Hours())),
 	}
 
-	return s.notificationManager.Send(notice.MagicLinkLogin, notification.NotificationData{
+	return s.notificationManager.Send(notification.MagicLinkLogin, notification.NotificationData{
 		To:   param.Email,
 		Data: data,
 	})

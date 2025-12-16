@@ -12,14 +12,23 @@ type NotificationSystem string
 type NoticeType string
 
 const (
+	// Notification systems
 	EmailSystem NotificationSystem = "email"
 	SMSSystem   NotificationSystem = "sms"
 	SlackSystem NotificationSystem = "slack"
 
-	ExampleNotice          NoticeType = "example"
-	PasswordResetNotice    NoticeType = "password_reset"
-	PasswordUpdateNotice   NoticeType = "password_update"
-	UsernameReminderNotice NoticeType = "username_reminder"
+	// Notification types - consolidated from notice package
+	ExampleNotice           NoticeType = "example"
+	UsernameReminder        NoticeType = "username_reminder"
+	UsernameReminderNotice  NoticeType = "username_reminder" // Alias for backward compatibility
+	PasswordResetInit       NoticeType = "password_reset_init"
+	PasswordResetNotice     NoticeType = "password_reset"
+	PasswordUpdateNotice    NoticeType = "password_update"
+	TwofaCodeNoticeEmail    NoticeType = "twofa_code_notice_email"
+	TwofaCodeNoticeSms      NoticeType = "twofa_code_notice_sms"
+	MagicLinkLogin          NoticeType = "magic_link_login"
+	PhoneVerificationNotice NoticeType = "phone_verification"
+	EmailVerification       NoticeType = "email_verification"
 )
 
 type NoticeTemplate struct {

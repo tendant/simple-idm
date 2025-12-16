@@ -50,7 +50,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	"github.com/tendant/simple-idm/pkg/mapper/mapperdb"
-	"github.com/tendant/simple-idm/pkg/notice"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/profile"
 	profileapi "github.com/tendant/simple-idm/pkg/profile/api"
@@ -374,9 +373,9 @@ func main() {
 	mapperRepo := mapper.NewPostgresMapperRepository(mapperQueries)
 
 	// Initialize NotificationManager and register email notifier
-	notificationManager, err := notice.NewNotificationManager(
+	notificationManager, err := notification.NewNotificationManagerWithOptions(
 		config.FrontendUrl,
-		notice.WithSMTP(notification.SMTPConfig{
+		notification.WithSMTP(notification.SMTPConfig{
 			Host:     config.EmailConfig.Host,
 			Port:     int(config.EmailConfig.Port),
 			Username: config.EmailConfig.Username,
@@ -384,12 +383,12 @@ func main() {
 			From:     config.EmailConfig.From,
 			TLS:      config.EmailConfig.TLS,
 		}),
-		notice.WithTwilio(notification.TwilioConfig{
+		notification.WithTwilio(notification.TwilioConfig{
 			TwilioAccountSid: config.TwilioConfig.TwilioAccountSid,
 			TwilioAuthToken:  config.TwilioConfig.TwilioAuthToken,
 			TwilioFrom:       config.TwilioConfig.TwilioFrom,
 		}),
-		notice.WithDefaultTemplates(),
+		notification.WithDefaultTemplates(),
 	)
 	if err != nil {
 		slog.Error("Failed initialize notification manager", "err", err)
