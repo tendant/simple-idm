@@ -106,11 +106,24 @@ npm run build
 The codebase follows a domain-driven design with clear separation of concerns:
 
 - **cmd/**: Executable entry points for different services
-  - `loginv2/`: Main application server (OAuth2, OIDC, user management)
-  - `oidc/`: Standalone OIDC provider
-  - `login/`: Legacy login service
-  - `passwordless-auth/`: Passwordless authentication service
-  - `tokengen/`, `inituser/`, `emailtest/`, `mail/`: Utility commands
+
+  **Production Services:**
+  - `loginv2/`: **Main production application** - Full-featured IDM server with OAuth2, OIDC, 2FA, external providers, and all features. Uses `pkg/login/loginapi/` (v1 API with LoginFlowService).
+  - `quick/`: **Simplified quick-start** - Minimal IDM server using v2 API handlers (`pkg/login/handler/v2/`). Good reference for new integrations.
+
+  **Legacy Services (avoid for new projects):**
+  - `login/`: Legacy login service using old `pkg/login/api/` package (direct service calls, no LoginFlowService)
+  - `passwordless-auth/`: Standalone passwordless authentication service
+
+  **Utility Commands:**
+  - `tokengen/`: JWT token generation utility
+  - `inituser/`: Initialize user accounts
+  - `emailtest/`: Test email configuration
+  - `mail/`: Mail-related utilities
+
+  **Examples/Testing:**
+  - `oidc-client/`: OIDC client example
+  - `oidc-server/`: OIDC server example
 
 - **pkg/**: Core business logic organized by domain
   - Each package typically contains:
@@ -118,6 +131,31 @@ The codebase follows a domain-driven design with clear separation of concerns:
     - Database layer (`<package>db/`)
     - API handlers (`api/`)
     - Models and types
+
+### Login Package Structure
+
+The login package has multiple API implementations for different use cases:
+
+| Package | Used By | Description |
+|---------|---------|-------------|
+| `pkg/login/loginapi/` | `cmd/loginv2/`, `pkg/router/` | **Current v1 API** - Uses `LoginFlowService` for orchestrated auth flows |
+| `pkg/login/handler/v2/` | `cmd/quick/` | **v2 API** - Simplified handlers, cleaner interface |
+| `pkg/login/api/` | `cmd/login/` (legacy) | **Legacy API** - Direct service calls, avoid for new code |
+
+**Recommendation**: Use `pkg/router/` helpers with `MinimalOptions` for easy integration, which internally uses the current v1 API.
+
+### Repository Pattern
+
+Most packages support multiple storage backends via the repository pattern:
+
+| Type | Use Case | Example |
+|------|----------|---------|
+| `Postgres*Repository` | **Production** - PostgreSQL database | `NewPostgresLoginRepository()` |
+| `InMemory*Repository` | **Development/Testing** - No persistence | `NewInMemoryOIDCRepository()` |
+| `File*Repository` | **Simple deployments** - JSON file storage | `NewFileDeviceRepository()` |
+| `NoOp*Repository` | **Disabled features** - No-op implementations | `NewNoOpDeviceRepository()` |
+
+Factory functions (e.g., `NewDeviceRepository(persistenceType, config)`) allow runtime selection of storage backend.
 
 ### Key Architectural Patterns
 
@@ -220,6 +258,50 @@ Database: idm_db
 User: idm
 Password: pwd
 ```
+
+## Quick Integration
+
+For projects that want to add authentication quickly, use the `pkg/router` helpers:
+
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+    "github.com/go-chi/chi/v5"
+    "github.com/tendant/simple-idm/pkg/router"
+)
+
+func main() {
+    // Create minimal configuration
+    cfg, err := router.NewMinimalConfig(router.MinimalOptions{
+        DatabaseURL: "postgres://user:pwd@localhost:5432/mydb?sslmode=disable",
+        JWTSecret:   "your-secure-secret",
+        BaseURL:     "http://localhost:8000",
+
+        // Optional: Enable Google OAuth
+        GoogleClientID:     "your-google-client-id",
+        GoogleClientSecret: "your-google-client-secret",
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    r := chi.NewRouter()
+    router.SetupRoutes(r, cfg)  // Mounts all IDM routes
+
+    http.ListenAndServe(":8000", r)
+}
+```
+
+This gives you:
+- Login/logout/refresh endpoints (`/api/idm/auth/*`)
+- User registration (`/api/idm/signup/*`)
+- OAuth2/OIDC provider (`/api/idm/oauth2/*`)
+- External provider auth (`/api/idm/external/*`) if configured
+- Protected routes with JWT middleware
+- Admin routes for user/role management
 
 ## Configuration
 
@@ -327,6 +409,33 @@ Used by:
 - Password reset
 - Magic link authentication
 - External provider notifications
+
+### Signup Service Migration
+
+The signup package has two option patterns:
+
+**Legacy (Handle-level options)** - Still used in production but deprecated:
+```go
+// Old pattern - deprecated
+signup.NewHandleWithOptions(
+    signup.WithIamService(*iamService),
+    signup.WithRoleService(*roleService),
+    signup.WithLoginsService(*loginsService),
+)
+```
+
+**New (Service-level options)** - Recommended for new code:
+```go
+// New pattern - recommended
+signupService := signup.NewSignupService(
+    signup.WithIamServiceForSignup(iamService),
+    signup.WithRoleServiceForSignup(roleService),
+    signup.WithLoginsServiceForSignup(loginsService),
+)
+signupHandle := signup.NewHandle(signupService)
+```
+
+See `cmd/quick/main.go` for a complete example of the new pattern.
 
 ### External Provider Integration
 Supported providers configured via environment variables with prefix `<PROVIDER>_CLIENT_ID` and `<PROVIDER>_CLIENT_SECRET`. See `doc/EXTERNAL_PROVIDER_INTEGRATION.md`.
