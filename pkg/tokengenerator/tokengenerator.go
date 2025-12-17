@@ -28,6 +28,8 @@ type Claims struct {
 	PhoneNumber         string      `json:"phone_number,omitempty"`
 	PhoneNumberVerified bool        `json:"phone_number_verified,omitempty"`
 	Groups              []string    `json:"groups,omitempty"`
+	// Scope contains OAuth2 scopes as a space-separated string (RFC 6749)
+	Scope string `json:"scope,omitempty"`
 	jwt.RegisteredClaims
 }
 

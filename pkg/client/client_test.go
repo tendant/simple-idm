@@ -361,3 +361,519 @@ func (w *mockResponseWriter) Write(b []byte) (int, error) {
 func (w *mockResponseWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 }
+
+// Tests for AuthContext helper methods
+
+func TestAuthContext_HasScope(t *testing.T) {
+	tests := []struct {
+		name     string
+		scopes   []string
+		check    string
+		expected bool
+	}{
+		{"has scope", []string{"openid", "profile", "email"}, "profile", true},
+		{"missing scope", []string{"openid", "profile"}, "email", false},
+		{"empty scopes", []string{}, "profile", false},
+		{"nil scopes", nil, "profile", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ac := &AuthContext{Scopes: tc.scopes}
+			assert.Equal(t, tc.expected, ac.HasScope(tc.check))
+		})
+	}
+}
+
+func TestAuthContext_HasAnyScope(t *testing.T) {
+	ac := &AuthContext{Scopes: []string{"openid", "profile"}}
+
+	assert.True(t, ac.HasAnyScope("profile", "email"))
+	assert.True(t, ac.HasAnyScope("email", "openid"))
+	assert.False(t, ac.HasAnyScope("email", "groups"))
+}
+
+func TestAuthContext_HasAllScopes(t *testing.T) {
+	ac := &AuthContext{Scopes: []string{"openid", "profile", "email"}}
+
+	assert.True(t, ac.HasAllScopes("openid", "profile"))
+	assert.True(t, ac.HasAllScopes("openid"))
+	assert.False(t, ac.HasAllScopes("openid", "groups"))
+}
+
+func TestAuthContext_HasRole(t *testing.T) {
+	tests := []struct {
+		name     string
+		roles    []string
+		check    string
+		expected bool
+	}{
+		{"has role", []string{"admin", "user"}, "admin", true},
+		{"missing role", []string{"user"}, "admin", false},
+		{"empty roles", []string{}, "admin", false},
+		{"nil user", nil, "admin", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var ac *AuthContext
+			if tc.roles != nil {
+				ac = &AuthContext{
+					User: &AuthUser{
+						ExtraClaims: ExtraClaims{Roles: tc.roles},
+					},
+				}
+			} else {
+				ac = &AuthContext{User: nil}
+			}
+			assert.Equal(t, tc.expected, ac.HasRole(tc.check))
+		})
+	}
+}
+
+func TestAuthContext_HasAnyRole(t *testing.T) {
+	ac := &AuthContext{
+		User: &AuthUser{
+			ExtraClaims: ExtraClaims{Roles: []string{"admin", "user"}},
+		},
+	}
+
+	assert.True(t, ac.HasAnyRole("admin", "superadmin"))
+	assert.True(t, ac.HasAnyRole("viewer", "user"))
+	assert.False(t, ac.HasAnyRole("viewer", "superadmin"))
+
+	// Test with nil user
+	acNilUser := &AuthContext{User: nil}
+	assert.False(t, acNilUser.HasAnyRole("admin"))
+}
+
+// Helper function to create a test token with scopes
+func createTestTokenWithScopes(userID string, extraClaims ExtraClaims, scopes string, secret []byte) (string, error) {
+	tokenAuth := jwtauth.New("HS256", secret, nil)
+
+	nestedExtraClaims := map[string]interface{}{
+		"user_id": userID,
+		"extra_claims": map[string]interface{}{
+			"usernmae": extraClaims.Username,
+			"email":    extraClaims.Email,
+			"roles":    extraClaims.Roles,
+		},
+	}
+
+	claims := map[string]interface{}{
+		"sub":          userID,
+		"exp":          time.Now().Add(time.Hour).Unix(),
+		"user_id":      userID,
+		"extra_claims": nestedExtraClaims,
+	}
+
+	if scopes != "" {
+		claims["scope"] = scopes
+	}
+
+	_, tokenString, err := tokenAuth.Encode(claims)
+	return tokenString, err
+}
+
+func TestAuthMiddleware(t *testing.T) {
+	secret := []byte("test-jwt-secret-key")
+	userID := uuid.New().String()
+
+	tokenAuth := jwtauth.New("HS256", secret, nil)
+
+	t.Run("valid token sets AuthContext", func(t *testing.T) {
+		tokenString, err := createTestTokenWithScopes(userID, ExtraClaims{
+			Username: "testuser",
+			Email:    "test@example.com",
+			Roles:    []string{"admin", "user"},
+		}, "openid profile email", secret)
+		require.NoError(t, err)
+
+		req, _ := http.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer "+tokenString)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+
+			authCtx := GetAuthContext(r)
+			assert.True(t, authCtx.IsAuthenticated)
+			assert.NotNil(t, authCtx.User)
+			assert.Equal(t, userID, authCtx.User.UserId)
+			assert.Equal(t, []string{"openid", "profile", "email"}, authCtx.Scopes)
+
+			// Backward compatibility - AuthUserKey should also be set
+			authUser := GetAuthUser(r)
+			assert.NotNil(t, authUser)
+			assert.Equal(t, userID, authUser.UserId)
+		})
+
+		middleware := AuthMiddleware(VerifierConfig{Name: "test", Auth: tokenAuth, Active: true})
+		middleware(mockHandler).ServeHTTP(res, req)
+
+		assert.True(t, handlerCalled)
+	})
+
+	t.Run("no token continues as unauthenticated", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+
+			authCtx := GetAuthContext(r)
+			assert.False(t, authCtx.IsAuthenticated)
+			assert.Nil(t, authCtx.User)
+		})
+
+		middleware := AuthMiddleware(VerifierConfig{Name: "test", Auth: tokenAuth, Active: true})
+		middleware(mockHandler).ServeHTTP(res, req)
+
+		assert.True(t, handlerCalled)
+	})
+
+	t.Run("invalid token continues as unauthenticated", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		req.Header.Set("Authorization", "Bearer invalid-token")
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+
+			authCtx := GetAuthContext(r)
+			assert.False(t, authCtx.IsAuthenticated)
+		})
+
+		middleware := AuthMiddleware(VerifierConfig{Name: "test", Auth: tokenAuth, Active: true})
+		middleware(mockHandler).ServeHTTP(res, req)
+
+		assert.True(t, handlerCalled)
+	})
+}
+
+func TestRequireAuth(t *testing.T) {
+	t.Run("authenticated request proceeds", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: true,
+			User:            &AuthUser{UserId: "test-user"},
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireAuth(mockHandler).ServeHTTP(res, req)
+
+		assert.True(t, handlerCalled)
+		assert.Equal(t, 0, res.statusCode) // Not set means success
+	})
+
+	t.Run("unauthenticated request returns 401", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: false,
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireAuth(mockHandler).ServeHTTP(res, req)
+
+		assert.False(t, handlerCalled)
+		assert.Equal(t, http.StatusUnauthorized, res.statusCode)
+	})
+
+	t.Run("missing AuthContext returns 401", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireAuth(mockHandler).ServeHTTP(res, req)
+
+		assert.False(t, handlerCalled)
+		assert.Equal(t, http.StatusUnauthorized, res.statusCode)
+	})
+}
+
+func TestRequireRole(t *testing.T) {
+	t.Run("user with required role proceeds", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: true,
+			User: &AuthUser{
+				UserId:      "test-user",
+				ExtraClaims: ExtraClaims{Roles: []string{"admin", "user"}},
+			},
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireRole("admin", "superadmin")(mockHandler).ServeHTTP(res, req)
+
+		assert.True(t, handlerCalled)
+	})
+
+	t.Run("user without required role returns 403", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: true,
+			User: &AuthUser{
+				UserId:      "test-user",
+				ExtraClaims: ExtraClaims{Roles: []string{"user"}},
+			},
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireRole("admin", "superadmin")(mockHandler).ServeHTTP(res, req)
+
+		assert.False(t, handlerCalled)
+		assert.Equal(t, http.StatusForbidden, res.statusCode)
+	})
+
+	t.Run("unauthenticated request returns 401", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: false,
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireRole("admin")(mockHandler).ServeHTTP(res, req)
+
+		assert.False(t, handlerCalled)
+		assert.Equal(t, http.StatusUnauthorized, res.statusCode)
+	})
+}
+
+func TestRequireScope(t *testing.T) {
+	t.Run("user with required scope proceeds", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: true,
+			User:            &AuthUser{UserId: "test-user"},
+			Scopes:          []string{"openid", "profile", "email"},
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireScope("profile", "groups")(mockHandler).ServeHTTP(res, req)
+
+		assert.True(t, handlerCalled)
+	})
+
+	t.Run("user without required scope returns 403", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: true,
+			User:            &AuthUser{UserId: "test-user"},
+			Scopes:          []string{"openid"},
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireScope("profile", "email")(mockHandler).ServeHTTP(res, req)
+
+		assert.False(t, handlerCalled)
+		assert.Equal(t, http.StatusForbidden, res.statusCode)
+	})
+
+	t.Run("unauthenticated request returns 401", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: false,
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireScope("profile")(mockHandler).ServeHTTP(res, req)
+
+		assert.False(t, handlerCalled)
+		assert.Equal(t, http.StatusUnauthorized, res.statusCode)
+	})
+}
+
+func TestRequireAllScopes(t *testing.T) {
+	t.Run("user with all required scopes proceeds", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: true,
+			User:            &AuthUser{UserId: "test-user"},
+			Scopes:          []string{"openid", "profile", "email"},
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireAllScopes("openid", "profile")(mockHandler).ServeHTTP(res, req)
+
+		assert.True(t, handlerCalled)
+	})
+
+	t.Run("user missing any required scope returns 403", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: true,
+			User:            &AuthUser{UserId: "test-user"},
+			Scopes:          []string{"openid", "profile"},
+		})
+		req = req.WithContext(ctx)
+		res := &mockResponseWriter{}
+
+		handlerCalled := false
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handlerCalled = true
+		})
+
+		RequireAllScopes("openid", "email")(mockHandler).ServeHTTP(res, req)
+
+		assert.False(t, handlerCalled)
+		assert.Equal(t, http.StatusForbidden, res.statusCode)
+	})
+}
+
+func TestExtractScopes(t *testing.T) {
+	tests := []struct {
+		name     string
+		claims   map[string]interface{}
+		expected []string
+	}{
+		{
+			name:     "space-separated string",
+			claims:   map[string]interface{}{"scope": "openid profile email"},
+			expected: []string{"openid", "profile", "email"},
+		},
+		{
+			name:     "array of strings",
+			claims:   map[string]interface{}{"scope": []interface{}{"openid", "profile"}},
+			expected: []string{"openid", "profile"},
+		},
+		{
+			name:     "scopes claim (non-standard)",
+			claims:   map[string]interface{}{"scopes": []interface{}{"read", "write"}},
+			expected: []string{"read", "write"},
+		},
+		{
+			name:     "empty scope string",
+			claims:   map[string]interface{}{"scope": ""},
+			expected: []string{},
+		},
+		{
+			name:     "no scope claim",
+			claims:   map[string]interface{}{},
+			expected: []string{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := extractScopes(tc.claims)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestGetAuthContext(t *testing.T) {
+	t.Run("returns AuthContext when present", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		expected := &AuthContext{
+			IsAuthenticated: true,
+			User:            &AuthUser{UserId: "test-user"},
+		}
+		ctx := context.WithValue(req.Context(), AuthContextKey, expected)
+		req = req.WithContext(ctx)
+
+		result := GetAuthContext(req)
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("returns empty AuthContext when not present", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+
+		result := GetAuthContext(req)
+		assert.NotNil(t, result)
+		assert.False(t, result.IsAuthenticated)
+		assert.Nil(t, result.User)
+	})
+}
+
+func TestGetAuthUser(t *testing.T) {
+	t.Run("returns AuthUser from AuthUserKey", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		expected := &AuthUser{UserId: "test-user"}
+		ctx := context.WithValue(req.Context(), AuthUserKey, expected)
+		req = req.WithContext(ctx)
+
+		result := GetAuthUser(req)
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("falls back to AuthContext.User", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+		expected := &AuthUser{UserId: "test-user"}
+		ctx := context.WithValue(req.Context(), AuthContextKey, &AuthContext{
+			IsAuthenticated: true,
+			User:            expected,
+		})
+		req = req.WithContext(ctx)
+
+		result := GetAuthUser(req)
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("returns nil when neither present", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", "/", nil)
+
+		result := GetAuthUser(req)
+		assert.Nil(t, result)
+	})
+}

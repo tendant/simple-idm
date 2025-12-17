@@ -92,8 +92,11 @@ func SetupRoutes(router chi.Router, cfg Config) {
 
 		// Protected endpoints requiring authentication
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(cfg.RSAAuth))
-			r.Use(jwtauth.Authenticator(cfg.RSAAuth))
+			r.Use(client.AuthMiddleware(
+				client.VerifierConfig{Name: "RSA256-Primary", Auth: cfg.RSAAuth, Active: true},
+				client.VerifierConfig{Name: "HMAC256-Fallback", Auth: cfg.HMACAuth, Active: false},
+			))
+			r.Use(client.RequireAuth)
 			r.Post("/resend", cfg.EmailVerificationHandle.ResendVerification)
 			r.Get("/status", cfg.EmailVerificationHandle.GetVerificationStatus)
 		})
@@ -101,21 +104,12 @@ func SetupRoutes(router chi.Router, cfg Config) {
 
 	// Mount authenticated routes
 	router.Group(func(r chi.Router) {
-		// Setup multi-algorithm JWT verification
-		r.Use(client.MultiAlgorithmVerifier(
-			client.VerifierConfig{
-				Name:   "RSA256-Primary",
-				Auth:   cfg.RSAAuth,
-				Active: true,
-			},
-			client.VerifierConfig{
-				Name:   "HMAC256-Fallback",
-				Auth:   cfg.HMACAuth,
-				Active: false,
-			},
+		// Setup unified authentication middleware
+		r.Use(client.AuthMiddleware(
+			client.VerifierConfig{Name: "RSA256-Primary", Auth: cfg.RSAAuth, Active: true},
+			client.VerifierConfig{Name: "HMAC256-Fallback", Auth: cfg.HMACAuth, Active: false},
 		))
-		r.Use(jwtauth.Authenticator(cfg.RSAAuth))
-		r.Use(client.AuthUserMiddleware)
+		r.Use(client.RequireAuth)
 
 		// /me endpoint
 		if cfg.GetMeFunc != nil {
@@ -143,29 +137,23 @@ func SetupRoutes(router chi.Router, cfg Config) {
 		// Admin-only routes
 		r.Mount(cfg.PrefixConfig.Users, iamapi.SecureHandler(cfg.UserHandle))
 
-		// Roles with admin middleware
-		roleRouter := chi.NewRouter()
-		roleRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", roleapi.Handler(cfg.RoleHandle))
+		// Roles with admin role check
+		r.Group(func(r chi.Router) {
+			r.Use(client.RequireRole("admin", "superadmin"))
+			r.Mount(cfg.PrefixConfig.Roles, roleapi.Handler(cfg.RoleHandle))
 		})
-		r.Mount(cfg.PrefixConfig.Roles, roleRouter)
 
-		// Logins with admin middleware
-		loginsRouter := chi.NewRouter()
-		loginsRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", logins.Handler(cfg.LoginsHandle))
+		// Logins with admin role check
+		r.Group(func(r chi.Router) {
+			r.Use(client.RequireRole("admin", "superadmin"))
+			r.Mount(cfg.PrefixConfig.Logins, logins.Handler(cfg.LoginsHandle))
 		})
-		r.Mount(cfg.PrefixConfig.Logins, loginsRouter)
 
-		// OAuth2 clients with admin middleware
-		oauth2ClientRouter := chi.NewRouter()
-		oauth2ClientRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", oauth2clientapi.Handler(cfg.OAuth2ClientHandle))
+		// OAuth2 clients with admin role check
+		r.Group(func(r chi.Router) {
+			r.Use(client.RequireRole("admin", "superadmin"))
+			r.Mount(cfg.PrefixConfig.OAuth2Clients, oauth2clientapi.Handler(cfg.OAuth2ClientHandle))
 		})
-		r.Mount(cfg.PrefixConfig.OAuth2Clients, oauth2ClientRouter)
 
 		// Session management (optional)
 		if cfg.SessionEnabled && cfg.SessionHandle != nil {
@@ -205,21 +193,12 @@ func SetupPublicRoutes(router chi.Router, cfg Config) {
 // SetupAuthenticatedRoutes mounts only authenticated routes
 func SetupAuthenticatedRoutes(router chi.Router, cfg Config) {
 	router.Group(func(r chi.Router) {
-		// Setup multi-algorithm JWT verification
-		r.Use(client.MultiAlgorithmVerifier(
-			client.VerifierConfig{
-				Name:   "RSA256-Primary",
-				Auth:   cfg.RSAAuth,
-				Active: true,
-			},
-			client.VerifierConfig{
-				Name:   "HMAC256-Fallback",
-				Auth:   cfg.HMACAuth,
-				Active: false,
-			},
+		// Setup unified authentication middleware
+		r.Use(client.AuthMiddleware(
+			client.VerifierConfig{Name: "RSA256-Primary", Auth: cfg.RSAAuth, Active: true},
+			client.VerifierConfig{Name: "HMAC256-Fallback", Auth: cfg.HMACAuth, Active: false},
 		))
-		r.Use(jwtauth.Authenticator(cfg.RSAAuth))
-		r.Use(client.AuthUserMiddleware)
+		r.Use(client.RequireAuth)
 
 		// /me endpoint
 		if cfg.GetMeFunc != nil {
@@ -248,29 +227,23 @@ func SetupAuthenticatedRoutes(router chi.Router, cfg Config) {
 		// Admin-only routes
 		r.Mount(cfg.PrefixConfig.Users, iamapi.SecureHandler(cfg.UserHandle))
 
-		// Roles with admin middleware
-		roleRouter := chi.NewRouter()
-		roleRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", roleapi.Handler(cfg.RoleHandle))
+		// Roles with admin role check
+		r.Group(func(r chi.Router) {
+			r.Use(client.RequireRole("admin", "superadmin"))
+			r.Mount(cfg.PrefixConfig.Roles, roleapi.Handler(cfg.RoleHandle))
 		})
-		r.Mount(cfg.PrefixConfig.Roles, roleRouter)
 
-		// Logins with admin middleware
-		loginsRouter := chi.NewRouter()
-		loginsRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", logins.Handler(cfg.LoginsHandle))
+		// Logins with admin role check
+		r.Group(func(r chi.Router) {
+			r.Use(client.RequireRole("admin", "superadmin"))
+			r.Mount(cfg.PrefixConfig.Logins, logins.Handler(cfg.LoginsHandle))
 		})
-		r.Mount(cfg.PrefixConfig.Logins, loginsRouter)
 
-		// OAuth2 clients with admin middleware
-		oauth2ClientRouter := chi.NewRouter()
-		oauth2ClientRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", oauth2clientapi.Handler(cfg.OAuth2ClientHandle))
+		// OAuth2 clients with admin role check
+		r.Group(func(r chi.Router) {
+			r.Use(client.RequireRole("admin", "superadmin"))
+			r.Mount(cfg.PrefixConfig.OAuth2Clients, oauth2clientapi.Handler(cfg.OAuth2ClientHandle))
 		})
-		r.Mount(cfg.PrefixConfig.OAuth2Clients, oauth2ClientRouter)
 
 		// Session management (optional)
 		if cfg.SessionEnabled && cfg.SessionHandle != nil {
