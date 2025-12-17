@@ -231,9 +231,11 @@ func setupRoutes(r *chi.Mux, services *Services) {
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(services.jwtAuth))
-		r.Use(jwtauth.Authenticator(services.jwtAuth))
-		r.Use(client.AuthUserMiddleware)
+		// Unified authentication middleware
+		r.Use(client.AuthMiddleware(
+			client.VerifierConfig{Name: "HMAC256", Auth: services.jwtAuth, Active: true},
+		))
+		r.Use(client.RequireAuth)
 
 		// IAM routes (user management)
 		iamHandle := iamapi.NewHandle(services.iamService)

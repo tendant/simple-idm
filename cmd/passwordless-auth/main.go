@@ -411,9 +411,11 @@ func main() {
 	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
 
 	server.R.Group(func(r chi.Router) {
-		r.Use(client.Verifier(tokenAuth))
-		r.Use(jwtauth.Authenticator(tokenAuth))
-		r.Use(client.AuthUserMiddleware)
+		// Unified authentication middleware
+		r.Use(client.AuthMiddleware(
+			client.VerifierConfig{Name: "HMAC256", Auth: tokenAuth, Active: true},
+		))
+		r.Use(client.RequireAuth)
 
 		// Device management routes
 		deviceHandle := deviceapi.NewDeviceHandler(deviceService)

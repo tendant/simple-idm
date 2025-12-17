@@ -697,37 +697,33 @@ func main() {
 
 		// Protected endpoints requiring authentication
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(rsaAuth))
-			r.Use(jwtauth.Authenticator(rsaAuth))
+			r.Use(client.AuthMiddleware(
+				client.VerifierConfig{Name: "RSA256-Primary", Auth: rsaAuth, Active: true},
+				client.VerifierConfig{Name: "HMAC256-Fallback", Auth: hmacAuth, Active: false},
+			))
+			r.Use(client.RequireAuth)
 			r.Post("/resend", emailVerificationHandle.ResendVerification)
 			r.Get("/status", emailVerificationHandle.GetVerificationStatus)
 		})
 	})
 
 	server.R.Group(func(r chi.Router) {
-		r.Use(client.MultiAlgorithmVerifier(
-			client.VerifierConfig{
-				Name:   "RSA256-Primary",
-				Auth:   rsaAuth,
-				Active: true,
-			},
-			client.VerifierConfig{
-				Name:   "HMAC256-Fallback",
-				Auth:   hmacAuth,
-				Active: false,
-			},
+		// Unified authentication middleware
+		r.Use(client.AuthMiddleware(
+			client.VerifierConfig{Name: "RSA256-Primary", Auth: rsaAuth, Active: true},
+			client.VerifierConfig{Name: "HMAC256-Fallback", Auth: hmacAuth, Active: false},
 		))
-		r.Use(jwtauth.Authenticator(rsaAuth)) // Keep existing authenticator for RSA
-		r.Use(client.AuthUserMiddleware)
+		r.Use(client.RequireAuth)
+
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
-			authUser, ok := r.Context().Value(client.AuthUserKey).(*client.AuthUser)
-			if !ok {
-				slog.Error("Failed getting AuthUser", "ok", ok)
+			authCtx := client.GetAuthContext(r)
+			if !authCtx.IsAuthenticated || authCtx.User == nil {
+				slog.Error("Failed getting AuthUser from context")
 				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 				return
 			}
 
-			userInfo, err := loginService.GetMe(r.Context(), authUser.UserUuid)
+			userInfo, err := loginService.GetMe(r.Context(), authCtx.User.UserUuid)
 			if err != nil {
 				slog.Error("Failed getting me", "err", err)
 				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -760,13 +756,11 @@ func main() {
 
 		r.Mount(prefixConfig.Users, iamapi.SecureHandler(userHandle))
 
-		// Create a secure handler for roles that uses the IAM admin middleware
-		roleRouter := chi.NewRouter()
-		roleRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", roleapi.Handler(roleHandle))
+		// Roles with admin role check
+		r.Group(func(r chi.Router) {
+			r.Use(client.RequireRole("admin", "superadmin"))
+			r.Mount(prefixConfig.Roles, roleapi.Handler(roleHandle))
 		})
-		r.Mount(prefixConfig.Roles, roleRouter)
 
 		// Initialize two factor authentication service and routes
 		twoFaHandle := twofaapi.NewHandle(twoFaService, tokenService, tokenCookieService, userMapper)
@@ -799,21 +793,18 @@ func main() {
 			slog.Info("Session management disabled")
 		}
 
-		loginsRouter := chi.NewRouter()
-		loginsRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", logins.Handler(loginsHandle))
+		// Logins with admin role check
+		r.Group(func(r chi.Router) {
+			r.Use(client.RequireRole("admin", "superadmin"))
+			r.Mount(prefixConfig.Logins, logins.Handler(loginsHandle))
 		})
-		r.Mount(prefixConfig.Logins, loginsRouter)
 
-		// Initialize OAuth2 client management API (admin only)
+		// OAuth2 clients with admin role check
 		oauth2ClientHandle := oauth2clientapi.NewHandle(clientService)
-		oauth2ClientRouter := chi.NewRouter()
-		oauth2ClientRouter.Group(func(r chi.Router) {
-			r.Use(client.AdminRoleMiddleware)
-			r.Mount("/", oauth2clientapi.Handler(oauth2ClientHandle))
+		r.Group(func(r chi.Router) {
+			r.Use(client.RequireRole("admin", "superadmin"))
+			r.Mount(prefixConfig.OAuth2Clients, oauth2clientapi.Handler(oauth2ClientHandle))
 		})
-		r.Mount(prefixConfig.OAuth2Clients, oauth2ClientRouter)
 
 		// Initialize impersonate service and routes
 		// impersonateService := impersonate.NewService(userMapper, nil)
