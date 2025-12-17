@@ -37,6 +37,7 @@ type ExternalProviderService struct {
 	loginsService        *logins.LoginsService
 	postUserCreationHook *PostUserCreationHookFunc
 	baseURL              string
+	callbackURLPrefix    string // URL path prefix for OAuth callbacks (e.g., /api/v1/auth/external)
 	stateExpiration      time.Duration
 	httpClient           *http.Client
 	autoUserCreation     bool
@@ -51,6 +52,17 @@ type Option func(*ExternalProviderService)
 func WithBaseURL(baseURL string) Option {
 	return func(s *ExternalProviderService) {
 		s.baseURL = baseURL
+	}
+}
+
+// WithCallbackURLPrefix sets the URL path prefix for OAuth callbacks.
+// The callback URL will be: {baseURL}{callbackURLPrefix}/{provider}/callback
+// Default is "/api/idm/external" for backward compatibility.
+// Example: WithCallbackURLPrefix("/api/v1/auth/external") results in
+// callback URL like "https://example.com/api/v1/auth/external/google/callback"
+func WithCallbackURLPrefix(prefix string) Option {
+	return func(s *ExternalProviderService) {
+		s.callbackURLPrefix = prefix
 	}
 }
 
@@ -137,6 +149,7 @@ func NewExternalProviderService(
 		loginService:        loginService,
 		userMapper:          userMapper,
 		baseURL:             "http://localhost:4000",
+		callbackURLPrefix:   "/api/idm/external", // Default for backward compatibility
 		stateExpiration:     10 * time.Minute,
 		httpClient:          &http.Client{Timeout: 30 * time.Second},
 		autoUserCreation:    false, // Security by default - don't auto-create users
@@ -190,7 +203,7 @@ func (s *ExternalProviderService) InitiateOAuth2Flow(ctx context.Context, provid
 	}
 
 	// Build the callback URL
-	callbackURL := fmt.Sprintf("%s/api/idm/external/%s/callback", s.baseURL, providerID)
+	callbackURL := fmt.Sprintf("%s%s/%s/callback", s.baseURL, s.callbackURLPrefix, providerID)
 
 	// Build the authorization URL
 	authURL, err := provider.BuildAuthURL(state, callbackURL)
@@ -313,7 +326,7 @@ func (s *ExternalProviderService) generateSecureState() (string, error) {
 
 // exchangeCodeForToken exchanges an authorization code for an access token
 func (s *ExternalProviderService) exchangeCodeForToken(provider *ExternalProvider, code string) (*TokenResponse, error) {
-	callbackURL := fmt.Sprintf("%s/api/idm/external/%s/callback", s.baseURL, provider.ID)
+	callbackURL := fmt.Sprintf("%s%s/%s/callback", s.baseURL, s.callbackURLPrefix, provider.ID)
 
 	// Prepare the token request
 	data := url.Values{}
