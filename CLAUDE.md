@@ -6,7 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Simple IDM is an Identity Management system built with Go and SolidJS, providing authentication, authorization, and user management capabilities. It features OAuth2/OIDC support, 2FA, passwordless authentication, external provider integration, email verification, and a pluggable login flow architecture.
 
-**Main Service**: `cmd/loginv2/` is the primary production application combining all IDM functionality. Other services in `cmd/` are either legacy or utility tools.
+**Main Service**: `cmd/loginv2/` is the primary production application combining all IDM functionality.
+
+**Quick Start Service**: `cmd/quick/` is a simplified, self-documented quick-start service for developers - see its README.md for details.
+
+**Utility Services**: Other services in `cmd/` are utility tools (tokengen, inituser, emailtest, mail).
 
 ## Development Commands
 

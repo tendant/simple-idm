@@ -47,7 +47,7 @@ services:
     depends_on:
       - db
       - mailpit
-    command: ["/app/cmd/login"]  # Use the login binary
+    command: ["/app/cmd/loginv2"]  # Use the main login service
 
   db:
     image: postgres:16-alpine
