@@ -23,8 +23,9 @@ import (
 	"github.com/tendant/simple-idm/pkg/iam"
 	"github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/login"
-	loginapi "github.com/tendant/simple-idm/pkg/login/api"
+	loginapi "github.com/tendant/simple-idm/pkg/login/loginapi"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/loginflow"
 	"github.com/tendant/simple-idm/pkg/logins"
 	"github.com/tendant/simple-idm/pkg/logins/loginsdb"
 	"github.com/tendant/simple-idm/pkg/mapper"
@@ -192,7 +193,7 @@ func main() {
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Create a password policy based on the environment
-	passwordPolicy := createPasswordPolicy(&config.PasswordComplexityConfig)
+	passwordPolicy := config.PasswordComplexityConfig.ToPasswordPolicy()
 
 	// Create a password manager with the policy checker
 	passwordManager := login.NewPasswordManager(loginQueries)
@@ -271,16 +272,22 @@ func main() {
 	deviceRepository := device.NewPostgresDeviceRepositoryWithOptions(pool, deviceRepositoryOptions)
 	deviceService := device.NewDeviceService(deviceRepository)
 
-	// Create a new handle with the domain login service directly
+	// Create LoginFlowService for orchestrated authentication flows
+	loginFlowService := loginflow.NewLoginFlowService(
+		loginService,
+		twoFaService,
+		deviceService,
+		tokenService,
+		&tokenCookieService,
+		userMapper,
+	)
+
+	// Create a new handle with the LoginFlowService
 	loginHandle := loginapi.NewHandle(
 		loginapi.WithLoginService(loginService),
-		loginapi.WithTokenService(tokenService),
+		loginapi.WithLoginFlowService(loginFlowService),
 		loginapi.WithTokenCookieService(tokenCookieService),
-		loginapi.WithUserMapper(userMapper),
-		loginapi.WithDeviceService(*deviceService),
-		loginapi.WithTwoFactorService(twoFaService),
 		loginapi.WithResponseHandler(loginapi.NewDefaultResponseHandler()),
-		loginapi.WithDeviceExpirationDays(deviceExpiryDuration),
 	)
 
 	// Initialize IAM repository and service
@@ -414,11 +421,6 @@ func main() {
 	})
 
 	server.Run()
-}
-
-// createPasswordPolicy now delegates to the shared config.ToPasswordPolicy method
-func createPasswordPolicy(cfg *PasswordComplexityConfig) *login.PasswordPolicy {
-	return cfg.ToPasswordPolicy()
 }
 
 // setupExternalProviders configures external OAuth2 providers based on environment variables

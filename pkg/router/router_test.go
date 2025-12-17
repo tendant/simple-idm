@@ -12,7 +12,7 @@ import (
 	emailverificationapi "github.com/tendant/simple-idm/pkg/emailverification/api"
 	externalProviderAPI "github.com/tendant/simple-idm/pkg/externalprovider/api"
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
-	loginapi "github.com/tendant/simple-idm/pkg/login/api"
+	loginapi "github.com/tendant/simple-idm/pkg/login/loginapi"
 	"github.com/tendant/simple-idm/pkg/logins"
 	oauth2clientapi "github.com/tendant/simple-idm/pkg/oauth2client/api"
 	oidcapi "github.com/tendant/simple-idm/pkg/oidc/api"

@@ -42,7 +42,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/loginflow"
 
-	// loginapi "github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/jwks"
 	"github.com/tendant/simple-idm/pkg/login/loginapi"
 	"github.com/tendant/simple-idm/pkg/login/logindb"
@@ -398,7 +397,7 @@ func main() {
 	delegatedUserMapper := &mapper.DefaultDelegatedUserMapper{}
 
 	// Create a password policy based on the environment
-	passwordPolicy := createPasswordPolicy(&config.PasswordComplexityConfig)
+	passwordPolicy := config.PasswordComplexityConfig.ToPasswordPolicy()
 
 	// Create a password manager with the policy checker
 	passwordManager := login.NewPasswordManager(
@@ -582,15 +581,17 @@ func main() {
 		emailverification.WithResendWindow(1*time.Hour),
 	)
 
-	signupHandle := signup.NewHandleWithOptions(
-		signup.WithIamService(*iamService),
-		signup.WithRoleService(*roleService),
-		signup.WithLoginsService(*loginsService),
-		signup.WithRegistrationEnabled(config.LoginConfig.RegistrationEnabled),
-		signup.WithDefaultRole(config.LoginConfig.RegistrationDefaultRole),
-		signup.WithLoginService(*loginService),
-		signup.WithEmailVerificationService(emailVerificationService),
+	// Create signup service with the new service-level options pattern
+	signupService := signup.NewSignupService(
+		signup.WithIamServiceForSignup(iamService),
+		signup.WithRoleServiceForSignup(roleService),
+		signup.WithLoginsServiceForSignup(loginsService),
+		signup.WithRegistrationEnabledForSignup(config.LoginConfig.RegistrationEnabled),
+		signup.WithDefaultRoleForSignup(config.LoginConfig.RegistrationDefaultRole),
+		signup.WithLoginServiceForSignup(loginService),
+		signup.WithEmailVerificationServiceForSignup(emailVerificationService),
 	)
+	signupHandle := signup.NewHandle(signupService)
 
 	// Initialize OAuth2 client service and OIDC handler
 	var clientService *oauth2client.ClientService
@@ -822,11 +823,6 @@ func main() {
 	})
 
 	server.Run()
-}
-
-// createPasswordPolicy now delegates to the shared config.ToPasswordPolicy method
-func createPasswordPolicy(cfg *PasswordComplexityConfig) *login.PasswordPolicy {
-	return cfg.ToPasswordPolicy()
 }
 
 // createRateLimitMiddleware creates and configures the rate limiting middleware

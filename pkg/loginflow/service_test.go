@@ -94,7 +94,7 @@ func setupTestServices(pool *pgxpool.Pool) *LoginFlowService {
 
 	// Create device service with proper repository
 	deviceRepository := device.NewPostgresDeviceRepository(pool)
-	deviceService := device.NewDeviceService(deviceRepository, loginRepository)
+	deviceService := device.NewDeviceService(deviceRepository)
 
 	// Create token generators
 	secret := "test-secret-key"

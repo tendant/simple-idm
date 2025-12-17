@@ -96,7 +96,7 @@ func main() {
 	iamQueries := iamdb.New(pool)
 
 	// Create password policy and manager
-	passwordPolicy := createPasswordPolicy(&config.PasswordComplexityConfig)
+	passwordPolicy := config.PasswordComplexityConfig.ToPasswordPolicy()
 	passwordManager := login.NewPasswordManager(loginQueries)
 	policyChecker := login.NewDefaultPasswordPolicyChecker(passwordPolicy, nil)
 	passwordManager.WithPolicyChecker(policyChecker)
@@ -188,9 +188,4 @@ func main() {
 	}
 
 	slog.Info("User created successfully", "username", *username, "email", *email, "role", *roleName, "login_id", login.ID, "user_id", userWithRoles.ID)
-}
-
-// createPasswordPolicy now delegates to the shared config.ToPasswordPolicy method
-func createPasswordPolicy(cfg *PasswordComplexityConfig) *login.PasswordPolicy {
-	return cfg.ToPasswordPolicy()
 }

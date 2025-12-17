@@ -9,15 +9,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/tendant/simple-idm/pkg/client"
 	delegate "github.com/tendant/simple-idm/pkg/delegate"
-	"github.com/tendant/simple-idm/pkg/login/api"
 	"github.com/tendant/simple-idm/pkg/mapper"
 	tg "github.com/tendant/simple-idm/pkg/tokengenerator"
 )
 
 // Constants for token cookie names
 const (
-	ACCESS_TOKEN_NAME  = api.ACCESS_TOKEN_NAME
-	REFRESH_TOKEN_NAME = api.REFRESH_TOKEN_NAME
+	ACCESS_TOKEN_NAME  = tg.ACCESS_TOKEN_NAME
+	REFRESH_TOKEN_NAME = tg.REFRESH_TOKEN_NAME
 )
 
 // Handler implements the ServerInterface for delegation API

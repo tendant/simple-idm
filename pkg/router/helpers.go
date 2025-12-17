@@ -21,8 +21,9 @@ import (
 	iamapi "github.com/tendant/simple-idm/pkg/iam/api"
 	iamdb "github.com/tendant/simple-idm/pkg/iam/iamdb"
 	"github.com/tendant/simple-idm/pkg/login"
-	loginapi "github.com/tendant/simple-idm/pkg/login/api"
+	loginapi "github.com/tendant/simple-idm/pkg/login/loginapi"
 	logindb "github.com/tendant/simple-idm/pkg/login/logindb"
+	"github.com/tendant/simple-idm/pkg/loginflow"
 	"github.com/tendant/simple-idm/pkg/notification"
 	"github.com/tendant/simple-idm/pkg/logins"
 	loginsdb "github.com/tendant/simple-idm/pkg/logins/loginsdb"
@@ -36,7 +37,6 @@ import (
 	"github.com/tendant/simple-idm/pkg/role"
 	roleapi "github.com/tendant/simple-idm/pkg/role/api"
 	roledb "github.com/tendant/simple-idm/pkg/role/roledb"
-	"github.com/tendant/simple-idm/pkg/loginflow"
 	loginv2 "github.com/tendant/simple-idm/pkg/login/handler/v2"
 	"github.com/tendant/simple-idm/pkg/signup"
 	signupv2 "github.com/tendant/simple-idm/pkg/signup/handler/v2"
@@ -238,23 +238,33 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 	}
 
 	// 5. Create handlers
-	loginHandle := loginapi.NewHandle(
-		loginapi.WithLoginService(loginService),
-		loginapi.WithTokenService(tokenService),
-		loginapi.WithTokenCookieService(tokenCookieService),
-		loginapi.WithTwoFactorService(twoFaService),
-		loginapi.WithDeviceService(*deviceService),
+	// Create LoginFlowService for orchestrated authentication flows
+	loginFlowService := loginflow.NewLoginFlowService(
+		loginService,
+		twoFaService,
+		deviceService,
+		tokenService,
+		&tokenCookieService,
+		userMapper,
 	)
 
-	signupHandle := signup.NewHandleWithOptions(
-		signup.WithIamService(*iamService),
-		signup.WithRoleService(*roleService),
-		signup.WithLoginsService(*loginsService),
-		signup.WithRegistrationEnabled(registrationEnabled),
-		signup.WithDefaultRole(defaultRole),
-		signup.WithLoginService(*loginService),
-		signup.WithEmailVerificationService(emailVerificationService),
+	loginHandle := loginapi.NewHandle(
+		loginapi.WithLoginService(loginService),
+		loginapi.WithLoginFlowService(loginFlowService),
+		loginapi.WithTokenCookieService(tokenCookieService),
 	)
+
+	// Create signup service with the new service-level options pattern
+	signupServiceForHandle := signup.NewSignupService(
+		signup.WithIamServiceForSignup(iamService),
+		signup.WithRoleServiceForSignup(roleService),
+		signup.WithLoginsServiceForSignup(loginsService),
+		signup.WithRegistrationEnabledForSignup(registrationEnabled),
+		signup.WithDefaultRoleForSignup(defaultRole),
+		signup.WithLoginServiceForSignup(loginService),
+		signup.WithEmailVerificationServiceForSignup(emailVerificationService),
+	)
+	signupHandle := signup.NewHandle(signupServiceForHandle)
 
 	userHandle := iamapi.NewHandle(iamService)
 
@@ -338,16 +348,6 @@ func NewMinimalConfig(opts MinimalOptions) (Config, error) {
 		signup.WithLoginsServiceForSignup(loginsService),
 		signup.WithRegistrationEnabledForSignup(registrationEnabled),
 		signup.WithDefaultRoleForSignup(defaultRole),
-	)
-
-	// Login flow service (needed for v2 handlers)
-	loginFlowService := loginflow.NewLoginFlowService(
-		loginService,
-		twoFaService,
-		deviceService,
-		tokenService,
-		&tokenCookieService,
-		userMapper,
 	)
 
 	// V2 handlers (optional - applications can use these for v2 route support)
