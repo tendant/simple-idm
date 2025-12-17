@@ -2,6 +2,43 @@
 
 Simple IDM is an Identity Management system that provides user authentication, authorization, and management capabilities. This document outlines the available API endpoints and their usage.
 
+## Quick Start
+
+### In-Memory Mode (No Database)
+
+Test APIs immediately without any setup:
+
+```bash
+# Start in-memory server
+cd cmd/inmem && go run main.go
+
+# Login with pre-seeded credentials
+curl -X POST http://localhost:4000/api/v2/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin@example.com","password":"password123"}'
+
+# Use token for authenticated requests
+TOKEN="<access_token from response>"
+curl http://localhost:4000/api/idm/users \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Generate Test Tokens
+
+Generate JWT tokens without running a server:
+
+```bash
+# Basic token
+go run cmd/tokengen/main.go
+
+# Token with custom claims
+go run cmd/tokengen/main.go \
+  -secret "your-jwt-secret" \
+  -claims '{"user_uuid":"test-uuid","roles":["admin"]}'
+```
+
+See [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) for comprehensive local development options.
+
 ## Base URL
 
 The API server runs on port 4000 by default: `http://localhost:4000`
@@ -9,14 +46,29 @@ The API server runs on port 4000 by default: `http://localhost:4000`
 ## API Organization
 
 The APIs are organized into different packages with specific prefixes:
-- Authentication: `/api/idm/auth`
+- Authentication: `/api/idm/auth` or `/api/v2/auth` (in-memory)
 - Profile Management: `/api/idm/profile`
 - Device Management: `/api/idm/device`
 - Two-Factor Authentication: `/idm/2fa`
-- User Management: `/idm/users`
-- Role Management: `/idm/roles`
+- User Management: `/idm/users` or `/api/idm/users` (in-memory)
+- Role Management: `/idm/roles` or `/api/idm/roles` (in-memory)
 - Login Management: `/api/idm/logins`
-- Signup: `/api/idm/signup`
+- Signup: `/api/idm/signup` or `/api/v2/auth/signup` (in-memory)
+- Health Check: `/health`
+
+### In-Memory Service Endpoints
+
+The in-memory service (`cmd/inmem`) provides a subset of endpoints for testing:
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/api/v2/auth/login` | No | Login with username/password |
+| POST | `/api/v2/auth/logout` | No | Logout |
+| POST | `/api/v2/auth/refresh` | No | Refresh access token |
+| POST | `/api/v2/auth/signup` | No | Register new user |
+| GET | `/api/idm/users` | Yes | List all users |
+| GET | `/api/idm/roles` | Yes | List all roles |
+| GET | `/health` | No | Health check |
 
 ## Login
 
@@ -962,11 +1014,3 @@ The API implements rate limiting for security-sensitive endpoints:
 - Magic link requests
 - 2FA validation attempts
 
-## Future Features (Planned)
-
-1. Initial password reset functionality
-2. Email-based password reset flow
-3. Password reset page and API endpoints
-4. Password complexity requirements
-5. Change password functionality
-6. Enhanced Two-factor authentication options

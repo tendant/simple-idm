@@ -4,7 +4,29 @@ A simple Identity Management system with user authentication and authorization c
 
 ## Quick Start Options
 
-### Option 1: Docker Compose (Recommended for Quick Setup)
+### Option 1: In-Memory Mode (Fastest - No Database)
+
+Start testing APIs immediately with zero setup:
+
+```bash
+cd cmd/inmem
+go run main.go
+```
+
+**Ready to use:**
+- Server: http://localhost:4000
+- Login: `admin@example.com` / `password123`
+
+```bash
+# Login
+curl -X POST http://localhost:4000/api/v2/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin@example.com","password":"password123"}'
+```
+
+For more local development options, see [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md).
+
+### Option 2: Docker Compose (Full Stack Setup)
 
 ```bash
 # Start the application server
@@ -20,7 +42,7 @@ Clean up - Remove all volumes created by your Compose project:
 docker-compose down -v
 ```
 
-### Option 2: Manual Setup (Recommended for Development)
+### Option 3: Manual Setup (Recommended for Development)
 
 Follow the detailed setup instructions below for more control over your development environment.
 

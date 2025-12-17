@@ -89,6 +89,24 @@ docker-compose up --build
 docker-compose down -v
 ```
 
+### Local API Testing (No Database)
+```bash
+# In-memory mode - instant API testing
+cd cmd/inmem && go run main.go
+# Server: http://localhost:4000
+# Pre-seeded: admin@example.com / password123
+
+# Generate test JWT tokens
+go run cmd/tokengen/main.go -secret "your-jwt-secret" -format debug
+
+# Token with custom claims
+go run cmd/tokengen/main.go \
+  -secret "your-secret" \
+  -claims '{"user_uuid":"test-uuid","roles":["admin"]}'
+```
+
+See [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) for comprehensive local dev options.
+
 ### Frontend Development
 ```bash
 cd frontend
@@ -115,12 +133,15 @@ The codebase follows a domain-driven design with clear separation of concerns:
   - `loginv2/`: **Main production application** - Full-featured IDM server with OAuth2, OIDC, 2FA, external providers, and all features. Uses `pkg/login/loginapi/` (v1 API with LoginFlowService).
   - `quick/`: **Simplified quick-start** - Minimal IDM server using v2 API handlers (`pkg/login/handler/v2/`). Good reference for new integrations.
 
+  **Development/Testing Services:**
+  - `inmem/`: **In-memory IDM server** - Zero-setup testing with pre-seeded data (admin@example.com / password123). No database required.
+
   **Legacy Services (avoid for new projects):**
   - `login/`: Legacy login service using old `pkg/login/api/` package (direct service calls, no LoginFlowService)
   - `passwordless-auth/`: Standalone passwordless authentication service
 
   **Utility Commands:**
-  - `tokengen/`: JWT token generation utility
+  - `tokengen/`: JWT token generation utility for testing
   - `inituser/`: Initialize user accounts
   - `emailtest/`: Test email configuration
   - `mail/`: Mail-related utilities
@@ -227,6 +248,39 @@ The application uses a layered middleware approach for route protection:
 - **Admin routes**: Additional `client.AdminRoleMiddleware` for role-based access control
 - Token verification: RSA public key validation using JWKS
 
+**Simplified Middleware API** (recommended for new integrations):
+```go
+import "github.com/tendant/simple-idm/pkg/client"
+
+// Create unified verifier supporting multiple algorithms
+verifier := client.AuthMiddleware(
+    client.VerifierConfig{Name: "RSA", Auth: rsaAuth, Active: true},
+    client.VerifierConfig{Name: "HMAC", Auth: hmacAuth, Active: true},
+)
+
+r.Group(func(r chi.Router) {
+    r.Use(verifier)              // Verify JWT token
+    r.Use(client.RequireAuth)    // Require valid authentication
+    r.Get("/protected", handler)
+})
+
+// Role-based access control
+r.Group(func(r chi.Router) {
+    r.Use(verifier)
+    r.Use(client.RequireAuth)
+    r.Use(client.RequireRole("admin"))  // Require specific role
+    r.Get("/admin", adminHandler)
+})
+
+// Get authenticated user in handlers
+func handler(w http.ResponseWriter, r *http.Request) {
+    user := client.GetAuthContext(r.Context())
+    if user != nil {
+        fmt.Println(user.UserUuid, user.Email, user.Roles)
+    }
+}
+```
+
 ### Core Domains
 
 - **iam**: User and group management, role assignment
@@ -328,6 +382,32 @@ Key variables:
 - `<PROVIDER>_CLIENT_ID`, `<PROVIDER>_CLIENT_SECRET`, `<PROVIDER>_ENABLED`: External OAuth provider configuration
 
 Refer to `cmd/loginv2/.env.example` for complete list.
+
+### Shared Configuration Types
+
+The `pkg/config/` package provides reusable configuration structs for common settings:
+
+| Config Type | Purpose | Factory Function |
+|-------------|---------|------------------|
+| `LoginConfig` | Login behavior (max attempts, lockout, magic link) | `NewLoginConfigFromEnv()` |
+| `ExternalProviderConfig` | OAuth2 provider settings (Google, Microsoft, GitHub, LinkedIn) | `NewExternalProviderConfigFromEnv()` |
+| `JWKSConfig` | RSA key settings for JWT signing | `NewJWKSConfigFromEnv()` |
+| `RateLimitConfig` | Rate limiting settings | `NewRateLimitConfigFromEnv()` |
+| `SessionManagementConfig` | Session tracking settings | `NewSessionManagementConfigFromEnv()` |
+| `OAuth2ClientConfig` | OAuth2 client encryption settings | `NewOAuth2ClientConfigFromEnv()` |
+
+**Pattern**: All configs use plain structs (no env tags) with factory functions for loading:
+```go
+// Use factory function for standard env var names
+cfg := config.NewLoginConfigFromEnv()
+
+// Or construct directly for custom configuration
+cfg := config.LoginConfig{
+    MaxLoginAttempts:    5,
+    LockoutDuration:     15 * time.Minute,
+    EnableRegistration:  true,
+}
+```
 
 ## Testing
 

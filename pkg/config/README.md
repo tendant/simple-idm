@@ -299,6 +299,129 @@ func (c *CacheConfig) Validate() error {
 }
 ```
 
+## Shared Configuration Types
+
+The package provides pre-built configuration structs for common IDM functionality:
+
+### LoginConfig
+
+Login behavior settings:
+
+```go
+// Load from environment variables
+cfg := config.NewLoginConfigFromEnv()
+
+// Or construct directly
+cfg := config.LoginConfig{
+    MaxLoginAttempts:         5,
+    LockoutDuration:          15 * time.Minute,
+    EnableRegistration:       true,
+    MagicLinkExpiration:      15 * time.Minute,
+    TemporaryPasswordExpiry:  24 * time.Hour,
+}
+```
+
+| Environment Variable | Field | Default |
+|---------------------|-------|---------|
+| `LOGIN_MAX_ATTEMPTS` | MaxLoginAttempts | 5 |
+| `LOGIN_LOCKOUT_DURATION` | LockoutDuration | 15m |
+| `LOGIN_ENABLE_REGISTRATION` | EnableRegistration | true |
+| `MAGIC_LINK_EXPIRATION` | MagicLinkExpiration | 15m |
+| `TEMPORARY_PASSWORD_EXPIRY` | TemporaryPasswordExpiry | 24h |
+
+### ExternalProviderConfig
+
+OAuth2 external provider settings:
+
+```go
+// Load from environment variables
+cfg := config.NewExternalProviderConfigFromEnv()
+
+// Check if any providers are enabled
+if cfg.HasEnabledProviders() {
+    // Configure external auth
+}
+```
+
+| Environment Variable | Field | Default |
+|---------------------|-------|---------|
+| `GOOGLE_CLIENT_ID` | GoogleClientID | "" |
+| `GOOGLE_CLIENT_SECRET` | GoogleClientSecret | "" |
+| `GOOGLE_ENABLED` | GoogleEnabled | false |
+| `MICROSOFT_CLIENT_ID` | MicrosoftClientID | "" |
+| `MICROSOFT_CLIENT_SECRET` | MicrosoftClientSecret | "" |
+| `MICROSOFT_ENABLED` | MicrosoftEnabled | false |
+| `GITHUB_CLIENT_ID` | GitHubClientID | "" |
+| `GITHUB_CLIENT_SECRET` | GitHubClientSecret | "" |
+| `GITHUB_ENABLED` | GitHubEnabled | false |
+| `LINKEDIN_CLIENT_ID` | LinkedInClientID | "" |
+| `LINKEDIN_CLIENT_SECRET` | LinkedInClientSecret | "" |
+| `LINKEDIN_ENABLED` | LinkedInEnabled | false |
+
+### JWKSConfig
+
+RSA key settings for JWT signing:
+
+```go
+// Load from environment variables
+cfg := config.NewJWKSConfigFromEnv()
+
+// Or with defaults
+cfg := config.DefaultJWKSConfig()
+```
+
+| Environment Variable | Field | Default |
+|---------------------|-------|---------|
+| `JWKS_PRIVATE_KEY_FILE` | PrivateKeyFile | "jwt-private.pem" |
+| `JWKS_KEY_ID` | KeyID | "key-1" |
+| `JWKS_ALGORITHM` | Algorithm | "RS256" |
+
+### RateLimitConfig
+
+Rate limiting settings:
+
+```go
+// Load from environment variables
+cfg := config.NewRateLimitConfigFromEnv()
+
+// Or with defaults (100 req/s, burst 200)
+cfg := config.DefaultRateLimitConfig()
+```
+
+| Environment Variable | Field | Default |
+|---------------------|-------|---------|
+| `RATE_LIMIT_REQUESTS_PER_SECOND` | RequestsPerSecond | 100 |
+| `RATE_LIMIT_BURST` | Burst | 200 |
+| `RATE_LIMIT_ENABLED` | Enabled | true |
+
+### SessionManagementConfig
+
+Session tracking settings:
+
+```go
+// Load from environment variables
+cfg := config.NewSessionManagementConfigFromEnv()
+```
+
+| Environment Variable | Field | Default |
+|---------------------|-------|---------|
+| `SESSION_TRACKING_ENABLED` | TrackingEnabled | true |
+| `SESSION_MAX_CONCURRENT` | MaxConcurrentSessions | 5 |
+| `SESSION_IDLE_TIMEOUT` | IdleTimeout | 30m |
+
+### OAuth2ClientConfig
+
+OAuth2 client encryption settings:
+
+```go
+// Load from environment variables
+cfg := config.NewOAuth2ClientConfigFromEnv()
+```
+
+| Environment Variable | Field | Default |
+|---------------------|-------|---------|
+| `OAUTH2_CLIENT_ENCRYPTION_KEY` | EncryptionKey | "" |
+
 ## Best Practices
 
 1. **Use MustGetEnv for critical configuration**
