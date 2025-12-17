@@ -39,95 +39,22 @@ import (
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 )
 
-type IdmDbConfig struct {
-	Host     string `env:"IDM_PG_HOST" env-default:"localhost"`
-	Port     uint16 `env:"IDM_PG_PORT" env-default:"5432"`
-	Database string `env:"IDM_PG_DATABASE" env-default:"idm_db"`
-	User     string `env:"IDM_PG_USER" env-default:"idm"`
-	Password string `env:"IDM_PG_PASSWORD" env-default:"pwd"`
-}
-
-func (d IdmDbConfig) toDbConfig() dbutils.DbConfig {
-	return dbutils.DbConfig{
-		Host:     d.Host,
-		Port:     d.Port,
-		Database: d.Database,
-		User:     d.User,
-		Password: d.Password,
-	}
-}
-
-type JwtConfig struct {
-	JwtSecret      string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
-	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
-	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"false"`
-	// Token expiry durations
-	AccessTokenExpiry  string `env:"ACCESS_TOKEN_EXPIRY" env-default:"5m"`
-	RefreshTokenExpiry string `env:"REFRESH_TOKEN_EXPIRY" env-default:"15m"`
-	TempTokenExpiry    string `env:"TEMP_TOKEN_EXPIRY" env-default:"10m"`
-	LogoutTokenExpiry  string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"-1m"`
-	Secret             string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
-	Issuer             string `env:"JWT_ISSUER" env-default:"simple-idm"`
-	Audience           string `env:"JWT_AUDIENCE" env-default:"simple-idm"`
-}
-
-type EmailConfig struct {
-	Host     string `env:"EMAIL_HOST" env-default:"localhost"`
-	Port     uint16 `env:"EMAIL_PORT" env-default:"1025"`
-	Username string `env:"EMAIL_USERNAME" env-default:"noreply@example.com"`
-	Password string `env:"EMAIL_PASSWORD" env-default:"pwd"`
-	From     string `env:"EMAIL_FROM" env-default:"noreply@example.com"`
-	TLS      bool   `env:"EMAIL_TLS" env-default:"false"`
-}
-
-type TwilioConfig struct {
-	TwilioAccountSid string `env:"TWILIO_ACCOUNT_SID"`
-	TwilioAuthToken  string `env:"TWILIO_AUTH_TOKEN"`
-	TwilioFrom       string `env:"TWILIO_FROM"`
-}
-
-// PasswordComplexityConfig is now defined in pkg/config package
-type PasswordComplexityConfig = config.PasswordComplexityConfig
-
-type LoginConfig struct {
-	MaxFailedAttempts        int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"10000"`
-	LockoutDuration          string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT0M"`
-	DeviceExpirationDays     string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
-	RegistrationEnabled      bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
-	RegistrationDefaultRole  string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"readonlyuser"`
-	MagicLinkTokenExpiration string `env:"MAGIC_LINK_TOKEN_EXPIRATION" env-default:"PT6H"`
-}
-
-type ExternalProviderConfig struct {
-	// Google OAuth2
-	GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
-	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
-	GoogleEnabled      bool   `env:"GOOGLE_ENABLED" env-default:"false"`
-
-	// Microsoft OAuth2
-	MicrosoftClientID     string `env:"MICROSOFT_CLIENT_ID"`
-	MicrosoftClientSecret string `env:"MICROSOFT_CLIENT_SECRET"`
-	MicrosoftEnabled      bool   `env:"MICROSOFT_ENABLED" env-default:"false"`
-
-	// GitHub OAuth2
-	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
-	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
-	GitHubEnabled      bool   `env:"GITHUB_ENABLED" env-default:"false"`
-
-	// LinkedIn OAuth2
-	LinkedInClientID     string `env:"LINKEDIN_CLIENT_ID"`
-	LinkedInClientSecret string `env:"LINKEDIN_CLIENT_SECRET"`
-	LinkedInEnabled      bool   `env:"LINKEDIN_ENABLED" env-default:"false"`
-
-	// User Creation Settings
-	DefaultRole string `env:"EXTERNAL_PROVIDER_DEFAULT_ROLE" env-default:"user"`
-}
+// Type aliases for backward compatibility - all configs now use pkg/config types
+type (
+	DatabaseConfig           = config.DatabaseConfig
+	JWTConfig                = config.JWTConfig
+	EmailConfig              = config.EmailConfig
+	TwilioConfig             = config.TwilioConfig
+	PasswordComplexityConfig = config.PasswordComplexityConfig
+	LoginConfig              = config.LoginConfig
+	ExternalProviderConfig   = config.ExternalProviderConfig
+)
 
 type Config struct {
 	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:3000"`
-	IdmDbConfig              IdmDbConfig
+	DatabaseConfig           DatabaseConfig
 	AppConfig                app.AppConfig
-	JwtConfig                JwtConfig
+	JWTConfig                JWTConfig
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
 	LoginConfig              LoginConfig
@@ -151,7 +78,7 @@ func main() {
 
 	app.RegisterHealthzRoutes(server.R)
 
-	dbConfig := config.IdmDbConfig.toDbConfig()
+	dbConfig := config.DatabaseConfig.ToDbConfig()
 	pool, err := dbutils.NewDbPool(context.Background(), dbConfig)
 	if err != nil {
 		slog.Error("Failed creating dbpool", "db", dbConfig.Database, "host", dbConfig.Host, "port", dbConfig.Port, "user", dbConfig.User)
@@ -229,22 +156,22 @@ func main() {
 
 	// Create JWT token generator
 	tokenGenerator := tokengenerator.NewJwtTokenGenerator(
-		config.JwtConfig.JwtSecret,
-		"simple-idm", // Issuer
-		"simple-idm", // Audience
+		config.JWTConfig.Secret,
+		config.JWTConfig.Issuer,
+		config.JWTConfig.Audience,
 	)
 
 	tempTokenGenerator := tokengenerator.NewTempTokenGenerator(
-		config.JwtConfig.JwtSecret,
-		"simple-idm", // Issuer
-		"simple-idm", // Audience
+		config.JWTConfig.Secret,
+		config.JWTConfig.Issuer,
+		config.JWTConfig.Audience,
 	)
 
-	tokenService := tokengenerator.NewDefaultTokenService(tokenGenerator, tokenGenerator, tempTokenGenerator, tokenGenerator, config.JwtConfig.Secret)
+	tokenService := tokengenerator.NewDefaultTokenService(tokenGenerator, tokenGenerator, tempTokenGenerator, tokenGenerator, config.JWTConfig.Secret)
 	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
 		"/",
-		config.JwtConfig.CookieHttpOnly,
-		config.JwtConfig.CookieSecure,
+		config.JWTConfig.CookieHttpOnly,
+		config.JWTConfig.CookieSecure,
 		http.SameSiteLaxMode,
 	)
 
@@ -408,7 +335,7 @@ func main() {
 	// Mount external provider endpoints (public, no authentication required)
 	server.R.Mount("/api/idm/external", externalProviderAPI.Handler(externalProviderHandle))
 
-	tokenAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
+	tokenAuth := jwtauth.New("HS256", []byte(config.JWTConfig.Secret), nil)
 
 	server.R.Group(func(r chi.Router) {
 		// Unified authentication middleware

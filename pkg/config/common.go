@@ -83,6 +83,17 @@ func GetEnvBool(key string, defaultValue bool) bool {
 	return defaultValue
 }
 
+// GetEnvFloat64 retrieves an environment variable as a float64
+// Returns the default value if not set or invalid
+func GetEnvFloat64(key string, defaultValue float64) float64 {
+	if value := os.Getenv(key); value != "" {
+		if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
+			return floatVal
+		}
+	}
+	return defaultValue
+}
+
 // GetEnvDuration retrieves an environment variable as a time.Duration
 // Supports Go duration strings (e.g., "5m", "1h30m", "24h")
 // Returns the default value if not set or invalid

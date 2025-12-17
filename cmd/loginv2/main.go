@@ -65,154 +65,27 @@ import (
 	"github.com/tendant/simple-idm/pkg/twofa/twofadb"
 )
 
-type IdmDbConfig struct {
-	Host     string `env:"IDM_PG_HOST" env-default:"localhost"`
-	Port     uint16 `env:"IDM_PG_PORT" env-default:"5432"`
-	Database string `env:"IDM_PG_DATABASE" env-default:"idm_db"`
-	User     string `env:"IDM_PG_USER" env-default:"idm"`
-	Password string `env:"IDM_PG_PASSWORD" env-default:"pwd"`
-	Schema   string `env:"IDM_PG_SCHEMA" env-default:"public"`
-}
-
-func (d IdmDbConfig) toDatabaseURL() string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&search_path=%s,public",
-		d.User, d.Password, d.Host, d.Port, d.Database, d.Schema)
-}
-
-type JwtConfig struct {
-	JwtSecret      string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
-	CookieHttpOnly bool   `env:"COOKIE_HTTP_ONLY" env-default:"true"`
-	CookieSecure   bool   `env:"COOKIE_SECURE" env-default:"true"`
-	// Token expiry durations
-	AccessTokenExpiry  string `env:"ACCESS_TOKEN_EXPIRY" env-default:"5m"`
-	RefreshTokenExpiry string `env:"REFRESH_TOKEN_EXPIRY" env-default:"15m"`
-	TempTokenExpiry    string `env:"TEMP_TOKEN_EXPIRY" env-default:"10m"`
-	LogoutTokenExpiry  string `env:"LOGOUT_TOKEN_EXPIRY" env-default:"-1m"`
-	Secret             string `env:"JWT_SECRET" env-default:"very-secure-jwt-secret"`
-	Issuer             string `env:"JWT_ISSUER" env-default:"simple-idm"`
-	Audience           string `env:"JWT_AUDIENCE" env-default:"simple-idm"`
-}
-
-type EmailConfig struct {
-	Host     string `env:"EMAIL_HOST" env-default:"localhost"`
-	Port     uint16 `env:"EMAIL_PORT" env-default:"1025"`
-	Username string `env:"EMAIL_USERNAME" env-default:"noreply@example.com"`
-	Password string `env:"EMAIL_PASSWORD" env-default:"pwd"`
-	From     string `env:"EMAIL_FROM" env-default:"noreply@example.com"`
-	TLS      bool   `env:"EMAIL_TLS" env-default:"false"`
-}
-
-type TwilioConfig struct {
-	TwilioAccountSid string `env:"TWILIO_ACCOUNT_SID"`
-	TwilioAuthToken  string `env:"TWILIO_AUTH_TOKEN"`
-	TwilioFrom       string `env:"TWILIO_FROM"`
-}
-
-// PasswordComplexityConfig is now defined in pkg/config package
-// Keeping this type alias for backward compatibility
-type PasswordComplexityConfig = pkgconfig.PasswordComplexityConfig
-
-type LoginConfig struct {
-	MaxFailedAttempts        int    `env:"LOGIN_MAX_FAILED_ATTEMPTS" env-default:"10000"`
-	LockoutDuration          string `env:"LOGIN_LOCKOUT_DURATION" env-default:"PT0M"`
-	DeviceExpirationDays     string `env:"DEVICE_EXPIRATION_DAYS" env-default:"P90D"`
-	RegistrationEnabled      bool   `env:"LOGIN_REGISTRATION_ENABLED" env-default:"false"`
-	RegistrationDefaultRole  string `env:"LOGIN_REGISTRATION_DEFAULT_ROLE" env-default:"readonlyuser"`
-	MagicLinkTokenExpiration string `env:"MAGIC_LINK_TOKEN_EXPIRATION" env-default:"PT6H"`
-	PhoneVerificationSecret  string `env:"PHONE_VERIFICATION_SECRET" env-default:"secret"`
-}
-
-type OAuth2ClientConfig struct {
-	// OAuth2 Client Secret Encryption Key (32 bytes base64 encoded)
-	EncryptionKey string `env:"OAUTH2_CLIENT_ENCRYPTION_KEY"`
-}
-
-type JWKSConfig struct {
-	// Key ID for the JWKS key
-	KeyID string `env:"JWKS_KEY_ID" env-default:""`
-
-	// Algorithm (typically RS256)
-	Algorithm string `env:"JWKS_ALGORITHM" env-default:"RS256"`
-
-	// Path to RSA Private Key PEM file
-	PrivateKeyFile string `env:"JWKS_PRIVATE_KEY_FILE" env-default:"jwt-private.pem"`
-}
-
-type ExternalProviderConfig struct {
-	// Google OAuth2
-	GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
-	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
-	GoogleEnabled      bool   `env:"GOOGLE_ENABLED" env-default:"false"`
-
-	// Microsoft OAuth2
-	MicrosoftClientID     string `env:"MICROSOFT_CLIENT_ID"`
-	MicrosoftClientSecret string `env:"MICROSOFT_CLIENT_SECRET"`
-	MicrosoftEnabled      bool   `env:"MICROSOFT_ENABLED" env-default:"false"`
-
-	// GitHub OAuth2
-	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
-	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
-	GitHubEnabled      bool   `env:"GITHUB_ENABLED" env-default:"false"`
-
-	// LinkedIn OAuth2
-	LinkedInClientID     string `env:"LINKEDIN_CLIENT_ID"`
-	LinkedInClientSecret string `env:"LINKEDIN_CLIENT_SECRET"`
-	LinkedInEnabled      bool   `env:"LINKEDIN_ENABLED" env-default:"false"`
-
-	// User Creation Settings
-	DefaultRole string `env:"EXTERNAL_PROVIDER_DEFAULT_ROLE" env-default:"user"`
-}
-
-type RateLimitConfig struct {
-	// Global rate limiting
-	GlobalEnabled    bool    `env:"RATELIMIT_GLOBAL_ENABLED" env-default:"true"`
-	GlobalCapacity   int     `env:"RATELIMIT_GLOBAL_CAPACITY" env-default:"1000"`
-	GlobalRefillRate float64 `env:"RATELIMIT_GLOBAL_REFILL_RATE" env-default:"16.67"` // ~1000 per minute
-
-	// Per-IP rate limiting
-	PerIPEnabled    bool    `env:"RATELIMIT_PER_IP_ENABLED" env-default:"true"`
-	PerIPCapacity   int     `env:"RATELIMIT_PER_IP_CAPACITY" env-default:"100"`
-	PerIPRefillRate float64 `env:"RATELIMIT_PER_IP_REFILL_RATE" env-default:"1.67"` // ~100 per minute
-
-	// Per-User rate limiting (for authenticated requests)
-	PerUserEnabled    bool    `env:"RATELIMIT_PER_USER_ENABLED" env-default:"true"`
-	PerUserCapacity   int     `env:"RATELIMIT_PER_USER_CAPACITY" env-default:"200"`
-	PerUserRefillRate float64 `env:"RATELIMIT_PER_USER_REFILL_RATE" env-default:"3.33"` // ~200 per minute
-
-	// Login endpoint specific limits (to prevent brute force)
-	LoginEnabled    bool    `env:"RATELIMIT_LOGIN_ENABLED" env-default:"true"`
-	LoginCapacity   int     `env:"RATELIMIT_LOGIN_CAPACITY" env-default:"10"`
-	LoginRefillRate float64 `env:"RATELIMIT_LOGIN_REFILL_RATE" env-default:"0.167"` // 10 per minute
-
-	// Signup endpoint specific limits
-	SignupEnabled    bool    `env:"RATELIMIT_SIGNUP_ENABLED" env-default:"true"`
-	SignupCapacity   int     `env:"RATELIMIT_SIGNUP_CAPACITY" env-default:"5"`
-	SignupRefillRate float64 `env:"RATELIMIT_SIGNUP_REFILL_RATE" env-default:"0.017"` // 5 per 5 minutes
-
-	// Password reset endpoint specific limits
-	PasswordResetEnabled    bool    `env:"RATELIMIT_PASSWORD_RESET_ENABLED" env-default:"true"`
-	PasswordResetCapacity   int     `env:"RATELIMIT_PASSWORD_RESET_CAPACITY" env-default:"3"`
-	PasswordResetRefillRate float64 `env:"RATELIMIT_PASSWORD_RESET_REFILL_RATE" env-default:"0.00083"` // 3 per hour
-
-	// Include rate limit headers in response
-	IncludeHeaders bool `env:"RATELIMIT_INCLUDE_HEADERS" env-default:"true"`
-}
-
-type SessionManagementConfig struct {
-	// Enable session tracking and management
-	Enabled bool `env:"SESSION_MANAGEMENT_ENABLED" env-default:"false"`
-
-	// API endpoint prefix for session management routes
-	// Will be automatically set based on prefix configuration if not specified
-	APIPrefix string `env:"SESSION_MANAGEMENT_API_PREFIX" env-default:""`
-}
+// Type aliases for backward compatibility - all configs now use pkg/config types
+type (
+	DatabaseConfig            = pkgconfig.DatabaseConfig
+	JWTConfig                 = pkgconfig.JWTConfig
+	EmailConfig               = pkgconfig.EmailConfig
+	TwilioConfig              = pkgconfig.TwilioConfig
+	PasswordComplexityConfig  = pkgconfig.PasswordComplexityConfig
+	LoginConfig               = pkgconfig.LoginConfig
+	OAuth2ClientConfig        = pkgconfig.OAuth2ClientConfig
+	JWKSConfig                = pkgconfig.JWKSConfig
+	ExternalProviderConfig    = pkgconfig.ExternalProviderConfig
+	RateLimitConfig           = pkgconfig.RateLimitConfig
+	SessionManagementConfig   = pkgconfig.SessionManagementConfig
+)
 
 type Config struct {
 	BaseUrl                  string `env:"BASE_URL" env-default:"http://localhost:4000"`
 	FrontendUrl              string `env:"FRONTEND_URL" env-default:"http://localhost:3000"`
-	IdmDbConfig              IdmDbConfig
+	DatabaseConfig           DatabaseConfig
 	AppConfig                app.AppConfig
-	JwtConfig                JwtConfig
+	JWTConfig                JWTConfig
 	EmailConfig              EmailConfig
 	PasswordComplexityConfig PasswordComplexityConfig
 	LoginConfig              LoginConfig
@@ -355,10 +228,10 @@ func main() {
 		"per_ip", config.RateLimitConfig.PerIPEnabled,
 		"per_user", config.RateLimitConfig.PerUserEnabled)
 
-	dbURL := config.IdmDbConfig.toDatabaseURL()
+	dbURL := config.DatabaseConfig.ToDatabaseURL()
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		slog.Error("Failed creating dbpool", "db", config.IdmDbConfig.Database, "host", config.IdmDbConfig.Host, "port", config.IdmDbConfig.Port, "user", config.IdmDbConfig.User, "schema", config.IdmDbConfig.Schema)
+		slog.Error("Failed creating dbpool", "db", config.DatabaseConfig.Database, "host", config.DatabaseConfig.Host, "port", config.DatabaseConfig.Port, "user", config.DatabaseConfig.User, "schema", config.DatabaseConfig.Schema)
 		os.Exit(-1)
 	}
 
@@ -436,7 +309,7 @@ func main() {
 
 	// Create JWT token generator
 	// tokenGenerator := tokengenerator.NewJwtTokenGenerator(
-	// 	config.JwtConfig.JwtSecret,
+	// 	config.JWTConfig.Secret,
 	// 	"simple-idm", // Issuer
 	// 	"simple-idm", // Audience
 	// )
@@ -467,15 +340,15 @@ func main() {
 	rsaTokenGenerator := tokengenerator.NewRSATokenGenerator(
 		activeKey.PrivateKey,
 		activeKey.Kid,
-		config.JwtConfig.Issuer,
-		config.JwtConfig.Audience,
+		config.JWTConfig.Issuer,
+		config.JWTConfig.Audience,
 	)
 
 	tempTokenGenerator := tokengenerator.NewTempRSATokenGenerator(
 		activeKey.PrivateKey,
 		activeKey.Kid,
-		config.JwtConfig.Issuer,
-		config.JwtConfig.Audience,
+		config.JWTConfig.Issuer,
+		config.JWTConfig.Audience,
 	)
 
 	// Create token service with options
@@ -484,16 +357,16 @@ func main() {
 		rsaTokenGenerator,
 		tempTokenGenerator,
 		rsaTokenGenerator,
-		tokengenerator.WithAccessTokenExpiry(config.JwtConfig.AccessTokenExpiry),
-		tokengenerator.WithRefreshTokenExpiry(config.JwtConfig.RefreshTokenExpiry),
-		tokengenerator.WithTempTokenExpiry(config.JwtConfig.TempTokenExpiry),
-		tokengenerator.WithLogoutTokenExpiry(config.JwtConfig.LogoutTokenExpiry),
+		tokengenerator.WithAccessTokenExpiry(config.JWTConfig.AccessTokenExpiry),
+		tokengenerator.WithRefreshTokenExpiry(config.JWTConfig.RefreshTokenExpiry),
+		tokengenerator.WithTempTokenExpiry(config.JWTConfig.TempTokenExpiry),
+		tokengenerator.WithLogoutTokenExpiry(config.JWTConfig.LogoutTokenExpiry),
 		tokengenerator.WithPrivateKey(activeKey.PrivateKey),
 	)
 	tokenCookieService := tokengenerator.NewDefaultTokenCookieService(
 		"/",
-		config.JwtConfig.CookieHttpOnly,
-		config.JwtConfig.CookieSecure,
+		config.JWTConfig.CookieHttpOnly,
+		config.JWTConfig.CookieSecure,
 		http.SameSiteLaxMode,
 	)
 
@@ -616,7 +489,7 @@ func main() {
 		oidc.WithBaseURL(config.BaseUrl),
 		oidc.WithLoginURL(config.FrontendUrl+"/login"),
 		oidc.WithUserMapper(userMapper),
-		oidc.WithIssuer(config.JwtConfig.Issuer), // Use configured issuer
+		oidc.WithIssuer(config.JWTConfig.Issuer), // Use configured issuer
 	)
 
 	oidcHandle := oidcapi.NewOidcHandle(clientService, oidcService, oidcapi.WithJwksService(jwksService))
@@ -688,7 +561,7 @@ func main() {
 
 	// Create both RSA and HMAC verifiers for multi-algorithm support
 	rsaAuth := jwtauth.New("RS256", activeKey.PrivateKey, activeKey.PublicKey)
-	hmacAuth := jwtauth.New("HS256", []byte(config.JwtConfig.JwtSecret), nil)
+	hmacAuth := jwtauth.New("HS256", []byte(config.JWTConfig.Secret), nil)
 
 	// Mount email verification endpoints (verify is public, resend and status require auth)
 	server.R.Route(prefixConfig.Email, func(r chi.Router) {
