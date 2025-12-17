@@ -41,13 +41,13 @@ go test -v ./pkg/login/... -run TestSpecificFunction
 ### Database Management
 ```bash
 # Run database migrations
-make migration-up
+make migrate-up
 
 # Create a new migration
-make migration-create name="migration-name"
+make migrate-create name="migration-name"
 
 # Rollback migration
-make migration-down
+make migrate-down
 
 # Dump database schema
 make dump-idm

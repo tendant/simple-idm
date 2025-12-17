@@ -12,7 +12,7 @@ IDM_PG_SCHEMA ?= public
 
 SOURCES := $(shell find . -mindepth 2 -name "main.go")
 DESTS := $(patsubst ./%/main.go,dist/%,$(SOURCES))
-ALL := dist/main $(DESTS)
+ALL := $(DESTS)
 
 GOARCH ?= amd64
 GOOS ?= linux
@@ -31,28 +31,20 @@ PG_CONN_STRING := postgres://$(IDM_PG_USER):$(IDM_PG_PASSWORD)@$(IDM_PG_HOST):$(
 all: $(ALL)
 	@echo $@: Building Targets $^
 
-dist/main:
-ifneq (,$(wildcard main.go))
-	$(echo Bulding main.go)
-	GOARCH=$(GOARCH) GOOS=$(GOOS) go build -buildvcs -o $@ main.go
-endif
-
-#dist/main:
-#	@echo Building $^ into $@
-#	test -f main.go && go build -buildvcs -o $@ $^
-
 dist/%: %/main.go
 	@echo $@: Building $^ to $@
 	GOARCH=$(GOARCH) GOOS=$(GOOS) go build -buildvcs -o $@ $^
 
-dep:
+deps:
 	go mod tidy
 
 clean:
 	go clean
 	rm -f $(ALL)
 
-.PHONY: clean migration-validate migration-verify
+.PHONY: all deps clean run schema-create schema-load seed \
+        migrate-validate migrate-verify migrate-create \
+        migrate-up migrate-down migrate-status dump-idm dump-db
 
 # ==============================================================================
 # Database Schema Management
@@ -61,9 +53,9 @@ clean:
 # controlled by the IDM_PG_SCHEMA environment variable (default: public).
 #
 # Examples:
-#   make migration-up                          # Use default schema (public)
-#   IDM_PG_SCHEMA=idm make migration-up        # Use custom schema (idm)
-#   make migration-status                      # Check migration status
+#   make migrate-up                          # Use default schema (public)
+#   IDM_PG_SCHEMA=idm make migrate-up        # Use custom schema (idm)
+#   make migrate-status                      # Check migration status
 # ==============================================================================
 
 schema-create:
@@ -71,7 +63,7 @@ schema-create:
 	@PGPASSWORD=$(IDM_PG_PASSWORD) psql -h $(IDM_PG_HOST) -p $(IDM_PG_PORT) -U $(IDM_PG_USER) -d $(IDM_PG_DATABASE) -c "CREATE SCHEMA IF NOT EXISTS $(IDM_PG_SCHEMA);" > /dev/null
 	@echo "✓ Schema '$(IDM_PG_SCHEMA)' is ready"
 
-migration-validate:
+migrate-validate:
 	@echo "🔍 Validating migration configuration..."
 	@echo "  Database: $(IDM_PG_DATABASE)"
 	@echo "  Target Schema: $(IDM_PG_SCHEMA)"
@@ -88,30 +80,30 @@ migration-validate:
 		(echo "❌ ERROR: Cannot connect to database"; exit 1)
 	@echo "✓ Validation passed"
 
-migration-verify:
+migrate-verify:
 	@echo "🔍 Verifying migrations were applied to schema '$(IDM_PG_SCHEMA)'..."
 	@PGPASSWORD=$(IDM_PG_PASSWORD) psql -h $(IDM_PG_HOST) -p $(IDM_PG_PORT) -U $(IDM_PG_USER) -d $(IDM_PG_DATABASE) \
 		-c "SELECT schemaname FROM pg_tables WHERE tablename = 'goose_db_version';" -t | grep -q "$(IDM_PG_SCHEMA)" && \
 		echo "✓ Migration tracking table found in schema '$(IDM_PG_SCHEMA)'" || \
 		(echo "⚠️  WARNING: Migration tracking table not found in schema '$(IDM_PG_SCHEMA)'"; exit 0)
 
-migration-create:
+migrate-create:
 	@echo "📝 Creating new migration file..."
-# Usage: make migration-create name="migration-name"
+# Usage: make migrate-create name="migration-name"
 	@if [ "$(name)" = "" ]; then \
-		echo "❌ ERROR: Please provide a migration name: make migration-create name=\"your-migration-name\""; \
+		echo "❌ ERROR: Please provide a migration name: make migrate-create name=\"your-migration-name\""; \
 		exit 1; \
 	fi
 	goose -dir migrations/idm postgres "$(PG_CONN_STRING)" create $(name) sql
 	@echo "✓ Migration file created"
 
-migration-up: migration-validate schema-create
+migrate-up: migrate-validate schema-create
 	@echo "🚀 Running migrations on schema '$(IDM_PG_SCHEMA)'..."
 	@goose -dir migrations/idm postgres "$(PG_CONN_STRING)" up
-	@$(MAKE) migration-verify
+	@$(MAKE) migrate-verify
 	@echo "✓ Migrations completed successfully"
 
-migration-down:
+migrate-down:
 	@echo "⏪ Rolling back last migration on schema '$(IDM_PG_SCHEMA)'..."
 	@echo "⚠️  WARNING: This will revert the last migration!"
 	@goose -dir migrations/idm postgres "$(PG_CONN_STRING)" down
@@ -132,7 +124,6 @@ schema-load: schema-create
 seed:
 	PGPASSWORD=$(IDM_PG_PASSWORD) psql -h $(IDM_PG_HOST) -p $(IDM_PG_PORT) -U $(IDM_PG_USER) -d $(IDM_PG_DATABASE) -c "SET search_path TO $(IDM_PG_SCHEMA),public" -f migrations/seed.sql
 
-migration-status:
+migrate-status:
 	@echo "📊 Migration status for schema '$(IDM_PG_SCHEMA)':"
 	@goose -dir migrations/idm postgres "$(PG_CONN_STRING)" status
-
