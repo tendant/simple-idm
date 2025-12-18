@@ -631,3 +631,65 @@ func getBoolValue(data map[string]interface{}, key string) bool {
 func (s *ExternalProviderService) CleanupExpiredStates(ctx context.Context) error {
 	return s.repository.CleanupExpiredStates()
 }
+
+// AuthenticateWithIDToken authenticates a user using pre-verified external provider information.
+// This is used for mobile app authentication where the app handles the provider sign-in
+// and sends the verified ID token information directly.
+//
+// Unlike HandleOAuth2Callback which handles the full OAuth2 code exchange flow,
+// this method expects the caller to have already verified the ID token from the
+// external provider (e.g., Google ID token verification).
+//
+// The userInfo should contain at minimum:
+//   - ProviderID: The external provider identifier (e.g., "google")
+//   - ExternalID: The unique user identifier from the provider
+//   - Email: The user's email address
+//
+// Returns a LoginResult with user information and JWT tokens can be generated
+// by the caller using the returned login result.
+func (s *ExternalProviderService) AuthenticateWithIDToken(ctx context.Context, userInfo *ExternalUserInfo) (*login.LoginResult, error) {
+	if userInfo == nil {
+		return nil, fmt.Errorf("user info is required")
+	}
+
+	if userInfo.ProviderID == "" {
+		return nil, fmt.Errorf("provider ID is required")
+	}
+
+	if userInfo.ExternalID == "" {
+		return nil, fmt.Errorf("external ID is required")
+	}
+
+	if userInfo.Email == "" {
+		return nil, fmt.Errorf("email is required")
+	}
+
+	slog.Info("Authenticating with ID token",
+		"provider", userInfo.ProviderID,
+		"external_id", userInfo.ExternalID,
+		"email", userInfo.Email)
+
+	// Find or create user account using post-hook if provided, otherwise use default
+	var loginResult *login.LoginResult
+	var err error
+
+	if s.postUserCreationHook != nil {
+		// Use the provided post-hook function
+		loginResult, err = (*s.postUserCreationHook)(ctx, userInfo)
+	} else {
+		// Use the default findOrCreateUser function
+		loginResult, err = s.findOrCreateUser(ctx, userInfo)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find or create user: %w", err)
+	}
+
+	slog.Info("ID token authentication successful",
+		"provider", userInfo.ProviderID,
+		"external_id", userInfo.ExternalID,
+		"email", userInfo.Email,
+		"login_id", loginResult.LoginID)
+
+	return loginResult, nil
+}
