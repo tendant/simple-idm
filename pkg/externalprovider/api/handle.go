@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/tendant/simple-idm/pkg/externalprovider"
 	"github.com/tendant/simple-idm/pkg/login"
 	"github.com/tendant/simple-idm/pkg/tokengenerator"
@@ -176,8 +178,16 @@ func (h *Handle) HandleOAuth2callback(w http.ResponseWriter, r *http.Request, pr
 	if err != nil {
 		slog.Error("Failed to handle OAuth2 callback", "provider", providerID, "error", err)
 
+		// Check if this is a database/internal error and provide generic message
+		var errorDescription string
+		if isDatabaseError(err) {
+			errorDescription = "An internal error occurred. Please try again later."
+		} else {
+			errorDescription = err.Error()
+		}
+
 		// Redirect to frontend with error
-		redirectURL := fmt.Sprintf("%s/login?error=authentication_failed&error_description=%s", h.frontendURL, err.Error())
+		redirectURL := fmt.Sprintf("%s/login?error=authentication_failed&error_description=%s", h.frontendURL, errorDescription)
 		http.Redirect(w, r, redirectURL, http.StatusFound)
 		return nil
 	}
@@ -407,6 +417,14 @@ func (h *Handle) HandleTokenAuth(w http.ResponseWriter, r *http.Request) {
 	loginResult, err := h.externalProviderService.AuthenticateWithIDToken(ctx, userInfo)
 	if err != nil {
 		slog.Error("Authentication failed", "provider", providerID, "error", err)
+
+		// Check if this is a database/internal error
+		if isDatabaseError(err) {
+			h.writeError(w, http.StatusInternalServerError, "internal_error", "An internal error occurred. Please try again later.")
+			return
+		}
+
+		// Otherwise treat as authentication failure
 		h.writeError(w, http.StatusUnauthorized, "auth_failed", err.Error())
 		return
 	}
@@ -453,6 +471,38 @@ func (h *Handle) HandleTokenAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 // writeError writes a JSON error response
+// isDatabaseError checks if an error is a database/internal error that should return 500
+func isDatabaseError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Check for PostgreSQL errors using proper type checking
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// Common PostgreSQL error codes that indicate server-side issues:
+		// 42P01 - undefined_table
+		// 42703 - undefined_column
+		// 42883 - undefined_function
+		// 53xxx - insufficient resources
+		// 08xxx - connection exception
+		// 57xxx - operator intervention
+		// XX000 - internal error
+		switch pgErr.Code {
+		case "42P01", "42703", "42883": // Schema/structure errors
+			return true
+		}
+		if len(pgErr.Code) >= 2 {
+			prefix := pgErr.Code[:2]
+			if prefix == "08" || prefix == "53" || prefix == "57" || prefix == "XX" {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func (h *Handle) writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
