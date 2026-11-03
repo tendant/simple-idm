@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine
+FROM golang:1.26.10-alpine
 
 RUN apk add --no-cache git && \
     go install github.com/pressly/goose/v3/cmd/goose@latest
